@@ -1,0 +1,26 @@
+pre-commit:
+  parallel: true
+  commands:
+    biome:
+      glob: "*.{js,jsx,ts,tsx,json,jsonc}"
+      run: bunx biome check --write --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+    gofumpt:
+      glob: "*.go"
+      run: gofumpt -w {staged_files}
+      stage_fixed: true
+    golangci:
+      glob: "*.go"
+      run: cd apps/desktop && golangci-lint run ./...
+
+pre-push:
+  commands:
+    test:
+      run: task test
+
+commit-msg:
+  commands:
+    conventional:
+      run: |
+        head -n1 {1} | grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: .+' \
+          || { echo 'Commit message must follow Conventional Commits (e.g. "feat: add X")'; exit 1; }
