@@ -1,0 +1,383 @@
+// Package switcher contains the window-switcher controller: the state machine
+// that turns hotkey and UI events into a filtered, ordered, searchable list and
+// commits the user's selection. It depends only on the platform port and the
+// pure logic packages, so it is fully testable with a fake platform.
+package switcher
+
+import (
+	"sync"
+
+	"option-tab/internal/config"
+	"option-tab/internal/domain"
+	"option-tab/internal/filter"
+	"option-tab/internal/mru"
+	"option-tab/internal/order"
+	"option-tab/internal/platform"
+	"option-tab/internal/search"
+)
+
+// View receives switcher state changes for rendering. The Wails layer
+// implements it by emitting events to the frontend; tests use a recorder.
+type View interface {
+	Show(State)
+	Update(State)
+	Hide()
+}
+
+// Entry is one window as presented to the view (JSON-serializable).
+type Entry struct {
+	WindowID   domain.WindowID `json:"windowId"`
+	AppID      domain.AppID    `json:"appId"`
+	Title      string          `json:"title"`
+	AppName    string          `json:"appName"`
+	BundleID   string          `json:"bundleId"`
+	Minimized  bool            `json:"minimized"`
+	Hidden     bool            `json:"hidden"`
+	Fullscreen bool            `json:"fullscreen"`
+}
+
+// State is the full switcher snapshot handed to the view.
+type State struct {
+	Open       bool               `json:"open"`
+	Style      config.VisualStyle `json:"style"`
+	Appearance config.Appearance  `json:"appearance"`
+	Placement  config.Placement   `json:"placement"`
+	Entries    []Entry            `json:"entries"`
+	Selected   int                `json:"selected"`
+	Search     string             `json:"search"`
+	ShortcutID int                `json:"shortcutId"`
+}
+
+// Deps are the controller's collaborators.
+type Deps struct {
+	Windows      platform.WindowSource
+	Focuser      platform.Focuser
+	Env          platform.Environment
+	View         View
+	MRU          *mru.Tracker
+	SelfBundleID string
+}
+
+// Controller is the switcher state machine. All public methods are safe for
+// concurrent use: hotkey events arrive on a platform goroutine while UI calls
+// arrive on the Wails goroutine.
+type Controller struct {
+	mu       sync.Mutex
+	deps     Deps
+	settings config.Settings
+
+	open     bool
+	shortcut config.Shortcut
+	baseList []domain.Window // filtered + ordered, before search
+	list     []domain.Window // after search
+	selected int
+	search   string
+}
+
+// New creates a Controller with the given dependencies and initial settings.
+func New(deps Deps, settings config.Settings) *Controller {
+	if deps.MRU == nil {
+		deps.MRU = mru.New()
+	}
+	return &Controller{deps: deps, settings: settings}
+}
+
+// SetSettings replaces the active settings (e.g. after the user edits prefs).
+func (c *Controller) SetSettings(s config.Settings) {
+	c.mu.Lock()
+	c.settings = s
+	c.mu.Unlock()
+}
+
+// IsOpen reports whether the switcher overlay is currently shown.
+func (c *Controller) IsOpen() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.open
+}
+
+// State returns the current snapshot.
+func (c *Controller) State() State {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.snapshot()
+}
+
+// HandleHotkey routes a platform hotkey event to the right transition.
+func (c *Controller) HandleHotkey(ev platform.HotkeyEvent) {
+	switch ev.Kind {
+	case platform.HotkeyActivate:
+		if c.IsOpen() {
+			c.Advance()
+		} else {
+			c.activate(ev.ShortcutID)
+		}
+	case platform.HotkeyAdvance:
+		c.Advance()
+	case platform.HotkeyReverse:
+		c.Reverse()
+	case platform.HotkeyRelease:
+		c.Confirm()
+	case platform.HotkeyCancel:
+		c.Cancel()
+	}
+}
+
+// activate opens the switcher for the given shortcut id.
+func (c *Controller) activate(shortcutID int) {
+	c.mu.Lock()
+
+	sc, ok := c.findShortcut(shortcutID)
+	if !ok || !sc.Enabled {
+		c.mu.Unlock()
+		return
+	}
+	wins, err := c.deps.Windows.Windows()
+	if err != nil {
+		c.mu.Unlock()
+		return
+	}
+	wins = c.deps.MRU.Stamp(wins)
+
+	ctx := filter.Context{
+		ActiveAppID:    c.deps.Env.ActiveApp(),
+		ActiveSpaceID:  c.deps.Env.ActiveSpace(),
+		ActiveScreenID: c.deps.Env.ActiveScreen(),
+		CursorScreenID: c.deps.Env.CursorScreen(),
+		SelfBundleID:   c.deps.SelfBundleID,
+	}
+	filtered := filter.Apply(wins, c.settings.Filters, sc.Scope, ctx)
+	ordered := order.Sort(filtered, c.settings.Order)
+	if len(ordered) == 0 {
+		c.mu.Unlock()
+		return
+	}
+
+	c.open = true
+	c.shortcut = sc
+	c.baseList = ordered
+	c.list = ordered
+	c.search = ""
+	c.selected = 0
+	if c.settings.Behavior.HoldToCycle && len(ordered) > 1 {
+		c.selected = 1 // start on the previous window for instant quick-switch
+	}
+	st := c.snapshot()
+	c.mu.Unlock()
+
+	c.deps.View.Show(st)
+}
+
+// Advance moves the selection to the next window, wrapping around.
+func (c *Controller) Advance() { c.move(1) }
+
+// Reverse moves the selection to the previous window, wrapping around.
+func (c *Controller) Reverse() { c.move(-1) }
+
+// Navigate moves the selection by delta (used by arrow keys), wrapping.
+func (c *Controller) Navigate(delta int) { c.move(delta) }
+
+func (c *Controller) move(delta int) {
+	c.mu.Lock()
+	if !c.open || len(c.list) == 0 {
+		c.mu.Unlock()
+		return
+	}
+	n := len(c.list)
+	c.selected = ((c.selected+delta)%n + n) % n
+	st := c.snapshot()
+	c.mu.Unlock()
+	c.deps.View.Update(st)
+}
+
+// Select highlights the entry at index (used by mouse hover). Out-of-range
+// indices are ignored.
+func (c *Controller) Select(index int) {
+	c.mu.Lock()
+	if !c.open || index < 0 || index >= len(c.list) {
+		c.mu.Unlock()
+		return
+	}
+	c.selected = index
+	st := c.snapshot()
+	c.mu.Unlock()
+	c.deps.View.Update(st)
+}
+
+// SetSearch updates the type-to-filter query, recomputing the visible list and
+// resetting the selection to the best match.
+func (c *Controller) SetSearch(query string) {
+	c.mu.Lock()
+	if !c.open {
+		c.mu.Unlock()
+		return
+	}
+	c.search = query
+	if query == "" {
+		c.list = c.baseList
+	} else {
+		c.list = search.Filter(c.baseList, query)
+	}
+	c.selected = 0
+	st := c.snapshot()
+	c.mu.Unlock()
+	c.deps.View.Update(st)
+}
+
+// Confirm focuses the selected window and closes the overlay.
+func (c *Controller) Confirm() {
+	c.mu.Lock()
+	if !c.open {
+		c.mu.Unlock()
+		return
+	}
+	var focusID domain.WindowID
+	if len(c.list) > 0 && c.selected < len(c.list) {
+		focusID = c.list[c.selected].ID
+	}
+	c.reset()
+	c.mu.Unlock()
+
+	if focusID != 0 {
+		_ = c.deps.Focuser.Focus(focusID)
+		c.deps.MRU.Touch(focusID)
+	}
+	c.deps.View.Hide()
+}
+
+// Cancel closes the overlay without changing focus.
+func (c *Controller) Cancel() {
+	c.mu.Lock()
+	if !c.open {
+		c.mu.Unlock()
+		return
+	}
+	c.reset()
+	c.mu.Unlock()
+	c.deps.View.Hide()
+}
+
+// CloseSelected closes the selected window and refreshes the list.
+func (c *Controller) CloseSelected() {
+	c.act(func(w domain.Window) { _ = c.deps.Focuser.Close(w.ID) })
+}
+
+// MinimizeSelected minimizes the selected window and refreshes the list.
+func (c *Controller) MinimizeSelected() {
+	c.act(func(w domain.Window) { _ = c.deps.Focuser.Minimize(w.ID) })
+}
+
+// QuitSelectedApp quits the selected window's application and refreshes.
+func (c *Controller) QuitSelectedApp() {
+	c.act(func(w domain.Window) { _ = c.deps.Focuser.QuitApp(w.AppID) })
+}
+
+// HideSelectedApp hides the selected window's application and refreshes.
+func (c *Controller) HideSelectedApp() {
+	c.act(func(w domain.Window) { _ = c.deps.Focuser.HideApp(w.AppID) })
+}
+
+// act runs fn on the selected window (if any) then refreshes the list.
+func (c *Controller) act(fn func(domain.Window)) {
+	c.mu.Lock()
+	if !c.open || len(c.list) == 0 || c.selected >= len(c.list) {
+		c.mu.Unlock()
+		return
+	}
+	w := c.list[c.selected]
+	c.mu.Unlock()
+
+	fn(w)
+	c.refresh()
+}
+
+// refresh re-queries windows and rebuilds the list with the active shortcut and
+// current search, keeping the overlay open. If nothing remains, it closes.
+func (c *Controller) refresh() {
+	c.mu.Lock()
+	if !c.open {
+		c.mu.Unlock()
+		return
+	}
+	wins, err := c.deps.Windows.Windows()
+	if err != nil {
+		c.mu.Unlock()
+		return
+	}
+	wins = c.deps.MRU.Stamp(wins)
+	ctx := filter.Context{
+		ActiveAppID:    c.deps.Env.ActiveApp(),
+		ActiveSpaceID:  c.deps.Env.ActiveSpace(),
+		ActiveScreenID: c.deps.Env.ActiveScreen(),
+		CursorScreenID: c.deps.Env.CursorScreen(),
+		SelfBundleID:   c.deps.SelfBundleID,
+	}
+	c.baseList = order.Sort(filter.Apply(wins, c.settings.Filters, c.shortcut.Scope, ctx), c.settings.Order)
+	if c.search == "" {
+		c.list = c.baseList
+	} else {
+		c.list = search.Filter(c.baseList, c.search)
+	}
+	if len(c.list) == 0 {
+		c.reset()
+		c.mu.Unlock()
+		c.deps.View.Hide()
+		return
+	}
+	if c.selected >= len(c.list) {
+		c.selected = len(c.list) - 1
+	}
+	st := c.snapshot()
+	c.mu.Unlock()
+	c.deps.View.Update(st)
+}
+
+// reset clears the open state. Caller must hold the lock.
+func (c *Controller) reset() {
+	c.open = false
+	c.baseList = nil
+	c.list = nil
+	c.selected = 0
+	c.search = ""
+}
+
+// findShortcut returns the configured shortcut with the given id.
+func (c *Controller) findShortcut(id int) (config.Shortcut, bool) {
+	for _, sc := range c.settings.Shortcuts {
+		if sc.ID == id {
+			return sc, true
+		}
+	}
+	return config.Shortcut{}, false
+}
+
+// snapshot builds the view State. Caller must hold the lock.
+func (c *Controller) snapshot() State {
+	style := c.settings.Appearance.Style
+	if c.open && c.shortcut.StyleOverride != "" {
+		style = c.shortcut.StyleOverride
+	}
+	entries := make([]Entry, len(c.list))
+	for i, w := range c.list {
+		entries[i] = Entry{
+			WindowID:   w.ID,
+			AppID:      w.AppID,
+			Title:      w.Title,
+			AppName:    w.AppName,
+			BundleID:   w.BundleID,
+			Minimized:  w.Minimized,
+			Hidden:     w.Hidden,
+			Fullscreen: w.Fullscreen,
+		}
+	}
+	return State{
+		Open:       c.open,
+		Style:      style,
+		Appearance: c.settings.Appearance,
+		Placement:  c.settings.Placement,
+		Entries:    entries,
+		Selected:   c.selected,
+		Search:     c.search,
+		ShortcutID: c.shortcut.ID,
+	}
+}
