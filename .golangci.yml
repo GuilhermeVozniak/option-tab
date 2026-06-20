@@ -15,4 +15,5 @@ formatters:
     - gofumpt
   settings:
     gofumpt:
+      module-path: option-tab
       extra-rules: true
