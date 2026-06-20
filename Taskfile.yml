@@ -1,0 +1,30 @@
+version: "3"
+
+tasks:
+  default:
+    cmds: [task --list]
+  lint:
+    desc: Lint all code (Biome + golangci-lint)
+    cmds:
+      - bun run lint
+      - cd apps/desktop && golangci-lint run ./...
+  test:
+    desc: Run all unit/integration tests (Vitest + go test)
+    cmds:
+      - bun run test
+      - cd apps/desktop && go test ./... -race -cover
+  build:
+    desc: Build web + desktop
+    cmds:
+      - bun run build
+      - cd apps/desktop && wails build
+  e2e:
+    desc: Run Playwright e2e for the landing page
+    cmds:
+      - cd apps/web && bunx playwright test
+  dev:web:
+    desc: Run the landing page dev server
+    cmds: [cd apps/web && bun run dev]
+  dev:desktop:
+    desc: Run the desktop app in Wails dev mode
+    cmds: [cd apps/desktop && wails dev]

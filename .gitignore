@@ -1,0 +1,12 @@
+node_modules/
+dist/
+out/
+.next/
+.turbo/
+apps/desktop/build/bin/
+apps/desktop/frontend/dist/
+coverage/
+playwright-report/
+test-results/
+*.log
+.DS_Store
