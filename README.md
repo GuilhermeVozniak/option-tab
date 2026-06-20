@@ -1,6 +1,6 @@
 # option-tab
 
-[![CI](https://github.com/gui336699/option-tab/actions/workflows/ci.yml/badge.svg)](https://github.com/gui336699/option-tab/actions/workflows/ci.yml)
+[![CI](https://github.com/GuilhermeVozniak/option-tab/actions/workflows/ci.yml/badge.svg)](https://github.com/GuilhermeVozniak/option-tab/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 A cross-platform desktop application built with [Wails](https://wails.io) (Go + React), shipped via a monorepo that also hosts a static Next.js marketing site.
