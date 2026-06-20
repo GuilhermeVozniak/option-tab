@@ -61,7 +61,7 @@ gofumpt --version
 
 ```bash
 # Clone the repo
-git clone https://github.com/gui336699/option-tab.git
+git clone https://github.com/GuilhermeVozniak/option-tab.git
 cd option-tab
 
 # Install JS/TS dependencies for all workspaces

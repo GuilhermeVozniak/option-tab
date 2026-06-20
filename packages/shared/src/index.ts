@@ -1,7 +1,7 @@
 export const PRODUCT = {
   name: "option-tab",
   displayName: "Option Tab",
-  repo: "https://github.com/gui336699/option-tab",
+  repo: "https://github.com/GuilhermeVozniak/option-tab",
 } as const;
 
 export type Platform = "darwin" | "windows" | "linux";
