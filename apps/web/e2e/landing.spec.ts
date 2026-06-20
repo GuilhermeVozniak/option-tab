@@ -5,7 +5,10 @@ test("landing page renders and exposes per-OS download links", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Option Tab" })).toBeVisible();
 
   const macLink = page.getByTestId("download-darwin");
-  await expect(macLink).toHaveAttribute("href", /\/releases\/download\/v0\.1\.0\/option-tab_0\.1\.0_darwin_arm64\.dmg$/);
+  await expect(macLink).toHaveAttribute(
+    "href",
+    /\/releases\/download\/v0\.1\.0\/option-tab_0\.1\.0_darwin_arm64\.dmg$/,
+  );
 });
 
 test.describe("primary download (platform detection)", () => {
@@ -17,4 +20,21 @@ test.describe("primary download (platform detection)", () => {
     await expect(primary).toHaveAttribute("data-platform", "darwin");
     await expect(primary).toHaveAttribute("href", /option-tab_0\.1\.0_darwin_arm64\.dmg$/);
   });
+});
+
+test("shows the feature showcase including the three visual styles", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Three ways to switch" })).toBeVisible();
+  for (const style of ["Thumbnails", "App Icons", "Titles"]) {
+    await expect(page.getByRole("heading", { name: style })).toBeVisible();
+  }
+  await expect(page.getByRole("heading", { name: /including the paid features/i })).toBeVisible();
+});
+
+test("links to the GitHub source", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Source on GitHub" })).toHaveAttribute(
+    "href",
+    "https://github.com/GuilhermeVozniak/option-tab",
+  );
 });

@@ -1,4 +1,4 @@
-import { type Platform, downloadUrl, latestReleaseUrl } from "@option-tab/shared";
+import { downloadUrl, latestReleaseUrl, type Platform } from "@option-tab/shared";
 
 // Single source of truth for the version the landing page advertises.
 // Bump this in lockstep with a desktop release tag.
@@ -11,5 +11,5 @@ export function detectPlatform(userAgent: string): Platform {
   return "linux";
 }
 
-export { downloadUrl, latestReleaseUrl };
 export type { Platform };
+export { downloadUrl, latestReleaseUrl };

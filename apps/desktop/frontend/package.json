@@ -8,7 +8,10 @@
     "lint": "biome check .",
     "test": "vitest run"
   },
-  "dependencies": { "react": "^19.0.0", "react-dom": "^19.0.0" },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
   "devDependencies": {
     "@testing-library/react": "^16.0.0",
     "@testing-library/jest-dom": "^6.4.0",

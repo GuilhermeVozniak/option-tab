@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PRODUCT, downloadUrl, latestReleaseUrl, releaseAssetName } from "./index";
+import { downloadUrl, latestReleaseUrl, PRODUCT, releaseAssetName } from "./index";
 
 describe("releaseAssetName", () => {
   it.each([

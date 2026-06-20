@@ -3,17 +3,37 @@
 [![CI](https://github.com/GuilhermeVozniak/option-tab/actions/workflows/ci.yml/badge.svg)](https://github.com/GuilhermeVozniak/option-tab/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-A cross-platform desktop application built with [Wails](https://wails.io) (Go + React), shipped via a monorepo that also hosts a static Next.js marketing site.
+A free, open-source **window switcher** for macOS (with Windows/Linux builds) — the
+Windows-style `Alt`+`Tab` experience, rebuilt in [Wails](https://wails.io) (Go + React).
+Switch by **window**, not just by app, with live thumbnails, fuzzy search, and up to nine
+custom shortcuts. Every feature AltTab gates behind its "Pro" tier ships here **100% free**.
 
-## What is option-tab?
+## Features
+
+- **Window-level switching** across every app, triggered by a global hotkey (default ⌥Tab).
+- **Hold-to-cycle**: hold the modifier, tap Tab to advance / Shift+Tab to go back, release to focus.
+- **Three visual styles** — Thumbnails, App Icons, and Titles — switchable per shortcut.
+- **Fuzzy search**: start typing to filter by window title or app name.
+- **Auto-sizing** thumbnails that scale to the number of open windows.
+- **Up to 9 independent shortcuts**, each with its own filter scope and style.
+- **Filters**: by active space / all spaces, by screen or cursor screen, minimized, hidden
+  apps, fullscreen, untitled windows, and an app blacklist.
+- **Display order**: most-recently-used, alphabetical, or by space.
+- **Window controls** from the switcher: focus, close, minimize, hide, quit.
+- **Native feel**: frameless translucent overlay, light/dark themes, accent color, start at login.
+
+## Architecture at a glance
 
 | Piece | What it is |
 |-------|------------|
-| `apps/desktop` | The **product**: a Wails desktop app (Go backend + React frontend, distributed as a native binary) |
+| `apps/desktop` | The **product**: a Wails app — pure-Go switcher core behind a platform port, with a macOS CGO backend and a React overlay UI |
 | `apps/web` | The **landing page**: a static Next.js site deployed to GitHub Pages with OS-aware download buttons |
-| `packages/shared` | A TypeScript contract package defining product metadata and release-asset naming — the seam between the release pipeline and the landing page |
+| `packages/shared` | A TypeScript contract defining product metadata and release-asset naming — the seam between the release pipeline and the landing page |
 
-The desktop app is the distributed product. The web app is a marketing site and is never bundled into the binary.
+The pure-Go core (`internal/{domain,config,filter,order,search,mru,hotkey,switcher}`) holds
+all decision logic and is exhaustively unit-tested. Every OS interaction sits behind the
+`internal/platform` port, with a macOS CGO adapter, a portable stub for other OSes, and an
+in-memory fake for tests.
 
 ## Prerequisites
 
@@ -26,17 +46,15 @@ The desktop app is the distributed product. The web app is a marketing site and 
 | golangci-lint | v2 | <https://golangci-lint.run/welcome/install> |
 | gofumpt | latest | `go install mvdan.cc/gofumpt@latest` |
 
+On macOS, the app needs **Accessibility** permission (to focus/close windows) and, for
+future live thumbnails, **Screen Recording** permission.
+
 ## Quickstart
 
 ```bash
-# 1. Install JS/TS dependencies (all workspaces)
-bun install
-
-# 2a. Run the desktop app in Wails dev mode (hot-reload)
-task dev:desktop
-
-# 2b. Or run the landing-page dev server
-task dev:web
+bun install            # install JS/TS dependencies (all workspaces)
+task dev:desktop       # run the desktop app in Wails dev mode (hot-reload)
+task dev:web           # or run the landing-page dev server
 ```
 
 ## Monorepo layout
@@ -44,24 +62,28 @@ task dev:web
 ```
 option-tab/
 ├── apps/
-│   ├── desktop/               # Wails desktop app
-│   │   ├── app.go             # Thin Wails-bound adapter (no business logic)
-│   │   ├── main.go            # Entry point; embeds frontend/dist
+│   ├── desktop/                  # Wails desktop app — THE PRODUCT
+│   │   ├── app.go                # Thin Wails adapter: owns platform + controller, emits events
+│   │   ├── main.go               # Frameless, transparent, always-on-top overlay window
 │   │   ├── internal/
-│   │   │   └── greeter/       # Example business unit (interface + impl + tests)
-│   │   └── frontend/          # React UI (Vite, Vitest, Testing Library)
-│   └── web/                   # Static Next.js landing page
-│       ├── app/               # Next.js App Router pages
-│       ├── components/        # PrimaryDownload, DownloadButtons
-│       ├── lib/               # download.ts (detectPlatform, APP_VERSION)
-│       └── e2e/               # Playwright smoke tests
+│   │   │   ├── domain/           # Core value types (Window, App, Screen, Space, Bounds)
+│   │   │   ├── config/           # Settings model, defaults, JSON load/save
+│   │   │   ├── filter/           # Window selection by filters + per-shortcut scope
+│   │   │   ├── order/            # MRU / alphabetical / by-space ordering
+│   │   │   ├── search/           # Fuzzy type-to-filter
+│   │   │   ├── mru/              # Most-recently-used tracker
+│   │   │   ├── hotkey/           # Chord parsing/canonicalization
+│   │   │   ├── switcher/         # The controller state machine (View-driven)
+│   │   │   └── platform/         # The OS port: darwin (CGO), stub (!darwin), fake (tests)
+│   │   └── frontend/             # React overlay + settings UI (Vite, Vitest, Testing Library)
+│   └── web/                      # Static Next.js landing page
 ├── packages/
-│   └── shared/                # @option-tab/shared — asset naming contract
-├── .github/workflows/         # ci.yml, release.yml, deploy-web.yml
-├── Taskfile.yml               # Cross-language build entrypoint
-├── turbo.json                 # Turborepo pipeline
-├── biome.json                 # JS/TS formatter + linter config
-└── lefthook.yml               # Git hooks (pre-commit, pre-push, commit-msg)
+│   └── shared/                   # @option-tab/shared — release-asset naming contract
+├── .github/workflows/           # ci.yml, release.yml, deploy-web.yml
+├── Taskfile.yml                 # Cross-language build entrypoint
+├── turbo.json                   # Turborepo pipeline
+├── biome.json                   # JS/TS formatter + linter config
+└── lefthook.yml                 # Git hooks (pre-commit, pre-push, commit-msg)
 ```
 
 ## Available tasks
@@ -75,10 +97,6 @@ task dev:desktop   # Wails dev mode with hot-reload
 task dev:web       # Next.js dev server for the landing page
 ```
 
-## Testing
-
-See [docs/testing.md](docs/testing.md) for the full testing strategy and per-layer examples.
-
 ## Further reading
 
 - [Architecture](docs/architecture.md)
@@ -86,6 +104,11 @@ See [docs/testing.md](docs/testing.md) for the full testing strategy and per-lay
 - [Testing guide](docs/testing.md)
 - [Release process](docs/release.md)
 - [Contributing](CONTRIBUTING.md)
+
+## Credits
+
+Inspired by [AltTab](https://alt-tab.app) ([lwouis/alt-tab-macos](https://github.com/lwouis/alt-tab-macos)),
+reimplemented from scratch in Go & Wails with all paid features free for everyone.
 
 ## License
 

@@ -2,152 +2,109 @@
 
 ## Philosophy
 
-The core rule: **business logic lives behind an interface or pure function; the framework-bound layer stays thin and test-light.**
+The core rule: **all decision logic lives in pure functions or behind interfaces; the
+framework-bound and OS-bound layers stay thin and test-light.**
 
-- Go business units live in `internal/<unit>/` behind interfaces — testable with zero Wails/CGo involvement.
-- `app.go` is a thin adapter; it delegates to interfaces and needs only light smoke coverage.
-- Frontend business logic (pure TypeScript helpers) lives in `src/lib/` — testable without a browser.
-- UI components that only render props (like `Greeting`) are tested with Testing Library snapshots.
-- `apps/web` keeps OS-detection and URL-construction logic in `lib/` (pure functions) and tests those separately from the page components.
-- Playwright provides a thin smoke layer over the fully-built static site.
+- Pure-Go packages (`domain`, `config`, `filter`, `order`, `search`, `mru`, `hotkey`) hold
+  the logic and are exhaustively table-tested with zero Wails/CGO involvement.
+- `switcher.Controller` — the state machine — is driven end-to-end against an in-memory
+  **fake platform** (`internal/platform/fake`), so a full activate → cycle → search →
+  confirm sequence is verified without touching the OS.
+- The macOS CGO backend (`darwin.go`/`.m`) only translates OS calls and holds no decision
+  logic, so it gets a small `//go:build darwin` smoke test (it constructs and enumerates
+  windows without erroring).
+- `app.go` is a thin Wails adapter; only its settings get/save logic is unit-tested.
+- Frontend logic (`lib/keymap.ts`, `lib/layout.ts`, `lib/bridge.ts`) is pure TypeScript,
+  tested without a browser; the `Overlay` and `Settings` components are tested with Testing
+  Library (rendering, keyboard handling, search, controls).
+- Playwright provides a smoke layer over the fully-built landing page.
 
 ---
 
 ## Running tests
 
 ```bash
-task test     # All unit/integration tests: Vitest (JS/TS) + go test (Go)
+task test     # All unit/integration tests: Vitest (JS/TS) + go test -race (Go)
 task e2e      # Playwright smoke tests (requires task build first)
 ```
 
 ---
 
-## Layer-by-layer test examples
+## Layer-by-layer examples
 
-### 1. Go business unit — table-driven tests (`apps/desktop/internal/greeter`)
+### 1. Pure-Go logic — table-driven
 
-`internal/greeter/greeter_test.go` tests the production `DefaultGreeter` directly via the `Greeter` interface:
-
-```go
-func TestDefaultGreeter_Greet(t *testing.T) {
-    tests := []struct {
-        name  string
-        input string
-        want  string
-    }{
-        {"empty defaults to World", "", "Hello, World!"},
-        {"uses provided name", "Gui", "Hello, Gui!"},
-        {"trims whitespace", "  Ana  ", "Hello, Ana!"},
-    }
-    g := New()
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            if got := g.Greet(tt.input); got != tt.want {
-                t.Errorf("Greet(%q) = %q, want %q", tt.input, got, tt.want)
-            }
-        })
-    }
-}
-```
-
-The table-driven pattern makes it easy to add edge cases without adding boilerplate. Run with:
+Packages like `internal/filter`, `internal/order`, `internal/search`, and `internal/hotkey`
+use table-driven tests. Example (`order`): given windows with timestamps, assert the
+most-recently-used ordering, then alphabetical and by-space. Run with:
 
 ```bash
 cd apps/desktop && go test ./... -race -cover
 ```
 
-The `-race` flag catches data races; `-cover` reports coverage. CI enforces both.
+### 2. The controller against the fake platform (`internal/switcher`)
 
-### 2. Desktop frontend — pure lib function (`apps/desktop/frontend/src/lib/name.ts`)
+`switcher_test.go` builds a `Controller` with a `fake.Fake` platform and a recording
+`View`, then asserts behavior of the whole cycle:
 
-`sanitizeName` is a pure function tested in `name.test.ts` with Vitest. No DOM, no Wails context needed.
-
-### 3. Desktop frontend — Wails binding accessor (`apps/desktop/frontend/src/lib/desktop.ts`)
-
-`desktop.ts` reads the Wails global at call time. In tests, mock the global before each test and restore it after:
-
-```ts
-// desktop.test.ts pattern
-afterEach(() => {
-  // restore window.go after each test
-});
-
-describe("greet", () => {
-  it("delegates to the Wails runtime", async () => {
-    // set window.go.main.App.Greet to a mock, then assert greet() calls it
-  });
-});
+```go
+c, f, v := newController(t, threeWins(), nil)
+c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyRelease})
+// the fake records that the previous window was focused, no OS involved
+if f.LastFocused != 2 { t.Fatalf("quick switch should focus window 2") }
 ```
 
-This approach keeps the binding testable without importing the generated `wailsjs/` directory.
+This covers activation, advance/reverse with wrap, type-to-search, per-shortcut scopes,
+window controls, and cancel-restores-focus — all without a real platform.
 
-### 4. Desktop frontend — React component (`apps/desktop/frontend/src/components/Greeting.tsx`)
+### 3. macOS backend — smoke test (`internal/platform`, `//go:build darwin`)
 
-`Greeting` is a pure presentational component (`({ message }) => <p>{message}</p>`). It is tested with Testing Library:
+`darwin_test.go` only asserts the backend constructs and that read-only queries
+(`Windows()`, permission checks, `ActiveApp()`) run without panicking — even when no
+permissions are granted on a CI host.
 
-```tsx
-// Greeting.test.tsx
-describe("Greeting", () => {
-  it("renders the message", () => {
-    render(<Greeting message="Hello, World!" />);
-    expect(screen.getByText("Hello, World!")).toBeInTheDocument();
-  });
-});
-```
+### 4. Frontend pure logic (`frontend/src/lib`)
 
-The component itself holds no logic — all logic is in `lib/` — so a single render assertion is sufficient.
+`keymap.ts` (key event → action) and `layout.ts` (grid columns + thumbnail auto-sizing)
+are pure functions tested in `*.test.ts` with Vitest — no DOM needed. `bridge.ts` is tested
+by injecting/removing the Wails globals and asserting it calls the bound methods (and
+no-ops safely when absent).
 
-### 5. Shared contract — unit tests (`packages/shared/src/index.test.ts`)
+### 5. Frontend components (`frontend/src/overlay`, `frontend/src/settings`)
 
-`@option-tab/shared` exports `releaseAssetName`, `downloadUrl`, and `latestReleaseUrl`. These are pure functions tested with Vitest. Because they are the contract between the release pipeline and the landing page, any change to asset naming must be reflected in the tests.
+`Overlay.test.tsx` renders the switcher and asserts: all three visual styles render, the
+selected entry is marked, Tab/Shift+Tab/Escape/Enter route to handlers, typing updates the
+search query, hover selects and click confirms, and the hover controls fire close/minimize.
+`Settings.test.tsx` asserts the controlled form emits updated settings on each edit.
 
-Run:
+### 6. Shared contract (`packages/shared`)
 
-```bash
-cd packages/shared && bun run test
-```
+`@option-tab/shared` exports `releaseAssetName`, `downloadUrl`, and `latestReleaseUrl` —
+pure functions tested with Vitest. They are the contract between the release pipeline and
+the landing page, so any asset-naming change must be reflected in the tests.
 
-### 6. Landing page — pure lib function (`apps/web/lib/download.ts`)
+### 7. Landing page — Playwright smoke (`apps/web/e2e`)
 
-`detectPlatform(userAgent)` maps a User-Agent string to `Platform`. It is a pure function tested in `download.test.ts`:
-
-```ts
-describe("detectPlatform", () => {
-  it("detects macOS", () => { /* ... */ });
-  it("detects Windows", () => { /* ... */ });
-  it("defaults to linux", () => { /* ... */ });
-});
-```
-
-### 7. Landing page — Playwright smoke (`apps/web/e2e/landing.spec.ts`)
-
-Playwright runs against the fully-built static site (`apps/web/out`). The smoke tests verify:
-
-- The landing page renders without error.
-- All three platform download links are present and point to valid GitHub Release URLs.
-- The primary download button changes based on the platform detected from the User-Agent.
-
-```bash
-# Build first (required: Playwright serves the static output)
-task build
-task e2e
-# Or in CI: the e2e job depends on build in turbo.json
-```
+Playwright runs against the built static site and verifies the page renders, the per-OS
+download links resolve to valid GitHub Release URLs, the primary button adapts to the
+User-Agent, and the feature showcase (the three styles) is present.
 
 ---
 
 ## Test configuration summary
 
-| Workspace | Runner | Config |
-|-----------|--------|--------|
-| `apps/desktop` (Go) | `go test` | standard Go toolchain |
-| `apps/desktop/frontend` | Vitest | `vitest.config.ts` (`jsdom` environment) |
-| `apps/web` | Vitest | `vitest.config.ts` (`node` environment, `lib/**/*.test.ts`) |
-| `apps/web` (e2e) | Playwright | `playwright.config.ts` (serves `out/` on port 3000) |
-| `packages/shared` | Vitest | default Vitest config |
+| Workspace | Runner | Notes |
+|-----------|--------|-------|
+| `apps/desktop` (Go) | `go test -race -cover` | pure packages + controller-vs-fake + darwin smoke |
+| `apps/desktop/frontend` | Vitest + Testing Library | `jsdom` environment |
+| `apps/web` | Vitest | `node` environment, `lib/**/*.test.ts` |
+| `apps/web` (e2e) | Playwright | serves `out/` |
+| `packages/shared` | Vitest | pure functions |
 
 ---
 
 ## CI enforcement
 
-The `go` job in `ci.yml` runs `go test ./... -race -cover`. The `js` job runs `bun run test` (Turbo → all Vitest workspaces) and `bunx playwright install --with-deps chromium && bun run e2e` for Playwright. Both jobs must pass before merging to `main`.
+The `go` job in `ci.yml` runs `go test ./... -race -cover`; the `js` job runs all Vitest
+workspaces and Playwright. Both must pass before merging to `main`.

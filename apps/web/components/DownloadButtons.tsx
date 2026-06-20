@@ -13,7 +13,10 @@ export function DownloadButtons() {
       <ul>
         {TARGETS.map((t) => (
           <li key={t.platform}>
-            <a data-testid={`download-${t.platform}`} href={downloadUrl(t.platform, t.arch, APP_VERSION)}>
+            <a
+              data-testid={`download-${t.platform}`}
+              href={downloadUrl(t.platform, t.arch, APP_VERSION)}
+            >
               {t.label}
             </a>
           </li>

@@ -1,7 +1,7 @@
 "use client";
 
+import { downloadUrl, type Platform } from "@option-tab/shared";
 import { useEffect, useState } from "react";
-import { type Platform, downloadUrl } from "@option-tab/shared";
 import { APP_VERSION, detectPlatform } from "../lib/download";
 
 const ARCH: Record<Platform, "amd64" | "arm64"> = {
