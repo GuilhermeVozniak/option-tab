@@ -1,0 +1,234 @@
+/* Option Tab overlay + settings styling. The overlay is a frameless,
+   transparent always-on-top window; these styles give it the AltTab-like look. */
+
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+}
+
+/* ---- Overlay ---- */
+
+.ot-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--ot-font, 13px);
+  user-select: none;
+}
+
+.ot-panel {
+  max-width: 92vw;
+  max-height: 88vh;
+  overflow: auto;
+  padding: 18px;
+  border-radius: var(--ot-radius, 12px);
+  background: rgba(30, 30, 34, var(--ot-bg-opacity, 0.85));
+  backdrop-filter: blur(24px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  color: #f5f5f7;
+}
+
+.ot-theme-light .ot-panel {
+  background: rgba(245, 245, 247, var(--ot-bg-opacity, 0.85));
+  color: #1d1d1f;
+}
+
+.ot-search {
+  margin: 0 4px 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  font-weight: 600;
+}
+
+.ot-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.ot-overlay[data-style="titles"] .ot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ot-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  position: relative;
+  transition:
+    background 0.08s ease,
+    border-color 0.08s ease;
+}
+
+.ot-entry:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.ot-entry.ot-selected {
+  border-color: var(--ot-accent, #3b82f6);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.ot-entry-titles {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  width: 360px;
+  max-width: 70vw;
+}
+
+.ot-entry-appIcons {
+  flex-direction: column;
+}
+
+.ot-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #3a3f4b, #21242c);
+  position: relative;
+}
+
+.ot-thumb-icon,
+.ot-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--ot-accent, #3b82f6);
+  color: #fff;
+  font-weight: 700;
+}
+
+.ot-badge-min {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f5a623;
+}
+
+.ot-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ot-entry-titles .ot-meta {
+  align-items: flex-start;
+}
+
+.ot-app {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.ot-title {
+  opacity: 0.7;
+  font-size: 0.85em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.ot-controls {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: none;
+  gap: 4px;
+}
+
+.ot-entry:hover .ot-controls {
+  display: flex;
+}
+
+.ot-ctl {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.ot-ctl-close {
+  background: #ff5f57;
+}
+
+.ot-ctl-min {
+  background: #febc2e;
+  color: #5a4a00;
+}
+
+/* ---- Settings ---- */
+
+.ot-settings {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px;
+  color: #1d1d1f;
+}
+
+.ot-settings section {
+  margin-bottom: 28px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.ot-settings label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.ot-shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+
+.ot-hint {
+  opacity: 0.7;
+  font-size: 0.9em;
+}
