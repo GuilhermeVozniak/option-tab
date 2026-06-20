@@ -1,24 +1,53 @@
 package main
 
-import "testing"
+import (
+	"encoding/json"
+	"path/filepath"
+	"testing"
 
-type mockGreeter struct{ called string }
+	"option-tab/internal/config"
+	"option-tab/internal/platform/fake"
+)
 
-func (m *mockGreeter) Greet(name string) string {
-	m.called = name
-	return "mocked:" + name
+func TestGetSettings_ReturnsValidJSON(t *testing.T) {
+	a := newApp(fake.New(), config.Default(), "")
+	var s config.Settings
+	if err := json.Unmarshal([]byte(a.GetSettings()), &s); err != nil {
+		t.Fatalf("GetSettings not valid JSON: %v", err)
+	}
+	if len(s.Shortcuts) == 0 {
+		t.Error("expected shortcuts in serialized settings")
+	}
 }
 
-func TestApp_Greet_DelegatesToGreeter(t *testing.T) {
-	mg := &mockGreeter{}
-	app := &App{greeter: mg}
+func TestSaveSettings_PersistsAndApplies(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	a := newApp(fake.New(), config.Default(), path)
 
-	got := app.Greet("Gui")
+	changed := config.Default()
+	changed.Order = config.OrderAlphabetical
+	b, _ := json.Marshal(changed)
+	if err := a.SaveSettings(string(b)); err != nil {
+		t.Fatalf("SaveSettings error: %v", err)
+	}
+	if a.settings.Order != config.OrderAlphabetical {
+		t.Errorf("settings not applied: order = %q", a.settings.Order)
+	}
+	reloaded, err := config.LoadFile(path)
+	if err != nil || reloaded.Order != config.OrderAlphabetical {
+		t.Errorf("settings not persisted: %+v err=%v", reloaded.Order, err)
+	}
+}
 
-	if got != "mocked:Gui" {
-		t.Errorf("Greet() = %q, want %q", got, "mocked:Gui")
+func TestSaveSettings_RejectsBadJSON(t *testing.T) {
+	a := newApp(fake.New(), config.Default(), "")
+	if err := a.SaveSettings("{not json"); err == nil {
+		t.Error("expected error on malformed settings JSON")
 	}
-	if mg.called != "Gui" {
-		t.Errorf("greeter received %q, want %q", mg.called, "Gui")
-	}
+}
+
+func TestRegisterHotkeys_DoesNotPanicWithFake(t *testing.T) {
+	a := newApp(fake.New(), config.Default(), "")
+	a.registerHotkeys()
+	a.reRegisterHotkeys()
 }
