@@ -20,9 +20,17 @@ custom shortcuts. Every feature AltTab gates behind its "Pro" tier ships here **
   apps, fullscreen, untitled windows, and an app blacklist.
 - **Display order**: most-recently-used, alphabetical, or by space.
 - **Window controls** from the switcher: focus, close, minimize, hide, quit.
-- **Menubar icon** with Preferences, Pause/Resume, and Quit; pause to suspend the
-  hotkey without quitting.
-- **Native feel**: frameless translucent overlay, light/dark themes, accent color, start at login.
+- **Three sizes** — Small / Medium / Large presets for thumbnails and icons, plus
+  fine-grained pixel knobs under Advanced.
+- **Shortcut recorder**: focus the field and press the chord (e.g. ⌥⇥) — no typing chord names.
+- **First-run onboarding** that walks through the Accessibility and Screen Recording grants,
+  with live status that updates as you grant them in System Settings.
+- **Menubar-only app**: no Dock icon (accessory app, like AltTab), with a menubar icon for
+  Preferences, Pause/Resume, and Quit; preferences open in a regular titled window.
+- **Glassmorphism UI** built on Tailwind CSS v4 + shadcn-style components: frosted panels
+  over an aurora backdrop, light/dark themes, accent color, start at login.
+- **Quality of life**: update checks against GitHub releases, opt-in crash reports via
+  prefilled GitHub issues, and a UI translated to English, Portuguese, and Spanish.
 
 ## Architecture at a glance
 
@@ -48,8 +56,9 @@ in-memory fake for tests.
 | golangci-lint | v2 | <https://golangci-lint.run/welcome/install> |
 | gofumpt | latest | `go install mvdan.cc/gofumpt@latest` |
 
-On macOS, the app needs **Accessibility** permission (to focus/close windows) and, for
-future live thumbnails, **Screen Recording** permission.
+On macOS, the app needs **Accessibility** permission (global hotkey + window actions) and
+**Screen Recording** permission (live thumbnails via ScreenCaptureKit, macOS 14+). The
+first-run onboarding wizard walks through both grants.
 
 ## Quickstart
 
@@ -65,19 +74,28 @@ task dev:web           # or run the landing-page dev server
 option-tab/
 ├── apps/
 │   ├── desktop/                  # Wails desktop app — THE PRODUCT
-│   │   ├── app.go                # Thin Wails adapter: owns platform + controller, emits events
+│   │   ├── app*.go               # Thin Wails adapter, split by concern (switcher view,
+│   │   │                         #   prefs window/tray, settings, updates, crash, permissions)
 │   │   ├── main.go               # Frameless, transparent, always-on-top overlay window
 │   │   ├── internal/
 │   │   │   ├── domain/           # Core value types (Window, App, Screen, Space, Bounds)
-│   │   │   ├── config/           # Settings model, defaults, JSON load/save
+│   │   │   ├── config/           # Settings model, defaults, versioned JSON load/save
 │   │   │   ├── filter/           # Window selection by filters + per-shortcut scope
 │   │   │   ├── order/            # MRU / alphabetical / by-space ordering
 │   │   │   ├── search/           # Fuzzy type-to-filter
 │   │   │   ├── mru/              # Most-recently-used tracker
 │   │   │   ├── hotkey/           # Chord parsing/canonicalization
 │   │   │   ├── switcher/         # The controller state machine (View-driven)
+│   │   │   ├── update/           # GitHub "latest release" parsing + version compare
+│   │   │   ├── crash/            # Crash-log rotation for opt-in reports
 │   │   │   └── platform/         # The OS port: darwin (CGO), stub (!darwin), fake (tests)
-│   │   └── frontend/             # React overlay + settings UI (Vite, Vitest, Testing Library)
+│   │   └── frontend/             # React UI: Tailwind v4 + shadcn-style glass components
+│   │       └── src/
+│   │           ├── components/ui/  # Button, Input, Select, Checkbox, Card, Segmented, …
+│   │           ├── overlay/        # The switcher: Overlay, EntryItem, StatusIcons
+│   │           ├── settings/       # Preferences shell + tabs/, onboarding, recorder
+│   │           ├── hooks/          # Bridge-backed hooks (permissions, about, crash)
+│   │           └── lib/            # Pure logic: keymap, layout, chord, i18n, bridge
 │   └── web/                      # Static Next.js landing page
 ├── packages/
 │   └── shared/                   # @option-tab/shared — release-asset naming contract

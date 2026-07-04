@@ -60,32 +60,60 @@ OS interaction lives behind a single **platform port**, with swappable backends.
 
 ### The platform port (`internal/platform`)
 
-`platform.go` defines the interfaces (`WindowSource`, `Focuser`, `Thumbnailer`,
-`Environment`, `HotkeyEngine`, `Permissions`, `LoginItem`) and the aggregate `Platform`.
-Three backends implement them:
+`platform.go` defines the required interfaces (`WindowSource`, `Focuser`, `Thumbnailer`,
+`Environment`, `HotkeyEngine`, `Permissions`, `LoginItem`) and the aggregate `Platform`,
+plus **optional capability ports** that only richer backends provide and consumers
+type-assert for: `IconSource` (app icons as data URLs), `ThumbnailSource`
+(ScreenCaptureKit window snapshots), `Tray` (menubar item), `CursorWarper`
+(cursor-follows-focus), `SettingsOpener` (System Settings privacy panes),
+`WindowModer` (overlay ↔ titled preferences window), and `DockHider` (accessory
+activation policy). Adding a capability means adding an optional port, not widening
+`Platform`. Three backends implement them:
 
 - **`darwin.go` + `darwin.m` + `darwin.h`** — the macOS backend. Window enumeration via
-  `CGWindowList`, focus/close/minimize via the Accessibility API, app quit/hide via
-  `NSRunningApplication`, permission checks/requests, login item via `SMAppService`, a
-  `CGEventTap`-based hotkey engine that detects modifier release for hold-to-cycle, and an
-  `NSStatusBar` menubar item (Preferences / Pause / Quit) behind the optional `Tray` port.
+  `CGWindowList` enriched with AX minimized state, CGS Space ids, and per-display facts;
+  focus/close/minimize/fullscreen via the Accessibility API; app quit/hide via
+  `NSRunningApplication`; live thumbnails and selected-window previews via
+  ScreenCaptureKit (macOS 14+); app icons from `NSRunningApplication`; permission
+  checks/requests; login item via `SMAppService`; a `CGEventTap`-based hotkey engine that
+  detects modifier release for hold-to-cycle; an `NSStatusBar` menubar item behind the
+  `Tray` port; and window-presentation control — `ot_window_set_prefs_mode` flips the
+  single window between borderless overlay and titled preferences chrome, and
+  `ot_hide_dock_icon` keeps the app out of the Dock (with `LSUIElement` in the bundle).
 - **`stub.go`** (`//go:build !darwin`) — synthetic data so Windows/Linux builds compile and
   the UI is demoable; full native backends for those platforms are future work.
 - **`fake/`** — a scriptable in-memory backend used to drive the controller in tests.
 
 ### Frontend (`apps/desktop/frontend/src`)
 
+The UI is a "frosted aurora" glassmorphism system: Tailwind CSS v4 design tokens live in
+`styles.css` (mapped to shadcn conventions via `@theme`), and `components/ui/` holds the
+shadcn-style primitives. Select/Checkbox/Radio/Slider deliberately wrap **native** form
+elements (styled, not Radix) so the controlled-form tests can drive them with real change
+events.
+
 | Area | Files |
 |------|-------|
-| Pure logic | `lib/keymap.ts` (key → action), `lib/layout.ts` (grid math), `lib/types.ts` (state mirror) |
-| Bridge | `lib/bridge.ts` — Wails events + bound methods, degrading gracefully without Wails |
-| Overlay | `overlay/Overlay.tsx` — the switcher in three visual styles, with keyboard + controls |
-| Settings | `settings/Settings.tsx` — the controlled preferences form |
-| Shell | `App.tsx` — routes between the overlay and the `#settings` window |
+| Pure logic | `lib/keymap.ts` (key → action), `lib/layout.ts` (grid math + size presets), `lib/chord.ts` (keydown → hotkey chord), `lib/text.ts` (title truncation), `lib/i18n.ts` (en/pt-BR/es), `lib/types.ts` (state mirror) |
+| Bridge | `lib/bridge.ts` — Wails events + bound methods, degrading gracefully without Wails; `hooks/useBridge.ts` — permission/about/crash hooks over it |
+| Design system | `components/ui/` — glass Button, Input, Select, Checkbox, Radio, Slider, Card, Badge, Segmented, Separator |
+| Overlay | `overlay/` — `Overlay.tsx` (keyboard + layout), `EntryItem.tsx` (one window in any style), `StatusIcons.tsx`, `types.ts` (`OverlayHandlers`) |
+| Settings | `settings/` — `Settings.tsx` (shell + tab nav), `tabs/` (one file per tab), `shared.ts` (TabContext + control interfaces), `Onboarding.tsx` (first-run wizard), `ShortcutRecorder.tsx`, `PermissionRow.tsx` |
+| Shell | `App.tsx` — routes between the overlay, the preferences panel, and the `#settings`/`#demo` windows |
 
-`app.go` is the only Go file that imports `wails/v2`. `main.go` configures the frameless,
-transparent, always-on-top, start-hidden overlay window and embeds `frontend/dist` via
-`//go:embed`.
+The package-`main` `app*.go` files are the only Go code that imports `wails/v2`. `main.go`
+configures the frameless, transparent, always-on-top, start-hidden window and embeds
+`frontend/dist` via `//go:embed`.
+
+### Single-window model
+
+Wails v2 supports one window, so the overlay and the preferences UI share it. Opening
+preferences (menubar item, or automatically on first launch while `behavior.onboarded` is
+false) flips the window into titled chrome via the `WindowModer` port and emits
+`prefs:open`; the frontend renders the settings panel — or the onboarding wizard on first
+run. Closing (native close button, intercepted by `OnBeforeClose`) emits `prefs:close`
+and restores the overlay chrome. If the hotkey fires while preferences are open, the
+switcher takes over and preferences are dismissed first.
 
 ---
 

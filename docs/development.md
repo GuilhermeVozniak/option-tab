@@ -107,7 +107,7 @@ Changes to Go files restart the Go process. Changes to frontend files are hot-re
 
 `main.go` binds `*App` to the Wails runtime via `Bind: []interface{}{app}`. Wails injects the bound methods on the JavaScript global `go.main.App` at runtime.
 
-The frontend accesses these bindings through `apps/desktop/frontend/src/lib/desktop.ts`:
+The frontend accesses these bindings through `apps/desktop/frontend/src/lib/bridge.ts`:
 
 ```ts
 // desktop.ts reads the Wails global at call time rather than importing

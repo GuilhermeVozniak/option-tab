@@ -9,9 +9,7 @@ import {
 } from "./bridge";
 
 afterEach(() => {
-  // biome-ignore lint/suspicious/noExplicitAny: test cleanup of injected globals
   (globalThis as any).go = undefined;
-  // biome-ignore lint/suspicious/noExplicitAny: test cleanup of injected globals
   (globalThis as any).runtime = undefined;
   vi.restoreAllMocks();
 });
@@ -21,7 +19,6 @@ describe("switcher bindings", () => {
     const Advance = vi.fn().mockResolvedValue(undefined);
     const Select = vi.fn().mockResolvedValue(undefined);
     const SetSearch = vi.fn().mockResolvedValue(undefined);
-    // biome-ignore lint/suspicious/noExplicitAny: injecting the Wails global
     (globalThis as any).go = { main: { App: { Advance, Select, SetSearch } } };
 
     await switcher.advance();
@@ -46,7 +43,6 @@ describe("onSwitcherEvent", () => {
       handlers[name] = cb;
       return () => delete handlers[name];
     });
-    // biome-ignore lint/suspicious/noExplicitAny: injecting the Wails global
     (globalThis as any).runtime = { EventsOn };
 
     const onShow = vi.fn();
@@ -75,7 +71,6 @@ describe("onSwitcherEvent", () => {
       handlers[name] = cb;
       return () => delete handlers[name];
     });
-    // biome-ignore lint/suspicious/noExplicitAny: injecting the Wails global
     (globalThis as any).runtime = { EventsOn };
 
     const onPrefsOpen = vi.fn();
@@ -101,7 +96,6 @@ describe("system bindings", () => {
     const TogglePause = vi.fn().mockResolvedValue(undefined);
     const SetPaused = vi.fn().mockResolvedValue(undefined);
     const ClosePreferences = vi.fn().mockResolvedValue(undefined);
-    // biome-ignore lint/suspicious/noExplicitAny: injecting the Wails global
     (globalThis as any).go = { main: { App: { TogglePause, SetPaused, ClosePreferences } } };
 
     await system.togglePause();
@@ -124,7 +118,6 @@ describe("loadSettings", () => {
     const GetSettings = vi
       .fn()
       .mockResolvedValue('{"version":2,"filters":{"showMinimized":"show","appBlacklist":null}}');
-    // biome-ignore lint/suspicious/noExplicitAny: injecting the Wails global
     (globalThis as any).go = { main: { App: { GetSettings } } };
 
     const s = await loadSettings();
@@ -137,7 +130,6 @@ describe("permissions bindings", () => {
     const GetPermissions = vi
       .fn()
       .mockResolvedValue('{"accessibility":"granted","screenRecording":"denied"}');
-    // biome-ignore lint/suspicious/noExplicitAny: injecting the Wails global
     (globalThis as any).go = { main: { App: { GetPermissions } } };
     await expect(loadPermissions()).resolves.toEqual({
       accessibility: "granted",
@@ -152,7 +144,6 @@ describe("permissions bindings", () => {
   it("calls request and open-settings bindings", async () => {
     const RequestScreenRecording = vi.fn().mockResolvedValue(undefined);
     const OpenPermissionSettings = vi.fn().mockResolvedValue(undefined);
-    // biome-ignore lint/suspicious/noExplicitAny: injecting the Wails global
     (globalThis as any).go = { main: { App: { RequestScreenRecording, OpenPermissionSettings } } };
 
     await permissions.request("screenRecording");

@@ -84,7 +84,7 @@ All four must pass. CI runs the same checks on every PR.
 ## Code style
 
 - **JS/TS:** Biome enforces formatting (2-space indent, 100-char line width, double quotes) and recommended lint rules. Run `bunx biome check --write .` to auto-fix.
-- **Go:** gofumpt enforces formatting; golangci-lint v2 enforces lint rules configured in `.golangci.yml`. Run `gofumpt -w ./...` and `golangci-lint run ./...` in `apps/desktop/`.
+- **Go:** gofumpt enforces formatting; golangci-lint v2 enforces lint rules configured in `.golangci.yml`. Run `golangci-lint fmt ./...` and `golangci-lint run ./...` in `apps/desktop/` — prefer `golangci-lint fmt` over a standalone `gofumpt` binary, since the vendored formatter is what the linter (and the pre-commit hook) actually checks against.
 - Do not disable lint rules inline unless you include a comment explaining why.
 
 ---
