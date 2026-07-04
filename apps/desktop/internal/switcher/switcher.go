@@ -31,21 +31,28 @@ type Entry struct {
 	Title      string          `json:"title"`
 	AppName    string          `json:"appName"`
 	BundleID   string          `json:"bundleId"`
+	SpaceID    domain.SpaceID  `json:"spaceId"`
 	Minimized  bool            `json:"minimized"`
 	Hidden     bool            `json:"hidden"`
 	Fullscreen bool            `json:"fullscreen"`
+	// Icon is a base64 PNG data URL of the owning app's icon. The controller
+	// leaves it empty; the view layer fills it (platform-specific).
+	Icon string `json:"icon,omitempty"`
 }
 
 // State is the full switcher snapshot handed to the view.
 type State struct {
-	Open       bool               `json:"open"`
-	Style      config.VisualStyle `json:"style"`
-	Appearance config.Appearance  `json:"appearance"`
-	Placement  config.Placement   `json:"placement"`
-	Entries    []Entry            `json:"entries"`
-	Selected   int                `json:"selected"`
-	Search     string             `json:"search"`
-	ShortcutID int                `json:"shortcutId"`
+	Open          bool               `json:"open"`
+	Style         config.VisualStyle `json:"style"`
+	Appearance    config.Appearance  `json:"appearance"`
+	Placement     config.Placement   `json:"placement"`
+	Entries       []Entry            `json:"entries"`
+	Selected      int                `json:"selected"`
+	Search        string             `json:"search"`
+	ShortcutID    int                `json:"shortcutId"`
+	VimKeys       bool               `json:"vimKeys"`
+	MouseHover    bool               `json:"mouseHover"`
+	ActiveSpaceID domain.SpaceID     `json:"activeSpaceId"`
 }
 
 // Deps are the controller's collaborators.
@@ -56,6 +63,9 @@ type Deps struct {
 	View         View
 	MRU          *mru.Tracker
 	SelfBundleID string
+	// Cursor is optional; when present and CursorFollowFocus is enabled, the
+	// mouse is warped to the window focused on commit.
+	Cursor platform.CursorWarper
 }
 
 // Controller is the switcher state machine. All public methods are safe for
@@ -66,12 +76,13 @@ type Controller struct {
 	deps     Deps
 	settings config.Settings
 
-	open     bool
-	shortcut config.Shortcut
-	baseList []domain.Window // filtered + ordered, before search
-	list     []domain.Window // after search
-	selected int
-	search   string
+	open        bool
+	shortcut    config.Shortcut
+	activeSpace domain.SpaceID  // captured at activate/refresh for the view's badges
+	baseList    []domain.Window // filtered + ordered, before search
+	list        []domain.Window // after search
+	selected    int
+	search      string
 }
 
 // New creates a Controller with the given dependencies and initial settings.
@@ -117,15 +128,48 @@ func (c *Controller) HandleHotkey(ev platform.HotkeyEvent) {
 	case platform.HotkeyReverse:
 		c.Reverse()
 	case platform.HotkeyRelease:
-		c.Confirm()
+		// Per-shortcut "when released: do nothing" keeps the switcher open
+		// until Enter/Escape/click (AltTab parity).
+		if !c.releaseDoesNothing() {
+			c.Confirm()
+		}
 	case platform.HotkeyCancel:
 		c.Cancel()
 	}
 }
 
+// releaseDoesNothing reports whether the active shortcut ignores modifier
+// release while the switcher is open.
+func (c *Controller) releaseDoesNothing() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.open && c.shortcut.WhenReleased == config.ReleaseDoNothing
+}
+
+// SetPaused enables or disables activation. While paused, hotkeys do not open
+// the switcher; an already-open overlay is unaffected. Pausing is exposed in the
+// menubar so the user can temporarily disable the switcher.
+func (c *Controller) SetPaused(paused bool) {
+	c.mu.Lock()
+	c.settings.Behavior.Paused = paused
+	c.mu.Unlock()
+}
+
+// Paused reports whether activation is currently suspended.
+func (c *Controller) Paused() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.settings.Behavior.Paused
+}
+
 // activate opens the switcher for the given shortcut id.
 func (c *Controller) activate(shortcutID int) {
 	c.mu.Lock()
+
+	if c.settings.Behavior.Paused {
+		c.mu.Unlock()
+		return
+	}
 
 	sc, ok := c.findShortcut(shortcutID)
 	if !ok || !sc.Enabled {
@@ -146,8 +190,12 @@ func (c *Controller) activate(shortcutID int) {
 		CursorScreenID: c.deps.Env.CursorScreen(),
 		SelfBundleID:   c.deps.SelfBundleID,
 	}
-	filtered := filter.Apply(wins, c.settings.Filters, sc.Scope, ctx)
-	ordered := order.Sort(filtered, c.settings.Order)
+	c.activeSpace = ctx.ActiveSpaceID
+	if filter.ShortcutIgnoredForApp(wins, ctx.ActiveAppID, c.settings.Filters.AppBlacklist) {
+		c.mu.Unlock()
+		return
+	}
+	ordered := c.composeLocked(wins, sc.Scope, ctx)
 	if len(ordered) == 0 {
 		c.mu.Unlock()
 		return
@@ -235,12 +283,16 @@ func (c *Controller) Confirm() {
 	if len(c.list) > 0 && c.selected < len(c.list) {
 		focusID = c.list[c.selected].ID
 	}
+	follow := c.settings.Behavior.CursorFollowFocus
 	c.reset()
 	c.mu.Unlock()
 
 	if focusID != 0 {
 		_ = c.deps.Focuser.Focus(focusID)
 		c.deps.MRU.Touch(focusID)
+		if follow && c.deps.Cursor != nil {
+			_ = c.deps.Cursor.WarpCursorToWindow(focusID)
+		}
 	}
 	c.deps.View.Hide()
 }
@@ -265,6 +317,11 @@ func (c *Controller) CloseSelected() {
 // MinimizeSelected minimizes the selected window and refreshes the list.
 func (c *Controller) MinimizeSelected() {
 	c.act(func(w domain.Window) { _ = c.deps.Focuser.Minimize(w.ID) })
+}
+
+// FullscreenSelected toggles fullscreen on the selected window and refreshes.
+func (c *Controller) FullscreenSelected() {
+	c.act(func(w domain.Window) { _ = c.deps.Focuser.Fullscreen(w.ID) })
 }
 
 // QuitSelectedApp quits the selected window's application and refreshes.
@@ -312,7 +369,8 @@ func (c *Controller) refresh() {
 		CursorScreenID: c.deps.Env.CursorScreen(),
 		SelfBundleID:   c.deps.SelfBundleID,
 	}
-	c.baseList = order.Sort(filter.Apply(wins, c.settings.Filters, c.shortcut.Scope, ctx), c.settings.Order)
+	c.activeSpace = ctx.ActiveSpaceID
+	c.baseList = c.composeLocked(wins, c.shortcut.Scope, ctx)
 	if c.search == "" {
 		c.list = c.baseList
 	} else {
@@ -330,6 +388,17 @@ func (c *Controller) refresh() {
 	st := c.snapshot()
 	c.mu.Unlock()
 	c.deps.View.Update(st)
+}
+
+// composeLocked filters, orders (honoring a per-shortcut order override), and
+// applies the "show at the end" tristates. Caller must hold the lock.
+func (c *Controller) composeLocked(wins []domain.Window, scope config.ShortcutScope, ctx filter.Context) []domain.Window {
+	mode := c.settings.Order
+	if scope.Order.Valid() {
+		mode = scope.Order
+	}
+	sorted := order.Sort(filter.Apply(wins, c.settings.Filters, scope, ctx), mode)
+	return order.SendToBack(sorted, c.settings.Filters)
 }
 
 // reset clears the open state. Caller must hold the lock.
@@ -365,19 +434,23 @@ func (c *Controller) snapshot() State {
 			Title:      w.Title,
 			AppName:    w.AppName,
 			BundleID:   w.BundleID,
+			SpaceID:    w.SpaceID,
 			Minimized:  w.Minimized,
 			Hidden:     w.Hidden,
 			Fullscreen: w.Fullscreen,
 		}
 	}
 	return State{
-		Open:       c.open,
-		Style:      style,
-		Appearance: c.settings.Appearance,
-		Placement:  c.settings.Placement,
-		Entries:    entries,
-		Selected:   c.selected,
-		Search:     c.search,
-		ShortcutID: c.shortcut.ID,
+		Open:          c.open,
+		Style:         style,
+		Appearance:    c.settings.Appearance,
+		Placement:     c.settings.Placement,
+		Entries:       entries,
+		Selected:      c.selected,
+		Search:        c.search,
+		ShortcutID:    c.shortcut.ID,
+		VimKeys:       c.settings.Behavior.VimKeys,
+		MouseHover:    c.settings.Behavior.MouseHoverSelect,
+		ActiveSpaceID: c.activeSpace,
 	}
 }

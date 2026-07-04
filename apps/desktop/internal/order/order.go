@@ -26,6 +26,12 @@ func Sort(wins []domain.Window, mode config.OrderMode) []domain.Window {
 			}
 			return strings.ToLower(out[i].Title) < strings.ToLower(out[j].Title)
 		})
+	case config.OrderRecentlyCreated:
+		// Window-server IDs increase monotonically as windows are created, so a
+		// descending ID sort approximates newest-first creation order.
+		sort.SliceStable(out, func(i, j int) bool {
+			return out[i].ID > out[j].ID
+		})
 	case config.OrderSpace:
 		sort.SliceStable(out, func(i, j int) bool {
 			if out[i].SpaceID != out[j].SpaceID {
@@ -39,6 +45,27 @@ func Sort(wins []domain.Window, mode config.OrderMode) []domain.Window {
 		})
 	}
 	return out
+}
+
+// SendToBack stably moves windows whose class is configured "showAtEnd" to the
+// end of the list (AltTab's third tristate option for minimized/hidden/
+// fullscreen windows). Relative order within both partitions is preserved.
+func SendToBack(wins []domain.Window, f config.Filters) []domain.Window {
+	atEnd := func(w domain.Window) bool {
+		return (f.ShowMinimized == config.VisShowAtEnd && w.Minimized) ||
+			(f.ShowHiddenApps == config.VisShowAtEnd && w.Hidden) ||
+			(f.ShowFullscreen == config.VisShowAtEnd && w.Fullscreen)
+	}
+	front := make([]domain.Window, 0, len(wins))
+	var back []domain.Window
+	for _, w := range wins {
+		if atEnd(w) {
+			back = append(back, w)
+		} else {
+			front = append(front, w)
+		}
+	}
+	return append(front, back...)
 }
 
 // moreRecent reports whether a should sort before b under recency ordering.

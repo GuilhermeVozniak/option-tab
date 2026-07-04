@@ -20,6 +20,8 @@ custom shortcuts. Every feature AltTab gates behind its "Pro" tier ships here **
   apps, fullscreen, untitled windows, and an app blacklist.
 - **Display order**: most-recently-used, alphabetical, or by space.
 - **Window controls** from the switcher: focus, close, minimize, hide, quit.
+- **Menubar icon** with Preferences, Pause/Resume, and Quit; pause to suspend the
+  hotkey without quitting.
 - **Native feel**: frameless translucent overlay, light/dark themes, accent color, start at login.
 
 ## Architecture at a glance

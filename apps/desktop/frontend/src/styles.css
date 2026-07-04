@@ -1,13 +1,39 @@
-/* Option Tab overlay + settings styling. The overlay is a frameless,
-   transparent always-on-top window; these styles give it the AltTab-like look. */
+/* Option Tab — "frosted aurora" glassmorphism design system.
+   The overlay is a frameless, transparent always-on-top window; the settings
+   window/modal floats glass cards over an aurora backdrop. shadcn components
+   consume the tokens below via the @theme mapping; the overlay's runtime knobs
+   (--ot-accent, --ot-bg-opacity, --ot-radius, --ot-font) stay authoritative. */
+
+@import "tailwindcss";
 
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --background: #0b101f;
+  --foreground: #f4f7ff;
+  --card: rgba(255, 255, 255, 0.07);
+  --muted-foreground: rgba(226, 233, 255, 0.62);
+  --primary: var(--ot-accent, #3b82f6);
+  --primary-foreground: #ffffff;
+  --ring: color-mix(in srgb, var(--ot-accent, #3b82f6) 70%, #ffffff);
+  --radius: 0.75rem;
+
+  --aurora:
+    radial-gradient(1000px 620px at 82% -12%, rgba(139, 92, 246, 0.32), transparent 62%),
+    radial-gradient(820px 540px at -8% 18%, rgba(34, 211, 238, 0.2), transparent 58%),
+    radial-gradient(900px 700px at 52% 112%, rgba(99, 102, 241, 0.26), transparent 62%), #0b101f;
 }
 
-* {
-  box-sizing: border-box;
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
+  --radius-lg: var(--radius);
 }
 
 html,
@@ -16,6 +42,14 @@ body,
   margin: 0;
   height: 100%;
   background: transparent;
+}
+
+/* ---- Demo backdrop (route #demo, visual verification only) ---- */
+
+.ot-demo-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--aurora);
 }
 
 /* ---- Overlay ---- */
@@ -35,24 +69,46 @@ body,
   max-height: 88vh;
   overflow: auto;
   padding: 18px;
-  border-radius: var(--ot-radius, 12px);
-  background: rgba(30, 30, 34, var(--ot-bg-opacity, 0.85));
-  backdrop-filter: blur(24px);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
-  color: #f5f5f7;
+  border-radius: var(--ot-radius, 16px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03) 45%),
+    rgba(13, 17, 31, calc(var(--ot-bg-opacity, 0.85) * 0.82));
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04),
+    0 28px 80px rgba(0, 0, 0, 0.55);
+  color: #f5f7ff;
 }
 
 .ot-theme-light .ot-panel {
-  background: rgba(245, 245, 247, var(--ot-bg-opacity, 0.85));
-  color: #1d1d1f;
+  border-color: rgba(255, 255, 255, 0.55);
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.38) 45%),
+    rgba(244, 247, 255, calc(var(--ot-bg-opacity, 0.85) * 0.55));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 28px 80px rgba(8, 12, 24, 0.35);
+  color: #16213c;
 }
 
 .ot-search {
   margin: 0 4px 12px;
-  padding: 6px 10px;
-  border-radius: 8px;
+  padding: 6px 12px;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
   font-weight: 600;
+}
+
+.ot-theme-light .ot-search {
+  border-color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.55);
 }
 
 .ot-list {
@@ -60,7 +116,9 @@ body,
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  align-items: start;
+  justify-content: center;
 }
 
 .ot-overlay[data-style="titles"] .ot-list {
@@ -74,23 +132,75 @@ body,
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 10px;
-  border-radius: 10px;
-  border: 2px solid transparent;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid transparent;
   cursor: pointer;
   position: relative;
   transition:
-    background 0.08s ease,
-    border-color 0.08s ease;
+    background 0.12s ease,
+    border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.ot-entry-thumbnails {
+  align-items: stretch;
+  gap: 4px;
 }
 
 .ot-entry:hover {
   background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .ot-entry.ot-selected {
-  border-color: var(--ot-accent, #3b82f6);
-  background: rgba(255, 255, 255, 0.14);
+  border-color: color-mix(in srgb, var(--ot-accent, #3b82f6) 65%, rgba(255, 255, 255, 0.4));
+  background: color-mix(in srgb, var(--ot-accent, #3b82f6) 34%, rgba(255, 255, 255, 0.06));
+  backdrop-filter: blur(6px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 10px 28px -10px color-mix(in srgb, var(--ot-accent, #3b82f6) 60%, transparent);
+}
+
+.ot-entry.ot-selected .ot-titlebar-text,
+.ot-entry.ot-selected .ot-app,
+.ot-entry.ot-selected .ot-title {
+  color: #fff;
+  opacity: 1;
+}
+
+/* ---- Thumbnail cell title row (icon + window title), AltTab-style ---- */
+.ot-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 3px 0;
+  width: 100%;
+}
+
+.ot-titlebar-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ot-titlebar-icon .ot-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ot-titlebar-text {
+  font-size: 0.86em;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .ot-entry-titles {
@@ -110,9 +220,57 @@ body,
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #3a3f4b, #21242c);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
   position: relative;
+  overflow: hidden;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.ot-thumb-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: color-mix(in srgb, var(--ot-accent, #3b82f6) 60%, rgba(255, 255, 255, 0.08));
+  backdrop-filter: blur(6px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-weight: 700;
+  font-size: 20px;
+  overflow: hidden;
+}
+
+.ot-thumb-fallback .ot-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ot-thumb-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* When a live thumbnail is present, the app icon shrinks to a corner badge
+   overlaid on the preview (AltTab-style). */
+.ot-thumb-icon-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  z-index: 1;
 }
 
 .ot-thumb-icon,
@@ -121,9 +279,30 @@ body,
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: var(--ot-accent, #3b82f6);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: color-mix(in srgb, var(--ot-accent, #3b82f6) 60%, rgba(255, 255, 255, 0.08));
+  backdrop-filter: blur(6px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
   color: #fff;
   font-weight: 700;
+  overflow: hidden;
+}
+
+/* Real app icons render edge-to-edge with no accent backing. */
+.ot-thumb-icon:has(img),
+.ot-icon:has(img) {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.ot-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: -webkit-optimize-contrast;
 }
 
 .ot-badge-min {
@@ -180,55 +359,217 @@ body,
 .ot-ctl {
   width: 20px;
   height: 20px;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   cursor: pointer;
   font-size: 11px;
   line-height: 1;
   color: #fff;
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(10, 14, 26, 0.55);
+  backdrop-filter: blur(6px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 .ot-ctl-close {
-  background: #ff5f57;
+  background: rgba(255, 95, 87, 0.85);
 }
 
 .ot-ctl-min {
-  background: #febc2e;
+  background: rgba(254, 188, 46, 0.85);
   color: #5a4a00;
 }
 
-/* ---- Settings ---- */
+.ot-ctl-fs {
+  background: rgba(40, 200, 64, 0.85);
+  color: #0a3d12;
+}
+
+/* ---- Window status icons (minimized / hidden / fullscreen / other Space) ---- */
+
+.ot-status {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: flex;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.ot-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 10px;
+  line-height: 1;
+  color: #fff;
+  background: rgba(10, 14, 26, 0.55);
+  backdrop-filter: blur(6px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.ot-status-space {
+  background: color-mix(in srgb, var(--ot-accent, #3b82f6) 75%, rgba(255, 255, 255, 0.1));
+}
+
+/* ---- Switcher enter animation (fade + subtle scale) ---- */
+
+@keyframes ot-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ot-panel {
+  animation: ot-pop-in 120ms ease-out;
+}
+
+/* ---- Switcher exit animation (fade out) ---- */
+
+@keyframes ot-pop-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.ot-closing .ot-panel {
+  animation: ot-pop-out 170ms ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ot-panel,
+  .ot-closing .ot-panel {
+    animation: none;
+  }
+}
+
+/* ---- Space number badge (windows on other Spaces) ---- */
+
+.ot-space-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: color-mix(in srgb, var(--ot-accent, #3b82f6) 75%, rgba(255, 255, 255, 0.1));
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+/* ---- Selected-window preview ---- */
+
+.ot-preview {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+
+.ot-preview-img {
+  max-width: 60vw;
+  max-height: 34vh;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+/* ---- Title truncation modes ---- */
+
+.ot-trunc-start {
+  direction: rtl;
+  text-align: left;
+}
+
+/* ---- Preferences modal (menubar "Preferences…") ---- */
+
+.ot-prefs-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(5, 8, 18, 0.5);
+  backdrop-filter: blur(10px);
+}
+
+.ot-prefs-panel {
+  width: min(780px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: var(--aurora);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 32px 90px rgba(0, 0, 0, 0.6);
+}
+
+/* ---- Settings (standalone #settings window gets the aurora backdrop;
+        inside the prefs modal the panel already paints it) ---- */
 
 .ot-settings {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 24px;
-  color: #1d1d1f;
+  min-height: 100vh;
+  background: var(--aurora);
 }
 
-.ot-settings section {
-  margin-bottom: 28px;
-  padding: 16px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.04);
+.ot-prefs-panel .ot-settings {
+  min-height: 0;
+  background: none;
 }
 
-.ot-settings label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 8px 0;
+/* ---- Native range input, glass track + thumb (shadcn Slider wrapper) ---- */
+
+.ot-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  width: 160px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  outline: none;
+  cursor: pointer;
 }
 
-.ot-shortcut-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 6px 0;
+.ot-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
 }
 
-.ot-hint {
-  opacity: 0.7;
-  font-size: 0.9em;
+.ot-range:focus-visible {
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.4),
+    0 0 0 2px color-mix(in srgb, var(--ot-accent, #3b82f6) 60%, transparent);
 }

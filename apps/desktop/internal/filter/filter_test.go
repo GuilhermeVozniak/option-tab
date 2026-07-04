@@ -56,7 +56,10 @@ func TestApply_ExcludesSelf(t *testing.T) {
 
 func TestApply_Blacklist(t *testing.T) {
 	f := config.Default().Filters
-	f.AppBlacklist = []string{"com.banned", "Finder"}
+	f.AppBlacklist = []config.BlacklistEntry{
+		{Match: "com.banned", Hide: config.HideAlways},
+		{Match: "Finder", Hide: config.HideAlways},
+	}
 	ws := []domain.Window{
 		win(1, nil),
 		win(2, func(w *domain.Window) { w.BundleID = "com.banned" }),
@@ -71,9 +74,9 @@ func TestApply_Blacklist(t *testing.T) {
 func TestApply_TitleMinimizedHiddenFullscreenToggles(t *testing.T) {
 	f := config.Default().Filters
 	f.ShowWindowsWithoutTitle = false
-	f.ShowMinimized = false
-	f.ShowHiddenApps = false
-	f.ShowFullscreen = false
+	f.ShowMinimized = config.VisHide
+	f.ShowHiddenApps = config.VisHide
+	f.ShowFullscreen = config.VisHide
 	ws := []domain.Window{
 		win(1, nil),
 		win(2, func(w *domain.Window) { w.Title = "" }),
@@ -175,5 +178,42 @@ func TestApply_DoesNotMutateInput(t *testing.T) {
 	_ = Apply(ws, f, config.ShortcutScope{AppScope: config.AppScopeAll}, baseCtx())
 	if len(ws) != 2 {
 		t.Error("Apply must not mutate the input slice length")
+	}
+}
+
+func TestApply_ShowAtEndKeepsWindowVisible(t *testing.T) {
+	f := config.Default().Filters
+	f.ShowMinimized = config.VisShowAtEnd
+	ws := []domain.Window{win(1, func(w *domain.Window) { w.Minimized = true; w.OnScreen = false })}
+	got := Apply(ws, f, config.ShortcutScope{AppScope: config.AppScopeAll}, baseCtx())
+	if !has(got, 1) {
+		t.Error("showAtEnd windows must pass the filter (ordering happens later)")
+	}
+}
+
+func TestApply_BlacklistWhenNoWindowDoesNotHideRealWindows(t *testing.T) {
+	f := config.Default().Filters
+	f.AppBlacklist = []config.BlacklistEntry{{Match: "com.app", Hide: config.HideWhenNoWindow}}
+	ws := []domain.Window{win(1, nil)}
+	got := Apply(ws, f, config.ShortcutScope{AppScope: config.AppScopeAll}, baseCtx())
+	if !has(got, 1) {
+		t.Error("whenNoWindow entries must not hide an app's real windows")
+	}
+}
+
+func TestShortcutIgnoredForApp(t *testing.T) {
+	bl := []config.BlacklistEntry{{Match: "com.game", Hide: config.HideWhenNoWindow, IgnoreShortcuts: true}}
+	ws := []domain.Window{
+		win(1, func(w *domain.Window) { w.AppID = 7; w.BundleID = "com.game" }),
+		win(2, nil),
+	}
+	if !ShortcutIgnoredForApp(ws, 7, bl) {
+		t.Error("active blacklisted app with IgnoreShortcuts should suppress activation")
+	}
+	if ShortcutIgnoredForApp(ws, 2, bl) {
+		t.Error("other active apps should not suppress activation")
+	}
+	if ShortcutIgnoredForApp(ws, 7, []config.BlacklistEntry{{Match: "com.game", Hide: config.HideAlways}}) {
+		t.Error("entries without IgnoreShortcuts should not suppress activation")
 	}
 }

@@ -13,7 +13,10 @@ import (
 
 // CurrentVersion is the settings schema version. Bump when the shape changes
 // and add a migration step in migrate().
-const CurrentVersion = 1
+// v2: minimized/hidden/fullscreen filters became tristate WindowVisibility
+// (legacy bools still parse) and the blacklist became structured entries
+// (legacy plain strings still parse).
+const CurrentVersion = 2
 
 // MaxShortcuts is the number of independent shortcuts AltTab supports; we match
 // it (all free).
@@ -68,14 +71,15 @@ func (t Theme) Valid() bool {
 type OrderMode string
 
 const (
-	OrderRecent       OrderMode = "recent"
-	OrderAlphabetical OrderMode = "alphabetical"
-	OrderSpace        OrderMode = "space"
+	OrderRecent          OrderMode = "recent"
+	OrderRecentlyCreated OrderMode = "recentlyCreated"
+	OrderAlphabetical    OrderMode = "alphabetical"
+	OrderSpace           OrderMode = "space"
 )
 
 func (o OrderMode) Valid() bool {
 	switch o {
-	case OrderRecent, OrderAlphabetical, OrderSpace:
+	case OrderRecent, OrderRecentlyCreated, OrderAlphabetical, OrderSpace:
 		return true
 	}
 	return false
@@ -131,35 +135,209 @@ const (
 
 func (a AppScopeMode) Valid() bool { return a == AppScopeAll || a == AppScopeActiveApp }
 
+// WindowVisibility is the AltTab-style tristate for a class of windows:
+// show them normally, hide them, or show them at the end of the list.
+type WindowVisibility string
+
+const (
+	VisShow      WindowVisibility = "show"
+	VisHide      WindowVisibility = "hide"
+	VisShowAtEnd WindowVisibility = "showAtEnd"
+)
+
+func (v WindowVisibility) Valid() bool {
+	return v == VisShow || v == VisHide || v == VisShowAtEnd
+}
+
+// UnmarshalJSON accepts the v1 boolean form (true=show, false=hide) as well as
+// the v2 string form, so old settings files keep loading.
+func (v *WindowVisibility) UnmarshalJSON(b []byte) error {
+	var asBool bool
+	if err := json.Unmarshal(b, &asBool); err == nil {
+		if asBool {
+			*v = VisShow
+		} else {
+			*v = VisHide
+		}
+		return nil
+	}
+	var asStr string
+	if err := json.Unmarshal(b, &asStr); err != nil {
+		return err
+	}
+	*v = WindowVisibility(asStr)
+	return nil
+}
+
+// SizePreset is the coarse switcher size (AltTab's Small/Medium/Large): it
+// drives the thumbnail/icon pixel sizes from one user-facing control.
+type SizePreset string
+
+const (
+	SizeSmall  SizePreset = "small"
+	SizeMedium SizePreset = "medium"
+	SizeLarge  SizePreset = "large"
+)
+
+func (s SizePreset) Valid() bool {
+	return s == SizeSmall || s == SizeMedium || s == SizeLarge
+}
+
+// TruncationMode is where long window titles get elided.
+type TruncationMode string
+
+const (
+	TruncateEnd    TruncationMode = "end"
+	TruncateMiddle TruncationMode = "middle"
+	TruncateStart  TruncationMode = "start"
+)
+
+func (t TruncationMode) Valid() bool {
+	return t == TruncateEnd || t == TruncateMiddle || t == TruncateStart
+}
+
+// ReleaseAction is what happens when the shortcut's modifier is released.
+type ReleaseAction string
+
+const (
+	ReleaseFocusSelected ReleaseAction = "focusSelected"
+	ReleaseDoNothing     ReleaseAction = "doNothing"
+)
+
+func (r ReleaseAction) Valid() bool {
+	return r == ReleaseFocusSelected || r == ReleaseDoNothing
+}
+
+// MenubarIconStyle selects the status-item glyph (AltTab offers several).
+type MenubarIconStyle string
+
+const (
+	MenubarIconDefault MenubarIconStyle = "default"
+	MenubarIconOutline MenubarIconStyle = "outline"
+	MenubarIconDot     MenubarIconStyle = "dot"
+)
+
+func (m MenubarIconStyle) Valid() bool {
+	return m == MenubarIconDefault || m == MenubarIconOutline || m == MenubarIconDot
+}
+
+// UpdatePolicy mirrors AltTab's update-check preference.
+type UpdatePolicy string
+
+const (
+	UpdatesOff   UpdatePolicy = "off"
+	UpdatesCheck UpdatePolicy = "check"
+	UpdatesAuto  UpdatePolicy = "auto"
+)
+
+func (u UpdatePolicy) Valid() bool {
+	return u == UpdatesOff || u == UpdatesCheck || u == UpdatesAuto
+}
+
+// CrashPolicy mirrors AltTab's crash-report preference. option-tab never
+// transmits anything; the choice is persisted for parity and future use.
+type CrashPolicy string
+
+const (
+	CrashNever  CrashPolicy = "never"
+	CrashAsk    CrashPolicy = "ask"
+	CrashAlways CrashPolicy = "always"
+)
+
+func (c CrashPolicy) Valid() bool {
+	return c == CrashNever || c == CrashAsk || c == CrashAlways
+}
+
+// BlacklistHide is when a blacklisted app's windows are hidden from the list.
+type BlacklistHide string
+
+const (
+	// HideAlways removes the app's windows entirely.
+	HideAlways BlacklistHide = "always"
+	// HideWhenNoWindow only hides the app when it has no open window (relevant
+	// to app-icon views); its real windows still show.
+	HideWhenNoWindow BlacklistHide = "whenNoWindow"
+)
+
+func (h BlacklistHide) Valid() bool { return h == HideAlways || h == HideWhenNoWindow }
+
+// BlacklistEntry is one row of the AltTab-style blacklist table: an app
+// matcher plus what to hide and whether shortcuts are ignored while the app
+// is active.
+type BlacklistEntry struct {
+	// Match is a bundle id (com.apple.Safari) or app name.
+	Match string `json:"match"`
+	// Hide is when the app's windows are hidden (default: always).
+	Hide BlacklistHide `json:"hide"`
+	// IgnoreShortcuts suppresses switcher activation while this app is active
+	// (e.g. games or VMs that need Option+Tab for themselves).
+	IgnoreShortcuts bool `json:"ignoreShortcuts"`
+}
+
+// UnmarshalJSON accepts the v1 plain-string form ("com.foo" == hide always)
+// as well as the v2 object form.
+func (e *BlacklistEntry) UnmarshalJSON(b []byte) error {
+	var asStr string
+	if err := json.Unmarshal(b, &asStr); err == nil {
+		*e = BlacklistEntry{Match: asStr, Hide: HideAlways}
+		return nil
+	}
+	type alias BlacklistEntry // avoid recursing into this method
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	*e = BlacklistEntry(a)
+	return nil
+}
+
 // Filters control which windows are eligible to be shown.
 type Filters struct {
-	Spaces                  SpaceScope  `json:"spaces"`
-	Screens                 ScreenScope `json:"screens"`
-	ShowMinimized           bool        `json:"showMinimized"`
-	ShowHiddenApps          bool        `json:"showHiddenApps"`
-	ShowFullscreen          bool        `json:"showFullscreen"`
-	ShowWindowsWithoutTitle bool        `json:"showWindowsWithoutTitle"`
-	AppBlacklist            []string    `json:"appBlacklist"` // bundle ids or app names
+	Spaces  SpaceScope  `json:"spaces"`
+	Screens ScreenScope `json:"screens"`
+	// Minimized/hidden/fullscreen windows are tristate: show, hide, or show at
+	// the end of the list (AltTab parity). Legacy bools still parse.
+	ShowMinimized           WindowVisibility `json:"showMinimized"`
+	ShowHiddenApps          WindowVisibility `json:"showHiddenApps"`
+	ShowFullscreen          WindowVisibility `json:"showFullscreen"`
+	ShowWindowsWithoutTitle bool             `json:"showWindowsWithoutTitle"`
+	AppBlacklist            []BlacklistEntry `json:"appBlacklist"`
 }
 
 // Appearance controls the look of the overlay.
 type Appearance struct {
-	Style              VisualStyle `json:"style"`
-	Theme              Theme       `json:"theme"`
-	MaxRows            int         `json:"maxRows"`
-	MaxColumns         int         `json:"maxColumns"`
-	ThumbnailMaxPx     int         `json:"thumbnailMaxPx"`
-	IconSizePx         int         `json:"iconSizePx"`
-	TitleMaxWidthPx    int         `json:"titleMaxWidthPx"`
-	FontSizePx         int         `json:"fontSizePx"`
-	AccentColor        string      `json:"accentColor"`
-	BackgroundOpacity  float64     `json:"backgroundOpacity"`
-	Blur               bool        `json:"blur"`
-	CornerRadiusPx     int         `json:"cornerRadiusPx"`
-	ShowAppBadge       bool        `json:"showAppBadge"`
-	ShowTitle          bool        `json:"showTitle"`
-	ShowWindowControls bool        `json:"showWindowControls"`
-	AutoSize           bool        `json:"autoSize"`
+	Style VisualStyle `json:"style"`
+	Theme Theme       `json:"theme"`
+	// SizePreset is the coarse overlay size; the preferences UI derives the
+	// pixel fields below from it (they remain authoritative for rendering).
+	SizePreset         SizePreset `json:"sizePreset"`
+	MaxRows            int        `json:"maxRows"`
+	MaxColumns         int        `json:"maxColumns"`
+	ThumbnailMaxPx     int        `json:"thumbnailMaxPx"`
+	IconSizePx         int        `json:"iconSizePx"`
+	TitleMaxWidthPx    int        `json:"titleMaxWidthPx"`
+	FontSizePx         int        `json:"fontSizePx"`
+	AccentColor        string     `json:"accentColor"`
+	BackgroundOpacity  float64    `json:"backgroundOpacity"`
+	Blur               bool       `json:"blur"`
+	CornerRadiusPx     int        `json:"cornerRadiusPx"`
+	ShowAppBadge       bool       `json:"showAppBadge"`
+	ShowTitle          bool       `json:"showTitle"`
+	ShowWindowControls bool       `json:"showWindowControls"`
+	AutoSize           bool       `json:"autoSize"`
+	// ApparitionDelayMs postpones showing the overlay so quick app switches
+	// don't flash it (AltTab's "apparition delay").
+	ApparitionDelayMs int `json:"apparitionDelayMs"`
+	// FadeOutAnimation animates the overlay's dismissal.
+	FadeOutAnimation bool `json:"fadeOutAnimation"`
+	// ShowStatusIcons shows the minimized/hidden/fullscreen markers.
+	ShowStatusIcons bool `json:"showStatusIcons"`
+	// ShowSpaceNumbers shows Space number badges on windows of other Spaces.
+	ShowSpaceNumbers bool `json:"showSpaceNumbers"`
+	// TitleTruncation is where long titles are elided (end/middle/start).
+	TitleTruncation TruncationMode `json:"titleTruncation"`
+	// PreviewSelected shows a large preview of the selected window.
+	PreviewSelected bool `json:"previewSelected"`
 }
 
 // ShortcutScope narrows the windows a given shortcut shows. Empty SpaceScope/
@@ -168,6 +346,9 @@ type ShortcutScope struct {
 	AppScope AppScopeMode `json:"appScope"`
 	Spaces   SpaceScope   `json:"spaces,omitempty"`
 	Screens  ScreenScope  `json:"screens,omitempty"`
+	// Order overrides the global display order for this shortcut (AltTab
+	// configures order per shortcut). Empty = inherit the global Order.
+	Order OrderMode `json:"order,omitempty"`
 }
 
 // Shortcut is one of up to MaxShortcuts independent activation chords.
@@ -177,6 +358,9 @@ type Shortcut struct {
 	Enabled       bool          `json:"enabled"`
 	Scope         ShortcutScope `json:"scope"`
 	StyleOverride VisualStyle   `json:"styleOverride,omitempty"` // empty = use global style
+	// WhenReleased is what releasing the held modifier does: focus the selected
+	// window (default) or nothing, leaving the switcher open until Enter/Esc.
+	WhenReleased ReleaseAction `json:"whenReleased,omitempty"`
 }
 
 // Behavior controls activation semantics and system integration.
@@ -185,6 +369,22 @@ type Behavior struct {
 	StartAtLogin    bool `json:"startAtLogin"`
 	Paused          bool `json:"paused"`
 	ShowMenubarIcon bool `json:"showMenubarIcon"`
+	VimKeys         bool `json:"vimKeys"` // h/j/k/l navigate the switcher
+	// MenubarIconStyle picks the status-item glyph when the icon is shown.
+	MenubarIconStyle MenubarIconStyle `json:"menubarIconStyle"`
+	// Language is a BCP-47 tag for the UI language; empty = system default.
+	Language string `json:"language"`
+	// UpdatePolicy is the update-check preference (off/check/auto).
+	UpdatePolicy UpdatePolicy `json:"updatePolicy"`
+	// CrashReports is the crash-report preference (never/ask/always).
+	CrashReports CrashPolicy `json:"crashReports"`
+	// MouseHoverSelect selects entries by hovering them with the mouse.
+	MouseHoverSelect bool `json:"mouseHoverSelect"`
+	// CursorFollowFocus warps the cursor to the focused window on commit.
+	CursorFollowFocus bool `json:"cursorFollowFocus"`
+	// Onboarded records that the first-run permissions wizard was completed,
+	// so it is only shown once.
+	Onboarded bool `json:"onboarded"`
 }
 
 // Settings is the full persisted configuration.
@@ -219,9 +419,10 @@ func Default() Settings {
 		Appearance: Appearance{
 			Style:              StyleThumbnails,
 			Theme:              ThemeSystem,
+			SizePreset:         SizeMedium,
 			MaxRows:            4,
 			MaxColumns:         6,
-			ThumbnailMaxPx:     256,
+			ThumbnailMaxPx:     280,
 			IconSizePx:         32,
 			TitleMaxWidthPx:    240,
 			FontSizePx:         13,
@@ -233,23 +434,35 @@ func Default() Settings {
 			ShowTitle:          true,
 			ShowWindowControls: true,
 			AutoSize:           true,
+			ApparitionDelayMs:  0,
+			FadeOutAnimation:   true,
+			ShowStatusIcons:    true,
+			ShowSpaceNumbers:   true,
+			TitleTruncation:    TruncateEnd,
+			PreviewSelected:    false,
 		},
 		Filters: Filters{
 			Spaces:                  SpacesAll,
 			Screens:                 ScreensAll,
-			ShowMinimized:           true,
-			ShowHiddenApps:          true,
-			ShowFullscreen:          true,
+			ShowMinimized:           VisShow,
+			ShowHiddenApps:          VisShow,
+			ShowFullscreen:          VisShow,
 			ShowWindowsWithoutTitle: false,
-			AppBlacklist:            nil,
+			AppBlacklist:            []BlacklistEntry{},
 		},
 		Order:     OrderRecent,
 		Placement: PlaceCursorScreen,
 		Behavior: Behavior{
-			HoldToCycle:     true,
-			StartAtLogin:    false,
-			Paused:          false,
-			ShowMenubarIcon: true,
+			HoldToCycle:       true,
+			StartAtLogin:      false,
+			Paused:            false,
+			ShowMenubarIcon:   true,
+			MenubarIconStyle:  MenubarIconDefault,
+			Language:          "",
+			UpdatePolicy:      UpdatesCheck,
+			CrashReports:      CrashAsk,
+			MouseHoverSelect:  true,
+			CursorFollowFocus: false,
 		},
 	}
 }
@@ -318,6 +531,9 @@ func (s Settings) Normalize() Settings {
 	if !out.Appearance.Theme.Valid() {
 		out.Appearance.Theme = d.Appearance.Theme
 	}
+	if !out.Appearance.SizePreset.Valid() {
+		out.Appearance.SizePreset = d.Appearance.SizePreset
+	}
 	if !out.Order.Valid() {
 		out.Order = d.Order
 	}
@@ -330,6 +546,27 @@ func (s Settings) Normalize() Settings {
 	if !out.Filters.Screens.Valid() {
 		out.Filters.Screens = d.Filters.Screens
 	}
+	if !out.Filters.ShowMinimized.Valid() {
+		out.Filters.ShowMinimized = d.Filters.ShowMinimized
+	}
+	if !out.Filters.ShowHiddenApps.Valid() {
+		out.Filters.ShowHiddenApps = d.Filters.ShowHiddenApps
+	}
+	if !out.Filters.ShowFullscreen.Valid() {
+		out.Filters.ShowFullscreen = d.Filters.ShowFullscreen
+	}
+	if !out.Appearance.TitleTruncation.Valid() {
+		out.Appearance.TitleTruncation = d.Appearance.TitleTruncation
+	}
+	if !out.Behavior.MenubarIconStyle.Valid() {
+		out.Behavior.MenubarIconStyle = d.Behavior.MenubarIconStyle
+	}
+	if !out.Behavior.UpdatePolicy.Valid() {
+		out.Behavior.UpdatePolicy = d.Behavior.UpdatePolicy
+	}
+	if !out.Behavior.CrashReports.Valid() {
+		out.Behavior.CrashReports = d.Behavior.CrashReports
+	}
 
 	// Numeric clamps.
 	out.Appearance.ThumbnailMaxPx = clampInt(out.Appearance.ThumbnailMaxPx, minThumbnailPx, maxThumbnailPx)
@@ -340,6 +577,21 @@ func (s Settings) Normalize() Settings {
 	out.Appearance.TitleMaxWidthPx = clampInt(out.Appearance.TitleMaxWidthPx, 60, 1000)
 	out.Appearance.CornerRadiusPx = clampInt(out.Appearance.CornerRadiusPx, 0, 64)
 	out.Appearance.BackgroundOpacity = clampFloat(out.Appearance.BackgroundOpacity, 0, 1)
+	out.Appearance.ApparitionDelayMs = clampInt(out.Appearance.ApparitionDelayMs, 0, 2000)
+
+	// Blacklist: drop empty matchers and default the hide mode. Keep the slice
+	// non-nil so it marshals as [] (the preferences UI maps over it).
+	bl := []BlacklistEntry{}
+	for _, e := range out.Filters.AppBlacklist {
+		if e.Match == "" {
+			continue
+		}
+		if !e.Hide.Valid() {
+			e.Hide = HideAlways
+		}
+		bl = append(bl, e)
+	}
+	out.Filters.AppBlacklist = bl
 
 	// Shortcuts: drop empties, clamp/skip out-of-range ids, dedupe by id, cap count.
 	var fixed []Shortcut
@@ -353,6 +605,12 @@ func (s Settings) Normalize() Settings {
 		}
 		if sc.StyleOverride != "" && !sc.StyleOverride.Valid() {
 			sc.StyleOverride = ""
+		}
+		if sc.Scope.Order != "" && !sc.Scope.Order.Valid() {
+			sc.Scope.Order = ""
+		}
+		if sc.WhenReleased != "" && !sc.WhenReleased.Valid() {
+			sc.WhenReleased = ""
 		}
 		seen[sc.ID] = true
 		fixed = append(fixed, sc)
@@ -374,6 +632,11 @@ func migrate(s *Settings) {
 	if s.Version < 1 {
 		// v0 (pre-versioned) -> v1: nothing structural changed; just stamp it.
 		s.Version = 1
+	}
+	if s.Version < 2 {
+		// v1 -> v2: filter tristates and structured blacklist entries. Both are
+		// handled by the types' UnmarshalJSON, so nothing to do here.
+		s.Version = 2
 	}
 	s.Version = CurrentVersion
 }

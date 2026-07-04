@@ -4,14 +4,34 @@
 #import <CoreGraphics/CoreGraphics.h>
 #import <ApplicationServices/ApplicationServices.h>
 #import <ServiceManagement/ServiceManagement.h>
+#import <ScreenCaptureKit/ScreenCaptureKit.h>
 #include <pthread.h>
+#include <unistd.h>
 #include "darwin.h"
 
 // Exported from Go (see darwin.go): receives hotkey events from the tap thread.
 extern void goHotkeyEvent(int kind, int id);
 
+#include <stdio.h>
+#include <stdlib.h>
+static int otDebug(void) {
+  static int d = -1;
+  if (d < 0) { const char *e = getenv("OPTIONTAB_DEBUG"); d = (e && *e) ? 1 : 0; }
+  return d;
+}
+#define OTLOG(...) do { if (otDebug()) { fprintf(stderr, "[ot] " __VA_ARGS__); fflush(stderr); } } while (0)
+
 // Private API used (as AltTab does) to map an AXUIElement to its CGWindowID.
 extern AXError _AXUIElementGetWindow(AXUIElementRef element, CGWindowID *windowID);
+
+// Private CGS (SkyLight) API for Space resolution, as AltTab uses. These live in
+// CoreGraphics and link without a public header. All callers degrade to 0 when
+// the connection or result is unavailable, so a missing or changed API makes
+// Space data inert (filters fall back to "all") rather than crashing.
+typedef int CGSConnectionID;
+extern CGSConnectionID CGSMainConnectionID(void);
+extern uint64_t CGSGetActiveSpace(CGSConnectionID cid);
+extern CFArrayRef CGSCopySpacesForWindows(CGSConnectionID cid, int mask, CFArrayRef windowIDs);
 
 // ---- Helpers ----
 
@@ -23,16 +43,101 @@ static char *copyCString(NSString *s) {
   return out;
 }
 
+// ---- Display helpers ----
+
+// displayForPoint returns the CGDirectDisplayID whose bounds contain (x,y) in
+// global CG coordinates (origin top-left), falling back to the main display.
+static uint32_t displayForPoint(CGFloat x, CGFloat y) {
+  CGDirectDisplayID disps[16];
+  uint32_t count = 0;
+  if (CGGetDisplaysWithPoint(CGPointMake(x, y), 16, disps, &count) == kCGErrorSuccess && count > 0) {
+    return (uint32_t)disps[0];
+  }
+  return (uint32_t)CGMainDisplayID();
+}
+
+// isFullscreenRect reports whether a window rectangle exactly covers its display
+// (no menubar/dock inset), the signature of a native-fullscreen window.
+static BOOL isFullscreenRect(uint32_t disp, CGFloat x, CGFloat y, CGFloat w, CGFloat h) {
+  if (disp == 0) return NO;
+  CGRect db = CGDisplayBounds((CGDirectDisplayID)disp);
+  return fabs(x - db.origin.x) < 2 && fabs(y - db.origin.y) < 2 &&
+         fabs(w - db.size.width) < 2 && fabs(h - db.size.height) < 2;
+}
+
+// ---- Space helpers ----
+
+// spaceForWindow resolves the Space id containing wid via the private CGS API,
+// returning 0 when it cannot be determined (so Space filters stay inert).
+static uint64_t spaceForWindow(CGSConnectionID cid, CGWindowID wid) {
+  if (cid == 0 || wid == 0) return 0;
+  CFNumberRef num = CFNumberCreate(NULL, kCFNumberSInt32Type, &wid);
+  CFArrayRef warr = CFArrayCreate(NULL, (const void **)&num, 1, &kCFTypeArrayCallBacks);
+  uint64_t sid = 0;
+  CFArrayRef spaces = CGSCopySpacesForWindows(cid, 0x7, warr);
+  if (spaces) {
+    if (CFArrayGetCount(spaces) > 0) {
+      CFNumberRef s = (CFNumberRef)CFArrayGetValueAtIndex(spaces, 0);
+      CFNumberGetValue(s, kCFNumberSInt64Type, &sid);
+    }
+    CFRelease(spaces);
+  }
+  CFRelease(warr);
+  CFRelease(num);
+  return sid;
+}
+
+// ---- Minimized detection ----
+
+// minimizedWindowIDs returns the set of CGWindowIDs that are AX-minimized. It
+// scans regular apps' AX windows (requires Accessibility); without that grant it
+// returns an empty set and minimized windows simply aren't flagged.
+static NSSet<NSNumber *> *minimizedWindowIDs(void) {
+  NSMutableSet *set = [NSMutableSet set];
+  if (!AXIsProcessTrusted()) return set;
+  for (NSRunningApplication *app in [[NSWorkspace sharedWorkspace] runningApplications]) {
+    if (app.activationPolicy != NSApplicationActivationPolicyRegular) continue;
+    pid_t pid = app.processIdentifier;
+    AXUIElementRef axApp = AXUIElementCreateApplication(pid);
+    if (!axApp) continue;
+    CFArrayRef wins = NULL;
+    if (AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute, (CFTypeRef *)&wins) == kAXErrorSuccess && wins) {
+      for (CFIndex i = 0; i < CFArrayGetCount(wins); i++) {
+        AXUIElementRef w = (AXUIElementRef)CFArrayGetValueAtIndex(wins, i);
+        CFBooleanRef minRef = NULL;
+        if (AXUIElementCopyAttributeValue(w, kAXMinimizedAttribute, (CFTypeRef *)&minRef) == kAXErrorSuccess && minRef) {
+          BOOL mini = CFBooleanGetValue(minRef);
+          CFRelease(minRef);
+          if (mini) {
+            CGWindowID wid = 0;
+            if (_AXUIElementGetWindow(w, &wid) == kAXErrorSuccess && wid != 0) {
+              [set addObject:@(wid)];
+            }
+          }
+        }
+      }
+      CFRelease(wins);
+    }
+    CFRelease(axApp);
+  }
+  return set;
+}
+
 // ---- Window enumeration ----
 
 char *ot_list_windows_json(void) {
   @autoreleasepool {
-    CGWindowListOption opt = kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements;
+    // Omit kCGWindowListOptionOnScreenOnly so windows on other Spaces and
+    // minimized windows are included; we tag on/off-screen and minimized below.
+    CGWindowListOption opt = kCGWindowListExcludeDesktopElements;
     CFArrayRef list = CGWindowListCopyWindowInfo(opt, kCGNullWindowID);
     NSMutableArray *out = [NSMutableArray array];
     NSArray *windows = (__bridge_transfer NSArray *)list;
-    NSWorkspace *ws = [NSWorkspace sharedWorkspace];
 
+    NSSet<NSNumber *> *minimized = minimizedWindowIDs();
+    CGSConnectionID cid = CGSMainConnectionID();
+
+    int z = 0; // z-order index among included windows (0 == frontmost)
     for (NSDictionary *info in windows) {
       NSNumber *layer = info[(__bridge NSString *)kCGWindowLayer];
       if (layer == nil || [layer intValue] != 0) continue; // only normal windows
@@ -42,12 +147,25 @@ char *ot_list_windows_json(void) {
       NSString *owner = info[(__bridge NSString *)kCGWindowOwnerName];
       NSString *name = info[(__bridge NSString *)kCGWindowName];
       NSDictionary *bounds = info[(__bridge NSString *)kCGWindowBounds];
+      NSNumber *onscreenNum = info[(__bridge NSString *)kCGWindowIsOnscreen];
+      BOOL onscreen = onscreenNum != nil && [onscreenNum boolValue];
 
       NSString *bundle = @"";
+      BOOL hidden = NO;
       if (pid != nil) {
         NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:[pid intValue]];
         if (app.bundleIdentifier != nil) bundle = app.bundleIdentifier;
+        hidden = app.isHidden;
       }
+
+      CGFloat bx = [bounds[@"X"] doubleValue];
+      CGFloat by = [bounds[@"Y"] doubleValue];
+      CGFloat bw = [bounds[@"Width"] doubleValue];
+      CGFloat bh = [bounds[@"Height"] doubleValue];
+      uint32_t screen = displayForPoint(bx + bw / 2, by + bh / 2);
+      BOOL fullscreen = isFullscreenRect(screen, bx, by, bw, bh);
+      BOOL isMin = wid != nil && [minimized containsObject:wid];
+      uint64_t space = spaceForWindow(cid, wid != nil ? (CGWindowID)[wid unsignedIntValue] : 0);
 
       [out addObject:@{
         @"id": wid ?: @0,
@@ -55,13 +173,16 @@ char *ot_list_windows_json(void) {
         @"app": owner ?: @"",
         @"bundle": bundle,
         @"title": name ?: @"",
-        @"x": bounds[@"X"] ?: @0,
-        @"y": bounds[@"Y"] ?: @0,
-        @"w": bounds[@"Width"] ?: @0,
-        @"h": bounds[@"Height"] ?: @0,
-        @"layer": layer,
-        @"onscreen": @YES,
+        @"x": @(bx), @"y": @(by), @"w": @(bw), @"h": @(bh),
+        @"onscreen": @(onscreen),
+        @"minimized": @(isMin),
+        @"hidden": @(hidden),
+        @"fullscreen": @(fullscreen),
+        @"screen": @(screen),
+        @"space": @(space),
+        @"zorder": @(z),
       }];
+      z++;
     }
 
     NSData *json = [NSJSONSerialization dataWithJSONObject:out options:0 error:nil];
@@ -70,10 +191,104 @@ char *ot_list_windows_json(void) {
   }
 }
 
+// ot_window_pid resolves the owning pid of a single window id via a targeted
+// CGWindowList query (no AX/Space enrichment), keeping the action path fast.
+int ot_window_pid(uint32_t wid) {
+  @autoreleasepool {
+    CGWindowID ids[1] = { (CGWindowID)wid };
+    CFArrayRef arr = CFArrayCreate(NULL, (const void **)ids, 1, NULL);
+    CFArrayRef list = CGWindowListCreateDescriptionFromArray(arr);
+    CFRelease(arr);
+    int pid = 0;
+    if (list) {
+      NSArray *windows = (__bridge_transfer NSArray *)list;
+      if (windows.count > 0) {
+        NSNumber *p = windows[0][(__bridge NSString *)kCGWindowOwnerPID];
+        if (p != nil) pid = [p intValue];
+      }
+    }
+    return pid;
+  }
+}
+
 int ot_active_app_pid(void) {
   @autoreleasepool {
     NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
     return app ? (int)app.processIdentifier : 0;
+  }
+}
+
+// ---- Environment: Spaces & screens ----
+
+uint64_t ot_active_space(void) {
+  CGSConnectionID cid = CGSMainConnectionID();
+  if (cid == 0) return 0;
+  return CGSGetActiveSpace(cid);
+}
+
+uint32_t ot_active_screen(void) {
+  // The screen owning the focused window of the frontmost app, else main.
+  @autoreleasepool {
+    NSRunningApplication *front = [[NSWorkspace sharedWorkspace] frontmostApplication];
+    if (front != nil && AXIsProcessTrusted()) {
+      AXUIElementRef axApp = AXUIElementCreateApplication(front.processIdentifier);
+      if (axApp) {
+        AXUIElementRef win = NULL;
+        uint32_t screen = 0;
+        if (AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute, (CFTypeRef *)&win) == kAXErrorSuccess && win) {
+          AXValueRef posRef = NULL, sizeRef = NULL;
+          CGPoint pos = {0, 0};
+          CGSize size = {0, 0};
+          if (AXUIElementCopyAttributeValue(win, kAXPositionAttribute, (CFTypeRef *)&posRef) == kAXErrorSuccess && posRef) {
+            AXValueGetValue(posRef, kAXValueCGPointType, &pos);
+            CFRelease(posRef);
+          }
+          if (AXUIElementCopyAttributeValue(win, kAXSizeAttribute, (CFTypeRef *)&sizeRef) == kAXErrorSuccess && sizeRef) {
+            AXValueGetValue(sizeRef, kAXValueCGSizeType, &size);
+            CFRelease(sizeRef);
+          }
+          screen = displayForPoint(pos.x + size.width / 2, pos.y + size.height / 2);
+          CFRelease(win);
+        }
+        CFRelease(axApp);
+        if (screen != 0) return screen;
+      }
+    }
+    return (uint32_t)CGMainDisplayID();
+  }
+}
+
+uint32_t ot_cursor_screen(void) {
+  @autoreleasepool {
+    NSPoint p = [NSEvent mouseLocation]; // Cocoa: origin bottom-left of main screen
+    CGFloat mainH = CGDisplayBounds(CGMainDisplayID()).size.height;
+    return displayForPoint(p.x, mainH - p.y); // convert to CG top-left origin
+  }
+}
+
+char *ot_screens_json(void) {
+  @autoreleasepool {
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSScreen *screen in [NSScreen screens]) {
+      NSNumber *num = screen.deviceDescription[@"NSScreenNumber"];
+      uint32_t did = num != nil ? [num unsignedIntValue] : 0;
+      CGRect full = CGDisplayBounds((CGDirectDisplayID)did);
+      NSRect vis = screen.visibleFrame; // Cocoa coords (origin bottom-left)
+      CGFloat mainH = CGDisplayBounds(CGMainDisplayID()).size.height;
+      [out addObject:@{
+        @"id": @(did),
+        @"main": @(did == CGMainDisplayID()),
+        @"x": @(full.origin.x), @"y": @(full.origin.y),
+        @"w": @(full.size.width), @"h": @(full.size.height),
+        // Convert visibleFrame to CG top-left origin for consistency.
+        @"vx": @(vis.origin.x),
+        @"vy": @(mainH - vis.origin.y - vis.size.height),
+        @"vw": @(vis.size.width), @"vh": @(vis.size.height),
+      }];
+    }
+    NSData *json = [NSJSONSerialization dataWithJSONObject:out options:0 error:nil];
+    NSString *s = [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
+    return copyCString(s);
   }
 }
 
@@ -98,6 +313,14 @@ void ot_request_accessibility(void) {
 void ot_request_screen_recording(void) {
   if (@available(macOS 10.15, *)) {
     CGRequestScreenCaptureAccess();
+  }
+}
+
+void ot_open_privacy_settings(int kind) {
+  @autoreleasepool {
+    NSString *anchor = kind == 1 ? @"Privacy_ScreenCapture" : @"Privacy_Accessibility";
+    NSString *url = [@"x-apple.systempreferences:com.apple.preference.security?" stringByAppendingString:anchor];
+    [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:url]];
   }
 }
 
@@ -157,7 +380,31 @@ int ot_minimize_window(uint32_t wid, int pid) {
   @autoreleasepool {
     AXUIElementRef w = copyAXWindow(wid, pid);
     if (w == NULL) return 0;
-    int ok = (AXUIElementSetAttributeValue(w, kAXMinimizedAttribute, kCFBooleanTrue) == kAXErrorSuccess);
+    // Toggle, so the same key deminimizes a minimized window (AltTab parity).
+    CFBooleanRef cur = NULL;
+    BOOL isMin = NO;
+    if (AXUIElementCopyAttributeValue(w, kAXMinimizedAttribute, (CFTypeRef *)&cur) == kAXErrorSuccess && cur) {
+      isMin = CFBooleanGetValue(cur);
+      CFRelease(cur);
+    }
+    int ok = (AXUIElementSetAttributeValue(w, kAXMinimizedAttribute, isMin ? kCFBooleanFalse : kCFBooleanTrue) == kAXErrorSuccess);
+    CFRelease(w);
+    return ok;
+  }
+}
+
+int ot_fullscreen_window(uint32_t wid, int pid) {
+  @autoreleasepool {
+    AXUIElementRef w = copyAXWindow(wid, pid);
+    if (w == NULL) return 0;
+    // AXFullScreen is the (semi-private) standard-window fullscreen attribute.
+    CFBooleanRef cur = NULL;
+    BOOL isFs = NO;
+    if (AXUIElementCopyAttributeValue(w, CFSTR("AXFullScreen"), (CFTypeRef *)&cur) == kAXErrorSuccess && cur) {
+      isFs = CFBooleanGetValue(cur);
+      CFRelease(cur);
+    }
+    int ok = (AXUIElementSetAttributeValue(w, CFSTR("AXFullScreen"), isFs ? kCFBooleanFalse : kCFBooleanTrue) == kAXErrorSuccess);
     CFRelease(w);
     return ok;
   }
@@ -179,16 +426,269 @@ int ot_hide_app(int pid) {
 
 // ---- Thumbnail ----
 
+// captureWindowPNG snapshots a single window via ScreenCaptureKit (the
+// replacement for CGWindowListCreateImage, removed in macOS 15), scaled so its
+// larger side is at most maxpx. Returns nil if Screen Recording is not granted
+// or the window cannot be captured. Synchronous via dispatch semaphores.
+static NSData *captureWindowPNG(uint32_t wid, int maxpx) {
+  if (@available(macOS 14.0, *)) {
+    if (maxpx <= 0) maxpx = 256;
+
+    __block SCShareableContent *content = nil;
+    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+    [SCShareableContent getShareableContentExcludingDesktopWindows:NO
+                                              onScreenWindowsOnly:NO
+                                                completionHandler:^(SCShareableContent *c, NSError *e) {
+      (void)e;
+      content = c;
+      dispatch_semaphore_signal(sem);
+    }];
+    if (dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC))) != 0) return nil;
+    if (content == nil) return nil;
+
+    SCWindow *target = nil;
+    for (SCWindow *w in content.windows) {
+      if (w.windowID == wid) { target = w; break; }
+    }
+    if (target == nil) return nil;
+
+    CGFloat fw = target.frame.size.width, fh = target.frame.size.height;
+    if (fw < 1 || fh < 1) return nil;
+    CGFloat scale = (fw > fh) ? (CGFloat)maxpx / fw : (CGFloat)maxpx / fh;
+    if (scale > 1.0) scale = 1.0;
+
+    SCContentFilter *filter = [[SCContentFilter alloc] initWithDesktopIndependentWindow:target];
+    SCStreamConfiguration *cfg = [[SCStreamConfiguration alloc] init];
+    cfg.width = (size_t)(fw * scale);
+    cfg.height = (size_t)(fh * scale);
+    cfg.showsCursor = NO;
+    cfg.ignoreShadowsSingleWindow = YES;
+
+    __block CGImageRef img = NULL;
+    dispatch_semaphore_t sem2 = dispatch_semaphore_create(0);
+    [SCScreenshotManager captureImageWithFilter:filter
+                                  configuration:cfg
+                              completionHandler:^(CGImageRef image, NSError *e) {
+      (void)e;
+      if (image) img = (CGImageRef)CGImageRetain(image);
+      dispatch_semaphore_signal(sem2);
+    }];
+    if (dispatch_semaphore_wait(sem2, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC))) != 0) return nil;
+    if (img == NULL) return nil;
+
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:img];
+    CGImageRelease(img);
+    return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+  }
+  return nil;
+}
+
 char *ot_thumbnail_png_base64(uint32_t wid, int maxpx) {
-  // CGWindowListCreateImage was removed in macOS 15. Live previews via
-  // ScreenCaptureKit are planned; until then the overlay renders app glyphs and
-  // this returns an empty string so the Go layer reports "no thumbnail".
-  (void)wid;
-  (void)maxpx;
-  return copyCString(@"");
+  @autoreleasepool {
+    NSData *png = captureWindowPNG(wid, maxpx);
+    if (png == nil) return copyCString(@"");
+    return copyCString([png base64EncodedStringWithOptions:0]);
+  }
+}
+
+char *ot_thumbnail_dataurl(uint32_t wid, int maxpx) {
+  @autoreleasepool {
+    NSData *png = captureWindowPNG(wid, maxpx);
+    if (png == nil) return copyCString(@"");
+    NSString *b64 = [png base64EncodedStringWithOptions:0];
+    return copyCString([@"data:image/png;base64," stringByAppendingString:b64]);
+  }
+}
+
+// ---- App icon ----
+
+char *ot_app_icon_png_base64(int pid, int maxpx) {
+  @autoreleasepool {
+    NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+    NSImage *icon = app.icon;
+    if (icon == nil) return copyCString(@"");
+    if (maxpx <= 0) maxpx = 64;
+
+    NSSize target = NSMakeSize(maxpx, maxpx);
+    NSImage *resized = [[NSImage alloc] initWithSize:target];
+    [resized lockFocus];
+    [icon drawInRect:NSMakeRect(0, 0, target.width, target.height)
+            fromRect:NSZeroRect
+           operation:NSCompositingOperationCopy
+            fraction:1.0];
+    [resized unlockFocus];
+
+    CGImageRef cg = [resized CGImageForProposedRect:NULL context:nil hints:nil];
+    if (cg == NULL) return copyCString(@"");
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:cg];
+    NSData *png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+    if (png == nil) return copyCString(@"");
+    NSString *b64 = [png base64EncodedStringWithOptions:0];
+    return copyCString([@"data:image/png;base64," stringByAppendingString:b64]);
+  }
 }
 
 // ---- Login item (SMAppService) ----
+
+// ---- Menubar status item ----
+
+extern void goTrayCommand(int cmd);
+
+static NSStatusItem *gStatusItem = nil;
+static NSMenuItem *gPauseItem = nil;
+
+@interface OTTrayTarget : NSObject
+@end
+@implementation OTTrayTarget
+- (void)onPreferences:(id)sender { (void)sender; goTrayCommand(0); }
+- (void)onTogglePause:(id)sender { (void)sender; goTrayCommand(1); }
+- (void)onQuit:(id)sender { (void)sender; goTrayCommand(2); }
+@end
+
+static OTTrayTarget *gTrayTarget = nil;
+
+void ot_tray_install(void) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (gStatusItem != nil) return;
+    gTrayTarget = [[OTTrayTarget alloc] init];
+    gStatusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
+    gStatusItem.button.title = @"⌥⇥"; // ⌥⇥
+    gStatusItem.button.toolTip = @"option-tab";
+
+    NSMenu *menu = [[NSMenu alloc] init];
+    NSMenuItem *prefs = [[NSMenuItem alloc] initWithTitle:@"Preferences…"
+                                                   action:@selector(onPreferences:)
+                                            keyEquivalent:@","];
+    prefs.target = gTrayTarget;
+    [menu addItem:prefs];
+
+    gPauseItem = [[NSMenuItem alloc] initWithTitle:@"Pause"
+                                            action:@selector(onTogglePause:)
+                                     keyEquivalent:@""];
+    gPauseItem.target = gTrayTarget;
+    [menu addItem:gPauseItem];
+
+    [menu addItem:[NSMenuItem separatorItem]];
+
+    NSMenuItem *quit = [[NSMenuItem alloc] initWithTitle:@"Quit option-tab"
+                                                  action:@selector(onQuit:)
+                                           keyEquivalent:@"q"];
+    quit.target = gTrayTarget;
+    [menu addItem:quit];
+
+    gStatusItem.menu = menu;
+    OTLOG("tray installed\n");
+  });
+}
+
+void ot_tray_set_paused(int paused) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (gPauseItem != nil) gPauseItem.title = paused ? @"Resume" : @"Pause";
+  });
+}
+
+void ot_tray_set_style(const char *style) {
+  NSString *s = style != NULL ? [NSString stringWithUTF8String:style] : @"default";
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (gStatusItem == nil) return;
+    if ([s isEqualToString:@"outline"]) {
+      gStatusItem.button.title = @"⧉";
+    } else if ([s isEqualToString:@"dot"]) {
+      gStatusItem.button.title = @"●";
+    } else {
+      gStatusItem.button.title = @"⌥⇥";
+    }
+  });
+}
+
+void ot_tray_remove(void) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (gStatusItem != nil) {
+      [[NSStatusBar systemStatusBar] removeStatusItem:gStatusItem];
+      gStatusItem = nil;
+      gPauseItem = nil;
+    }
+  });
+}
+
+// ---- App presentation (Dock icon & preferences window mode) ----
+
+void ot_hide_dock_icon(void) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+  });
+}
+
+// Saved overlay-window attributes so prefs mode can restore them exactly.
+static BOOL gOverlaySaved = NO;
+static NSRect gOverlayFrame;
+static NSWindowStyleMask gOverlayMask;
+static NSInteger gOverlayLevel;
+static BOOL gOverlayShadow;
+
+static NSWindow *otMainWindow(void) {
+  for (NSWindow *w in [NSApp windows]) {
+    if (![w isKindOfClass:[NSPanel class]]) return w;
+  }
+  return nil;
+}
+
+void ot_window_set_prefs_mode(int on) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSWindow *w = otMainWindow();
+    if (w == nil) return;
+    if (on) {
+      if (!gOverlaySaved) {
+        gOverlayFrame = w.frame;
+        gOverlayMask = w.styleMask;
+        gOverlayLevel = w.level;
+        gOverlayShadow = w.hasShadow;
+        gOverlaySaved = YES;
+      }
+      w.styleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+                    NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
+      w.title = @"Option Tab";
+      w.titlebarAppearsTransparent = YES;
+      w.movable = YES;
+      w.level = NSNormalWindowLevel;
+      w.hasShadow = YES;
+      // Solid base matching the settings UI's aurora backdrop, so the titlebar
+      // strip blends seamlessly with the page instead of showing the desktop.
+      w.opaque = YES;
+      w.backgroundColor = [NSColor colorWithSRGBRed:0.043 green:0.063 blue:0.122 alpha:1.0];
+      NSRect vf = [NSScreen mainScreen].visibleFrame;
+      CGFloat width = MIN(840, vf.size.width - 80);
+      CGFloat height = MIN(700, vf.size.height - 80);
+      [w setFrame:NSMakeRect(NSMidX(vf) - width / 2, NSMidY(vf) - height / 2, width, height)
+           display:YES];
+      [NSApp activateIgnoringOtherApps:YES];
+      [w makeKeyAndOrderFront:nil];
+    } else if (gOverlaySaved) {
+      w.styleMask = gOverlayMask;
+      w.level = gOverlayLevel;
+      w.hasShadow = gOverlayShadow;
+      w.backgroundColor = [NSColor clearColor];
+      w.opaque = NO;
+      [w setFrame:gOverlayFrame display:YES];
+    }
+  });
+}
+
+void ot_warp_cursor(uint32_t wid) {
+  CFArrayRef arr = CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow, (CGWindowID)wid);
+  if (arr == NULL) return;
+  if (CFArrayGetCount(arr) > 0) {
+    NSDictionary *info = (__bridge NSDictionary *)CFArrayGetValueAtIndex(arr, 0);
+    CGRect r = CGRectZero;
+    CFDictionaryRef bounds = (__bridge CFDictionaryRef)info[(id)kCGWindowBounds];
+    if (bounds != NULL && CGRectMakeWithDictionaryRepresentation(bounds, &r)) {
+      CGPoint center = CGPointMake(r.origin.x + r.size.width / 2.0, r.origin.y + r.size.height / 2.0);
+      CGWarpMouseCursorPosition(center);
+      CGAssociateMouseAndMouseCursorPosition(true);
+    }
+  }
+  CFRelease(arr);
+}
 
 int ot_login_item_enabled(void) {
   if (@available(macOS 13.0, *)) {
@@ -252,6 +752,7 @@ static CGEventRef tapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRe
 
   if (type == kCGEventKeyDown) {
     uint16_t keycode = (uint16_t)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
+    OTLOG("keydown keycode=%u flags=0x%llx active=%d\n", keycode, (unsigned long long)flags, gActive);
 
     if (keycode == 53 && gActive) { // Escape
       gActive = 0;
@@ -285,9 +786,22 @@ static void *hotkeyThread(void *arg) {
   (void)arg;
   @autoreleasepool {
     CGEventMask mask = CGEventMaskBit(kCGEventKeyDown) | CGEventMaskBit(kCGEventFlagsChanged);
-    gTap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault,
-                            mask, tapCallback, NULL);
-    if (gTap == NULL) return NULL;
+    // Accessibility may not be effective at launch (first run, or the user
+    // grants it after the app starts). A session event tap returns NULL until
+    // it is. Retry until it succeeds so granting permission takes effect
+    // without restarting the app — the same approach AltTab uses.
+    for (int attempt = 0; gTap == NULL; attempt++) {
+      gTap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault,
+                              mask, tapCallback, NULL);
+      if (gTap == NULL) {
+        if (attempt == 0 || (attempt % 10) == 0) {
+          OTLOG("CGEventTapCreate NULL (attempt %d) trusted=%d — waiting for Accessibility\n",
+                attempt, AXIsProcessTrusted());
+        }
+        usleep(500000); // 0.5s
+      }
+    }
+    OTLOG("CGEventTapCreate -> OK (tap active); trusted=%d\n", AXIsProcessTrusted());
     gSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, gTap, 0);
     gRunLoop = CFRunLoopGetCurrent();
     CFRunLoopAddSource(gRunLoop, gSource, kCFRunLoopCommonModes);
@@ -298,6 +812,7 @@ static void *hotkeyThread(void *arg) {
 }
 
 int ot_hotkey_start(void) {
+  OTLOG("ot_hotkey_start called; trusted=%d\n", AXIsProcessTrusted());
   if (gTap != NULL) return 1;
   pthread_t t;
   if (pthread_create(&t, NULL, hotkeyThread, NULL) != 0) return 0;
@@ -306,6 +821,7 @@ int ot_hotkey_start(void) {
 }
 
 int ot_hotkey_register(int id, uint64_t modflags, uint16_t keycode, int withShift) {
+  OTLOG("register id=%d keycode=%u mods=0x%llx shift=%d\n", id, keycode, (unsigned long long)modflags, withShift);
   for (int i = 0; i < OT_MAX_CHORDS; i++) {
     if (!gChords[i].used) {
       gChords[i].id = id;

@@ -35,11 +35,12 @@ func (s *stub) Windows() ([]domain.Window, error) {
 	}, nil
 }
 
-func (s *stub) Focus(domain.WindowID) error    { return nil }
-func (s *stub) Close(domain.WindowID) error    { return nil }
-func (s *stub) Minimize(domain.WindowID) error { return nil }
-func (s *stub) QuitApp(domain.AppID) error     { return nil }
-func (s *stub) HideApp(domain.AppID) error     { return nil }
+func (s *stub) Focus(domain.WindowID) error      { return nil }
+func (s *stub) Close(domain.WindowID) error      { return nil }
+func (s *stub) Minimize(domain.WindowID) error   { return nil }
+func (s *stub) Fullscreen(domain.WindowID) error { return nil }
+func (s *stub) QuitApp(domain.AppID) error       { return nil }
+func (s *stub) HideApp(domain.AppID) error       { return nil }
 
 func (s *stub) Thumbnail(_ domain.WindowID, maxPx int) (image.Image, error) {
 	if maxPx <= 0 {

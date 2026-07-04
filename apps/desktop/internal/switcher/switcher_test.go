@@ -47,6 +47,7 @@ func newController(t *testing.T, wins []domain.Window, mut func(*config.Settings
 		View:         v,
 		MRU:          mru.New(),
 		SelfBundleID: "com.option-tab",
+		Cursor:       f,
 	}, s)
 	return c, f, v
 }
@@ -80,6 +81,39 @@ func TestActivate_OpensAndSelectsPreviousWindow(t *testing.T) {
 	}
 	if len(v.last().Entries) != 3 {
 		t.Errorf("expected 3 entries, got %d", len(v.last().Entries))
+	}
+}
+
+func TestActivate_PausedDoesNotOpen(t *testing.T) {
+	c, _, v := newController(t, threeWins(), func(s *config.Settings) { s.Behavior.Paused = true })
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if c.IsOpen() {
+		t.Error("paused controller should not open on activate")
+	}
+	if len(v.shows) != 0 {
+		t.Errorf("expected no Show while paused, got %d", len(v.shows))
+	}
+}
+
+func TestSetPaused_TogglesActivation(t *testing.T) {
+	c, _, v := newController(t, threeWins(), nil)
+
+	c.SetPaused(true)
+	if !c.Paused() {
+		t.Fatal("Paused() should report true after SetPaused(true)")
+	}
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if c.IsOpen() || len(v.shows) != 0 {
+		t.Fatal("should not activate while paused")
+	}
+
+	c.SetPaused(false)
+	if c.Paused() {
+		t.Fatal("Paused() should report false after SetPaused(false)")
+	}
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if !c.IsOpen() || len(v.shows) != 1 {
+		t.Errorf("should activate after resume: open=%v shows=%d", c.IsOpen(), len(v.shows))
 	}
 }
 
@@ -144,6 +178,110 @@ func TestCancelDoesNotFocus(t *testing.T) {
 	}
 	if v.hides != 1 {
 		t.Errorf("expected 1 Hide, got %d", v.hides)
+	}
+}
+
+func TestRelease_DoNothingKeepsSwitcherOpen(t *testing.T) {
+	c, f, v := newController(t, threeWins(), func(s *config.Settings) {
+		s.Shortcuts[0].WhenReleased = config.ReleaseDoNothing
+	})
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyRelease, ShortcutID: 1})
+	if !c.IsOpen() {
+		t.Fatal("release with WhenReleased=doNothing must keep the switcher open")
+	}
+	if len(f.FocusCalls) != 0 {
+		t.Errorf("release must not focus, got %v", f.FocusCalls)
+	}
+	// An explicit Confirm (Enter/click) still commits.
+	c.Confirm()
+	if c.IsOpen() || len(f.FocusCalls) != 1 {
+		t.Errorf("explicit confirm should focus and close: open=%v focus=%v", c.IsOpen(), f.FocusCalls)
+	}
+	if v.hides != 1 {
+		t.Errorf("expected 1 Hide, got %d", v.hides)
+	}
+}
+
+func TestActivate_IgnoredWhenActiveAppBlacklistedForShortcuts(t *testing.T) {
+	wins := threeWins()
+	wins[0].BundleID = "com.game"
+	c, f, _ := newController(t, wins, func(s *config.Settings) {
+		s.Filters.AppBlacklist = []config.BlacklistEntry{
+			{Match: "com.game", Hide: config.HideWhenNoWindow, IgnoreShortcuts: true},
+		}
+	})
+	f.ActiveAppID = 1 // the blacklisted app is frontmost
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if c.IsOpen() {
+		t.Fatal("activation must be suppressed while the ignore-shortcuts app is active")
+	}
+	f.ActiveAppID = 2 // any other app: works normally
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if !c.IsOpen() {
+		t.Fatal("activation should work when the blacklisted app is not active")
+	}
+}
+
+func TestConfirm_CursorFollowsFocusWhenEnabled(t *testing.T) {
+	c, f, _ := newController(t, threeWins(), func(s *config.Settings) {
+		s.Behavior.CursorFollowFocus = true
+	})
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	c.Confirm()
+	if len(f.WarpCalls) != 1 || f.WarpCalls[0] != f.LastFocused {
+		t.Errorf("cursor should warp to the focused window, got %v (focused %d)", f.WarpCalls, f.LastFocused)
+	}
+}
+
+func TestConfirm_NoCursorWarpByDefault(t *testing.T) {
+	c, f, _ := newController(t, threeWins(), nil)
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	c.Confirm()
+	if len(f.WarpCalls) != 0 {
+		t.Errorf("cursor must not warp when CursorFollowFocus is off, got %v", f.WarpCalls)
+	}
+}
+
+func TestActivate_PerShortcutOrderOverride(t *testing.T) {
+	wins := []domain.Window{
+		{ID: 1, AppID: 1, AppName: "Zed", Title: "z", OnScreen: true, SpaceID: 1, ScreenID: 1},
+		{ID: 2, AppID: 2, AppName: "Atom", Title: "a", OnScreen: true, SpaceID: 1, ScreenID: 1},
+	}
+	c, _, v := newController(t, wins, func(s *config.Settings) {
+		s.Order = config.OrderRecent
+		s.Shortcuts[0].Scope.Order = config.OrderAlphabetical
+		s.Behavior.HoldToCycle = false
+	})
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	st := v.last()
+	if len(st.Entries) != 2 || st.Entries[0].AppName != "Atom" {
+		t.Errorf("per-shortcut alphabetical order should win, got %+v", st.Entries)
+	}
+}
+
+func TestActivate_ShowAtEndSendsMinimizedToBack(t *testing.T) {
+	wins := threeWins()
+	wins[0].Minimized = true
+	wins[0].OnScreen = false
+	c, _, v := newController(t, wins, func(s *config.Settings) {
+		s.Filters.ShowMinimized = config.VisShowAtEnd
+		s.Behavior.HoldToCycle = false
+	})
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	st := v.last()
+	if len(st.Entries) != 3 || st.Entries[len(st.Entries)-1].WindowID != 1 {
+		t.Errorf("minimized window should be last, got %+v", st.Entries)
+	}
+}
+
+func TestSnapshot_CarriesMouseHoverFlag(t *testing.T) {
+	c, _, v := newController(t, threeWins(), func(s *config.Settings) {
+		s.Behavior.MouseHoverSelect = false
+	})
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if v.last().MouseHover {
+		t.Error("MouseHover should reflect Behavior.MouseHoverSelect=false")
 	}
 }
 
@@ -226,6 +364,15 @@ func TestMinimizeAndQuitAndHideSelected(t *testing.T) {
 	c2.HideSelectedApp()
 	if len(f2.HideCalls) == 0 {
 		t.Error("HideSelectedApp should call HideApp")
+	}
+}
+
+func TestFullscreenSelected(t *testing.T) {
+	c, f, _ := newController(t, threeWins(), nil)
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	c.FullscreenSelected()
+	if len(f.FullscreenCalls) != 1 {
+		t.Errorf("FullscreenSelected should call Fullscreen once, got %v", f.FullscreenCalls)
 	}
 }
 

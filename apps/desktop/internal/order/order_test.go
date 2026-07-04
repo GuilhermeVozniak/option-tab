@@ -90,6 +90,39 @@ func TestSort_DoesNotMutateInput(t *testing.T) {
 	}
 }
 
+func TestSort_RecentlyCreated_NewestIDFirst(t *testing.T) {
+	ws := []domain.Window{{ID: 10}, {ID: 30}, {ID: 20}}
+	got := Sort(ws, config.OrderRecentlyCreated)
+	if !eq(ids(got), 30, 20, 10) {
+		t.Errorf("recentlyCreated order = %v, want [30 20 10]", ids(got))
+	}
+}
+
+func TestSendToBack_MovesConfiguredClassesToEnd(t *testing.T) {
+	f := config.Default().Filters
+	f.ShowMinimized = config.VisShowAtEnd
+	f.ShowHiddenApps = config.VisShowAtEnd
+	ws := []domain.Window{
+		{ID: 1, Minimized: true},
+		{ID: 2},
+		{ID: 3, Hidden: true},
+		{ID: 4},
+	}
+	got := SendToBack(ws, f)
+	if !eq(ids(got), 2, 4, 1, 3) {
+		t.Errorf("SendToBack order = %v, want [2 4 1 3]", ids(got))
+	}
+}
+
+func TestSendToBack_NoopWhenShow(t *testing.T) {
+	f := config.Default().Filters // all "show"
+	ws := []domain.Window{{ID: 1, Minimized: true}, {ID: 2}}
+	got := SendToBack(ws, f)
+	if !eq(ids(got), 1, 2) {
+		t.Errorf("SendToBack should be a no-op when everything is show, got %v", ids(got))
+	}
+}
+
 func TestSort_UnknownModeDefaultsToRecent(t *testing.T) {
 	base := time.Unix(1000, 0)
 	ws := []domain.Window{

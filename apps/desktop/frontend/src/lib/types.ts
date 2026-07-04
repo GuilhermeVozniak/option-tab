@@ -3,11 +3,24 @@
 
 export type VisualStyle = "thumbnails" | "appIcons" | "titles";
 export type Theme = "system" | "light" | "dark";
+export type SizePreset = "small" | "medium" | "large";
 export type Placement = "activeScreen" | "cursorScreen" | "focusedWindowScreen";
+export type TruncationMode = "end" | "middle" | "start";
+
+// PermState mirrors platform.PermState; "unknown" covers the not-yet-determined
+// state. PermKey names the permissions the switcher needs.
+export type PermState = "granted" | "denied" | "unknown";
+export type PermKey = "accessibility" | "screenRecording";
+
+export interface Permissions {
+  accessibility: PermState;
+  screenRecording: PermState;
+}
 
 export interface Appearance {
   style: VisualStyle;
   theme: Theme;
+  sizePreset: SizePreset;
   maxRows: number;
   maxColumns: number;
   thumbnailMaxPx: number;
@@ -22,6 +35,12 @@ export interface Appearance {
   showTitle: boolean;
   showWindowControls: boolean;
   autoSize: boolean;
+  apparitionDelayMs: number;
+  fadeOutAnimation: boolean;
+  showStatusIcons: boolean;
+  showSpaceNumbers: boolean;
+  titleTruncation: TruncationMode;
+  previewSelected: boolean;
 }
 
 export interface Entry {
@@ -30,9 +49,15 @@ export interface Entry {
   title: string;
   appName: string;
   bundleId: string;
+  spaceId?: number;
   minimized: boolean;
   hidden: boolean;
   fullscreen: boolean;
+  icon?: string;
+  thumbnail?: string;
+  // preview is a higher-resolution capture streamed for the selected entry
+  // when "preview selected window" is enabled.
+  preview?: string;
 }
 
 export interface SwitcherState {
@@ -44,6 +69,9 @@ export interface SwitcherState {
   selected: number;
   search: string;
   shortcutId: number;
+  vimKeys: boolean;
+  mouseHover: boolean;
+  activeSpaceId: number;
 }
 
 export const emptyState: SwitcherState = {
@@ -52,9 +80,10 @@ export const emptyState: SwitcherState = {
   appearance: {
     style: "thumbnails",
     theme: "system",
+    sizePreset: "medium",
     maxRows: 4,
     maxColumns: 6,
-    thumbnailMaxPx: 256,
+    thumbnailMaxPx: 280,
     iconSizePx: 32,
     titleMaxWidthPx: 240,
     fontSizePx: 13,
@@ -66,25 +95,47 @@ export const emptyState: SwitcherState = {
     showTitle: true,
     showWindowControls: true,
     autoSize: true,
+    apparitionDelayMs: 0,
+    fadeOutAnimation: true,
+    showStatusIcons: true,
+    showSpaceNumbers: true,
+    titleTruncation: "end",
+    previewSelected: false,
   },
   placement: "cursorScreen",
   entries: [],
   selected: 0,
   search: "",
   shortcutId: 0,
+  vimKeys: false,
+  mouseHover: true,
+  activeSpaceId: 0,
 };
 
 // ---- Settings (mirror of internal/config.Settings) ----
 
-export type OrderMode = "recent" | "alphabetical" | "space";
+export type OrderMode = "recent" | "recentlyCreated" | "alphabetical" | "space";
 export type SpaceScope = "active" | "all";
 export type ScreenScope = "active" | "all" | "cursor";
 export type AppScopeMode = "all" | "activeApp";
+export type WindowVisibility = "show" | "hide" | "showAtEnd";
+export type ReleaseAction = "focusSelected" | "doNothing";
+export type MenubarIconStyle = "default" | "outline" | "dot";
+export type UpdatePolicy = "off" | "check" | "auto";
+export type CrashPolicy = "never" | "ask" | "always";
+export type BlacklistHide = "always" | "whenNoWindow";
+
+export interface BlacklistEntry {
+  match: string;
+  hide: BlacklistHide;
+  ignoreShortcuts: boolean;
+}
 
 export interface ShortcutScope {
   appScope: AppScopeMode;
   spaces?: SpaceScope;
   screens?: ScreenScope;
+  order?: OrderMode;
 }
 
 export interface Shortcut {
@@ -93,16 +144,17 @@ export interface Shortcut {
   enabled: boolean;
   scope: ShortcutScope;
   styleOverride?: VisualStyle;
+  whenReleased?: ReleaseAction;
 }
 
 export interface Filters {
   spaces: SpaceScope;
   screens: ScreenScope;
-  showMinimized: boolean;
-  showHiddenApps: boolean;
-  showFullscreen: boolean;
+  showMinimized: WindowVisibility;
+  showHiddenApps: WindowVisibility;
+  showFullscreen: WindowVisibility;
   showWindowsWithoutTitle: boolean;
-  appBlacklist: string[];
+  appBlacklist: BlacklistEntry[];
 }
 
 export interface Behavior {
@@ -110,6 +162,14 @@ export interface Behavior {
   startAtLogin: boolean;
   paused: boolean;
   showMenubarIcon: boolean;
+  vimKeys: boolean;
+  menubarIconStyle: MenubarIconStyle;
+  language: string;
+  updatePolicy: UpdatePolicy;
+  crashReports: CrashPolicy;
+  mouseHoverSelect: boolean;
+  cursorFollowFocus: boolean;
+  onboarded: boolean;
 }
 
 export interface Settings {
@@ -123,7 +183,7 @@ export interface Settings {
 }
 
 export const defaultSettings: Settings = {
-  version: 1,
+  version: 2,
   shortcuts: [
     { id: 1, chord: "option+tab", enabled: true, scope: { appScope: "all" } },
     { id: 2, chord: "option+grave", enabled: true, scope: { appScope: "activeApp" } },
@@ -132,13 +192,26 @@ export const defaultSettings: Settings = {
   filters: {
     spaces: "all",
     screens: "all",
-    showMinimized: true,
-    showHiddenApps: true,
-    showFullscreen: true,
+    showMinimized: "show",
+    showHiddenApps: "show",
+    showFullscreen: "show",
     showWindowsWithoutTitle: false,
     appBlacklist: [],
   },
   order: "recent",
   placement: "cursorScreen",
-  behavior: { holdToCycle: true, startAtLogin: false, paused: false, showMenubarIcon: true },
+  behavior: {
+    holdToCycle: true,
+    startAtLogin: false,
+    paused: false,
+    showMenubarIcon: true,
+    vimKeys: false,
+    menubarIconStyle: "default",
+    language: "",
+    updatePolicy: "check",
+    crashReports: "ask",
+    mouseHoverSelect: true,
+    cursorFollowFocus: false,
+    onboarded: false,
+  },
 };

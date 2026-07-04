@@ -45,13 +45,13 @@ func Apply(wins []domain.Window, f config.Filters, scope config.ShortcutScope, c
 		if !f.ShowWindowsWithoutTitle && strings.TrimSpace(w.Title) == "" {
 			continue
 		}
-		if !f.ShowMinimized && w.Minimized {
+		if f.ShowMinimized == config.VisHide && w.Minimized {
 			continue
 		}
-		if !f.ShowHiddenApps && w.Hidden {
+		if f.ShowHiddenApps == config.VisHide && w.Hidden {
 			continue
 		}
-		if !f.ShowFullscreen && w.Fullscreen {
+		if f.ShowFullscreen == config.VisHide && w.Fullscreen {
 			continue
 		}
 		if scope.AppScope == config.AppScopeActiveApp && w.AppID != ctx.ActiveAppID {
@@ -70,14 +70,41 @@ func Apply(wins []domain.Window, f config.Filters, scope config.ShortcutScope, c
 	return out
 }
 
-func isBlacklisted(w domain.Window, blacklist []string) bool {
+func isBlacklisted(w domain.Window, blacklist []config.BlacklistEntry) bool {
 	for _, entry := range blacklist {
-		if entry == "" {
+		// HideWhenNoWindow only affects app-icon views of window-less apps; the
+		// app's real windows still show. Only "always" (or legacy empty) hides.
+		if entry.Hide == config.HideWhenNoWindow {
 			continue
 		}
-		if strings.EqualFold(entry, w.BundleID) || strings.EqualFold(entry, w.AppName) {
+		if matchesEntry(w, entry) {
 			return true
 		}
+	}
+	return false
+}
+
+func matchesEntry(w domain.Window, entry config.BlacklistEntry) bool {
+	if entry.Match == "" {
+		return false
+	}
+	return strings.EqualFold(entry.Match, w.BundleID) || strings.EqualFold(entry.Match, w.AppName)
+}
+
+// ShortcutIgnoredForApp reports whether switcher activation should be
+// suppressed because the active app is blacklisted with "ignore shortcuts"
+// (AltTab's second blacklist column, for games/VMs that need the chord).
+func ShortcutIgnoredForApp(wins []domain.Window, activeApp domain.AppID, blacklist []config.BlacklistEntry) bool {
+	for _, w := range wins {
+		if w.AppID != activeApp {
+			continue
+		}
+		for _, entry := range blacklist {
+			if entry.IgnoreShortcuts && matchesEntry(w, entry) {
+				return true
+			}
+		}
+		return false
 	}
 	return false
 }

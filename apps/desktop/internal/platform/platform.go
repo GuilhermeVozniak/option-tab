@@ -22,6 +22,7 @@ type Focuser interface {
 	Focus(domain.WindowID) error
 	Close(domain.WindowID) error
 	Minimize(domain.WindowID) error
+	Fullscreen(domain.WindowID) error
 	QuitApp(domain.AppID) error
 	HideApp(domain.AppID) error
 }
@@ -30,6 +31,51 @@ type Focuser interface {
 // is at most maxPx pixels.
 type Thumbnailer interface {
 	Thumbnail(id domain.WindowID, maxPx int) (image.Image, error)
+}
+
+// IconSource provides application icons as base64 PNG data URLs. It is an
+// optional capability: the native macOS backend implements it, while the stub
+// and fake do not, so consumers must type-assert for it.
+type IconSource interface {
+	AppIcon(pid, maxPx int) string
+}
+
+// ThumbnailSource provides window snapshots as base64 PNG data URLs. Like
+// IconSource it is optional: only the native macOS backend implements it.
+type ThumbnailSource interface {
+	ThumbnailDataURL(id domain.WindowID, maxPx int) string
+}
+
+// TrayCommand identifies a menubar (status item) action chosen by the user.
+type TrayCommand int
+
+const (
+	// TrayPreferences opens the preferences UI.
+	TrayPreferences TrayCommand = iota
+	// TrayTogglePause suspends or resumes activation.
+	TrayTogglePause
+	// TrayQuit quits the application.
+	TrayQuit
+)
+
+// Tray is an optional menubar status-item controller. Only the native macOS
+// backend implements it; the stub and fake omit it, so consumers type-assert.
+type Tray interface {
+	// InstallTray shows the menubar icon and returns the channel of user
+	// commands. The wiring layer guards against calling it more than once.
+	InstallTray() <-chan TrayCommand
+	// SetTrayPaused updates the Pause/Resume menu item to reflect state.
+	SetTrayPaused(paused bool)
+	// SetTrayStyle switches the status-item glyph ("default", "outline", "dot").
+	SetTrayStyle(style string)
+	// RemoveTray hides the menubar icon.
+	RemoveTray()
+}
+
+// CursorWarper moves the mouse cursor to a window, used by the "cursor follows
+// focus" behavior. Optional: only the native macOS backend implements it.
+type CursorWarper interface {
+	WarpCursorToWindow(domain.WindowID) error
 }
 
 // Environment reports the current foreground context used for filtering.
@@ -102,6 +148,28 @@ type Permissions interface {
 type LoginItem interface {
 	Enabled() bool
 	SetEnabled(bool) error
+}
+
+// DockHider hides the app's Dock icon (accessory activation policy), so the
+// switcher behaves like a background utility. Optional: only the native macOS
+// backend implements it, so consumers type-assert for it.
+type DockHider interface {
+	HideDockIcon()
+}
+
+// WindowModer flips the single app window between the borderless floating
+// overlay and a regular titled preferences window. Optional: only the native
+// macOS backend implements it, so consumers type-assert for it.
+type WindowModer interface {
+	SetPrefsWindowMode(on bool)
+}
+
+// SettingsOpener opens the OS settings pane for a permission, used to guide the
+// user when a permission was denied and the system prompt no longer appears.
+// Optional: only the native macOS backend implements it, so consumers
+// type-assert for it.
+type SettingsOpener interface {
+	OpenPrivacySettings(PermKind)
 }
 
 // Platform aggregates every capability a backend provides. The wiring layer

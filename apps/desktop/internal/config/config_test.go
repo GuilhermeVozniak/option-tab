@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -19,6 +20,23 @@ func TestDefault_IsValid(t *testing.T) {
 	}
 	if s.Version != CurrentVersion {
 		t.Errorf("Default().Version = %d, want %d", s.Version, CurrentVersion)
+	}
+}
+
+func TestSettingsJSON_AppBlacklistNeverNull(t *testing.T) {
+	// The preferences UI maps over appBlacklist; a nil slice marshals as JSON
+	// null and crashes the whole panel.
+	for name, s := range map[string]Settings{
+		"default":    Default(),
+		"normalized": (Settings{}).Normalize(),
+	} {
+		b, err := json.Marshal(s)
+		if err != nil {
+			t.Fatalf("%s: marshal: %v", name, err)
+		}
+		if !strings.Contains(string(b), `"appBlacklist":[]`) {
+			t.Errorf("%s: appBlacklist must marshal as [], got: %s", name, b)
+		}
 	}
 }
 
@@ -110,6 +128,47 @@ func TestSaveLoad_RoundTrips(t *testing.T) {
 	if got.Order != want.Order || got.Behavior.HoldToCycle != want.Behavior.HoldToCycle ||
 		got.Appearance.AccentColor != want.Appearance.AccentColor || got.Appearance.Blur != want.Appearance.Blur {
 		t.Errorf("round-trip mismatch:\n got %+v\nwant %+v", got, want)
+	}
+}
+
+func TestLoad_LegacyBoolFiltersAndStringBlacklist(t *testing.T) {
+	// v1 documents stored bools for the window filters and plain strings for
+	// the blacklist; both must still parse.
+	doc := `{"version":1,"filters":{"showMinimized":false,"showHiddenApps":true,"appBlacklist":["com.legacy",{"match":"Game","hide":"whenNoWindow","ignoreShortcuts":true}]}}`
+	s, err := Load(strings.NewReader(doc))
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if s.Filters.ShowMinimized != VisHide || s.Filters.ShowHiddenApps != VisShow {
+		t.Errorf("legacy bools mapped wrong: min=%q hidden=%q", s.Filters.ShowMinimized, s.Filters.ShowHiddenApps)
+	}
+	if len(s.Filters.AppBlacklist) != 2 ||
+		s.Filters.AppBlacklist[0] != (BlacklistEntry{Match: "com.legacy", Hide: HideAlways}) ||
+		!s.Filters.AppBlacklist[1].IgnoreShortcuts {
+		t.Errorf("blacklist parsed wrong: %+v", s.Filters.AppBlacklist)
+	}
+	if s.Version != CurrentVersion {
+		t.Errorf("version = %d, want %d", s.Version, CurrentVersion)
+	}
+}
+
+func TestNormalize_NewEnumFallbacksAndClamps(t *testing.T) {
+	s := Default()
+	s.Filters.ShowFullscreen = "bogus"
+	s.Appearance.TitleTruncation = "bogus"
+	s.Appearance.ApparitionDelayMs = 99999
+	s.Behavior.MenubarIconStyle = "bogus"
+	s.Behavior.UpdatePolicy = "bogus"
+	s.Behavior.CrashReports = "bogus"
+	got := s.Normalize()
+	if got.Filters.ShowFullscreen != VisShow || got.Appearance.TitleTruncation != TruncateEnd {
+		t.Errorf("enum fallback wrong: fs=%q trunc=%q", got.Filters.ShowFullscreen, got.Appearance.TitleTruncation)
+	}
+	if got.Appearance.ApparitionDelayMs != 2000 {
+		t.Errorf("delay clamp = %d, want 2000", got.Appearance.ApparitionDelayMs)
+	}
+	if got.Behavior.MenubarIconStyle != MenubarIconDefault || got.Behavior.UpdatePolicy != UpdatesCheck || got.Behavior.CrashReports != CrashAsk {
+		t.Errorf("behavior enum fallback wrong: %+v", got.Behavior)
 	}
 }
 

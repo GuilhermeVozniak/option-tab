@@ -27,12 +27,14 @@ type Fake struct {
 	FocusErr   error
 
 	// Recorded interactions.
-	FocusCalls    []domain.WindowID
-	CloseCalls    []domain.WindowID
-	MinimizeCalls []domain.WindowID
-	QuitCalls     []domain.AppID
-	HideCalls     []domain.AppID
-	LastFocused   domain.WindowID
+	FocusCalls      []domain.WindowID
+	CloseCalls      []domain.WindowID
+	MinimizeCalls   []domain.WindowID
+	FullscreenCalls []domain.WindowID
+	WarpCalls       []domain.WindowID
+	QuitCalls       []domain.AppID
+	HideCalls       []domain.AppID
+	LastFocused     domain.WindowID
 
 	// Environment.
 	ActiveAppID    domain.AppID
@@ -120,6 +122,27 @@ func (f *Fake) Minimize(id domain.WindowID) error {
 			f.windows[i].OnScreen = false
 		}
 	}
+	return nil
+}
+
+// Fullscreen records the call and toggles the window's Fullscreen flag.
+func (f *Fake) Fullscreen(id domain.WindowID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.FullscreenCalls = append(f.FullscreenCalls, id)
+	for i := range f.windows {
+		if f.windows[i].ID == id {
+			f.windows[i].Fullscreen = !f.windows[i].Fullscreen
+		}
+	}
+	return nil
+}
+
+// WarpCursorToWindow records the call (implements platform.CursorWarper).
+func (f *Fake) WarpCursorToWindow(id domain.WindowID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.WarpCalls = append(f.WarpCalls, id)
 	return nil
 }
 

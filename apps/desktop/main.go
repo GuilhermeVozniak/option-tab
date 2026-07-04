@@ -28,6 +28,7 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
 		AssetServer:      &assetserver.Options{Assets: assets},
 		OnStartup:        app.startup,
+		OnBeforeClose:    app.beforeClose,
 		Bind:             []any{app},
 		Mac: &mac.Options{
 			WebviewIsTransparent: true,

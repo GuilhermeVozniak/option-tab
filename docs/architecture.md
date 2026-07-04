@@ -66,8 +66,9 @@ Three backends implement them:
 
 - **`darwin.go` + `darwin.m` + `darwin.h`** — the macOS backend. Window enumeration via
   `CGWindowList`, focus/close/minimize via the Accessibility API, app quit/hide via
-  `NSRunningApplication`, permission checks/requests, login item via `SMAppService`, and a
-  `CGEventTap`-based hotkey engine that detects modifier release for hold-to-cycle.
+  `NSRunningApplication`, permission checks/requests, login item via `SMAppService`, a
+  `CGEventTap`-based hotkey engine that detects modifier release for hold-to-cycle, and an
+  `NSStatusBar` menubar item (Preferences / Pause / Quit) behind the optional `Tray` port.
 - **`stub.go`** (`//go:build !darwin`) — synthetic data so Windows/Linux builds compile and
   the UI is demoable; full native backends for those platforms are future work.
 - **`fake/`** — a scriptable in-memory backend used to drive the controller in tests.

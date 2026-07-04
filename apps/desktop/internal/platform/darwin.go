@@ -4,7 +4,7 @@ package platform
 
 /*
 #cgo darwin CFLAGS: -x objective-c -fobjc-arc
-#cgo darwin LDFLAGS: -framework Cocoa -framework CoreGraphics -framework ApplicationServices -framework ServiceManagement
+#cgo darwin LDFLAGS: -framework Cocoa -framework CoreGraphics -framework ApplicationServices -framework ServiceManagement -framework ScreenCaptureKit
 #include <stdlib.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include "darwin.h"
@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/png"
+	"time"
 	"unsafe"
 
 	"option-tab/internal/domain"
@@ -26,6 +27,7 @@ import (
 // darwinPlatform is the native macOS backend.
 type darwinPlatform struct {
 	hotkeys *darwinHotkeys
+	tray    *darwinTray
 }
 
 // New returns the native macOS platform backend.
@@ -37,16 +39,59 @@ func (p *darwinPlatform) Name() string { return "darwin" }
 
 // rawWindow mirrors the JSON produced by ot_list_windows_json.
 type rawWindow struct {
-	ID       uint64  `json:"id"`
-	PID      int     `json:"pid"`
-	App      string  `json:"app"`
-	Bundle   string  `json:"bundle"`
-	Title    string  `json:"title"`
-	X        float64 `json:"x"`
-	Y        float64 `json:"y"`
-	W        float64 `json:"w"`
-	H        float64 `json:"h"`
-	OnScreen bool    `json:"onscreen"`
+	ID         uint64  `json:"id"`
+	PID        int     `json:"pid"`
+	App        string  `json:"app"`
+	Bundle     string  `json:"bundle"`
+	Title      string  `json:"title"`
+	X          float64 `json:"x"`
+	Y          float64 `json:"y"`
+	W          float64 `json:"w"`
+	H          float64 `json:"h"`
+	OnScreen   bool    `json:"onscreen"`
+	Minimized  bool    `json:"minimized"`
+	Hidden     bool    `json:"hidden"`
+	Fullscreen bool    `json:"fullscreen"`
+	Screen     uint32  `json:"screen"`
+	Space      uint64  `json:"space"`
+	ZOrder     int     `json:"zorder"`
+}
+
+// zOrderBase anchors the synthetic LastFocused timestamps derived from window
+// z-order. It sits far below the MRU tracker's reference point (time.Unix(1<<31))
+// so any window the user has explicitly switched to in-session still sorts ahead
+// of a z-order-only guess, while z-order still gives a real recency signal for
+// windows that have never been touched through the switcher.
+var zOrderBase = time.Unix(1_000_000_000, 0) // 2001-09-09 UTC
+
+// mapRawWindows is the pure translation from the native JSON payload to domain
+// windows. It is split out from Windows so it can be unit-tested without CGO.
+func mapRawWindows(raws []rawWindow) []domain.Window {
+	n := len(raws)
+	out := make([]domain.Window, 0, n)
+	for _, r := range raws {
+		w := domain.Window{
+			ID:         domain.WindowID(r.ID),
+			AppID:      domain.AppID(r.PID),
+			AppName:    r.App,
+			BundleID:   r.Bundle,
+			Title:      r.Title,
+			PID:        r.PID,
+			Bounds:     domain.Bounds{X: r.X, Y: r.Y, W: r.W, H: r.H},
+			ScreenID:   domain.ScreenID(r.Screen),
+			SpaceID:    domain.SpaceID(r.Space),
+			OnScreen:   r.OnScreen,
+			Minimized:  r.Minimized,
+			Hidden:     r.Hidden,
+			Fullscreen: r.Fullscreen,
+		}
+		// Frontmost (zorder 0) is most recent; later in the z-stack is older.
+		if r.ZOrder >= 0 {
+			w.LastFocused = zOrderBase.Add(time.Duration(n-r.ZOrder) * time.Second)
+		}
+		out = append(out, w)
+	}
+	return out
 }
 
 func (p *darwinPlatform) Windows() ([]domain.Window, error) {
@@ -58,20 +103,7 @@ func (p *darwinPlatform) Windows() ([]domain.Window, error) {
 	if err := json.Unmarshal([]byte(data), &raws); err != nil {
 		return nil, err
 	}
-	out := make([]domain.Window, 0, len(raws))
-	for _, r := range raws {
-		out = append(out, domain.Window{
-			ID:       domain.WindowID(r.ID),
-			AppID:    domain.AppID(r.PID),
-			AppName:  r.App,
-			BundleID: r.Bundle,
-			Title:    r.Title,
-			PID:      r.PID,
-			Bounds:   domain.Bounds{X: r.X, Y: r.Y, W: r.W, H: r.H},
-			OnScreen: r.OnScreen,
-		})
-	}
-	return out, nil
+	return mapRawWindows(raws), nil
 }
 
 func (p *darwinPlatform) Focus(id domain.WindowID) error {
@@ -90,6 +122,11 @@ func (p *darwinPlatform) Minimize(id domain.WindowID) error {
 	return nil
 }
 
+func (p *darwinPlatform) Fullscreen(id domain.WindowID) error {
+	C.ot_fullscreen_window(C.uint32_t(id), C.int(p.findPID(id)))
+	return nil
+}
+
 func (p *darwinPlatform) QuitApp(id domain.AppID) error {
 	C.ot_quit_app(C.int(id))
 	return nil
@@ -100,19 +137,12 @@ func (p *darwinPlatform) HideApp(id domain.AppID) error {
 	return nil
 }
 
-// findPID resolves the owning pid of a window id via a fresh enumeration. The
-// CGWindowID alone is not enough for the AX APIs, which are addressed per pid.
+// findPID resolves the owning pid of a window id. The CGWindowID alone is not
+// enough for the AX APIs, which are addressed per pid. This uses a lightweight
+// native lookup rather than a full enrichment pass, so the action path stays
+// fast.
 func (p *darwinPlatform) findPID(id domain.WindowID) int {
-	wins, err := p.Windows()
-	if err != nil {
-		return 0
-	}
-	for _, w := range wins {
-		if w.ID == id {
-			return w.PID
-		}
-	}
-	return 0
+	return int(C.ot_window_pid(C.uint32_t(id)))
 }
 
 func (p *darwinPlatform) Thumbnail(id domain.WindowID, maxPx int) (image.Image, error) {
@@ -129,19 +159,69 @@ func (p *darwinPlatform) Thumbnail(id domain.WindowID, maxPx int) (image.Image, 
 	return png.Decode(bytes.NewReader(raw))
 }
 
+// AppIcon returns the icon of the app owning pid as a base64 PNG data URL,
+// scaled to at most maxPx. Empty string when unavailable.
+func (p *darwinPlatform) AppIcon(pid, maxPx int) string {
+	cstr := C.ot_app_icon_png_base64(C.int(pid), C.int(maxPx))
+	defer C.free(unsafe.Pointer(cstr))
+	return C.GoString(cstr)
+}
+
+// ThumbnailDataURL returns a base64 PNG data URL snapshot of the window via
+// ScreenCaptureKit, scaled to at most maxPx. Empty string when unavailable.
+func (p *darwinPlatform) ThumbnailDataURL(id domain.WindowID, maxPx int) string {
+	cstr := C.ot_thumbnail_dataurl(C.uint32_t(id), C.int(maxPx))
+	defer C.free(unsafe.Pointer(cstr))
+	return C.GoString(cstr)
+}
+
 func (p *darwinPlatform) ActiveApp() domain.AppID {
 	return domain.AppID(C.ot_active_app_pid())
 }
 
-// Space/screen detail is not resolved natively in this version; on-screen
-// enumeration already scopes to the current space, and the default filters use
-// "all" so these zero values are inert.
-func (p *darwinPlatform) ActiveSpace() domain.SpaceID   { return 0 }
-func (p *darwinPlatform) ActiveScreen() domain.ScreenID { return 0 }
-func (p *darwinPlatform) CursorScreen() domain.ScreenID { return 0 }
+func (p *darwinPlatform) ActiveSpace() domain.SpaceID {
+	return domain.SpaceID(C.ot_active_space())
+}
+
+func (p *darwinPlatform) ActiveScreen() domain.ScreenID {
+	return domain.ScreenID(C.ot_active_screen())
+}
+
+func (p *darwinPlatform) CursorScreen() domain.ScreenID {
+	return domain.ScreenID(C.ot_cursor_screen())
+}
 
 func (p *darwinPlatform) Screens() []domain.Screen {
-	return []domain.Screen{{ID: 0, Main: true}}
+	cstr := C.ot_screens_json()
+	defer C.free(unsafe.Pointer(cstr))
+	var raws []rawScreen
+	if err := json.Unmarshal([]byte(C.GoString(cstr)), &raws); err != nil || len(raws) == 0 {
+		return []domain.Screen{{ID: 0, Main: true}}
+	}
+	out := make([]domain.Screen, 0, len(raws))
+	for _, r := range raws {
+		out = append(out, domain.Screen{
+			ID:      domain.ScreenID(r.ID),
+			Main:    r.Main,
+			Bounds:  domain.Bounds{X: r.X, Y: r.Y, W: r.W, H: r.H},
+			Visible: domain.Bounds{X: r.VX, Y: r.VY, W: r.VW, H: r.VH},
+		})
+	}
+	return out
+}
+
+// rawScreen mirrors the JSON produced by ot_screens_json.
+type rawScreen struct {
+	ID   uint32  `json:"id"`
+	Main bool    `json:"main"`
+	X    float64 `json:"x"`
+	Y    float64 `json:"y"`
+	W    float64 `json:"w"`
+	H    float64 `json:"h"`
+	VX   float64 `json:"vx"`
+	VY   float64 `json:"vy"`
+	VW   float64 `json:"vw"`
+	VH   float64 `json:"vh"`
 }
 
 func (p *darwinPlatform) Accessibility() PermState {
@@ -161,6 +241,16 @@ func (p *darwinPlatform) Request(k PermKind) {
 	}
 }
 
+// OpenPrivacySettings opens the System Settings privacy pane for the permission.
+func (p *darwinPlatform) OpenPrivacySettings(k PermKind) {
+	switch k {
+	case PermAccessibility:
+		C.ot_open_privacy_settings(0)
+	case PermScreenRecording:
+		C.ot_open_privacy_settings(1)
+	}
+}
+
 func (p *darwinPlatform) Enabled() bool {
 	return C.ot_login_item_enabled() == 1
 }
@@ -175,6 +265,83 @@ func (p *darwinPlatform) SetEnabled(v bool) error {
 }
 
 func (p *darwinPlatform) Hotkeys() HotkeyEngine { return p.hotkeys }
+
+// ---- Menubar tray ----
+
+func (p *darwinPlatform) InstallTray() <-chan TrayCommand {
+	if p.tray == nil {
+		p.tray = newDarwinTray()
+	}
+	activeTrayChan = p.tray.ch
+	C.ot_tray_install()
+	return p.tray.ch
+}
+
+func (p *darwinPlatform) SetTrayStyle(style string) {
+	cs := C.CString(style)
+	defer C.free(unsafe.Pointer(cs))
+	C.ot_tray_set_style(cs)
+}
+
+// HideDockIcon implements platform.DockHider: accessory apps have no Dock icon.
+func (p *darwinPlatform) HideDockIcon() { C.ot_hide_dock_icon() }
+
+// SetPrefsWindowMode implements platform.WindowModer, flipping the single
+// window between overlay and titled-preferences chrome.
+func (p *darwinPlatform) SetPrefsWindowMode(on bool) {
+	flag := C.int(0)
+	if on {
+		flag = 1
+	}
+	C.ot_window_set_prefs_mode(flag)
+}
+
+// WarpCursorToWindow implements platform.CursorWarper (cursor follows focus).
+func (p *darwinPlatform) WarpCursorToWindow(id domain.WindowID) error {
+	C.ot_warp_cursor(C.uint32_t(id))
+	return nil
+}
+
+func (p *darwinPlatform) SetTrayPaused(paused bool) {
+	flag := C.int(0)
+	if paused {
+		flag = 1
+	}
+	C.ot_tray_set_paused(flag)
+}
+
+func (p *darwinPlatform) RemoveTray() { C.ot_tray_remove() }
+
+// darwinTray streams menubar commands from the native status item to Go.
+type darwinTray struct {
+	ch chan TrayCommand
+}
+
+func newDarwinTray() *darwinTray { return &darwinTray{ch: make(chan TrayCommand, 8)} }
+
+// activeTrayChan is the channel the exported C callback delivers to. There is a
+// single tray per process.
+var activeTrayChan chan TrayCommand
+
+//export goTrayCommand
+func goTrayCommand(cmd C.int) {
+	if activeTrayChan == nil {
+		return
+	}
+	var c TrayCommand
+	switch int(cmd) {
+	case 0:
+		c = TrayPreferences
+	case 1:
+		c = TrayTogglePause
+	case 2:
+		c = TrayQuit
+	}
+	select {
+	case activeTrayChan <- c:
+	default:
+	}
+}
 
 func permFromC(v C.int) PermState {
 	if v == 1 {

@@ -46,6 +46,27 @@ func TestSaveSettings_RejectsBadJSON(t *testing.T) {
 	}
 }
 
+func TestSetPaused_PersistsAndAppliesToController(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	a := newApp(fake.New(), config.Default(), path)
+
+	a.SetPaused(true)
+	if !a.IsPaused() || !a.controller.Paused() {
+		t.Fatalf("expected paused after SetPaused(true): app=%v ctrl=%v", a.IsPaused(), a.controller.Paused())
+	}
+	reloaded, err := config.LoadFile(path)
+	if err != nil || !reloaded.Behavior.Paused {
+		t.Errorf("paused not persisted: %+v err=%v", reloaded.Behavior, err)
+	}
+
+	if got := a.TogglePause(); got {
+		t.Errorf("TogglePause should return false after resume, got %v", got)
+	}
+	if a.IsPaused() {
+		t.Error("expected resumed after TogglePause")
+	}
+}
+
 func TestRegisterHotkeys_DoesNotPanicWithFake(t *testing.T) {
 	a := newApp(fake.New(), config.Default(), "")
 	a.registerHotkeys()
