@@ -38,7 +38,9 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
       - run: bun install --frozen-lockfile
       - name: Build desktop binary
-        run: cd apps/desktop && wails build -platform ${{ matrix.platform }}/${{ matrix.arch }}
+        # ubuntu-latest (24.04) ships webkit2gtk-4.1 only; wails needs the
+        # webkit2_41 tag to link against it.
+        run: cd apps/desktop && wails build -platform ${{ matrix.platform }}/${{ matrix.arch }} ${{ matrix.platform == 'linux' && '-tags webkit2_41' || '' }}
       - name: Package artifact (macOS .dmg)
         if: matrix.platform == 'darwin'
         run: |
