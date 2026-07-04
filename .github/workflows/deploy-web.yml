@@ -22,8 +22,6 @@ jobs:
         with: { bun-version: latest }
       - run: bun install --frozen-lockfile
       - run: cd apps/web && bun run build
-        env:
-          NEXT_PUBLIC_BASE_PATH: /option-tab
       - uses: actions/configure-pages@v5
         with: { enablement: true }
       - uses: actions/upload-pages-artifact@v3
