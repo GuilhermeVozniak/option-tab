@@ -2,6 +2,7 @@
 
 import { downloadUrl, type Platform } from "@option-tab/shared";
 import { useEffect, useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
 import { APP_VERSION, detectPlatform } from "../lib/download";
 
 const ARCH: Record<Platform, "amd64" | "arm64"> = {
@@ -30,6 +31,7 @@ export function PrimaryDownload() {
     <a
       data-testid="primary-download"
       data-platform={platform}
+      className={buttonVariants({ variant: "default", size: "lg" })}
       href={downloadUrl(platform, ARCH[platform], APP_VERSION)}
     >
       Download for {OS_LABEL[platform]}
