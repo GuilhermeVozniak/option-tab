@@ -136,9 +136,9 @@ switcher takes over and preferences are dismissed first.
 It is the seam between what `release.yml` publishes and what the landing page links to;
 changing the release matrix means updating this contract in the same commit.
 
-> **Current limitation:** `release.yml` builds an `amd64 tar.gz` for all three platforms,
-> while the contract defines platform-specific extensions (`darwin → dmg`, `windows → zip`,
-> `linux → tar.gz`). These are not yet aligned — see [docs/release.md](release.md).
+> `release.yml` builds per-platform artifacts matching the contract exactly:
+> `darwin/arm64 → .dmg` (hdiutil), `windows/amd64 → .zip`, `linux/amd64 → .tar.gz`.
+> Changing the release matrix means updating `@option-tab/shared` in the same commit.
 
 ---
 

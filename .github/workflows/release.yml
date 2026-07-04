@@ -11,13 +11,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # platform/arch/format must stay aligned with the @option-tab/shared
+        # release-asset contract (releaseAssetName), which the landing page
+        # uses to build download links.
         include:
           - os: macos-latest
             platform: darwin
+            arch: arm64
           - os: windows-latest
             platform: windows
+            arch: amd64
           - os: ubuntu-latest
             platform: linux
+            arch: amd64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -32,13 +38,28 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
       - run: bun install --frozen-lockfile
       - name: Build desktop binary
-        run: cd apps/desktop && wails build -platform ${{ matrix.platform }}/amd64
-      - name: Package artifact
-        shell: bash
+        run: cd apps/desktop && wails build -platform ${{ matrix.platform }}/${{ matrix.arch }}
+      - name: Package artifact (macOS .dmg)
+        if: matrix.platform == 'darwin'
         run: |
           cd apps/desktop/build/bin
-          ls -la
-          tar -czf "option-tab_${GITHUB_REF_NAME#v}_${{ matrix.platform }}_amd64.tar.gz" --exclude='*.tar.gz' *
+          hdiutil create -volname "Option Tab" -srcfolder option-tab.app -ov -format UDZO \
+            "option-tab_${GITHUB_REF_NAME#v}_darwin_${{ matrix.arch }}.dmg"
+      - name: Package artifact (Windows .zip)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          cd apps/desktop/build/bin
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          Compress-Archive -Path option-tab.exe -DestinationPath "option-tab_${version}_windows_${{ matrix.arch }}.zip"
+      - name: Package artifact (Linux .tar.gz)
+        if: matrix.platform == 'linux'
+        run: |
+          cd apps/desktop/build/bin
+          tar -czf "option-tab_${GITHUB_REF_NAME#v}_linux_${{ matrix.arch }}.tar.gz" option-tab
       - uses: softprops/action-gh-release@v2
         with:
-          files: apps/desktop/build/bin/*.tar.gz
+          files: |
+            apps/desktop/build/bin/*.dmg
+            apps/desktop/build/bin/*.zip
+            apps/desktop/build/bin/*.tar.gz
