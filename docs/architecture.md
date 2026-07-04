@@ -7,7 +7,7 @@ option-tab is a monorepo containing three deployable units:
 | Unit | Technology | Output |
 |------|-----------|--------|
 | `apps/desktop` | Go + React (Wails) | Native binary |
-| `apps/web` | Next.js (static export) | GitHub Pages site |
+| `apps/web` | Next.js (static export) | GitHub Pages site at [option-tab.vozniak.dev](https://option-tab.vozniak.dev) |
 | `packages/shared` | TypeScript (library) | Consumed by `apps/web` and the release pipeline |
 
 The desktop app is the product: a window switcher with feature parity to AltTab. The web
@@ -119,7 +119,8 @@ switcher takes over and preferences are dismissed first.
 
 ## Landing page: static Next.js site
 
-`apps/web` is a static-export Next.js 15 site (`output: "export"`). Its download buttons:
+`apps/web` is a static-export Next.js 15 site (`output: "export"`) served at
+[option-tab.vozniak.dev](https://option-tab.vozniak.dev). Its download buttons:
 
 1. `PrimaryDownload` calls `detectPlatform(navigator.userAgent)` from `lib/download.ts`.
 2. Both `PrimaryDownload` and `DownloadButtons` call `downloadUrl(platform, arch, version)`

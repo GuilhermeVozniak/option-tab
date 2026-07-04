@@ -2,6 +2,9 @@
 
 [![CI](https://github.com/GuilhermeVozniak/option-tab/actions/workflows/ci.yml/badge.svg)](https://github.com/GuilhermeVozniak/option-tab/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Website](https://img.shields.io/badge/website-option--tab.vozniak.dev-06b6d4.svg)](https://option-tab.vozniak.dev)
+
+**Website & downloads: [option-tab.vozniak.dev](https://option-tab.vozniak.dev)**
 
 A free, open-source **window switcher** for macOS (with Windows/Linux builds) — the
 Windows-style `Alt`+`Tab` experience, rebuilt in [Wails](https://wails.io) (Go + React).
@@ -37,7 +40,7 @@ custom shortcuts. Every feature AltTab gates behind its "Pro" tier ships here **
 | Piece | What it is |
 |-------|------------|
 | `apps/desktop` | The **product**: a Wails app — pure-Go switcher core behind a platform port, with a macOS CGO backend and a React overlay UI |
-| `apps/web` | The **landing page**: a static Next.js site deployed to GitHub Pages with OS-aware download buttons |
+| `apps/web` | The **landing page** at [option-tab.vozniak.dev](https://option-tab.vozniak.dev): a static Next.js site deployed to GitHub Pages with OS-aware download buttons |
 | `packages/shared` | A TypeScript contract defining product metadata and release-asset naming — the seam between the release pipeline and the landing page |
 
 The pure-Go core (`internal/{domain,config,filter,order,search,mru,hotkey,switcher}`) holds

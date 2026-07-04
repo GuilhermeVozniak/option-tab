@@ -2,6 +2,7 @@ export const PRODUCT = {
   name: "option-tab",
   displayName: "Option Tab",
   repo: "https://github.com/GuilhermeVozniak/option-tab",
+  site: "https://option-tab.vozniak.dev",
 } as const;
 
 export type Platform = "darwin" | "windows" | "linux";

@@ -83,7 +83,7 @@ Until these follow-ups are implemented, users on macOS and Windows must manually
 2. Runs `cd apps/web && bun run build`, which produces a static export in `apps/web/out/`.
 3. Uploads `apps/web/out/` as a GitHub Pages artifact and deploys it.
 
-The deployed site is available at the repository's GitHub Pages URL. No server-side rendering is involved; the site is a fully static export.
+The deployed site is available at [option-tab.vozniak.dev](https://option-tab.vozniak.dev) (a custom domain on GitHub Pages). No server-side rendering is involved; the site is a fully static export.
 
 ---
 
