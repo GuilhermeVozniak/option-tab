@@ -18,7 +18,7 @@ jobs:
           - os: macos-latest
             platform: darwin
             arch: arm64
-          - os: windows-latest
+          - os: blacksmith-4vcpu-windows-2025
             platform: windows
             arch: amd64
           - os: ubuntu-latest

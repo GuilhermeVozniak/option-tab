@@ -6,7 +6,7 @@ on:
 
 jobs:
   js:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -18,7 +18,7 @@ jobs:
       - run: cd apps/web && bunx playwright install --with-deps chromium && bun run e2e
 
   go:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
