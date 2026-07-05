@@ -13,3 +13,6 @@ test-results/
 
 # Wails frontend build cache
 apps/desktop/frontend/package.json.md5
+
+# DMG background intermediates (bg.tiff is the committed artifact)
+apps/desktop/build/darwin/dmg/bg@*.png

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<!-- DMG background art. Rendered to bg@1x/bg@2x.png by render-bg.mjs, then
+     combined into bg.tiff (tiffutil) so Finder shows it crisp on retina.
+     Icon slots (app at 165,195 / Applications at 495,195, 128px) must stay
+     clear — they are drawn by Finder per appdmg.json. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Option Tab DMG background</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+      }
+      /* Light theme on purpose: Finder renders icon labels in black when a
+         window has a custom background (dark mode is ignored there), so the
+         backdrop must be light for the "Option Tab" / "Applications" labels
+         to stay readable. */
+      body {
+        width: 660px;
+        height: 400px;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background:
+          radial-gradient(520px 320px at 85% -10%, rgba(139, 92, 246, 0.16), transparent 62%),
+          radial-gradient(420px 280px at -5% 15%, rgba(34, 211, 238, 0.12), transparent 58%),
+          radial-gradient(460px 360px at 50% 115%, rgba(99, 102, 241, 0.14), transparent 62%),
+          #f4f7ff;
+        color: #16213c;
+      }
+      .title {
+        position: absolute;
+        top: 34px;
+        width: 100%;
+        text-align: center;
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+      }
+      .arrow {
+        position: absolute;
+        top: 178px;
+        left: 268px;
+      }
+      .caption {
+        position: absolute;
+        top: 330px;
+        width: 100%;
+        text-align: center;
+        font-size: 14px;
+        color: rgba(22, 33, 60, 0.7);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="title">Option Tab</div>
+    <svg class="arrow" width="124" height="34" viewBox="0 0 124 34" fill="none">
+      <path
+        d="M4 17 H104"
+        stroke="rgba(22, 33, 60, 0.4)"
+        stroke-width="5"
+        stroke-linecap="round"
+      />
+      <path
+        d="M96 5 L114 17 L96 29"
+        stroke="rgba(22, 33, 60, 0.4)"
+        stroke-width="5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        fill="none"
+      />
+    </svg>
+    <div class="caption">Drag <b>Option Tab</b> into the <b>Applications</b> folder to install</div>
+  </body>
+</html>
