@@ -62,6 +62,8 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security list-keychains -d user -s "$KEYCHAIN" login.keychain
           rm "$RUNNER_TEMP/cert.p12"
+          # fail here, not at codesign, if the p12 lacks a Developer ID identity.
+          security find-identity -v -p codesigning "$KEYCHAIN" | grep "Developer ID Application"
       - name: Sign app (macOS)
         if: matrix.platform == 'darwin' && env.HAS_MACOS_SIGNING == 'true'
         run: |
