@@ -25,6 +25,9 @@ jobs:
             platform: linux
             arch: amd64
     runs-on: ${{ matrix.os }}
+    env:
+      # secrets are not readable in step-level `if:`; surface presence here.
+      HAS_MACOS_SIGNING: ${{ secrets.MACOS_CERT_P12 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -41,12 +44,50 @@ jobs:
         # ubuntu-latest (24.04) ships webkit2gtk-4.1 only; wails needs the
         # webkit2_41 tag to link against it.
         run: cd apps/desktop && wails build -platform ${{ matrix.platform }}/${{ matrix.arch }} ${{ matrix.platform == 'linux' && '-tags webkit2_41' || '' }}
+      # Signing/notarization steps are skipped when the signing secrets are
+      # absent (e.g. forks), so unsigned releases still build.
+      - name: Import signing certificate (macOS)
+        if: matrix.platform == 'darwin' && env.HAS_MACOS_SIGNING == 'true'
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain
+          rm "$RUNNER_TEMP/cert.p12"
+      - name: Sign app (macOS)
+        if: matrix.platform == 'darwin' && env.HAS_MACOS_SIGNING == 'true'
+        run: |
+          codesign --force --deep --options runtime --timestamp \
+            --sign "Developer ID Application" apps/desktop/build/bin/option-tab.app
+          codesign --verify --deep --strict --verbose=2 apps/desktop/build/bin/option-tab.app
       - name: Package artifact (macOS .dmg)
         if: matrix.platform == 'darwin'
         run: |
           cd apps/desktop/build/bin
           hdiutil create -volname "Option Tab" -srcfolder option-tab.app -ov -format UDZO \
             "option-tab_${GITHUB_REF_NAME#v}_darwin_${{ matrix.arch }}.dmg"
+      - name: Sign, notarize, and staple dmg (macOS)
+        if: matrix.platform == 'darwin' && env.HAS_MACOS_SIGNING == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          DMG=(apps/desktop/build/bin/*.dmg)
+          codesign --force --timestamp --sign "Developer ID Application" "${DMG[0]}"
+          xcrun notarytool submit "${DMG[0]}" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" --wait
+          # staple fails if notarization did not fully succeed, failing the job.
+          xcrun stapler staple "${DMG[0]}"
+          xcrun stapler validate "${DMG[0]}"
       - name: Package artifact (Windows .zip)
         if: matrix.platform == 'windows'
         shell: pwsh
