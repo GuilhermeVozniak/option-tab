@@ -62,6 +62,12 @@ func (a *App) Show(st switcher.State) {
 	}
 	a.enrichIcons(&st)
 	a.emit("switcher:show", st)
+	// Size the transparent window to the screen so the panel can use the whole
+	// area (thumbnails keep their configured size instead of shrinking to fit
+	// the small default window).
+	if f, ok := a.platform.(platform.OverlayWindowPreparer); ok {
+		f.FitOverlayToScreen()
+	}
 	if a.ctx != nil {
 		runtime.WindowShow(a.ctx)
 		runtime.WindowCenter(a.ctx)

@@ -286,6 +286,14 @@ func (p *darwinPlatform) SetTrayStyle(style string) {
 // HideDockIcon implements platform.DockHider: accessory apps have no Dock icon.
 func (p *darwinPlatform) HideDockIcon() { C.ot_hide_dock_icon() }
 
+// PrepareOverlayWindow implements platform.OverlayWindowPreparer, making the
+// window fully transparent so only the rendered switcher panel is visible.
+func (p *darwinPlatform) PrepareOverlayWindow() { C.ot_window_init_overlay() }
+
+// FitOverlayToScreen implements platform.OverlayWindowPreparer, sizing the
+// transparent window to its screen so the panel can use the full area.
+func (p *darwinPlatform) FitOverlayToScreen() { C.ot_window_fit_screen() }
+
 // SetPrefsWindowMode implements platform.WindowModer, flipping the single
 // window between overlay and titled-preferences chrome.
 func (p *darwinPlatform) SetPrefsWindowMode(on bool) {

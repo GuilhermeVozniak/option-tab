@@ -674,6 +674,34 @@ void ot_window_set_prefs_mode(int on) {
   });
 }
 
+// ot_window_init_overlay makes the app window a true transparent overlay.
+// Wails never sets opaque=NO, so without this the window's clear background
+// renders as a solid square behind the webview. Run once at startup; prefs
+// mode saves/restores the same state.
+void ot_window_init_overlay(void) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSWindow *w = otMainWindow();
+    if (w == nil) return;
+    w.opaque = NO;
+    w.backgroundColor = [NSColor clearColor];
+    w.hasShadow = NO; // the panel draws its own CSS shadow
+  });
+}
+
+// ot_window_fit_screen resizes the overlay window to the visible frame of the
+// screen it is on, so the switcher panel can lay out against the whole screen
+// instead of the small default window. The window is fully transparent, so
+// its actual bounds are invisible. Dispatched to the main queue.
+void ot_window_fit_screen(void) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    NSWindow *w = otMainWindow();
+    if (w == nil) return;
+    NSScreen *s = w.screen ?: [NSScreen mainScreen];
+    if (s == nil) return;
+    [w setFrame:s.visibleFrame display:YES];
+  });
+}
+
 void ot_warp_cursor(uint32_t wid) {
   CFArrayRef arr = CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow, (CGWindowID)wid);
   if (arr == NULL) return;

@@ -96,6 +96,11 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	dlog("startup: platform=%s accessibility=%v", a.platform.Name(), a.platform.Accessibility())
 	runtime.WindowHide(ctx)
+	// The overlay window must be fully transparent (Wails leaves it opaque, so
+	// the clear background would otherwise render as a square dark backdrop).
+	if w, ok := a.platform.(platform.OverlayWindowPreparer); ok {
+		w.PrepareOverlayWindow()
+	}
 	// A switcher is a background utility: keep it out of the Dock (bundles also
 	// set LSUIElement; this covers `wails dev` runs).
 	if h, ok := a.platform.(platform.DockHider); ok {

@@ -22,6 +22,15 @@ export function Overlay({ state, handlers }: OverlayProps) {
   // the overlay (AltTab parity). 0 renders immediately.
   const delay = appearance.apparitionDelayMs;
   const [shown, setShown] = useState(delay <= 0);
+
+  // The Go side resizes the overlay window to the screen on show; track the
+  // viewport so the grid is laid out against the real window size.
+  const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight });
+  useEffect(() => {
+    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   useEffect(() => {
     if (!open) return;
     if (delay <= 0) {
@@ -114,6 +123,10 @@ export function Overlay({ state, handlers }: OverlayProps) {
     maxRows: appearance.maxRows,
     thumbnailMaxPx: appearance.thumbnailMaxPx,
     autoSize: appearance.autoSize,
+    viewportW: viewport.w,
+    viewportH: viewport.h,
+    showTitle: appearance.showTitle,
+    previewEnabled: appearance.previewSelected,
   });
 
   const style = state.style;
@@ -127,6 +140,11 @@ export function Overlay({ state, handlers }: OverlayProps) {
       data-style={style}
       role="dialog"
       aria-label="Window switcher"
+      onClick={(e) => {
+        // The window now covers the whole screen; clicking the empty backdrop
+        // outside the panel dismisses the switcher.
+        if (e.target === e.currentTarget) handlers.onCancel();
+      }}
       style={
         {
           "--ot-accent": accent,

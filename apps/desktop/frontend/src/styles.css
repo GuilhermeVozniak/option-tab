@@ -71,16 +71,34 @@ body,
   padding: 18px;
   border-radius: var(--ot-radius, 16px);
   border: 1px solid rgba(255, 255, 255, 0.2);
+  /* No backdrop-filter here: the native window is transparent, so there is
+     nothing behind the webview for WebKit to blur — the effect flickers on
+     and off as content repaints. The glass look is baked into the layered
+     background instead. */
   background:
     linear-gradient(155deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03) 45%),
-    rgba(13, 17, 31, calc(var(--ot-bg-opacity, 0.85) * 0.82));
-  backdrop-filter: blur(28px) saturate(170%);
-  -webkit-backdrop-filter: blur(28px) saturate(170%);
+    rgba(13, 17, 31, calc(var(--ot-bg-opacity, 0.85) * 0.95));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 -1px 0 rgba(255, 255, 255, 0.04),
     0 28px 80px rgba(0, 0, 0, 0.55);
   color: #f5f7ff;
+}
+
+/* Slim glass scrollbars as a fallback; computeLayout normally sizes the grid
+   so nothing overflows and no scrollbar appears at all. */
+.ot-panel::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.ot-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+}
+
+.ot-panel::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 .ot-theme-light .ot-panel {
@@ -225,6 +243,9 @@ body,
   background: linear-gradient(150deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
   position: relative;
   overflow: hidden;
+  /* WebKit can skip border-radius clipping for absolutely-positioned children;
+     isolate forces a proper clip so the preview never pokes past the corners. */
+  isolation: isolate;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.12),
     0 2px 8px rgba(0, 0, 0, 0.35);
@@ -256,7 +277,10 @@ body,
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* contain, not cover: always show the whole window (wide windows would
+     otherwise be cropped inside the fixed-aspect cell). */
+  object-fit: contain;
+  border-radius: inherit;
 }
 
 /* When a live thumbnail is present, the app icon shrinks to a corner badge
@@ -356,6 +380,14 @@ body,
   display: flex;
 }
 
+/* In thumbnails style the cell's top row holds the app icon, title, and Space
+   badge; drop the hover controls into the thumbnail image instead of covering
+   that row. */
+.ot-entry-thumbnails .ot-controls {
+  top: 32px;
+  right: 10px;
+}
+
 .ot-ctl {
   width: 20px;
   height: 20px;
@@ -395,6 +427,14 @@ body,
   display: flex;
   gap: 3px;
   pointer-events: none;
+}
+
+/* In thumbnails style the top-left corner holds the app icon in the title
+   row; park the status markers at the top-right next to the Space badge so
+   they never cover it. */
+.ot-entry-thumbnails .ot-status {
+  left: auto;
+  right: 24px;
 }
 
 .ot-status-icon {

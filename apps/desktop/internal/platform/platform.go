@@ -164,6 +164,15 @@ type WindowModer interface {
 	SetPrefsWindowMode(on bool)
 }
 
+// OverlayWindowPreparer makes the app window a fully transparent overlay so
+// only the rendered switcher panel is visible (no opaque window backdrop),
+// and sizes it to the screen before each show. Optional: only the native
+// macOS backend implements it, so consumers type-assert for it.
+type OverlayWindowPreparer interface {
+	PrepareOverlayWindow()
+	FitOverlayToScreen()
+}
+
 // SettingsOpener opens the OS settings pane for a permission, used to guide the
 // user when a permission was denied and the system prompt no longer appears.
 // Optional: only the native macOS backend implements it, so consumers

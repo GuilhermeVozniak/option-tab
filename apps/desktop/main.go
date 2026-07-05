@@ -32,9 +32,12 @@ func main() {
 		Bind:             []any{app},
 		Mac: &mac.Options{
 			WebviewIsTransparent: true,
-			WindowIsTranslucent:  true,
-			TitleBar:             mac.TitleBarHiddenInset(),
-			Appearance:           mac.NSAppearanceNameDarkAqua,
+			// WindowIsTranslucent is deliberately off: it inserts a full-window
+			// NSVisualEffectView (a dark square backdrop). The overlay wants a
+			// fully clear window where only the webview's rounded panel is
+			// visible; ot_window_init_overlay finishes the job at startup.
+			TitleBar:   mac.TitleBarHiddenInset(),
+			Appearance: mac.NSAppearanceNameDarkAqua,
 		},
 	})
 	if err != nil {

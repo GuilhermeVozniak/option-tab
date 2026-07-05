@@ -53,8 +53,10 @@ export function EntryItem({
     initial(entry.appName)
   );
   const titleText = truncateTitle(entry.title || entry.appName, titleTruncation);
-  const maxWidth =
-    style === "titles" ? undefined : style === "thumbnails" ? thumbnailPx : titleMaxWidthPx;
+  // Thumbnails cells size naturally from the frame inside them; capping the
+  // cell at thumbnailPx would squeeze the frame while the image keeps the
+  // full width and overflows it horizontally.
+  const maxWidth = style === "appIcons" ? titleMaxWidthPx : undefined;
 
   return (
     <li

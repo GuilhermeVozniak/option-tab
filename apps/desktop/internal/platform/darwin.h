@@ -100,6 +100,16 @@ void ot_hide_dock_icon(void);
 // floating overlay chrome. Dispatched to the main queue.
 void ot_window_set_prefs_mode(int on);
 
+// ot_window_init_overlay makes the app window non-opaque with a clear
+// background so only the webview's rounded panel is visible (no square
+// window backdrop). Call once at startup; dispatched to the main queue.
+void ot_window_init_overlay(void);
+
+// ot_window_fit_screen resizes the (transparent) overlay window to the
+// visible frame of its screen, giving the switcher the whole screen to lay
+// out in. Call before each show; dispatched to the main queue.
+void ot_window_fit_screen(void);
+
 // Login item (SMAppService, macOS 13+). Returns 1/0; set returns 1 on success.
 int ot_login_item_enabled(void);
 int ot_login_item_set(int enabled);
