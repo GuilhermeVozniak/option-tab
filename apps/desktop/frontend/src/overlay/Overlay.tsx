@@ -23,13 +23,23 @@ export function Overlay({ state, handlers }: OverlayProps) {
   const delay = appearance.apparitionDelayMs;
   const [shown, setShown] = useState(delay <= 0);
 
-  // The Go side resizes the overlay window to the screen on show; track the
-  // viewport so the grid is laid out against the real window size.
+  // The Go side resizes the overlay window to the target screen on show. Track
+  // the real viewport with a ResizeObserver on the root element: it fires
+  // reliably when the native window is resized programmatically (the window
+  // `resize` event does not always), so the grid is laid out against the
+  // actual window size on the very first show, even across screens of
+  // different resolution.
   const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight });
   useEffect(() => {
-    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    const measure = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    measure();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+    const ro = new ResizeObserver(measure);
+    ro.observe(document.documentElement);
+    return () => ro.disconnect();
   }, []);
   useEffect(() => {
     if (!open) return;

@@ -54,6 +54,46 @@ type State struct {
 	ArrowKeys     bool               `json:"arrowKeys"`
 	MouseHover    bool               `json:"mouseHover"`
 	ActiveSpaceID domain.SpaceID     `json:"activeSpaceId"`
+	// PlacementScreenID is the display the overlay window is sized to appear on.
+	PlacementScreenID domain.ScreenID `json:"placementScreenId"`
+}
+
+// resolvePlacementScreen picks the display id the overlay should appear on for
+// the given Placement. It falls back to the main screen, then the first
+// screen, then zero ("keep the window's current screen").
+func resolvePlacementScreen(p config.Placement, screens []domain.Screen, active, cursor domain.ScreenID) domain.ScreenID {
+	target := active
+	if p == config.PlaceCursorScreen {
+		target = cursor
+	}
+	for _, s := range screens {
+		if s.ID == target {
+			return s.ID
+		}
+	}
+	for _, s := range screens {
+		if s.Main {
+			return s.ID
+		}
+	}
+	if len(screens) > 0 {
+		return screens[0].ID
+	}
+	return 0
+}
+
+// OrderSelectedFirst returns entries with the selected one moved to the front,
+// preserving the relative order of the rest. Used so thumbnail capture snaps
+// the most likely pick first. A selected index out of range returns the input.
+func OrderSelectedFirst(entries []Entry, selected int) []Entry {
+	if selected <= 0 || selected >= len(entries) {
+		return entries
+	}
+	out := make([]Entry, 0, len(entries))
+	out = append(out, entries[selected])
+	out = append(out, entries[:selected]...)
+	out = append(out, entries[selected+1:]...)
+	return out
 }
 
 // Deps are the controller's collaborators.
@@ -77,13 +117,14 @@ type Controller struct {
 	deps     Deps
 	settings config.Settings
 
-	open        bool
-	shortcut    config.Shortcut
-	activeSpace domain.SpaceID  // captured at activate/refresh for the view's badges
-	baseList    []domain.Window // filtered + ordered, before search
-	list        []domain.Window // after search
-	selected    int
-	search      string
+	open            bool
+	shortcut        config.Shortcut
+	activeSpace     domain.SpaceID // captured at activate/refresh for the view's badges
+	placementScreen domain.ScreenID
+	baseList        []domain.Window // filtered + ordered, before search
+	list            []domain.Window // after search
+	selected        int
+	search          string
 }
 
 // New creates a Controller with the given dependencies and initial settings.
@@ -192,6 +233,9 @@ func (c *Controller) activate(shortcutID int) {
 		SelfBundleID:   c.deps.SelfBundleID,
 	}
 	c.activeSpace = ctx.ActiveSpaceID
+	c.placementScreen = resolvePlacementScreen(
+		c.settings.Placement, c.deps.Env.Screens(), ctx.ActiveScreenID, ctx.CursorScreenID,
+	)
 	if filter.ShortcutIgnoredForApp(wins, ctx.ActiveAppID, c.settings.Filters.AppBlacklist) {
 		c.mu.Unlock()
 		return
@@ -289,6 +333,8 @@ func (c *Controller) Confirm() {
 	c.mu.Unlock()
 
 	if focusID != 0 {
+		// Focus navigates to the window's Space natively (SkyLight window
+		// fronting) so a window on another desktop comes forward there.
 		_ = c.deps.Focuser.Focus(focusID)
 		c.deps.MRU.Touch(focusID)
 		if follow && c.deps.Cursor != nil {
@@ -442,17 +488,18 @@ func (c *Controller) snapshot() State {
 		}
 	}
 	return State{
-		Open:          c.open,
-		Style:         style,
-		Appearance:    c.settings.Appearance,
-		Placement:     c.settings.Placement,
-		Entries:       entries,
-		Selected:      c.selected,
-		Search:        c.search,
-		ShortcutID:    c.shortcut.ID,
-		VimKeys:       c.settings.Behavior.VimKeys,
-		ArrowKeys:     c.settings.Behavior.ArrowKeys,
-		MouseHover:    c.settings.Behavior.MouseHoverSelect,
-		ActiveSpaceID: c.activeSpace,
+		Open:              c.open,
+		Style:             style,
+		Appearance:        c.settings.Appearance,
+		Placement:         c.settings.Placement,
+		Entries:           entries,
+		Selected:          c.selected,
+		Search:            c.search,
+		ShortcutID:        c.shortcut.ID,
+		VimKeys:           c.settings.Behavior.VimKeys,
+		ArrowKeys:         c.settings.Behavior.ArrowKeys,
+		MouseHover:        c.settings.Behavior.MouseHoverSelect,
+		ActiveSpaceID:     c.activeSpace,
+		PlacementScreenID: c.placementScreen,
 	}
 }

@@ -414,13 +414,13 @@ func Default() Settings {
 		Shortcuts: []Shortcut{
 			{
 				ID:      1,
-				Chord:   "option+tab",
+				Chord:   "command+tab",
 				Enabled: true,
 				Scope:   ShortcutScope{AppScope: AppScopeAll},
 			},
 			{
 				ID:      2,
-				Chord:   "option+grave",
+				Chord:   "option+tab",
 				Enabled: true,
 				Scope:   ShortcutScope{AppScope: AppScopeActiveApp},
 			},

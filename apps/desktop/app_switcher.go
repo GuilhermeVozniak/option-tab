@@ -2,13 +2,13 @@ package main
 
 import (
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"option-tab/internal/config"
-	"option-tab/internal/domain"
 	"option-tab/internal/hotkey"
 	"option-tab/internal/platform"
 	"option-tab/internal/switcher"
@@ -65,30 +65,26 @@ func (a *App) Show(st switcher.State) {
 	a.enrichIcons(&st)
 	a.emit("switcher:show", st)
 	a.lastSelected = st.Selected
-	// Size the transparent window to the screen the Placement setting chose so
-	// the panel appears there and can use the whole area.
+	// Size the transparent window to the screen the Placement setting chose
+	// (resolved by the controller) so the panel appears there and lays out
+	// against the real screen size.
+	fitted := false
 	if f, ok := a.platform.(platform.OverlayWindowPreparer); ok {
-		f.FitOverlayToScreen(a.placementScreen())
+		f.FitOverlayToScreen(st.PlacementScreenID)
+		fitted = true
 	}
 	if a.ctx != nil {
+		// FitOverlayToScreen already positions the window on the target screen, so
+		// no WindowCenter there (it could move it onto the wrong display). On
+		// backends without a fit path, center so it isn't shown at a stale spot.
+		if !fitted {
+			runtime.WindowCenter(a.ctx)
+		}
 		runtime.WindowShow(a.ctx)
-		runtime.WindowCenter(a.ctx)
 	}
 	a.emitCachedThumbnails(st)
 	a.captureThumbnails(st)
 	a.capturePreview(st)
-}
-
-// placementScreen resolves the Placement setting to a display id (0 = keep
-// the window's current screen).
-func (a *App) placementScreen() domain.ScreenID {
-	switch a.settings.Placement {
-	case config.PlaceCursorScreen:
-		return a.platform.CursorScreen()
-	case config.PlaceActiveScreen, config.PlaceFocusedWindowScreen:
-		return a.platform.ActiveScreen()
-	}
-	return 0
 }
 
 // Update pushes a new state to the visible overlay.
@@ -190,18 +186,35 @@ func (a *App) captureThumbnails(st switcher.State) {
 		px = 256
 	}
 	gen := atomic.AddInt64(&a.thumbGen, 1)
-	entries := st.Entries
+	// Capture the selected window first, and capture in parallel (bounded) so
+	// all previews appear together quickly instead of streaming in one by one.
+	// Concurrency is modest: each capture is a full ScreenCaptureKit enumeration,
+	// so too many at once contend on the window server and risk timing out.
+	entries := switcher.OrderSelectedFirst(st.Entries, st.Selected)
+	const maxConcurrent = 4
 	go func() {
+		sem := make(chan struct{}, maxConcurrent)
+		var wg sync.WaitGroup
 		for _, e := range entries {
 			if atomic.LoadInt64(&a.thumbGen) != gen {
-				return
+				break
 			}
-			url := src.ThumbnailDataURL(e.WindowID, px)
-			if url == "" || atomic.LoadInt64(&a.thumbGen) != gen {
-				continue
-			}
-			a.emit("switcher:thumbnails", map[string]string{strconv.Itoa(int(e.WindowID)): url})
+			sem <- struct{}{}
+			wg.Add(1)
+			go func(e switcher.Entry) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				if atomic.LoadInt64(&a.thumbGen) != gen {
+					return
+				}
+				url := src.ThumbnailDataURL(e.WindowID, px)
+				if url == "" || atomic.LoadInt64(&a.thumbGen) != gen {
+					return
+				}
+				a.emit("switcher:thumbnails", map[string]string{strconv.Itoa(int(e.WindowID)): url})
+			}(e)
 		}
+		wg.Wait()
 	}()
 }
 

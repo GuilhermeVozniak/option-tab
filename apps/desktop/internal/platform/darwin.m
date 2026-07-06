@@ -5,9 +5,17 @@
 #import <ApplicationServices/ApplicationServices.h>
 #import <ServiceManagement/ServiceManagement.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
+#import <Carbon/Carbon.h> // ProcessSerialNumber, GetProcessForPID (for SkyLight focus)
 #include <pthread.h>
 #include <unistd.h>
 #include "darwin.h"
+
+// SkyLight private API for precise front-window control (the AltTab technique):
+// bringing a *specific* window's process frontmost makes macOS follow to that
+// window's Space and make it key, WITHOUT moving the window to the current
+// Space (which activate+raise alone does when the space switch is a no-op).
+extern void _SLPSSetFrontProcessWithOptions(ProcessSerialNumber *psn, uint32_t wid, uint32_t mode);
+extern CGError SLPSPostEventRecordTo(ProcessSerialNumber *psn, uint8_t *bytes);
 
 // Exported from Go (see darwin.go): receives hotkey events from the tap thread.
 extern void goHotkeyEvent(int kind, int id);
@@ -226,6 +234,7 @@ uint64_t ot_active_space(void) {
   return CGSGetActiveSpace(cid);
 }
 
+
 uint32_t ot_active_screen(void) {
   // The screen owning the focused window of the frontmost app, else main.
   @autoreleasepool {
@@ -348,15 +357,46 @@ static AXUIElementRef copyAXWindow(uint32_t wid, int pid) {
   return found;
 }
 
+// otMakeKeyWindow posts the two SkyLight event records AltTab uses to make a
+// specific window key after its process is fronted.
+static void otMakeKeyWindow(ProcessSerialNumber psn, uint32_t wid) {
+  uint8_t bytes[0xf8] = {0};
+  bytes[0x04] = 0xf8;
+  bytes[0x08] = 0x01;
+  bytes[0x3a] = 0x10;
+  memcpy(&bytes[0x3c], &wid, sizeof(uint32_t));
+  memset(&bytes[0x20], 0xff, 0x10);
+  bytes[0x08] = 0x02;
+  SLPSPostEventRecordTo(&psn, bytes);
+  bytes[0x08] = 0x01;
+  SLPSPostEventRecordTo(&psn, bytes);
+}
+
 int ot_focus_window(uint32_t wid, int pid) {
   @autoreleasepool {
+    // Front the specific window via SkyLight so macOS navigates to its Space
+    // (works cross-Space without pulling the window to the current desktop,
+    // which the old activate+raise did when the space switch was a no-op).
+    ProcessSerialNumber psn;
+    BOOL fronted = NO;
+    if (GetProcessForPID(pid, &psn) == noErr) {
+      _SLPSSetFrontProcessWithOptions(&psn, wid, 0x200 /* kCPSUserGenerated */);
+      otMakeKeyWindow(psn, wid);
+      fronted = YES;
+    }
     AXUIElementRef w = copyAXWindow(wid, pid);
     if (w == NULL) return 0;
     AXUIElementPerformAction(w, kAXRaiseAction);
     AXUIElementSetAttributeValue(w, kAXMainAttribute, kCFBooleanTrue);
     CFRelease(w);
-    NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
-    [app activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+    if (!fronted) {
+      // The pid could not be resolved for SkyLight fronting (e.g. an accessory
+      // process): fall back to activating the app so the window still gets
+      // focus. This never switches Spaces, so it can't pull the window over.
+      NSRunningApplication *app =
+          [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+      [app activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+    }
     return 1;
   }
 }

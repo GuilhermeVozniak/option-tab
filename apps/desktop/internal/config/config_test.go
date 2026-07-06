@@ -7,6 +7,65 @@ import (
 	"testing"
 )
 
+func TestDefault_ShortcutChords(t *testing.T) {
+	// Regression: the shipped defaults are Command+Tab (all windows) and
+	// Option+Tab (active app only), matching AltTab and the app's UI.
+	s := Default()
+	if len(s.Shortcuts) < 2 {
+		t.Fatalf("expected >=2 default shortcuts, got %d", len(s.Shortcuts))
+	}
+	if s.Shortcuts[0].Chord != "command+tab" || s.Shortcuts[0].Scope.AppScope != AppScopeAll {
+		t.Errorf("shortcut 1 = %q/%q, want command+tab/all",
+			s.Shortcuts[0].Chord, s.Shortcuts[0].Scope.AppScope)
+	}
+	if s.Shortcuts[1].Chord != "option+tab" || s.Shortcuts[1].Scope.AppScope != AppScopeActiveApp {
+		t.Errorf("shortcut 2 = %q/%q, want option+tab/activeApp",
+			s.Shortcuts[1].Chord, s.Shortcuts[1].Scope.AppScope)
+	}
+}
+
+func TestDefault_NewBehaviorAndAppearanceFields(t *testing.T) {
+	// Regression: defaults for the fields added this session.
+	s := Default()
+	if !s.Appearance.PreviewFade {
+		t.Error("PreviewFade should default true")
+	}
+	if !s.Behavior.ArrowKeys {
+		t.Error("ArrowKeys should default true")
+	}
+	if !s.Behavior.HapticFeedback {
+		t.Error("HapticFeedback should default true")
+	}
+	if s.Behavior.CaptureInBackground {
+		t.Error("CaptureInBackground should default false")
+	}
+}
+
+func TestSaveLoad_RoundTripsNewFields(t *testing.T) {
+	// Regression: the session's new fields survive a save/load round-trip
+	// (non-default values must not be lost).
+	want := Default()
+	want.Appearance.PreviewFade = false
+	want.Behavior.ArrowKeys = false
+	want.Behavior.HapticFeedback = false
+	want.Behavior.CaptureInBackground = true
+
+	var buf bytes.Buffer
+	if err := Save(&buf, want); err != nil {
+		t.Fatalf("Save() error: %v", err)
+	}
+	got, err := Load(&buf)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if got.Appearance.PreviewFade || got.Behavior.ArrowKeys ||
+		got.Behavior.HapticFeedback || !got.Behavior.CaptureInBackground {
+		t.Errorf("round-trip lost new fields: previewFade=%v arrowKeys=%v haptic=%v capture=%v",
+			got.Appearance.PreviewFade, got.Behavior.ArrowKeys,
+			got.Behavior.HapticFeedback, got.Behavior.CaptureInBackground)
+	}
+}
+
 func TestDefault_IsValid(t *testing.T) {
 	s := Default()
 	if err := s.Validate(); err != nil {

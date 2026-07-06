@@ -67,6 +67,55 @@ func selectedID(s State) domain.WindowID {
 	return s.Entries[s.Selected].WindowID
 }
 
+func TestResolvePlacementScreen(t *testing.T) {
+	screens := []domain.Screen{
+		{ID: 1, Main: true, Visible: domain.Bounds{W: 1440, H: 900}},
+		{ID: 2, Visible: domain.Bounds{W: 3840, H: 2160}},
+	}
+	// Cursor placement uses the cursor screen.
+	if id := resolvePlacementScreen(config.PlaceCursorScreen, screens, 1, 2); id != 2 {
+		t.Errorf("cursor placement = %d, want screen 2", id)
+	}
+	// Active placement uses the active screen.
+	if id := resolvePlacementScreen(config.PlaceActiveScreen, screens, 1, 2); id != 1 {
+		t.Errorf("active placement = %d, want screen 1", id)
+	}
+	// Unknown target falls back to the main screen.
+	if id := resolvePlacementScreen(config.PlaceActiveScreen, screens, 99, 99); id != 1 {
+		t.Errorf("unknown target = %d, want main screen 1", id)
+	}
+	// No screens returns zero, no panic.
+	if id := resolvePlacementScreen(config.PlaceActiveScreen, nil, 1, 1); id != 0 {
+		t.Errorf("no screens = %d, want 0", id)
+	}
+}
+
+func TestOrderSelectedFirst(t *testing.T) {
+	es := []Entry{{WindowID: 1}, {WindowID: 2}, {WindowID: 3}, {WindowID: 4}}
+	got := OrderSelectedFirst(es, 2)
+	want := []domain.WindowID{3, 1, 2, 4}
+	for i, w := range want {
+		if got[i].WindowID != w {
+			t.Fatalf("OrderSelectedFirst(sel=2) = %v, want front-loaded %v", ids(got), want)
+		}
+	}
+	// Selected 0 and out-of-range return the input order unchanged.
+	if ids(OrderSelectedFirst(es, 0))[0] != 1 {
+		t.Error("selected 0 should keep order")
+	}
+	if ids(OrderSelectedFirst(es, 9))[0] != 1 {
+		t.Error("out-of-range selected should keep order")
+	}
+}
+
+func ids(es []Entry) []domain.WindowID {
+	out := make([]domain.WindowID, len(es))
+	for i, e := range es {
+		out[i] = e.WindowID
+	}
+	return out
+}
+
 func TestActivate_OpensAndSelectsPreviousWindow(t *testing.T) {
 	c, _, v := newController(t, threeWins(), nil) // HoldToCycle default true
 	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})

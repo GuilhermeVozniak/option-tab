@@ -192,8 +192,8 @@ export interface Settings {
 export const defaultSettings: Settings = {
   version: 2,
   shortcuts: [
-    { id: 1, chord: "option+tab", enabled: true, scope: { appScope: "all" } },
-    { id: 2, chord: "option+grave", enabled: true, scope: { appScope: "activeApp" } },
+    { id: 1, chord: "command+tab", enabled: true, scope: { appScope: "all" } },
+    { id: 2, chord: "option+tab", enabled: true, scope: { appScope: "activeApp" } },
   ],
   appearance: { ...emptyState.appearance },
   filters: {

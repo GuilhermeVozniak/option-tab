@@ -4,7 +4,7 @@ package platform
 
 /*
 #cgo darwin CFLAGS: -x objective-c -fobjc-arc
-#cgo darwin LDFLAGS: -framework Cocoa -framework CoreGraphics -framework ApplicationServices -framework ServiceManagement -framework ScreenCaptureKit
+#cgo darwin LDFLAGS: -framework Cocoa -framework CoreGraphics -framework ApplicationServices -framework ServiceManagement -framework ScreenCaptureKit -framework Carbon -F/System/Library/PrivateFrameworks -framework SkyLight
 #include <stdlib.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include "darwin.h"
