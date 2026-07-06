@@ -158,6 +158,24 @@ export function EntryItem({
           >
             ⇱
           </button>
+          <button
+            type="button"
+            aria-label="Hide app"
+            title="Hide app"
+            className="ot-ctl ot-ctl-hide"
+            onClick={() => handlers.onHide(entry.appId)}
+          >
+            ⊘
+          </button>
+          <button
+            type="button"
+            aria-label="Quit app"
+            title="Quit app"
+            className="ot-ctl ot-ctl-quit"
+            onClick={() => handlers.onQuit(entry.appId)}
+          >
+            ⏻
+          </button>
         </div>
       ) : null}
     </li>

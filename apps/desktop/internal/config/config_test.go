@@ -242,6 +242,51 @@ func TestLoad_MigratesOldVersion(t *testing.T) {
 	}
 }
 
+func TestNormalize_SizePresetAndVisibilityFallbacks(t *testing.T) {
+	// Unknown enum strings for the size preset and the minimized/hidden
+	// tristates must fall back to the defaults (medium / show).
+	s := Default()
+	s.Appearance.SizePreset = "bogus"
+	s.Filters.ShowMinimized = "bogus"
+	s.Filters.ShowHiddenApps = "bogus"
+	got := s.Normalize()
+	if got.Appearance.SizePreset != SizeMedium {
+		t.Errorf("SizePreset = %q, want %q", got.Appearance.SizePreset, SizeMedium)
+	}
+	if got.Filters.ShowMinimized != VisShow {
+		t.Errorf("ShowMinimized = %q, want %q", got.Filters.ShowMinimized, VisShow)
+	}
+	if got.Filters.ShowHiddenApps != VisShow {
+		t.Errorf("ShowHiddenApps = %q, want %q", got.Filters.ShowHiddenApps, VisShow)
+	}
+}
+
+func TestLoad_RejectsNumericVisibility(t *testing.T) {
+	// WindowVisibility accepts legacy bools and v2 strings, but any other JSON
+	// type (a number here) must be rejected as a parse error.
+	if _, err := Load(strings.NewReader(`{"filters":{"showMinimized":42}}`)); err == nil {
+		t.Error("Load() should error on a numeric window-visibility value")
+	}
+}
+
+func TestNormalize_BlacklistDropsEmptyAndDefaultsHide(t *testing.T) {
+	// Empty matchers are dropped and an invalid hide mode defaults to always.
+	s := Default()
+	s.Filters.AppBlacklist = []BlacklistEntry{
+		{Match: ""},
+		{Match: "x", Hide: "bogus"},
+	}
+	got := s.Normalize()
+	if len(got.Filters.AppBlacklist) != 1 {
+		t.Fatalf("blacklist length = %d, want 1 (empty entry dropped): %+v",
+			len(got.Filters.AppBlacklist), got.Filters.AppBlacklist)
+	}
+	e := got.Filters.AppBlacklist[0]
+	if e.Match != "x" || e.Hide != HideAlways {
+		t.Errorf("survivor = %+v, want Match=x Hide=%q", e, HideAlways)
+	}
+}
+
 func TestShortcutScope_Defaults(t *testing.T) {
 	s := Default()
 	// At least one shortcut should scope to the active app (AltTab parity: 2nd shortcut).

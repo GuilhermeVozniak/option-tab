@@ -65,6 +65,8 @@ func TestNewer(t *testing.T) {
 		{"0.1.0", "garbage", false}, // malformed latest: fail safe
 		{"garbage", "0.2.0", false}, // malformed current: fail safe
 		{"0.1.0", "0.1.0.9", false}, // too many segments
+		{"0.1.0", "0.-1.0", false},  // negative segment rejected: fail safe
+		{"0.1.0", "v", false},       // empty after prefix strip: fail safe
 	}
 	for _, c := range cases {
 		if got := Newer(c.current, c.latest); got != c.want {

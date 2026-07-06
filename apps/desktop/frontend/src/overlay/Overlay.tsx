@@ -146,7 +146,7 @@ export function Overlay({ state, handlers }: OverlayProps) {
 
   return (
     <div
-      className={`ot-overlay ot-theme-${appearance.theme}${closing && !open ? " ot-closing" : ""}`}
+      className={`ot-overlay ot-theme-${appearance.theme}${appearance.blur ? "" : " ot-no-blur"}${closing && !open ? " ot-closing" : ""}`}
       data-style={style}
       role="dialog"
       aria-label="Window switcher"

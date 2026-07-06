@@ -71,6 +71,25 @@ func TestFilter_EmptyQueryReturnsAllUnchanged(t *testing.T) {
 	}
 }
 
+func TestFilter_WhitespaceQueryReturnsAll(t *testing.T) {
+	ws := []domain.Window{win(1, "A", "x"), win(2, "B", "y"), win(3, "C", "z")}
+	got := Filter(ws, "   ")
+	if len(got) != 3 || got[0].ID != 1 || got[1].ID != 2 || got[2].ID != 3 {
+		t.Errorf("whitespace query should return all in order, got %v", ids(got))
+	}
+}
+
+func TestFilter_TitleScoreCanOutrankAppName(t *testing.T) {
+	ws := []domain.Window{
+		win(1, "iTunes remote", "x"), // loose app-name subsequence of "term"
+		win(2, "Notes", "Terminal"),  // title prefix-matches "term"
+	}
+	got := Filter(ws, "term")
+	if len(got) != 2 || got[0].ID != 2 {
+		t.Errorf("title prefix match should outrank loose app-name match, got %v", ids(got))
+	}
+}
+
 func TestFilter_MatchesTitleOrAppName(t *testing.T) {
 	ws := []domain.Window{
 		win(1, "Safari", "GitHub"),

@@ -2,7 +2,11 @@
 
 package platform
 
-import "testing"
+import (
+	"testing"
+
+	"option-tab/internal/hotkey"
+)
 
 // TestChordFromCapture locks the native shortcut-recorder translation: the
 // event-tap capture (CGEvent modifier flags + virtual keycode) must map to the
@@ -31,6 +35,39 @@ func TestChordFromCapture(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			if got := chordFromCapture(c.flags, c.keycode); got != c.want {
 				t.Errorf("chordFromCapture(0x%x, %d) = %q, want %q", c.flags, c.keycode, got, c.want)
+			}
+		})
+	}
+}
+
+// TestModMask locks the chord-modifier -> CGEventFlags translation used when
+// the app synthesizes/matches the global hotkey: each modifier must map to its
+// corresponding CGEvent flag bit (option -> Alternate), and combinations OR
+// together. Expected masks are built from the capture-side cgFlag* constants,
+// which equal the kCGEventFlagMask* values modMask emits.
+func TestModMask(t *testing.T) {
+	mods := func(ms ...hotkey.Modifier) hotkey.ModSet {
+		var s hotkey.ModSet
+		for _, m := range ms {
+			s = s.With(m)
+		}
+		return s
+	}
+	cases := []struct {
+		name string
+		set  hotkey.ModSet
+		want uint64
+	}{
+		{"no modifiers", mods(), 0},
+		{"option", mods(hotkey.ModOption), cgFlagOption},
+		{"command+shift", mods(hotkey.ModCommand, hotkey.ModShift), cgFlagCommand | cgFlagShift},
+		{"control+option", mods(hotkey.ModControl, hotkey.ModOption), cgFlagControl | cgFlagOption},
+		{"all four", mods(hotkey.ModControl, hotkey.ModOption, hotkey.ModShift, hotkey.ModCommand), cgFlagControl | cgFlagOption | cgFlagShift | cgFlagCommand},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := modMask(hotkey.Chord{Mods: c.set}); got != c.want {
+				t.Errorf("modMask(%s) = 0x%x, want 0x%x", c.name, got, c.want)
 			}
 		})
 	}

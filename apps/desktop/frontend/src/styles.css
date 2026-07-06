@@ -418,6 +418,31 @@ body,
   color: #0a3d12;
 }
 
+.ot-ctl-hide {
+  background: rgba(90, 110, 150, 0.9);
+}
+
+.ot-ctl-quit {
+  background: rgba(60, 66, 82, 0.92);
+}
+
+/* "Background blur" knob off (appearance.blur = false): drop the frosted-glass
+   backdrop filters on the switcher's surfaces for a flatter translucent look.
+   The panel itself never used backdrop-filter (see .ot-panel) because the
+   native window is transparent; this governs the in-page glass elements that
+   sit over the panel's own layered background. */
+.ot-no-blur .ot-search,
+.ot-no-blur .ot-entry.ot-selected,
+.ot-no-blur .ot-icon,
+.ot-no-blur .ot-thumb-fallback,
+.ot-no-blur .ot-titlebar-icon,
+.ot-no-blur .ot-ctl,
+.ot-no-blur .ot-status,
+.ot-no-blur .ot-space-badge,
+.ot-no-blur .ot-preview {
+  backdrop-filter: none;
+}
+
 /* ---- Window status icons (minimized / hidden / fullscreen / other Space) ---- */
 
 .ot-status {

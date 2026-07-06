@@ -13,8 +13,13 @@ func TestParse_Valid(t *testing.T) {
 		{"Option+Tab", "option+tab", []Modifier{ModOption}, "tab"},
 		{" cmd + shift + grave ", "shift+command+grave", []Modifier{ModCommand, ModShift}, "grave"},
 		{"control+option+a", "control+option+a", []Modifier{ModControl, ModOption}, "a"},
-		{"alt+tab", "option+tab", []Modifier{ModOption}, "tab"},           // alt is an alias for option
-		{"super+space", "command+space", []Modifier{ModCommand}, "space"}, // super alias for command
+		{"alt+tab", "option+tab", []Modifier{ModOption}, "tab"},            // alt is an alias for option
+		{"super+space", "command+space", []Modifier{ModCommand}, "space"},  // super alias for command
+		{"ctrl+esc", "control+escape", []Modifier{ModControl}, "escape"},   // esc alias for escape
+		{"option+enter", "option+return", []Modifier{ModOption}, "return"}, // enter alias for return
+		{"cmd+`", "command+grave", []Modifier{ModCommand}, "grave"},        // ` alias for grave
+		{"option+arrowleft", "option+left", []Modifier{ModOption}, "left"}, // arrowleft alias for left
+		{"option+arrowdown", "option+down", []Modifier{ModOption}, "down"}, // arrowdown alias for down
 	}
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
@@ -70,6 +75,23 @@ func TestModSet_Ops(t *testing.T) {
 	}
 	if s.Without(ModShift).Has(ModShift) {
 		t.Error("Without did not clear modifier")
+	}
+}
+
+func TestChord_Modifiers(t *testing.T) {
+	c, err := Parse("command+control+a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := c.Modifiers()
+	want := []Modifier{ModControl, ModCommand}
+	if len(got) != len(want) {
+		t.Fatalf("Modifiers() = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("Modifiers() = %v, want canonical order %v", got, want)
+		}
 	}
 }
 

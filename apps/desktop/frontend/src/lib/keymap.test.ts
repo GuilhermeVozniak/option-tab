@@ -89,4 +89,25 @@ describe("keyToAction", () => {
     // Disabled by default: those letters type into search.
     expect(keyToAction(ev("j", { code: "KeyJ" }))).toEqual({ kind: "searchAppend", char: "j" });
   });
+
+  it("never routes vim keys while a modifier is held (window actions win)", () => {
+    const opts = { vimKeys: true };
+    // Option+H yields key "˙" but code "KeyH"; with vimKeys enabled the held
+    // modifier must resolve to the window action, never vim navigation.
+    expect(keyToAction(ev("˙", { code: "KeyH", altKey: true }), opts)).toEqual({ kind: "hide" });
+    // KeyJ has no window action; with a modifier held it must not advance —
+    // the Option-produced character falls through to type-to-search.
+    expect(keyToAction(ev("∆", { code: "KeyJ", altKey: true }), opts)).toEqual({
+      kind: "searchAppend",
+      char: "∆",
+    });
+  });
+
+  it("appends Option-produced characters to search when the code is not an action key", () => {
+    // Option+A yields "å"; KeyA is not a window-action code, so it types.
+    expect(keyToAction(ev("å", { code: "KeyA", altKey: true }))).toEqual({
+      kind: "searchAppend",
+      char: "å",
+    });
+  });
 });

@@ -32,6 +32,40 @@ func TestSaveFile_ThenLoadFile_RoundTrips(t *testing.T) {
 	}
 }
 
+func TestSaveFile_OverwritesExisting(t *testing.T) {
+	// A second SaveFile to the same path replaces the first atomically and
+	// leaves no temp files behind.
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+
+	first := Default()
+	first.Order = OrderAlphabetical
+	if err := SaveFile(path, first); err != nil {
+		t.Fatalf("first SaveFile error: %v", err)
+	}
+	second := Default()
+	second.Order = OrderSpace
+	if err := SaveFile(path, second); err != nil {
+		t.Fatalf("second SaveFile error: %v", err)
+	}
+
+	got, err := LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile error: %v", err)
+	}
+	if got.Order != OrderSpace {
+		t.Errorf("Order = %q, want %q (second save should win)", got.Order, OrderSpace)
+	}
+
+	leftovers, err := filepath.Glob(filepath.Join(dir, ".settings-*.tmp"))
+	if err != nil {
+		t.Fatalf("glob error: %v", err)
+	}
+	if len(leftovers) != 0 {
+		t.Errorf("temp files left behind: %v", leftovers)
+	}
+}
+
 func TestDefaultPath_NonEmpty(t *testing.T) {
 	p, err := DefaultPath()
 	if err != nil {

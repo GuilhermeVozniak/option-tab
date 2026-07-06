@@ -17,6 +17,15 @@ describe("keyTokenFromCode", () => {
     expect(keyTokenFromCode("Enter")).toBe("return");
   });
 
+  it("maps space, escape, and arrow keys", () => {
+    expect(keyTokenFromCode("Space")).toBe("space");
+    expect(keyTokenFromCode("Escape")).toBe("escape");
+    expect(keyTokenFromCode("ArrowLeft")).toBe("left");
+    expect(keyTokenFromCode("ArrowRight")).toBe("right");
+    expect(keyTokenFromCode("ArrowUp")).toBe("up");
+    expect(keyTokenFromCode("ArrowDown")).toBe("down");
+  });
+
   it("rejects modifiers and unknown keys", () => {
     expect(keyTokenFromCode("AltLeft")).toBeNull();
     expect(keyTokenFromCode("MetaRight")).toBeNull();

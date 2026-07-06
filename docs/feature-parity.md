@@ -56,7 +56,7 @@ window is found.
 | Action: Focus selected window | ✅ | `Confirm` |
 | Action: Close window | ✅ | hover button + key (modifier+W) (Task #3) |
 | Action: Minimize/deminimize | ✅ | key (modifier+M); native now toggles min/deminimize (Task #3) |
-| Action: Hide/show app | ✅ | key (modifier+H) (Task #3); still no hover button (minor) |
+| Action: Hide/show app | ✅ | hover button + key (modifier+H) (Task #3, hover button Task #8) |
 | Action: Quit app | ✅ | hover button + key (modifier+Q) (Task #3) |
 | Action: Fullscreen/defullscreen window | ✅ | `FullscreenSelected` + key (modifier+F); native AXFullScreen toggle (Task #3) |
 | Action: Preview selected window | ✅ | `Appearance.PreviewSelected` renders a large preview inside the overlay; a fresh 1024px capture is streamed per selection change via `switcher:preview` (Task #7), falling back to the grid thumbnail while it loads |
@@ -160,7 +160,7 @@ window is found.
 The overlay is close to AltTab (Task #5 polish applied):
 
 - ✅ Translucent rounded panel, grid of cells, title-bar with app icon + title, selected highlight, hover controls.
-- ✅ Window-control buttons are macOS traffic-light circles: red close, yellow minimize, green fullscreen.
+- ✅ Window-control buttons are macOS traffic-light circles: red close, yellow minimize, green fullscreen, plus slate hide and dark quit buttons (app-level actions).
 - ✅ Status icons for minimized / hidden / fullscreen, plus an “on another Space” marker.
 - ✅ Fade + subtle scale enter animation (honors `prefers-reduced-motion`).
 - 🟡 Space marker is a flag, not the numeric Space ordinal (needs a space-enumeration map).

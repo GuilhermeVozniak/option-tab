@@ -22,6 +22,24 @@ describe("i18n", () => {
     expect(t("Start at login")).toBe("Start at login");
   });
 
+  it("sniffs navigator.language for the system default", () => {
+    const original = Object.getOwnPropertyDescriptor(Navigator.prototype, "language");
+    const sniff = (navLang: string) => {
+      Object.defineProperty(navigator, "language", { value: navLang, configurable: true });
+      return resolveLang("");
+    };
+    try {
+      expect(sniff("pt-PT")).toBe("pt-BR");
+      expect(sniff("es-MX")).toBe("es");
+      expect(sniff("de-DE")).toBe("en");
+    } finally {
+      delete (navigator as { language?: string }).language;
+      if (original && !("language" in Navigator.prototype)) {
+        Object.defineProperty(Navigator.prototype, "language", original);
+      }
+    }
+  });
+
   it("offers system default plus the supported languages", () => {
     expect(LANGUAGES.map((l) => l.value)).toEqual(["", "en", "pt-BR", "es"]);
   });

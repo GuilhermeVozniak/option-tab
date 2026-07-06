@@ -201,6 +201,48 @@ func TestApply_BlacklistWhenNoWindowDoesNotHideRealWindows(t *testing.T) {
 	}
 }
 
+func TestApply_ShortcutScreenScopeOverridesGlobal(t *testing.T) {
+	f := config.Default().Filters
+	f.Screens = config.ScreensAll // global says all screens
+	scope := config.ShortcutScope{AppScope: config.AppScopeAll, Screens: config.ScreensActive}
+	ws := []domain.Window{
+		win(1, func(w *domain.Window) { w.ScreenID = 1 }),
+		win(2, func(w *domain.Window) { w.ScreenID = 2 }),
+	}
+	got := Apply(ws, f, scope, baseCtx())
+	if !has(got, 1) || has(got, 2) {
+		t.Errorf("per-shortcut screen override should win: %v", ids(got))
+	}
+}
+
+func TestApply_HiddenBypassesSpaceScope(t *testing.T) {
+	f := config.Default().Filters
+	f.Spaces = config.SpacesActive
+	f.ShowHiddenApps = config.VisShow
+	ws := []domain.Window{win(1, func(w *domain.Window) { w.Hidden = true; w.OnScreen = false; w.SpaceID = 99 })}
+	got := Apply(ws, f, config.ShortcutScope{AppScope: config.AppScopeAll}, baseCtx())
+	if !has(got, 1) {
+		t.Error("hidden window should be kept (and bypass space filter)")
+	}
+}
+
+func TestApply_UntitledWindows(t *testing.T) {
+	f := config.Default().Filters
+	f.ShowWindowsWithoutTitle = true
+	ws := []domain.Window{win(1, func(w *domain.Window) { w.Title = "" })}
+	got := Apply(ws, f, config.ShortcutScope{AppScope: config.AppScopeAll}, baseCtx())
+	if !has(got, 1) {
+		t.Error("empty-title window should be kept when ShowWindowsWithoutTitle is true")
+	}
+
+	f.ShowWindowsWithoutTitle = false
+	ws = []domain.Window{win(2, func(w *domain.Window) { w.Title = "  " })} // whitespace-only trims to empty
+	got = Apply(ws, f, config.ShortcutScope{AppScope: config.AppScopeAll}, baseCtx())
+	if has(got, 2) {
+		t.Error("whitespace-only title should be dropped when ShowWindowsWithoutTitle is false")
+	}
+}
+
 func TestShortcutIgnoredForApp(t *testing.T) {
 	bl := []config.BlacklistEntry{{Match: "com.game", Hide: config.HideWhenNoWindow, IgnoreShortcuts: true}}
 	ws := []domain.Window{

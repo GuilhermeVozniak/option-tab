@@ -55,3 +55,22 @@ func TestCrashReportPolicyNeverClearsAndHides(t *testing.T) {
 		t.Error("capture must not be armed under the never policy")
 	}
 }
+
+func TestCrashHelpers_NoSettingsPath(t *testing.T) {
+	a := newApp(fake.New(), config.Default(), "")
+
+	if got := a.crashDir(); got != "" {
+		t.Fatalf("crashDir() with no settings path = %q, want empty", got)
+	}
+	if got := a.GetCrashReport(); got != "" {
+		t.Fatalf("GetCrashReport() with no settings path = %q, want empty", got)
+	}
+
+	// With no settings path these must be safe no-ops (no panic, no files).
+	a.setupCrashCapture()
+	a.DismissCrashReport()
+
+	if got := a.GetCrashReport(); got != "" {
+		t.Fatalf("GetCrashReport() after no-op capture setup = %q, want empty", got)
+	}
+}

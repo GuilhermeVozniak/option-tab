@@ -114,6 +114,20 @@ func TestSendToBack_MovesConfiguredClassesToEnd(t *testing.T) {
 	}
 }
 
+func TestSendToBack_FullscreenClass(t *testing.T) {
+	f := config.Default().Filters
+	f.ShowFullscreen = config.VisShowAtEnd
+	ws := []domain.Window{
+		{ID: 1, Fullscreen: true},
+		{ID: 2},
+		{ID: 3, Fullscreen: true},
+	}
+	got := SendToBack(ws, f)
+	if !eq(ids(got), 2, 1, 3) {
+		t.Errorf("SendToBack fullscreen order = %v, want [2 1 3]", ids(got))
+	}
+}
+
 func TestSendToBack_NoopWhenShow(t *testing.T) {
 	f := config.Default().Filters // all "show"
 	ws := []domain.Window{{ID: 1, Minimized: true}, {ID: 2}}

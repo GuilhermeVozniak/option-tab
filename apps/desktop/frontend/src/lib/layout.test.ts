@@ -103,6 +103,20 @@ describe("computeLayout", () => {
     expect(l.thumbnailPx).toBe(280);
   });
 
+  it("reserves titlebar height when showTitle is on while fitting height", () => {
+    const base = {
+      count: 8,
+      maxColumns: 4,
+      maxRows: 4,
+      thumbnailMaxPx: 360,
+      autoSize: false,
+      viewportH: 500,
+    };
+    const withTitle = computeLayout({ ...base, showTitle: true });
+    const withoutTitle = computeLayout({ ...base, showTitle: false });
+    expect(withTitle.thumbnailPx).toBeLessThan(withoutTitle.thumbnailPx);
+  });
+
   it("shrinks thumbnails as count grows when autoSize is on", () => {
     const few = computeLayout({
       count: 2,

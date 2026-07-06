@@ -2,6 +2,7 @@ package switcher
 
 import (
 	"testing"
+	"time"
 
 	"option-tab/internal/config"
 	"option-tab/internal/domain"
@@ -484,5 +485,90 @@ func TestStyleOverridePerShortcut(t *testing.T) {
 	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
 	if v.last().Style != config.StyleAppIcons {
 		t.Errorf("shortcut style override should win, got %q", v.last().Style)
+	}
+}
+
+func TestSnapshot_CarriesKeyFlags(t *testing.T) {
+	c, _, v := newController(t, threeWins(), func(s *config.Settings) {
+		s.Behavior.ArrowKeys = false
+		s.Behavior.VimKeys = true
+	})
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if v.last().ArrowKeys {
+		t.Error("ArrowKeys should reflect Behavior.ArrowKeys=false")
+	}
+	if !v.last().VimKeys {
+		t.Error("VimKeys should reflect Behavior.VimKeys=true")
+	}
+}
+
+func TestCloseSelected_RefreshKeepsOverlayOpen(t *testing.T) {
+	c, f, v := newController(t, threeWins(), nil)
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1}) // selected window 2
+	c.CloseSelected()
+	if len(f.CloseCalls) != 1 || f.CloseCalls[0] != 2 {
+		t.Errorf("CloseSelected should close window 2, got %v", f.CloseCalls)
+	}
+	if !c.IsOpen() {
+		t.Fatal("overlay must stay open while windows remain")
+	}
+	st := v.last()
+	if len(st.Entries) != 2 {
+		t.Fatalf("expected 2 entries after close, got %d", len(st.Entries))
+	}
+	for _, e := range st.Entries {
+		if e.WindowID == 2 {
+			t.Errorf("closed window 2 should be gone, got %+v", st.Entries)
+		}
+	}
+	if st.Selected < 0 || st.Selected >= len(st.Entries) {
+		t.Errorf("selection index %d out of range for %d entries", st.Selected, len(st.Entries))
+	}
+}
+
+func TestActivate_SetsPlacementScreenID(t *testing.T) {
+	c, f, v := newController(t, threeWins(), func(s *config.Settings) {
+		s.Placement = config.PlaceCursorScreen
+	})
+	f.ScreenList = []domain.Screen{{ID: 1, Main: true}, {ID: 2}}
+	f.ActiveScreenID = 1
+	f.CursorScreenID = 2
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if got := v.last().PlacementScreenID; got != 2 {
+		t.Errorf("PlacementScreenID = %d, want 2 (the cursor screen)", got)
+	}
+}
+
+func TestActivate_MRUOrderAfterConfirm(t *testing.T) {
+	// Windows carry z-order-style recency: window 1 newest, window 3 oldest.
+	wins := threeWins()
+	now := time.Now()
+	for i := range wins {
+		wins[i].LastFocused = now.Add(-time.Duration(i) * time.Minute)
+	}
+	c, _, v := newController(t, wins, nil)
+
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	idx := -1
+	for i, e := range v.last().Entries {
+		if e.WindowID == 3 {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		t.Fatalf("window 3 missing from entries %+v", v.last().Entries)
+	}
+	c.Select(idx)
+	c.Confirm()
+
+	// MRU (Touch on confirm + Stamp on activate) must beat the platform recency.
+	// v.last() prefers updates, so read the second activation's Show directly.
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if len(v.shows) != 2 {
+		t.Fatalf("expected 2 Shows, got %d", len(v.shows))
+	}
+	st := v.shows[1]
+	if len(st.Entries) != 3 || st.Entries[0].WindowID != 3 {
+		t.Errorf("confirmed window should lead the MRU order, got %v", ids(st.Entries))
 	}
 }

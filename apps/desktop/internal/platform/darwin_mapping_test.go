@@ -57,3 +57,38 @@ func TestMapRawWindows_FieldsAndRecency(t *testing.T) {
 		t.Error("zorder 1 should be more recent than zorder 2")
 	}
 }
+
+// TestMapRawWindows_Degradation covers the safe-fallback contract: when the
+// native side yields nothing useful (no Accessibility/CGS access), an all-zero
+// rawWindow must still map to a valid zero-value domain.Window without
+// panicking, so Space/Screen filters degrade to "all" rather than hiding it.
+func TestMapRawWindows_Degradation(t *testing.T) {
+	out := mapRawWindows([]rawWindow{{}})
+	if len(out) != 1 {
+		t.Fatalf("len = %d, want 1", len(out))
+	}
+	w := out[0]
+	if w.ID != 0 || w.AppID != 0 || w.AppName != "" || w.BundleID != "" || w.Title != "" {
+		t.Errorf("zero rawWindow should map to zero-value identity, got %+v", w)
+	}
+	if w.ScreenID != domain.ScreenID(0) || w.SpaceID != domain.SpaceID(0) {
+		t.Errorf("zero screen/space, got %d/%d", w.ScreenID, w.SpaceID)
+	}
+	if w.Bounds.W != 0 || w.Bounds.H != 0 {
+		t.Errorf("zero bounds, got %+v", w.Bounds)
+	}
+	if w.Minimized || w.Hidden || w.Fullscreen || w.OnScreen {
+		t.Errorf("zero flags expected, got %+v", w)
+	}
+}
+
+// TestMapRawWindows_Empty covers the empty enumeration: no windows in, no
+// windows out (and never a nil-deref).
+func TestMapRawWindows_Empty(t *testing.T) {
+	if out := mapRawWindows(nil); len(out) != 0 {
+		t.Errorf("nil input -> %d windows, want 0", len(out))
+	}
+	if out := mapRawWindows([]rawWindow{}); len(out) != 0 {
+		t.Errorf("empty input -> %d windows, want 0", len(out))
+	}
+}

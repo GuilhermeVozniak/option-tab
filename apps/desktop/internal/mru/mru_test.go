@@ -21,6 +21,21 @@ func TestTouch_MovesToFront(t *testing.T) {
 	}
 }
 
+func TestOrder_ReturnsCopy(t *testing.T) {
+	tr := New()
+	tr.Touch(1)
+	tr.Touch(2)
+	tr.Touch(3)
+	got := tr.Order()
+	if !eq(got, 3, 2, 1) {
+		t.Fatalf("Order = %v, want [3 2 1]", got)
+	}
+	got[0] = 99 // mutating the returned slice must not affect the tracker
+	if fresh := tr.Order(); !eq(fresh, 3, 2, 1) {
+		t.Errorf("Order after mutating previous result = %v, want [3 2 1]", fresh)
+	}
+}
+
 func TestRank(t *testing.T) {
 	tr := New()
 	tr.Touch(10)

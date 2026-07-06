@@ -22,6 +22,12 @@ describe("truncateTitle", () => {
     expect(got).toContain("…");
   });
 
+  it("defaults maxChars to 60 when omitted", () => {
+    const got = truncateTitle("c".repeat(80), "middle");
+    expect(got).toHaveLength(60);
+    expect(got).toContain("…");
+  });
+
   it("elides the start keeping the tail", () => {
     const got = truncateTitle(long, "start", 11);
     expect(got).toHaveLength(11);
