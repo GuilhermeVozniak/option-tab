@@ -97,6 +97,12 @@ func (a *App) syncTray() {
 	}
 }
 
+// openPreferencesTab opens the preferences window on a specific tab.
+func (a *App) openPreferencesTab(tab string) {
+	a.OpenPreferences()
+	a.emit("prefs:tab", tab)
+}
+
 // trayLoop routes menubar commands to the matching action.
 func (a *App) trayLoop(cmds <-chan platform.TrayCommand) {
 	for cmd := range cmds {
@@ -105,6 +111,24 @@ func (a *App) trayLoop(cmds <-chan platform.TrayCommand) {
 			a.OpenPreferences()
 		case platform.TrayTogglePause:
 			a.TogglePause()
+		case platform.TrayShow:
+			a.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+		case platform.TrayCheckUpdates:
+			a.CheckForUpdates()
+		case platform.TrayCheckPermissions:
+			// The permissions section lives on the General tab.
+			a.openPreferencesTab("General")
+		case platform.TrayAbout:
+			a.openPreferencesTab("About")
+		case platform.TrayDebugTools:
+			// Reveal the folder holding settings and crash logs.
+			if dir := a.crashDir(); dir != "" && a.ctx != nil {
+				runtime.BrowserOpenURL(a.ctx, "file://"+dir)
+			}
+		case platform.TrayFeedback:
+			a.OpenURL(projectURL + "/issues/new")
+		case platform.TraySupport:
+			a.OpenURL(projectURL)
 		case platform.TrayQuit:
 			if a.ctx != nil {
 				runtime.Quit(a.ctx)

@@ -3,10 +3,12 @@ package main
 import (
 	"strconv"
 	"sync/atomic"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"option-tab/internal/config"
+	"option-tab/internal/domain"
 	"option-tab/internal/hotkey"
 	"option-tab/internal/platform"
 	"option-tab/internal/switcher"
@@ -62,24 +64,43 @@ func (a *App) Show(st switcher.State) {
 	}
 	a.enrichIcons(&st)
 	a.emit("switcher:show", st)
-	// Size the transparent window to the screen so the panel can use the whole
-	// area (thumbnails keep their configured size instead of shrinking to fit
-	// the small default window).
+	a.lastSelected = st.Selected
+	// Size the transparent window to the screen the Placement setting chose so
+	// the panel appears there and can use the whole area.
 	if f, ok := a.platform.(platform.OverlayWindowPreparer); ok {
-		f.FitOverlayToScreen()
+		f.FitOverlayToScreen(a.placementScreen())
 	}
 	if a.ctx != nil {
 		runtime.WindowShow(a.ctx)
 		runtime.WindowCenter(a.ctx)
 	}
+	a.emitCachedThumbnails(st)
 	a.captureThumbnails(st)
 	a.capturePreview(st)
+}
+
+// placementScreen resolves the Placement setting to a display id (0 = keep
+// the window's current screen).
+func (a *App) placementScreen() domain.ScreenID {
+	switch a.settings.Placement {
+	case config.PlaceCursorScreen:
+		return a.platform.CursorScreen()
+	case config.PlaceActiveScreen, config.PlaceFocusedWindowScreen:
+		return a.platform.ActiveScreen()
+	}
+	return 0
 }
 
 // Update pushes a new state to the visible overlay.
 func (a *App) Update(st switcher.State) {
 	a.enrichIcons(&st)
 	a.emit("switcher:update", st)
+	if st.Selected != a.lastSelected {
+		a.lastSelected = st.Selected
+		if h, ok := a.platform.(platform.HapticFeedback); ok && a.settings.Behavior.HapticFeedback {
+			h.HapticTick()
+		}
+	}
 	a.capturePreview(st)
 }
 
@@ -93,6 +114,64 @@ func (a *App) Hide() {
 }
 
 // ---- Capture streaming (thumbnails, previews, icons) ----
+
+// emitCachedThumbnails pushes background-captured thumbnails for the shown
+// entries in one event, so the switcher paints with fresh previews instantly
+// (the live capture pass then replaces them).
+func (a *App) emitCachedThumbnails(st switcher.State) {
+	a.thumbCacheMu.Lock()
+	defer a.thumbCacheMu.Unlock()
+	if len(a.thumbCache) == 0 {
+		return
+	}
+	out := map[string]string{}
+	for _, e := range st.Entries {
+		if url, ok := a.thumbCache[e.WindowID]; ok {
+			out[strconv.Itoa(int(e.WindowID))] = url
+		}
+	}
+	if len(out) > 0 {
+		a.emit("switcher:thumbnails", out)
+	}
+}
+
+// backgroundCaptureLoop keeps the thumbnail cache fresh while the switcher is
+// hidden, when Behavior.CaptureInBackground is enabled. It shows the macOS
+// screen-recording indicator while capturing, which is why it is opt-in.
+func (a *App) backgroundCaptureLoop() {
+	const maxWindows = 30
+	ticker := time.NewTicker(4 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		if !a.settings.Behavior.CaptureInBackground || a.controller.IsOpen() || a.controller.Paused() {
+			continue
+		}
+		src, ok := a.platform.(platform.ThumbnailSource)
+		if !ok {
+			continue
+		}
+		wins, err := a.platform.Windows()
+		if err != nil {
+			continue
+		}
+		px := a.settings.Appearance.ThumbnailMaxPx
+		if px <= 0 {
+			px = 256
+		}
+		for i, w := range wins {
+			if i >= maxWindows || a.controller.IsOpen() {
+				break
+			}
+			url := src.ThumbnailDataURL(w.ID, px)
+			if url == "" {
+				continue
+			}
+			a.thumbCacheMu.Lock()
+			a.thumbCache[w.ID] = url
+			a.thumbCacheMu.Unlock()
+		}
+	}
+}
 
 // captureThumbnails snapshots each window off the hotkey path and streams the
 // results to the overlay via "switcher:thumbnails" events, so the switcher

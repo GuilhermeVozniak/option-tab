@@ -7,6 +7,7 @@ package platform
 
 import (
 	"image"
+	"time"
 
 	"option-tab/internal/domain"
 	"option-tab/internal/hotkey"
@@ -56,6 +57,20 @@ const (
 	TrayTogglePause
 	// TrayQuit quits the application.
 	TrayQuit
+	// TrayShow opens the switcher as if the primary hotkey was pressed.
+	TrayShow
+	// TrayCheckUpdates runs a manual update check.
+	TrayCheckUpdates
+	// TrayCheckPermissions opens preferences on the permissions section.
+	TrayCheckPermissions
+	// TrayAbout opens preferences on the About tab.
+	TrayAbout
+	// TrayDebugTools reveals the app's log/crash-report folder.
+	TrayDebugTools
+	// TrayFeedback opens a new GitHub issue.
+	TrayFeedback
+	// TraySupport opens the project page.
+	TraySupport
 )
 
 // Tray is an optional menubar status-item controller. Only the native macOS
@@ -166,11 +181,33 @@ type WindowModer interface {
 
 // OverlayWindowPreparer makes the app window a fully transparent overlay so
 // only the rendered switcher panel is visible (no opaque window backdrop),
-// and sizes it to the screen before each show. Optional: only the native
-// macOS backend implements it, so consumers type-assert for it.
+// and sizes it to the chosen screen before each show. Optional: only the
+// native macOS backend implements it, so consumers type-assert for it.
 type OverlayWindowPreparer interface {
 	PrepareOverlayWindow()
-	FitOverlayToScreen()
+	// FitOverlayToScreen sizes the window to the screen with the given display
+	// id (0 = keep the window's current screen).
+	FitOverlayToScreen(screen domain.ScreenID)
+}
+
+// HapticFeedback performs a subtle trackpad tap, used when the switcher
+// selection changes. Optional: only the native macOS backend implements it.
+type HapticFeedback interface {
+	HapticTick()
+}
+
+// ShortcutCapturer records the next chord pressed anywhere via the native
+// event tap — including chords the OS or the app's own hotkeys would
+// otherwise swallow (Command+Tab, the active switcher chord). Optional: only
+// the native macOS backend implements it.
+type ShortcutCapturer interface {
+	// CaptureShortcut arms a one-shot system-wide capture and blocks until a
+	// chord is pressed, Escape cancels, or the timeout elapses ("" on
+	// cancel/timeout).
+	CaptureShortcut(timeout time.Duration) string
+	// CancelShortcutCapture disarms a pending capture (e.g. the recorder
+	// input lost focus).
+	CancelShortcutCapture()
 }
 
 // SettingsOpener opens the OS settings pane for a permission, used to guide the

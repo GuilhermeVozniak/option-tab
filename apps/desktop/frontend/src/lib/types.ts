@@ -41,6 +41,7 @@ export interface Appearance {
   showSpaceNumbers: boolean;
   titleTruncation: TruncationMode;
   previewSelected: boolean;
+  previewFade: boolean;
 }
 
 export interface Entry {
@@ -70,6 +71,7 @@ export interface SwitcherState {
   search: string;
   shortcutId: number;
   vimKeys: boolean;
+  arrowKeys: boolean;
   mouseHover: boolean;
   activeSpaceId: number;
 }
@@ -101,6 +103,7 @@ export const emptyState: SwitcherState = {
     showSpaceNumbers: true,
     titleTruncation: "end",
     previewSelected: false,
+    previewFade: true,
   },
   placement: "cursorScreen",
   entries: [],
@@ -108,6 +111,7 @@ export const emptyState: SwitcherState = {
   search: "",
   shortcutId: 0,
   vimKeys: false,
+  arrowKeys: true,
   mouseHover: true,
   activeSpaceId: 0,
 };
@@ -163,12 +167,15 @@ export interface Behavior {
   paused: boolean;
   showMenubarIcon: boolean;
   vimKeys: boolean;
+  arrowKeys: boolean;
   menubarIconStyle: MenubarIconStyle;
   language: string;
   updatePolicy: UpdatePolicy;
   crashReports: CrashPolicy;
   mouseHoverSelect: boolean;
   cursorFollowFocus: boolean;
+  hapticFeedback: boolean;
+  captureInBackground: boolean;
   onboarded: boolean;
 }
 
@@ -206,12 +213,15 @@ export const defaultSettings: Settings = {
     paused: false,
     showMenubarIcon: true,
     vimKeys: false,
+    arrowKeys: true,
     menubarIconStyle: "default",
     language: "",
     updatePolicy: "check",
     crashReports: "ask",
     mouseHoverSelect: true,
     cursorFollowFocus: false,
+    hapticFeedback: true,
+    captureInBackground: false,
     onboarded: false,
   },
 };

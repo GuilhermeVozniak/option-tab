@@ -13,8 +13,26 @@ import (
 
 // Release is the subset of a GitHub release the checker needs.
 type Release struct {
-	Version string `json:"tag_name"`
-	URL     string `json:"html_url"`
+	Version string  `json:"tag_name"`
+	URL     string  `json:"html_url"`
+	Assets  []Asset `json:"assets"`
+}
+
+// Asset is one downloadable file attached to a release.
+type Asset struct {
+	Name        string `json:"name"`
+	DownloadURL string `json:"browser_download_url"`
+}
+
+// AssetFor returns the download URL of the asset matching the platform/arch
+// suffix (e.g. "darwin_arm64"), or "" when the release carries none.
+func (r Release) AssetFor(platformArch string) string {
+	for _, a := range r.Assets {
+		if strings.Contains(a.Name, platformArch) {
+			return a.DownloadURL
+		}
+	}
+	return ""
 }
 
 // ParseLatest decodes a GitHub "latest release" API response.

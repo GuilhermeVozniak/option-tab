@@ -87,6 +87,7 @@ function OverlayRoute() {
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [prefsTab, setPrefsTab] = useState<string | null>(null);
 
   useEffect(() => {
     return onSwitcherEvent({
@@ -100,7 +101,11 @@ function OverlayRoute() {
       onThumbnails: (t) => setThumbs((prev) => ({ ...prev, ...t })),
       onPreview: (p) => setPreviews((prev) => ({ ...prev, ...p })),
       onPrefsOpen: () => setPrefsOpen(true),
-      onPrefsClose: () => setPrefsOpen(false),
+      onPrefsClose: () => {
+        setPrefsOpen(false);
+        setPrefsTab(null); // next plain open starts on the default tab
+      },
+      onPrefsTab: setPrefsTab,
     });
   }, []);
 
@@ -153,7 +158,7 @@ function OverlayRoute() {
   return (
     <>
       <Overlay state={stateWithThumbs} handlers={handlers} />
-      {prefsOpen ? <PreferencesPanel /> : null}
+      {prefsOpen ? <PreferencesPanel requestedTab={prefsTab} /> : null}
     </>
   );
 }
@@ -161,7 +166,7 @@ function OverlayRoute() {
 // PreferencesPanel fills the window with the settings form. The Go side turns
 // the shared window into a regular titled window while it is open (prefs:open/
 // prefs:close events), so closing happens via the native close button.
-function PreferencesPanel() {
+function PreferencesPanel({ requestedTab }: { requestedTab?: string | null }) {
   const { settings, onChange } = useSettingsModel();
   const perms = usePermissions();
   const about = useAbout();
@@ -175,6 +180,7 @@ function PreferencesPanel() {
         permissions={perms}
         about={about}
         crash={crash}
+        requestedTab={requestedTab}
       />
     </div>
   );

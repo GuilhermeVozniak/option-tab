@@ -187,11 +187,27 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             />
           </label>
           <label className={ROW}>
+            <span>{t("Navigate with arrow keys")}</span>
+            <Checkbox
+              aria-label="Arrow keys"
+              checked={settings.behavior.arrowKeys}
+              onChange={(e) => patchBehavior({ arrowKeys: e.target.checked })}
+            />
+          </label>
+          <label className={ROW}>
             <span>{t("Navigate with vim keys (h / j / k / l)")}</span>
             <Checkbox
               aria-label="Vim keys"
               checked={settings.behavior.vimKeys}
               onChange={(e) => patchBehavior({ vimKeys: e.target.checked })}
+            />
+          </label>
+          <label className={ROW}>
+            <span>{t("Trackpad haptic feedback when the selection changes")}</span>
+            <Checkbox
+              aria-label="Haptic feedback"
+              checked={settings.behavior.hapticFeedback}
+              onChange={(e) => patchBehavior({ hapticFeedback: e.target.checked })}
             />
           </label>
         </CardContent>
@@ -218,10 +234,37 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
               onChange={(e) => patchBehavior({ cursorFollowFocus: e.target.checked })}
             />
           </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Shortcuts while the switcher is open")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {(
+            [
+              ["Focus selected window", "⏎"],
+              ["Select next window", "⇥ / → / ↓"],
+              ["Select previous window", "⇧⇥ / ← / ↑"],
+              ["Cancel", "esc"],
+              ["Close window", "modifier + W"],
+              ["Minimize/Deminimize window", "modifier + M"],
+              ["Fullscreen/Defullscreen window", "modifier + F"],
+              ["Quit app", "modifier + Q"],
+              ["Hide/Show app", "modifier + H"],
+              ["Search", t("type any text")],
+            ] as [string, string][]
+          ).map(([label, key]) => (
+            <div key={label} className={ROW}>
+              <span>{t(label)}</span>
+              <span className="rounded-md border border-white/15 bg-white/8 px-2 py-0.5 text-xs text-muted-foreground">
+                {key}
+              </span>
+            </div>
+          ))}
           <p className={HINT}>
-            {t(
-              "While the switcher is open, hold the modifier and tap W to close, M to minimize, F for fullscreen, H to hide the app, or Q to quit it.",
-            )}
+            {t("The modifier is whichever key your shortcut holds (e.g. ⌥ for Option+Tab).")}
           </p>
         </CardContent>
       </Card>

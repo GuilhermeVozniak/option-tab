@@ -20,6 +20,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"option-tab/internal/config"
+	"option-tab/internal/domain"
 	"option-tab/internal/mru"
 	"option-tab/internal/platform"
 	"option-tab/internal/switcher"
@@ -61,6 +62,15 @@ type App struct {
 	// prefsOpen tracks whether the shared window is currently showing the
 	// preferences UI (titled window mode) rather than the overlay.
 	prefsOpen bool
+
+	// lastSelected is the previously shown selection index, used to fire the
+	// haptic tick only when the selection actually moves.
+	lastSelected int
+
+	// thumbCache holds background-captured window thumbnails (data URLs) so
+	// the switcher can paint instantly when CaptureInBackground is enabled.
+	thumbCacheMu sync.Mutex
+	thumbCache   map[domain.WindowID]string
 }
 
 // NewApp wires production dependencies: the native platform backend and the
@@ -74,7 +84,12 @@ func NewApp() *App {
 
 // newApp builds an App from explicit dependencies (used by tests).
 func newApp(p platform.Platform, settings config.Settings, settingsPath string) *App {
-	a := &App{platform: p, settings: settings, settingsPath: settingsPath}
+	a := &App{
+		platform:     p,
+		settings:     settings,
+		settingsPath: settingsPath,
+		thumbCache:   map[domain.WindowID]string{},
+	}
 	deps := switcher.Deps{
 		Windows:      p,
 		Focuser:      p,
@@ -131,6 +146,7 @@ func (a *App) startup(ctx context.Context) {
 	a.registerHotkeys()
 	go a.hotkeyLoop()
 	go a.updateLoop()
+	go a.backgroundCaptureLoop()
 }
 
 func (a *App) emit(name string, data any) {

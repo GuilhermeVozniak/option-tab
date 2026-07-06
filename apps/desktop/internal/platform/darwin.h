@@ -106,9 +106,14 @@ void ot_window_set_prefs_mode(int on);
 void ot_window_init_overlay(void);
 
 // ot_window_fit_screen resizes the (transparent) overlay window to the
-// visible frame of its screen, giving the switcher the whole screen to lay
-// out in. Call before each show; dispatched to the main queue.
-void ot_window_fit_screen(void);
+// visible frame of the screen with the given display id (0 or unknown = the
+// window's current screen), giving the switcher the whole screen to lay out
+// in. Call before each show; dispatched to the main queue.
+void ot_window_fit_screen(uint32_t displayID);
+
+// ot_haptic_tick performs a subtle trackpad haptic tap (no-op on hardware
+// without a Force Touch trackpad).
+void ot_haptic_tick(void);
 
 // Login item (SMAppService, macOS 13+). Returns 1/0; set returns 1 on success.
 int ot_login_item_enabled(void);
@@ -120,5 +125,12 @@ int ot_hotkey_start(void);
 int ot_hotkey_register(int id, uint64_t modflags, uint16_t keycode, int withShift);
 void ot_hotkey_unregister(int id);
 void ot_hotkey_stop(void);
+
+// One-shot chord recording for the preferences UI: while armed, the next
+// modifier+key press anywhere is delivered to goHotkeyCaptured (and consumed)
+// instead of being processed as a hotkey — including chords the webview never
+// sees, like Command+Tab. Escape cancels (keycode 0xFFFF).
+void ot_hotkey_capture_start(void);
+void ot_hotkey_capture_stop(void);
 
 #endif

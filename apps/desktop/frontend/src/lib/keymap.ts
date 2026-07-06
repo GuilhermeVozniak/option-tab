@@ -30,6 +30,8 @@ export interface KeyEventLike {
 export interface KeymapOptions {
   // vimKeys enables h/j/k/l navigation (opt-in, AltTab "Vim keys").
   vimKeys?: boolean;
+  // arrowKeys enables arrow-key navigation (on by default).
+  arrowKeys?: boolean;
 }
 
 // ACTION_BY_CODE maps a physical key to a window action. Matched on e.code (not
@@ -51,10 +53,10 @@ export function keyToAction(e: KeyEventLike, opts: KeymapOptions = {}): Action {
       return e.shiftKey ? { kind: "reverse" } : { kind: "advance" };
     case "ArrowRight":
     case "ArrowDown":
-      return { kind: "advance" };
+      return opts.arrowKeys === false ? { kind: "none" } : { kind: "advance" };
     case "ArrowLeft":
     case "ArrowUp":
-      return { kind: "reverse" };
+      return opts.arrowKeys === false ? { kind: "none" } : { kind: "reverse" };
     case "Escape":
       return { kind: "cancel" };
     case "Enter":

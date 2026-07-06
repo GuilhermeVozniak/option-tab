@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/png"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -291,8 +292,13 @@ func (p *darwinPlatform) HideDockIcon() { C.ot_hide_dock_icon() }
 func (p *darwinPlatform) PrepareOverlayWindow() { C.ot_window_init_overlay() }
 
 // FitOverlayToScreen implements platform.OverlayWindowPreparer, sizing the
-// transparent window to its screen so the panel can use the full area.
-func (p *darwinPlatform) FitOverlayToScreen() { C.ot_window_fit_screen() }
+// transparent window to the chosen screen so the panel can use the full area.
+func (p *darwinPlatform) FitOverlayToScreen(screen domain.ScreenID) {
+	C.ot_window_fit_screen(C.uint32_t(screen))
+}
+
+// HapticTick implements platform.HapticFeedback with a subtle alignment tap.
+func (p *darwinPlatform) HapticTick() { C.ot_haptic_tick() }
 
 // SetPrefsWindowMode implements platform.WindowModer, flipping the single
 // window between overlay and titled-preferences chrome.
@@ -406,6 +412,102 @@ func (h *darwinHotkeys) Events() <-chan HotkeyEvent { return h.ch }
 func (h *darwinHotkeys) Close() error {
 	C.ot_hotkey_stop()
 	return nil
+}
+
+// CoreGraphics modifier-flag masks (stable public CGEventFlags values), kept
+// as Go constants so chordFromCapture stays unit-testable.
+const (
+	cgFlagControl = 0x00040000
+	cgFlagShift   = 0x00020000
+	cgFlagOption  = 0x00080000
+	cgFlagCommand = 0x00100000
+)
+
+// pendingCapture receives the one-shot recorded chord ("" = cancelled).
+var (
+	captureMu      sync.Mutex
+	pendingCapture chan string
+)
+
+// chordFromCapture converts a tap-captured (modifier flags, keycode) pair to
+// the canonical chord string, or "" for the cancel sentinel or unknown keys.
+func chordFromCapture(flags uint64, keycode uint16) string {
+	if keycode == 0xFFFF {
+		return ""
+	}
+	var c hotkey.Chord
+	if flags&cgFlagControl != 0 {
+		c.Mods = c.Mods.With(hotkey.ModControl)
+	}
+	if flags&cgFlagOption != 0 {
+		c.Mods = c.Mods.With(hotkey.ModOption)
+	}
+	if flags&cgFlagShift != 0 {
+		c.Mods = c.Mods.With(hotkey.ModShift)
+	}
+	if flags&cgFlagCommand != 0 {
+		c.Mods = c.Mods.With(hotkey.ModCommand)
+	}
+	if c.Mods.Len() == 0 {
+		return ""
+	}
+	for name, code := range macKeycodes {
+		if code == keycode {
+			c.Key = name
+			return c.String()
+		}
+	}
+	return ""
+}
+
+//export goHotkeyCaptured
+func goHotkeyCaptured(modflags C.uint64_t, keycode C.uint16_t) {
+	captureMu.Lock()
+	ch := pendingCapture
+	pendingCapture = nil
+	captureMu.Unlock()
+	if ch != nil {
+		ch <- chordFromCapture(uint64(modflags), uint16(keycode))
+	}
+}
+
+// CaptureShortcut implements platform.ShortcutCapturer: arms the event tap's
+// one-shot recording and blocks until a chord, Escape, or the timeout.
+func (p *darwinPlatform) CaptureShortcut(timeout time.Duration) string {
+	p.hotkeys.ensureStarted()
+	ch := make(chan string, 1)
+	captureMu.Lock()
+	if prev := pendingCapture; prev != nil {
+		prev <- "" // resolve a stale capture so its caller unblocks
+	}
+	pendingCapture = ch
+	captureMu.Unlock()
+	C.ot_hotkey_capture_start()
+	select {
+	case s := <-ch:
+		return s
+	case <-time.After(timeout):
+		C.ot_hotkey_capture_stop()
+		captureMu.Lock()
+		if pendingCapture == ch {
+			pendingCapture = nil
+		}
+		captureMu.Unlock()
+		return ""
+	}
+}
+
+// CancelShortcutCapture implements platform.ShortcutCapturer, disarming a
+// pending recording (e.g. the recorder input lost focus).
+func (p *darwinPlatform) CancelShortcutCapture() {
+	C.ot_hotkey_capture_stop()
+	captureMu.Lock()
+	ch := pendingCapture
+	pendingCapture = nil
+	captureMu.Unlock()
+	if ch != nil {
+		ch <- ""
+	}
 }
 
 //export goHotkeyEvent

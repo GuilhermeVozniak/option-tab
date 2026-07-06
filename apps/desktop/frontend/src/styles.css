@@ -538,6 +538,19 @@ body,
     0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
+@keyframes ot-preview-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ot-preview-fade .ot-preview-img {
+  animation: ot-preview-in 160ms ease-out;
+}
+
 /* ---- Title truncation modes ---- */
 
 .ot-trunc-start {

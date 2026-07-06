@@ -3,6 +3,9 @@ package main
 import (
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	goruntime "runtime"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -73,4 +76,44 @@ func (a *App) checkForUpdateOnce() {
 	}
 	dlog("update: %s available at %s", rel.Version, rel.URL)
 	a.emit("update:available", map[string]string{"version": rel.Version, "url": rel.URL})
+	if a.settings.Behavior.UpdatePolicy == config.UpdatesAuto {
+		a.downloadAndOpenUpdate(rel)
+	}
+}
+
+// downloadAndOpenUpdate fetches the release's installer for this platform into
+// ~/Downloads and opens it (mounting the dmg), the closest safe equivalent of
+// "auto-install" without a privileged updater.
+func (a *App) downloadAndOpenUpdate(rel update.Release) {
+	url := rel.AssetFor("darwin_" + goruntime.GOARCH)
+	if url == "" {
+		return
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	client := &http.Client{Timeout: 5 * time.Minute}
+	resp, err := client.Get(url)
+	if err != nil {
+		dlog("update: download failed: %v", err)
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return
+	}
+	dest := filepath.Join(home, "Downloads", filepath.Base(url))
+	f, err := os.Create(dest)
+	if err != nil {
+		return
+	}
+	if _, err := io.Copy(f, resp.Body); err != nil {
+		_ = f.Close()
+		_ = os.Remove(dest)
+		return
+	}
+	_ = f.Close()
+	dlog("update: downloaded %s", dest)
+	a.OpenURL("file://" + dest)
 }

@@ -51,6 +51,7 @@ type State struct {
 	Search        string             `json:"search"`
 	ShortcutID    int                `json:"shortcutId"`
 	VimKeys       bool               `json:"vimKeys"`
+	ArrowKeys     bool               `json:"arrowKeys"`
 	MouseHover    bool               `json:"mouseHover"`
 	ActiveSpaceID domain.SpaceID     `json:"activeSpaceId"`
 }
@@ -450,6 +451,7 @@ func (c *Controller) snapshot() State {
 		Search:        c.search,
 		ShortcutID:    c.shortcut.ID,
 		VimKeys:       c.settings.Behavior.VimKeys,
+		ArrowKeys:     c.settings.Behavior.ArrowKeys,
 		MouseHover:    c.settings.Behavior.MouseHoverSelect,
 		ActiveSpaceID: c.activeSpace,
 	}

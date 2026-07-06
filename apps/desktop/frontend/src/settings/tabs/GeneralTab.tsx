@@ -113,6 +113,19 @@ export function GeneralTab({
               onChange={(e) => patchBehavior({ startAtLogin: e.target.checked })}
             />
           </label>
+          <label className={ROW}>
+            <span>{t("Capture windows in the background")}</span>
+            <Checkbox
+              aria-label="Capture windows in the background"
+              checked={settings.behavior.captureInBackground}
+              onChange={(e) => patchBehavior({ captureInBackground: e.target.checked })}
+            />
+          </label>
+          <p className={HINT}>
+            {t(
+              "Keeps thumbnails fresh so the switcher opens with previews instantly. While enabled, macOS shows the screen-recording indicator.",
+            )}
+          </p>
           <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
             <legend className="mb-1 p-0 text-[13px] font-semibold">{t("Menubar icon")}</legend>
             {(
@@ -190,7 +203,9 @@ export function GeneralTab({
             ))}
           </fieldset>
           <p className={HINT}>
-            {t("Auto-install is not available yet; when an update is found you are notified here.")}
+            {t(
+              "Auto-install downloads the new installer to your Downloads folder and opens it when an update is found.",
+            )}
           </p>
           <div className={ACTIONS_ROW}>
             <Button aria-label="Check for updates now" onClick={checkUpdates}>

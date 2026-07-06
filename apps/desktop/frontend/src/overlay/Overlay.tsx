@@ -71,7 +71,7 @@ export function Overlay({ state, handlers }: OverlayProps) {
   useEffect(() => {
     if (!open) return;
     function onKeyDown(e: KeyboardEvent) {
-      const action = keyToAction(e, { vimKeys: state.vimKeys });
+      const action = keyToAction(e, { vimKeys: state.vimKeys, arrowKeys: state.arrowKeys });
       if (action.kind === "none") return;
       e.preventDefault();
       const sel = entries[selected];
@@ -194,8 +194,14 @@ export function Overlay({ state, handlers }: OverlayProps) {
           ))}
         </ul>
         {appearance.previewSelected && (selectedEntry?.preview || selectedEntry?.thumbnail) ? (
-          <div className="ot-preview" aria-label="Selected window preview">
+          <div
+            className={`ot-preview${appearance.previewFade ? " ot-preview-fade" : ""}`}
+            aria-label="Selected window preview"
+          >
             <img
+              // Keyed by source so switching windows remounts the image and
+              // replays the fade-in.
+              key={selectedEntry.preview ?? selectedEntry.thumbnail}
               className="ot-preview-img"
               src={selectedEntry.preview ?? selectedEntry.thumbnail}
               alt=""

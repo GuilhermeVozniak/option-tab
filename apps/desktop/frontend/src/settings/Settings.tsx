@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { makeT, resolveLang } from "../lib/i18n";
@@ -28,6 +28,8 @@ interface SettingsProps {
   permissions?: PermissionsControl;
   about?: AboutControl;
   crash?: CrashControl;
+  /** Deep-link from the menubar (e.g. "About"); applied when it changes. */
+  requestedTab?: string | null;
 }
 
 const TABS = ["General", "Controls", "Appearance", "Filtering", "Blacklists", "About"] as const;
@@ -39,8 +41,20 @@ type Tab = (typeof TABS)[number];
 // All tab panels stay mounted (inactive ones hidden) so the whole form is a
 // single controlled surface. On first run (behavior.onboarded false, with live
 // permissions available) it renders the onboarding wizard instead.
-export function Settings({ settings, onChange, permissions, about, crash }: SettingsProps) {
+export function Settings({
+  settings,
+  onChange,
+  permissions,
+  about,
+  crash,
+  requestedTab,
+}: SettingsProps) {
   const [tab, setTab] = useState<Tab>("General");
+  useEffect(() => {
+    if (requestedTab && (TABS as readonly string[]).includes(requestedTab)) {
+      setTab(requestedTab as Tab);
+    }
+  }, [requestedTab]);
   const openURL = about?.onOpenURL ?? ((url: string) => window.open(url, "_blank", "noopener"));
   const checkUpdates = about?.onCheckUpdates ?? (() => openURL(`${PROJECT_URL}/releases`));
   const t = makeT(resolveLang(settings.behavior.language));

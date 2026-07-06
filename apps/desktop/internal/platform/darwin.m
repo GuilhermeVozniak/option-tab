@@ -540,12 +540,28 @@ static NSMenuItem *gPauseItem = nil;
 @interface OTTrayTarget : NSObject
 @end
 @implementation OTTrayTarget
+// Ints match the platform.TrayCommand constants (Go side).
 - (void)onPreferences:(id)sender { (void)sender; goTrayCommand(0); }
 - (void)onTogglePause:(id)sender { (void)sender; goTrayCommand(1); }
 - (void)onQuit:(id)sender { (void)sender; goTrayCommand(2); }
+- (void)onShow:(id)sender { (void)sender; goTrayCommand(3); }
+- (void)onCheckUpdates:(id)sender { (void)sender; goTrayCommand(4); }
+- (void)onCheckPermissions:(id)sender { (void)sender; goTrayCommand(5); }
+- (void)onAbout:(id)sender { (void)sender; goTrayCommand(6); }
+- (void)onDebugTools:(id)sender { (void)sender; goTrayCommand(7); }
+- (void)onFeedback:(id)sender { (void)sender; goTrayCommand(8); }
+- (void)onSupport:(id)sender { (void)sender; goTrayCommand(9); }
 @end
 
 static OTTrayTarget *gTrayTarget = nil;
+
+// otAddItem appends a target-wired menu item and returns it.
+static NSMenuItem *otAddItem(NSMenu *menu, NSString *title, SEL action, NSString *key) {
+  NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title action:action keyEquivalent:key];
+  item.target = gTrayTarget;
+  [menu addItem:item];
+  return item;
+}
 
 void ot_tray_install(void) {
   dispatch_async(dispatch_get_main_queue(), ^{
@@ -556,25 +572,22 @@ void ot_tray_install(void) {
     gStatusItem.button.toolTip = @"option-tab";
 
     NSMenu *menu = [[NSMenu alloc] init];
-    NSMenuItem *prefs = [[NSMenuItem alloc] initWithTitle:@"Preferences…"
-                                                   action:@selector(onPreferences:)
-                                            keyEquivalent:@","];
-    prefs.target = gTrayTarget;
-    [menu addItem:prefs];
-
-    gPauseItem = [[NSMenuItem alloc] initWithTitle:@"Pause"
-                                            action:@selector(onTogglePause:)
-                                     keyEquivalent:@""];
-    gPauseItem.target = gTrayTarget;
-    [menu addItem:gPauseItem];
+    otAddItem(menu, @"Show", @selector(onShow:), @"");
+    gPauseItem = otAddItem(menu, @"Pause", @selector(onTogglePause:), @"");
 
     [menu addItem:[NSMenuItem separatorItem]];
+    otAddItem(menu, @"Settings…", @selector(onPreferences:), @",");
+    otAddItem(menu, @"Check for updates…", @selector(onCheckUpdates:), @"");
+    otAddItem(menu, @"Check permissions…", @selector(onCheckPermissions:), @"");
 
-    NSMenuItem *quit = [[NSMenuItem alloc] initWithTitle:@"Quit option-tab"
-                                                  action:@selector(onQuit:)
-                                           keyEquivalent:@"q"];
-    quit.target = gTrayTarget;
-    [menu addItem:quit];
+    [menu addItem:[NSMenuItem separatorItem]];
+    otAddItem(menu, @"About Option Tab", @selector(onAbout:), @"");
+    otAddItem(menu, @"Debug tools", @selector(onDebugTools:), @"");
+    otAddItem(menu, @"Send feedback…", @selector(onFeedback:), @"");
+    otAddItem(menu, @"Support this project", @selector(onSupport:), @"");
+
+    [menu addItem:[NSMenuItem separatorItem]];
+    otAddItem(menu, @"Quit Option Tab", @selector(onQuit:), @"q");
 
     gStatusItem.menu = menu;
     OTLOG("tray installed\n");
@@ -689,16 +702,35 @@ void ot_window_init_overlay(void) {
 }
 
 // ot_window_fit_screen resizes the overlay window to the visible frame of the
-// screen it is on, so the switcher panel can lay out against the whole screen
-// instead of the small default window. The window is fully transparent, so
-// its actual bounds are invisible. Dispatched to the main queue.
-void ot_window_fit_screen(void) {
+// screen with the given display id (0/unknown = the window's current screen),
+// so the switcher panel appears on the screen the Placement setting chose and
+// can lay out against its whole area. The window is fully transparent, so its
+// actual bounds are invisible. Dispatched to the main queue.
+void ot_window_fit_screen(uint32_t displayID) {
   dispatch_async(dispatch_get_main_queue(), ^{
     NSWindow *w = otMainWindow();
     if (w == nil) return;
     NSScreen *s = w.screen ?: [NSScreen mainScreen];
+    if (displayID != 0) {
+      for (NSScreen *cand in [NSScreen screens]) {
+        NSNumber *num = cand.deviceDescription[@"NSScreenNumber"];
+        if (num != nil && [num unsignedIntValue] == displayID) {
+          s = cand;
+          break;
+        }
+      }
+    }
     if (s == nil) return;
     [w setFrame:s.visibleFrame display:YES];
+  });
+}
+
+// ot_haptic_tick performs a subtle trackpad tap (selection feedback).
+void ot_haptic_tick(void) {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [[NSHapticFeedbackManager defaultPerformer]
+        performFeedbackPattern:NSHapticFeedbackPatternAlignment
+               performanceTime:NSHapticFeedbackPerformanceTimeNow];
   });
 }
 
@@ -741,6 +773,8 @@ int ot_login_item_set(int enabled) {
 
 // ---- Hotkey engine (CGEventTap on a dedicated thread) ----
 
+extern void goHotkeyCaptured(uint64_t modflags, uint16_t keycode);
+
 typedef struct {
   int id;
   uint64_t modflags; // required modifier mask (excluding shift)
@@ -756,6 +790,7 @@ static CFRunLoopSourceRef gSource = NULL;
 static CFRunLoopRef gRunLoop = NULL;
 static int gActive = 0;          // switcher currently open
 static uint64_t gHoldMask = 0;   // modifiers held during the active session
+static int gCaptureMode = 0;     // one-shot chord recording for the prefs UI
 
 static const uint64_t kModMask = (kCGEventFlagMaskControl | kCGEventFlagMaskAlternate |
                                   kCGEventFlagMaskShift | kCGEventFlagMaskCommand);
@@ -781,6 +816,24 @@ static CGEventRef tapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRe
   if (type == kCGEventKeyDown) {
     uint16_t keycode = (uint16_t)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
     OTLOG("keydown keycode=%u flags=0x%llx active=%d\n", keycode, (unsigned long long)flags, gActive);
+
+    // Chord recording: the prefs recorder armed a one-shot capture. It runs
+    // before chord matching so even the switcher's own chord (or Command+Tab,
+    // which the webview never sees) can be recorded — and is consumed so it
+    // doesn't also trigger the system or the switcher.
+    if (gCaptureMode) {
+      if (keycode == 53) { // Escape cancels recording
+        gCaptureMode = 0;
+        goHotkeyCaptured(0, 0xFFFF);
+        return NULL;
+      }
+      if (flags != 0) {
+        gCaptureMode = 0;
+        goHotkeyCaptured(flags, keycode);
+        return NULL;
+      }
+      return event; // unmodified keys pass through (chords need a modifier)
+    }
 
     if (keycode == 53 && gActive) { // Escape
       gActive = 0;
@@ -862,6 +915,10 @@ int ot_hotkey_register(int id, uint64_t modflags, uint16_t keycode, int withShif
   }
   return 0;
 }
+
+void ot_hotkey_capture_start(void) { gCaptureMode = 1; }
+
+void ot_hotkey_capture_stop(void) { gCaptureMode = 0; }
 
 void ot_hotkey_unregister(int id) {
   for (int i = 0; i < OT_MAX_CHORDS; i++) {

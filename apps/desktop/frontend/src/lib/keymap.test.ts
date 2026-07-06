@@ -33,6 +33,14 @@ describe("keyToAction", () => {
     expect(keyToAction(ev("ArrowUp"))).toEqual({ kind: "reverse" });
   });
 
+  it("ignores arrows when arrowKeys is disabled", () => {
+    const opts = { arrowKeys: false };
+    expect(keyToAction(ev("ArrowRight"), opts)).toEqual({ kind: "none" });
+    expect(keyToAction(ev("ArrowLeft"), opts)).toEqual({ kind: "none" });
+    // Tab is unaffected by the arrow-keys toggle.
+    expect(keyToAction(ev("Tab"), opts)).toEqual({ kind: "advance" });
+  });
+
   it("maps Escape to cancel and Enter to confirm", () => {
     expect(keyToAction(ev("Escape"))).toEqual({ kind: "cancel" });
     expect(keyToAction(ev("Enter"))).toEqual({ kind: "confirm" });

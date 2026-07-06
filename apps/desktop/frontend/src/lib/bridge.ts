@@ -39,6 +39,8 @@ interface SystemApp {
   GetCrashReport(): Promise<string>;
   DismissCrashReport(): Promise<void>;
   ReportCrash(): Promise<void>;
+  CaptureShortcut(): Promise<string>;
+  CancelShortcutCapture(): Promise<void>;
 }
 
 interface WailsRuntime {
@@ -87,6 +89,20 @@ export const system = {
   openPreferences: () => call(boundApp<SystemApp>().OpenPreferences),
   closePreferences: () => call(boundApp<SystemApp>().ClosePreferences),
   checkForUpdates: () => call(boundApp<SystemApp>().CheckForUpdates),
+  // captureShortcut arms native chord recording (sees Command+Tab and the
+  // switcher's own chord, which never reach the DOM). Resolves with the chord,
+  // "" on cancel/timeout, or null when the binding is unavailable (browser/
+  // dev) so callers can fall back to DOM key events.
+  captureShortcut: async (): Promise<string | null> => {
+    const fn = boundApp<SystemApp>().CaptureShortcut;
+    if (typeof fn !== "function") return null;
+    try {
+      return await fn();
+    } catch {
+      return "";
+    }
+  },
+  cancelShortcutCapture: () => call(boundApp<SystemApp>().CancelShortcutCapture),
   // openURL routes through Go so links open in the system browser; without
   // Wails it falls back to window.open (browser/dev).
   openURL: (url: string): Promise<void> => {
@@ -116,6 +132,8 @@ export interface SwitcherEventHandlers {
   onPreview?: (previews: Record<string, string>) => void;
   onPrefsOpen?: () => void;
   onPrefsClose?: () => void;
+  /** Menubar deep-link: open preferences on a specific tab (e.g. "About"). */
+  onPrefsTab?: (tab: string) => void;
 }
 
 // onSwitcherEvent subscribes to the Go controller's events and returns an
@@ -137,6 +155,7 @@ export function onSwitcherEvent(handlers: SwitcherEventHandlers): () => void {
   );
   const offPrefsOpen = rt.EventsOn("prefs:open", () => handlers.onPrefsOpen?.());
   const offPrefsClose = rt.EventsOn("prefs:close", () => handlers.onPrefsClose?.());
+  const offPrefsTab = rt.EventsOn("prefs:tab", (data) => handlers.onPrefsTab?.(data as string));
   return () => {
     offShow?.();
     offUpdate?.();
@@ -145,6 +164,7 @@ export function onSwitcherEvent(handlers: SwitcherEventHandlers): () => void {
     offPreview?.();
     offPrefsOpen?.();
     offPrefsClose?.();
+    offPrefsTab?.();
   };
 }
 

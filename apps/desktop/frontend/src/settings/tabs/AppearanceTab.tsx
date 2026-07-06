@@ -302,6 +302,14 @@ export function AppearanceTab({ ctx }: { ctx: TabContext }) {
             />
           </label>
           <label className={ROW}>
+            <span>{t("Fade in the selected-window preview")}</span>
+            <Checkbox
+              aria-label="Preview fade in"
+              checked={a.previewFade}
+              onChange={(e) => patchAppearance({ previewFade: e.target.checked })}
+            />
+          </label>
+          <label className={ROW}>
             <span>{t("Apparition delay (ms)")}</span>
             <span className="flex items-center gap-3">
               <Slider

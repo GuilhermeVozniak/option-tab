@@ -338,6 +338,8 @@ type Appearance struct {
 	TitleTruncation TruncationMode `json:"titleTruncation"`
 	// PreviewSelected shows a large preview of the selected window.
 	PreviewSelected bool `json:"previewSelected"`
+	// PreviewFade fades the selected-window preview in when it changes.
+	PreviewFade bool `json:"previewFade"`
 }
 
 // ShortcutScope narrows the windows a given shortcut shows. Empty SpaceScope/
@@ -369,7 +371,8 @@ type Behavior struct {
 	StartAtLogin    bool `json:"startAtLogin"`
 	Paused          bool `json:"paused"`
 	ShowMenubarIcon bool `json:"showMenubarIcon"`
-	VimKeys         bool `json:"vimKeys"` // h/j/k/l navigate the switcher
+	VimKeys         bool `json:"vimKeys"`   // h/j/k/l navigate the switcher
+	ArrowKeys       bool `json:"arrowKeys"` // arrow keys navigate the switcher
 	// MenubarIconStyle picks the status-item glyph when the icon is shown.
 	MenubarIconStyle MenubarIconStyle `json:"menubarIconStyle"`
 	// Language is a BCP-47 tag for the UI language; empty = system default.
@@ -382,6 +385,12 @@ type Behavior struct {
 	MouseHoverSelect bool `json:"mouseHoverSelect"`
 	// CursorFollowFocus warps the cursor to the focused window on commit.
 	CursorFollowFocus bool `json:"cursorFollowFocus"`
+	// HapticFeedback taps the trackpad when the selection changes.
+	HapticFeedback bool `json:"hapticFeedback"`
+	// CaptureInBackground refreshes window thumbnails while the switcher is
+	// hidden so it opens with fresh previews (shows the macOS screen-recording
+	// indicator while enabled).
+	CaptureInBackground bool `json:"captureInBackground"`
 	// Onboarded records that the first-run permissions wizard was completed,
 	// so it is only shown once.
 	Onboarded bool `json:"onboarded"`
@@ -440,6 +449,7 @@ func Default() Settings {
 			ShowSpaceNumbers:   true,
 			TitleTruncation:    TruncateEnd,
 			PreviewSelected:    false,
+			PreviewFade:        true,
 		},
 		Filters: Filters{
 			Spaces:                  SpacesAll,
@@ -453,16 +463,19 @@ func Default() Settings {
 		Order:     OrderRecent,
 		Placement: PlaceCursorScreen,
 		Behavior: Behavior{
-			HoldToCycle:       true,
-			StartAtLogin:      false,
-			Paused:            false,
-			ShowMenubarIcon:   true,
-			MenubarIconStyle:  MenubarIconDefault,
-			Language:          "",
-			UpdatePolicy:      UpdatesCheck,
-			CrashReports:      CrashAsk,
-			MouseHoverSelect:  true,
-			CursorFollowFocus: false,
+			HoldToCycle:         true,
+			StartAtLogin:        false,
+			Paused:              false,
+			ShowMenubarIcon:     true,
+			ArrowKeys:           true,
+			MenubarIconStyle:    MenubarIconDefault,
+			Language:            "",
+			UpdatePolicy:        UpdatesCheck,
+			CrashReports:        CrashAsk,
+			MouseHoverSelect:    true,
+			CursorFollowFocus:   false,
+			HapticFeedback:      true,
+			CaptureInBackground: false,
 		},
 	}
 }
