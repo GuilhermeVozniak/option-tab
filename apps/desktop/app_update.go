@@ -15,7 +15,7 @@ import (
 )
 
 // appVersion is shown in the About tab.
-const appVersion = "0.1.0"
+const appVersion = "0.2.0"
 
 // projectURL and releasesURL are the About-tab links; the free clone has no
 // auto-updater, so "check for updates" opens the releases page.

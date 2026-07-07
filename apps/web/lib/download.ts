@@ -2,7 +2,7 @@ import { downloadUrl, latestReleaseUrl, type Platform } from "@option-tab/shared
 
 // Single source of truth for the version the landing page advertises.
 // Bump this in lockstep with a desktop release tag.
-export const APP_VERSION = "0.1.0";
+export const APP_VERSION = "0.2.0";
 
 export function detectPlatform(userAgent: string): Platform {
   const ua = userAgent.toLowerCase();
