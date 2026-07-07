@@ -16,6 +16,7 @@ jobs:
       - run: bun run test
       - run: bun run build
       - run: cd apps/web && bunx playwright install --with-deps chromium && bun run e2e
+      - run: cd apps/desktop/frontend && bun run e2e
 
   go:
     runs-on: ubuntu-latest

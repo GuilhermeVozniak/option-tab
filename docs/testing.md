@@ -90,6 +90,21 @@ Playwright runs against the built static site and verifies the page renders, the
 download links resolve to valid GitHub Release URLs, the primary button adapts to the
 User-Agent, and the feature showcase (the three styles) is present.
 
+### 8. Desktop UI — Playwright e2e (`apps/desktop/frontend/e2e`)
+
+The switcher overlay and the preferences window are driven end-to-end in real Chromium
+against the built Vite bundle. Because the app is a Wails app (Go backend + React in a
+WebView), the Go side is faked per test: `e2e/support/fakeWails.ts` injects a fake
+`window.runtime` + `window.go.main.App` before load, so the real event-driven overlay is
+fully interactive without the native backend (navigation methods re-emit `switcher:update`;
+window/app actions are recorded for assertions). Coverage: the three visual styles (via the
+built-in `#demo` route), keyboard navigation (Tab/Shift+Tab, arrows, vim), type-to-search,
+Escape, click-to-confirm, the hover window/app controls (close/minimize/fullscreen/hide/
+quit), the blur toggle, and the full `#settings` preferences surface (tab navigation,
+editing controls, shortcuts, blacklist, language, import/export/reset, About). It does not
+exercise the real Go backend (window enumeration, AX actions, the global hotkey) — that
+native boundary stays smoke-only (§3).
+
 ---
 
 ## Test configuration summary
@@ -100,6 +115,7 @@ User-Agent, and the feature showcase (the three styles) is present.
 | `apps/desktop/frontend` | Vitest + Testing Library | `jsdom` environment |
 | `apps/web` | Vitest | `node` environment, `lib/**/*.test.ts` |
 | `apps/web` (e2e) | Playwright | serves `out/` |
+| `apps/desktop/frontend` (e2e) | Playwright | builds + serves the Vite bundle; drives overlay + preferences in Chromium with a fake Wails runtime |
 | `packages/shared` | Vitest | pure functions |
 
 ---
@@ -107,4 +123,7 @@ User-Agent, and the feature showcase (the three styles) is present.
 ## CI enforcement
 
 The `go` job in `ci.yml` runs `go test ./... -race -cover`; the `js` job runs all Vitest
-workspaces and Playwright. Both must pass before merging to `main`.
+workspaces plus both Playwright suites (landing page and desktop UI). Both jobs must pass
+before merging to `main`. The desktop UI e2e also gates releases: the `e2e` job in
+`release.yml` runs before `build-desktop`, so a broken overlay or preferences flow blocks
+the build and publish.

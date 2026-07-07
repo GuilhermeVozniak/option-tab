@@ -19,9 +19,10 @@ tasks:
       - bun run build
       - cd apps/desktop && wails build
   e2e:
-    desc: Run Playwright e2e for the landing page
+    desc: Run Playwright e2e (landing page + desktop UI)
     cmds:
       - cd apps/web && bunx playwright test
+      - cd apps/desktop/frontend && bunx playwright test
   dev:web:
     desc: Run the landing page dev server
     cmds: [cd apps/web && bun run dev]

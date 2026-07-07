@@ -7,7 +7,22 @@ permissions:
   contents: write
 
 jobs:
+  # Gate the release on the UI end-to-end suite: a broken overlay or preferences
+  # flow must block the build/publish, not ship.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: latest }
+      - run: bun install --frozen-lockfile
+      - name: Desktop UI e2e (overlay + preferences)
+        run: cd apps/desktop/frontend && bunx playwright install --with-deps chromium && bun run e2e
+      - name: Landing-page e2e
+        run: cd apps/web && bun run build && bun run e2e
+
   build-desktop:
+    needs: e2e
     strategy:
       fail-fast: false
       matrix:
