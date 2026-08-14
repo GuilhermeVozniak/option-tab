@@ -86,6 +86,11 @@ func (a *App) Show(st switcher.State) {
 		if f, ok := a.platform.(platform.OverlayWindowFitter); ok {
 			f.FitOverlayToScreen(a.overlay.NativeWindow(), st.PlacementScreenID)
 		}
+		// Re-assert the floating level on every show: Wails v3 applies
+		// AlwaysOnTop from a WindowDidBecomeKey handler, which never fires for
+		// this never-activated window, so without this it stays at normal level
+		// and slides behind other apps' windows.
+		a.overlay.SetAlwaysOnTop(true)
 		a.overlay.Show()
 	}
 	a.emitCachedThumbnails(st)
