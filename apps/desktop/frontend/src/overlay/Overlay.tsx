@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { keyToAction } from "../lib/keymap";
+import { type KeyPayload, onSwitcherKey } from "../lib/bridge";
+import { type KeyEventLike, keyToAction } from "../lib/keymap";
 import { computeLayout } from "../lib/layout";
 import type { SwitcherState } from "../lib/types";
 import { EntryItem } from "./EntryItem";
@@ -10,12 +11,17 @@ export type { OverlayHandlers };
 interface OverlayProps {
   state: SwitcherState;
   handlers: OverlayHandlers;
+  // nativeKeys (default true): keyboard input arrives as native-tap
+  // "switcher:key" events — the overlay window never becomes key in the real
+  // app, so DOM keydown never fires there. False in browser dev, where the
+  // DOM keydown fallback keeps the UI drivable.
+  nativeKeys?: boolean;
 }
 
 // Overlay renders the window switcher in the configured visual style and wires
 // global keyboard handling. It is a controlled component: all state comes from
 // props (pushed by the Go controller) and all input flows out through handlers.
-export function Overlay({ state, handlers }: OverlayProps) {
+export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
   const { open, entries, selected, search, appearance } = state;
 
   // Apparition delay: postpone the first paint so quick switches don't flash
@@ -80,10 +86,9 @@ export function Overlay({ state, handlers }: OverlayProps) {
 
   useEffect(() => {
     if (!open) return;
-    function onKeyDown(e: KeyboardEvent) {
+    function handleKey(e: KeyEventLike) {
       const action = keyToAction(e, { vimKeys: state.vimKeys, arrowKeys: state.arrowKeys });
       if (action.kind === "none") return;
-      e.preventDefault();
       const sel = entries[selected];
       switch (action.kind) {
         case "advance":
@@ -121,9 +126,27 @@ export function Overlay({ state, handlers }: OverlayProps) {
           break;
       }
     }
+    if (nativeKeys) {
+      // Real app: keys come from the native event tap (the window is not key).
+      return onSwitcherKey((p: KeyPayload) =>
+        handleKey({
+          key: p.key,
+          code: p.code,
+          shiftKey: p.shift,
+          ctrlKey: p.ctrl,
+          metaKey: p.meta,
+          altKey: p.alt,
+        }),
+      );
+    }
+    // Browser dev fallback: plain DOM keyboard.
+    function onKeyDown(e: KeyboardEvent) {
+      handleKey(e);
+      e.preventDefault();
+    }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, search, handlers, entries, selected, state.vimKeys]);
+  }, [open, search, handlers, entries, selected, state.vimKeys, state.arrowKeys, nativeKeys]);
 
   if (open ? !shown : !closing) return null;
 

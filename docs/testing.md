@@ -68,13 +68,16 @@ permissions are granted on a CI host.
 
 `keymap.ts` (key event → action) and `layout.ts` (grid columns + thumbnail auto-sizing)
 are pure functions tested in `*.test.ts` with Vitest — no DOM needed. `bridge.ts` is tested
-by injecting/removing the Wails globals and asserting it calls the bound methods (and
-no-ops safely when absent).
+by mocking the generated bindings module (`bindings/option-tab/app.js`) and the
+`@wailsio/runtime` event bus, asserting it calls the bound methods (and degrades safely
+when the backend is absent).
 
 ### 5. Frontend components (`frontend/src/overlay`, `frontend/src/settings`)
 
 `Overlay.test.tsx` renders the switcher and asserts: all three visual styles render, the
-selected entry is marked, Tab/Shift+Tab/Escape/Enter route to handlers, typing updates the
+selected entry is marked, keys route to handlers — driven through the production native
+path (mocked `switcher:key` events) plus one DOM-fallback test for browser dev — typing
+updates the
 search query, hover selects and click confirms, and the hover controls fire close/minimize.
 `Settings.test.tsx` asserts the controlled form emits updated settings on each edit.
 
@@ -93,11 +96,13 @@ User-Agent, and the feature showcase (the three styles) is present.
 ### 8. Desktop UI — Playwright e2e (`apps/desktop/frontend/e2e`)
 
 The switcher overlay and the preferences window are driven end-to-end in real Chromium
-against the built Vite bundle. Because the app is a Wails app (Go backend + React in a
-WebView), the Go side is faked per test: `e2e/support/fakeWails.ts` injects a fake
-`window.runtime` + `window.go.main.App` before load, so the real event-driven overlay is
-fully interactive without the native backend (navigation methods re-emit `switcher:update`;
-window/app actions are recorded for assertions). Coverage: the three visual styles (via the
+against the built Vite bundle. The Go side is faked at the Wails v3 transport seam:
+`e2e/support/fakeWails.ts` intercepts the bindings' `POST /wails/runtime` calls (routing
+on the numeric method ids from the generated bindings) and dispatches Go→UI events through
+`window._wails.dispatchWailsEvent`, so the real event-driven overlay is fully interactive
+without the native backend (navigation methods re-emit `switcher:update`; window/app
+actions are recorded for assertions; `page.keyboard` input is re-emitted as `switcher:key`
+native-key payloads, mirroring the event-tap path). Coverage: the three visual styles (via the
 built-in `#demo` route), keyboard navigation (Tab/Shift+Tab, arrows, vim), type-to-search,
 Escape, click-to-confirm, the hover window/app controls (close/minimize/fullscreen/hide/
 quit), the blur toggle, and the full `#settings` preferences surface (tab navigation,

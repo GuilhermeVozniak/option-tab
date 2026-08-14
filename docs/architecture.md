@@ -64,9 +64,11 @@ OS interaction lives behind a single **platform port**, with swappable backends.
 `Environment`, `HotkeyEngine`, `Permissions`, `LoginItem`) and the aggregate `Platform`,
 plus **optional capability ports** that only richer backends provide and consumers
 type-assert for: `IconSource` (app icons as data URLs), `ThumbnailSource`
-(ScreenCaptureKit window snapshots), `Tray` (menubar item), `CursorWarper`
+(ScreenCaptureKit window snapshots), `CursorWarper`
 (cursor-follows-focus), `SettingsOpener` (System Settings privacy panes),
-`WindowModer` (overlay ↔ titled preferences window), and `DockHider` (accessory
+`OverlayWindowFitter` (sizes the overlay window to the chosen screen),
+`AppActivator` (flips the accessory app to regular for preferences, and drops
+accidental click-activations), and `DockHider` (accessory
 activation policy). Adding a capability means adding an optional port, not widening
 `Platform`. Three backends implement them:
 
@@ -76,10 +78,11 @@ activation policy). Adding a capability means adding an optional port, not widen
   `NSRunningApplication`; live thumbnails and selected-window previews via
   ScreenCaptureKit (macOS 14+); app icons from `NSRunningApplication`; permission
   checks/requests; login item via `SMAppService`; a `CGEventTap`-based hotkey engine that
-  detects modifier release for hold-to-cycle; an `NSStatusBar` menubar item behind the
-  `Tray` port; and window-presentation control — `ot_window_set_prefs_mode` flips the
-  single window between borderless overlay and titled preferences chrome, and
-  `ot_hide_dock_icon` keeps the app out of the Dock (with `LSUIElement` in the bundle).
+  detects modifier release for hold-to-cycle and — while the overlay is open — consumes
+  every key press and forwards it to Go (the overlay never becomes key, so the tap is its
+  only keyboard source); and frontmost-app tracking via `NSWorkspace` activation
+  notifications, so the active-app scope keeps seeing the real frontmost app even when
+  option-tab itself is active (preferences window, overlay clicks).
 - **`stub.go`** (`//go:build !darwin`) — synthetic data so Windows/Linux builds compile and
   the UI is demoable; full native backends for those platforms are future work.
 - **`fake/`** — a scriptable in-memory backend used to drive the controller in tests.
@@ -101,19 +104,28 @@ events.
 | Settings | `settings/` — `Settings.tsx` (shell + tab nav), `tabs/` (one file per tab), `shared.ts` (TabContext + control interfaces), `Onboarding.tsx` (first-run wizard), `ShortcutRecorder.tsx`, `PermissionRow.tsx` |
 | Shell | `App.tsx` — routes between the overlay, the preferences panel, and the `#settings`/`#demo` windows |
 
-The package-`main` `app*.go` files are the only Go code that imports `wails/v2`. `main.go`
-configures the frameless, transparent, always-on-top, start-hidden window and embeds
-`frontend/dist` via `//go:embed`.
+The package-`main` `app*.go` files are the only Go code that imports `wails/v3`. `main.go`
+creates the application (`application.New` with the embedded `frontend/dist` assets, the
+accessory activation policy, and single-instance), the two windows, and the menubar tray
+(Wails v3 `SystemTray` manager, with the glyph as the status-item label).
 
-### Single-window model
+### Two-window model (Wails v3)
 
-Wails v2 supports one window, so the overlay and the preferences UI share it. Opening
-preferences (menubar item, or automatically on first launch while `behavior.onboarded` is
-false) flips the window into titled chrome via the `WindowModer` port and emits
-`prefs:open`; the frontend renders the settings panel — or the onboarding wizard on first
-run. Closing (native close button, intercepted by `OnBeforeClose`) emits `prefs:close`
-and restores the overlay chrome. If the hotkey fires while preferences are open, the
-switcher takes over and preferences are dismissed first.
+The overlay and preferences are **separate windows** (Wails v3 is multi-window). The
+preferences window is a regular titled window created hidden (`URL: /#/settings`), shown
+on demand, and hidden again on close (`WindowClosing` is cancelled so the window is never
+destroyed; a factory recreates it defensively). Opening it flips the app to the regular
+activation policy so it can take keyboard focus; closing flips back to accessory.
+
+The overlay window is frameless, transparent (`MacBackdropTransparent` + no shadow),
+always-on-top, and — critically — **shown without ever activating the app**: Wails v3's
+`Show()` is a bare `makeKeyAndOrderFront`, unlike v2 which also called
+`activateIgnoringOtherApps`. The previously active app keeps keyboard focus, so the
+active-app scope filter keeps working (self-activation was the v2 switching bug), and
+confirming a selection is a plain SkyLight front + `orderOut` with no focus race.
+Because the overlay never becomes key, all keyboard input while it is open arrives via
+the event tap (`switcher:key` events); DOM keydown is only a browser-dev fallback. If the
+hotkey fires while preferences are open, preferences are dismissed first.
 
 ---
 
@@ -148,5 +160,6 @@ changing the release matrix means updating this contract in the same commit.
 **Turborepo** (`turbo.json`) orchestrates workspace scripts with dependency ordering
 (`build` → `^build`; `lint`/`test` → `^build`; `e2e` → `build`). **Taskfile**
 (`Taskfile.yml`) is the human-facing cross-language entrypoint (`task lint/test/build/e2e/
-dev:desktop/dev:web`). Wails handles the desktop-specific steps (embedding the frontend,
-CGO, native WebKit dependencies).
+dev:desktop/dev:web`). The desktop build is a plain `go build` (Wails v3 serves the
+embedded `frontend/dist` from the binary — there is no `wails build` step);
+`scripts/bundle.sh` assembles/signs/packages the `.app` and dmg.

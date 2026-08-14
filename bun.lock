@@ -14,6 +14,7 @@
     "apps/desktop/frontend": {
       "name": "@option-tab/desktop-frontend",
       "dependencies": {
+        "@wailsio/runtime": "3.0.0-alpha.97",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "react": "^19.0.0",
@@ -422,6 +423,8 @@
     "@vitest/spy": ["@vitest/spy@3.2.6", "", { "dependencies": { "tinyspy": "^4.0.3" } }, "sha512-oq6BbH68WzcWmwtBrU9nqLeaXTR4XwJF7FSLkKEZo4i6eoXcrxjcwSuTvWBIRUTC6VC72nXYunzqgZA+IKdtxg=="],
 
     "@vitest/utils": ["@vitest/utils@3.2.6", "", { "dependencies": { "@vitest/pretty-format": "3.2.6", "loupe": "^3.1.4", "tinyrainbow": "^2.0.0" } }, "sha512-lI23nIs4bnT3T8NIoh+vFaz5s2/DdP0Jgt2jxwgWljvwn82cLJtyi/If+fjFyoLMGIOz0U/fKvWE0d4jsNQEfg=="],
+
+    "@wailsio/runtime": ["@wailsio/runtime@3.0.0-alpha.97", "", {}, "sha512-alvEG6B0YqW7AcBcNaUWNMD9q8JWqx5AO6BPOZpijBeq4ZjhQxSom3jvvq8Z1mWSMKPEjSvlFirKIh9NLI3ajA=="],
 
     "agent-base": ["agent-base@7.1.4", "", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 

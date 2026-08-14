@@ -3,6 +3,7 @@ dist/
 out/
 .next/
 .turbo/
+apps/desktop/bin/
 apps/desktop/build/bin/
 apps/desktop/frontend/dist/
 coverage/

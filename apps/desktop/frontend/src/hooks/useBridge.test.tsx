@@ -1,23 +1,52 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Mock the Wails v3 seams (generated bindings + @wailsio/runtime events) the
+// same way bridge.test.ts does; each test then tailors the mocked bindings.
+const eventHandlers = new Map<string, (ev: { data: unknown }) => void>();
+
+vi.mock("@wailsio/runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@wailsio/runtime")>();
+  return {
+    ...actual,
+    Events: {
+      On: vi.fn((name: string, cb: (ev: { data: unknown }) => void) => {
+        eventHandlers.set(name, cb);
+        return () => eventHandlers.delete(name);
+      }),
+    },
+  };
+});
+
+vi.mock("../../bindings/option-tab/app.js", () => ({
+  GetPermissions: vi.fn().mockResolvedValue("{}"),
+  RequestAccessibility: vi.fn().mockResolvedValue(undefined),
+  RequestScreenRecording: vi.fn().mockResolvedValue(undefined),
+  OpenPermissionSettings: vi.fn().mockResolvedValue(undefined),
+  GetVersion: vi.fn().mockResolvedValue("1.2.3"),
+  OpenURL: vi.fn().mockResolvedValue(undefined),
+  CheckForUpdates: vi.fn().mockResolvedValue(undefined),
+  GetCrashReport: vi.fn().mockResolvedValue(""),
+  ReportCrash: vi.fn().mockResolvedValue(undefined),
+  DismissCrashReport: vi.fn().mockResolvedValue(undefined),
+}));
+
+import * as AppService from "../../bindings/option-tab/app.js";
+import { resetBackendProbeForTests } from "../lib/bridge";
 import { useAbout, useCrash, usePermissions } from "./useBridge";
 
-// These hooks read the Wails globals lazily through lib/bridge, so each test
-// installs (or omits) globalThis.go / globalThis.runtime the same way
-// bridge.test.ts does, then renders the hook and flushes the bridge promises.
-afterEach(() => {
-  (globalThis as any).go = undefined;
-  (globalThis as any).runtime = undefined;
-  vi.restoreAllMocks();
+const mocked = vi.mocked(AppService);
+
+beforeEach(() => {
+  eventHandlers.clear();
+  resetBackendProbeForTests();
+  vi.clearAllMocks();
   vi.useRealTimers();
 });
 
-function setApp(methods: Record<string, unknown>) {
-  (globalThis as any).go = { main: { App: methods } };
-}
-
 describe("usePermissions", () => {
   it("returns undefined without Wails (no Permissions UI)", async () => {
+    mocked.GetPermissions.mockRejectedValueOnce(new Error("no backend"));
     const { result } = renderHook(() => usePermissions());
     // The initial render is undefined; give the (null-resolving) load a tick
     // and confirm it stays undefined so the section is never rendered.
@@ -27,21 +56,9 @@ describe("usePermissions", () => {
 
   it("loads permission state, polls for changes, and delegates actions", async () => {
     vi.useFakeTimers();
-    const GetPermissions = vi
-      .fn()
-      .mockResolvedValueOnce(
-        JSON.stringify({ accessibility: "granted", screenRecording: "granted" }),
-      )
-      .mockResolvedValue(JSON.stringify({ accessibility: "denied", screenRecording: "granted" }));
-    const RequestAccessibility = vi.fn().mockResolvedValue(undefined);
-    const RequestScreenRecording = vi.fn().mockResolvedValue(undefined);
-    const OpenPermissionSettings = vi.fn().mockResolvedValue(undefined);
-    setApp({
-      GetPermissions,
-      RequestAccessibility,
-      RequestScreenRecording,
-      OpenPermissionSettings,
-    });
+    mocked.GetPermissions.mockResolvedValueOnce(
+      JSON.stringify({ accessibility: "granted", screenRecording: "granted" }),
+    ).mockResolvedValue(JSON.stringify({ accessibility: "denied", screenRecording: "granted" }));
 
     const { result } = renderHook(() => usePermissions());
 
@@ -62,39 +79,34 @@ describe("usePermissions", () => {
 
     // Actions route to the matching bound method.
     result.current?.onRequest("accessibility");
-    expect(RequestAccessibility).toHaveBeenCalledTimes(1);
+    expect(mocked.RequestAccessibility).toHaveBeenCalledTimes(1);
     result.current?.onRequest("screenRecording");
-    expect(RequestScreenRecording).toHaveBeenCalledTimes(1);
+    expect(mocked.RequestScreenRecording).toHaveBeenCalledTimes(1);
     result.current?.onOpenSettings("accessibility");
-    expect(OpenPermissionSettings).toHaveBeenCalledWith("accessibility");
+    expect(mocked.OpenPermissionSettings).toHaveBeenCalledWith("accessibility");
   });
 });
 
 describe("useAbout", () => {
   it("falls back to the dev version and opens URLs via the browser without Wails", async () => {
+    // No backend: the version probe and the backend probe both fail.
+    mocked.GetVersion.mockRejectedValue(new Error("no backend"));
     const openSpy = vi.spyOn(globalThis, "open").mockReturnValue(null);
     const { result } = renderHook(() => useAbout());
     await act(async () => {});
     expect(result.current.version).toBe("dev");
     expect(result.current.update).toBeUndefined();
 
-    // onOpenURL with no OpenURL binding falls back to window.open.
-    result.current.onOpenURL("https://example.com");
+    // onOpenURL with no backend falls back to window.open.
+    await act(async () => {
+      await result.current.onOpenURL("https://example.com");
+    });
     expect(openSpy).toHaveBeenCalledWith("https://example.com", "_blank", "noopener");
+    openSpy.mockRestore();
   });
 
   it("reports the Go version, surfaces an update event, and routes actions", async () => {
-    const GetVersion = vi.fn().mockResolvedValue("9.9.9");
-    const OpenURL = vi.fn().mockResolvedValue(undefined);
-    const CheckForUpdates = vi.fn().mockResolvedValue(undefined);
-    setApp({ GetVersion, OpenURL, CheckForUpdates });
-    let updateCb: ((d: unknown) => void) | undefined;
-    (globalThis as any).runtime = {
-      EventsOn: (event: string, cb: (d: unknown) => void) => {
-        if (event === "update:available") updateCb = cb;
-        return () => {};
-      },
-    };
+    mocked.GetVersion.mockResolvedValue("9.9.9");
 
     const { result } = renderHook(() => useAbout());
 
@@ -102,24 +114,26 @@ describe("useAbout", () => {
 
     // A background update:available event flows into the hook.
     act(() => {
-      updateCb?.({ version: "9.9.9", url: "https://releases/9.9.9" });
+      eventHandlers.get("update:available")?.({
+        data: { version: "9.9.9", url: "https://releases/9.9.9" },
+      });
     });
     expect(result.current.update).toEqual({
       version: "9.9.9",
       url: "https://releases/9.9.9",
     });
 
-    result.current.onOpenURL("https://option-tab.dev");
-    expect(OpenURL).toHaveBeenCalledWith("https://option-tab.dev");
+    await act(async () => {
+      await result.current.onOpenURL("https://option-tab.dev");
+    });
+    expect(mocked.OpenURL).toHaveBeenCalledWith("https://option-tab.dev");
     result.current.onCheckUpdates();
-    expect(CheckForUpdates).toHaveBeenCalledTimes(1);
+    expect(mocked.CheckForUpdates).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("useCrash", () => {
   it("stays undefined when there is nothing to report", async () => {
-    const GetCrashReport = vi.fn().mockResolvedValue("");
-    setApp({ GetCrashReport });
     const { result } = renderHook(() => useCrash());
     await act(async () => {
       await Promise.resolve();
@@ -128,22 +142,19 @@ describe("useCrash", () => {
   });
 
   it("surfaces a crash summary and reports / dismisses it", async () => {
-    const GetCrashReport = vi.fn().mockResolvedValue("panic: boom\ngoroutine 1 [running]:");
-    const ReportCrash = vi.fn().mockResolvedValue(undefined);
-    const DismissCrashReport = vi.fn().mockResolvedValue(undefined);
-    setApp({ GetCrashReport, ReportCrash, DismissCrashReport });
+    mocked.GetCrashReport.mockResolvedValue("panic: boom\ngoroutine 1 [running]:");
 
     const { result } = renderHook(() => useCrash());
     await waitFor(() => expect(result.current?.summary).toBe("panic: boom"));
 
     result.current?.onReport();
-    expect(ReportCrash).toHaveBeenCalledTimes(1);
+    expect(mocked.ReportCrash).toHaveBeenCalledTimes(1);
 
     // Dismiss clears the banner and tells Go to discard the pending report.
     act(() => {
       result.current?.onDismiss();
     });
-    expect(DismissCrashReport).toHaveBeenCalledTimes(1);
+    expect(mocked.DismissCrashReport).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(result.current).toBeUndefined());
   });
 });

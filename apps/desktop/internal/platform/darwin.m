@@ -7,6 +7,7 @@
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 #import <Carbon/Carbon.h> // ProcessSerialNumber, GetProcessForPID (for SkyLight focus)
 #include <pthread.h>
+#include <stdatomic.h>
 #include <unistd.h>
 #include "darwin.h"
 
@@ -19,6 +20,8 @@ extern CGError SLPSPostEventRecordTo(ProcessSerialNumber *psn, uint8_t *bytes);
 
 // Exported from Go (see darwin.go): receives hotkey events from the tap thread.
 extern void goHotkeyEvent(int kind, int id);
+// Receives a raw key press forwarded while the switcher overlay is open.
+extern void goKeyEvent(int keycode, uint64_t flags, const char *text);
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -219,10 +222,44 @@ int ot_window_pid(uint32_t wid) {
   }
 }
 
+// ---- Frontmost-app tracking ----
+
+// The switcher overlay never activates the app, but the preferences window and
+// overlay clicks can make option-tab itself frontmost. The active-app scope
+// filter must keep seeing the *real* active app in those moments, so we track
+// the most recent activated app that isn't us via NSWorkspace notifications.
+static pid_t gLastRealFrontPid = 0;
+static BOOL gFrontObserverInstalled = NO;
+
+static void otInstallFrontObserver(void) {
+  if (gFrontObserverInstalled) return;
+  gFrontObserverInstalled = YES;
+  pid_t self = [[NSProcessInfo processInfo] processIdentifier];
+  NSRunningApplication *front = [[NSWorkspace sharedWorkspace] frontmostApplication];
+  if (front && front.processIdentifier != self) {
+    gLastRealFrontPid = front.processIdentifier;
+  }
+  [[[NSWorkspace sharedWorkspace] notificationCenter]
+      addObserverForName:NSWorkspaceDidActivateApplicationNotification
+                  object:nil
+                   queue:nil
+              usingBlock:^(NSNotification *note) {
+    NSRunningApplication *app = note.userInfo[NSWorkspaceApplicationKey];
+    if (app && app.processIdentifier != self) {
+      gLastRealFrontPid = app.processIdentifier;
+    }
+  }];
+}
+
 int ot_active_app_pid(void) {
   @autoreleasepool {
+    otInstallFrontObserver();
     NSRunningApplication *app = [[NSWorkspace sharedWorkspace] frontmostApplication];
-    return app ? (int)app.processIdentifier : 0;
+    if (!app) return (int)gLastRealFrontPid;
+    if (app.processIdentifier == [[NSProcessInfo processInfo] processIdentifier]) {
+      return (int)gLastRealFrontPid; // we are frontmost (prefs/click): report the real app
+    }
+    return (int)app.processIdentifier;
   }
 }
 
@@ -570,101 +607,7 @@ char *ot_app_icon_png_base64(int pid, int maxpx) {
 
 // ---- Login item (SMAppService) ----
 
-// ---- Menubar status item ----
-
-extern void goTrayCommand(int cmd);
-
-static NSStatusItem *gStatusItem = nil;
-static NSMenuItem *gPauseItem = nil;
-
-@interface OTTrayTarget : NSObject
-@end
-@implementation OTTrayTarget
-// Ints match the platform.TrayCommand constants (Go side).
-- (void)onPreferences:(id)sender { (void)sender; goTrayCommand(0); }
-- (void)onTogglePause:(id)sender { (void)sender; goTrayCommand(1); }
-- (void)onQuit:(id)sender { (void)sender; goTrayCommand(2); }
-- (void)onShow:(id)sender { (void)sender; goTrayCommand(3); }
-- (void)onCheckUpdates:(id)sender { (void)sender; goTrayCommand(4); }
-- (void)onCheckPermissions:(id)sender { (void)sender; goTrayCommand(5); }
-- (void)onAbout:(id)sender { (void)sender; goTrayCommand(6); }
-- (void)onDebugTools:(id)sender { (void)sender; goTrayCommand(7); }
-- (void)onFeedback:(id)sender { (void)sender; goTrayCommand(8); }
-- (void)onSupport:(id)sender { (void)sender; goTrayCommand(9); }
-@end
-
-static OTTrayTarget *gTrayTarget = nil;
-
-// otAddItem appends a target-wired menu item and returns it.
-static NSMenuItem *otAddItem(NSMenu *menu, NSString *title, SEL action, NSString *key) {
-  NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title action:action keyEquivalent:key];
-  item.target = gTrayTarget;
-  [menu addItem:item];
-  return item;
-}
-
-void ot_tray_install(void) {
-  dispatch_async(dispatch_get_main_queue(), ^{
-    if (gStatusItem != nil) return;
-    gTrayTarget = [[OTTrayTarget alloc] init];
-    gStatusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
-    gStatusItem.button.title = @"⌥⇥"; // ⌥⇥
-    gStatusItem.button.toolTip = @"option-tab";
-
-    NSMenu *menu = [[NSMenu alloc] init];
-    otAddItem(menu, @"Show", @selector(onShow:), @"");
-    gPauseItem = otAddItem(menu, @"Pause", @selector(onTogglePause:), @"");
-
-    [menu addItem:[NSMenuItem separatorItem]];
-    otAddItem(menu, @"Settings…", @selector(onPreferences:), @",");
-    otAddItem(menu, @"Check for updates…", @selector(onCheckUpdates:), @"");
-    otAddItem(menu, @"Check permissions…", @selector(onCheckPermissions:), @"");
-
-    [menu addItem:[NSMenuItem separatorItem]];
-    otAddItem(menu, @"About Option Tab", @selector(onAbout:), @"");
-    otAddItem(menu, @"Debug tools", @selector(onDebugTools:), @"");
-    otAddItem(menu, @"Send feedback…", @selector(onFeedback:), @"");
-    otAddItem(menu, @"Support this project", @selector(onSupport:), @"");
-
-    [menu addItem:[NSMenuItem separatorItem]];
-    otAddItem(menu, @"Quit Option Tab", @selector(onQuit:), @"q");
-
-    gStatusItem.menu = menu;
-    OTLOG("tray installed\n");
-  });
-}
-
-void ot_tray_set_paused(int paused) {
-  dispatch_async(dispatch_get_main_queue(), ^{
-    if (gPauseItem != nil) gPauseItem.title = paused ? @"Resume" : @"Pause";
-  });
-}
-
-void ot_tray_set_style(const char *style) {
-  NSString *s = style != NULL ? [NSString stringWithUTF8String:style] : @"default";
-  dispatch_async(dispatch_get_main_queue(), ^{
-    if (gStatusItem == nil) return;
-    if ([s isEqualToString:@"outline"]) {
-      gStatusItem.button.title = @"⧉";
-    } else if ([s isEqualToString:@"dot"]) {
-      gStatusItem.button.title = @"●";
-    } else {
-      gStatusItem.button.title = @"⌥⇥";
-    }
-  });
-}
-
-void ot_tray_remove(void) {
-  dispatch_async(dispatch_get_main_queue(), ^{
-    if (gStatusItem != nil) {
-      [[NSStatusBar systemStatusBar] removeStatusItem:gStatusItem];
-      gStatusItem = nil;
-      gPauseItem = nil;
-    }
-  });
-}
-
-// ---- App presentation (Dock icon & preferences window mode) ----
+// ---- App presentation (activation policy helpers) ----
 
 void ot_hide_dock_icon(void) {
   dispatch_async(dispatch_get_main_queue(), ^{
@@ -672,72 +615,23 @@ void ot_hide_dock_icon(void) {
   });
 }
 
-// Saved overlay-window attributes so prefs mode can restore them exactly.
-static BOOL gOverlaySaved = NO;
-static NSRect gOverlayFrame;
-static NSWindowStyleMask gOverlayMask;
-static NSInteger gOverlayLevel;
-static BOOL gOverlayShadow;
-
-static NSWindow *otMainWindow(void) {
-  for (NSWindow *w in [NSApp windows]) {
-    if (![w isKindOfClass:[NSPanel class]]) return w;
-  }
-  return nil;
-}
-
-void ot_window_set_prefs_mode(int on) {
-  dispatch_async(dispatch_get_main_queue(), ^{
-    NSWindow *w = otMainWindow();
-    if (w == nil) return;
-    if (on) {
-      if (!gOverlaySaved) {
-        gOverlayFrame = w.frame;
-        gOverlayMask = w.styleMask;
-        gOverlayLevel = w.level;
-        gOverlayShadow = w.hasShadow;
-        gOverlaySaved = YES;
-      }
-      w.styleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
-                    NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable;
-      w.title = @"Option Tab";
-      w.titlebarAppearsTransparent = YES;
-      w.movable = YES;
-      w.level = NSNormalWindowLevel;
-      w.hasShadow = YES;
-      // Solid base matching the settings UI's aurora backdrop, so the titlebar
-      // strip blends seamlessly with the page instead of showing the desktop.
-      w.opaque = YES;
-      w.backgroundColor = [NSColor colorWithSRGBRed:0.043 green:0.063 blue:0.122 alpha:1.0];
-      NSRect vf = [NSScreen mainScreen].visibleFrame;
-      CGFloat width = MIN(840, vf.size.width - 80);
-      CGFloat height = MIN(700, vf.size.height - 80);
-      [w setFrame:NSMakeRect(NSMidX(vf) - width / 2, NSMidY(vf) - height / 2, width, height)
-           display:YES];
-      [NSApp activateIgnoringOtherApps:YES];
-      [w makeKeyAndOrderFront:nil];
-    } else if (gOverlaySaved) {
-      w.styleMask = gOverlayMask;
-      w.level = gOverlayLevel;
-      w.hasShadow = gOverlayShadow;
-      w.backgroundColor = [NSColor clearColor];
-      w.opaque = NO;
-      [w setFrame:gOverlayFrame display:YES];
+void ot_activate_prefs(void) {
+  otInstallFrontObserver();
+  @autoreleasepool {
+    NSRunningApplication *front = [[NSWorkspace sharedWorkspace] frontmostApplication];
+    if (front && front.processIdentifier != [[NSProcessInfo processInfo] processIdentifier]) {
+      gLastRealFrontPid = front.processIdentifier;
     }
+  }
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+    [NSApp activateIgnoringOtherApps:YES];
   });
 }
 
-// ot_window_init_overlay makes the app window a true transparent overlay.
-// Wails never sets opaque=NO, so without this the window's clear background
-// renders as a solid square behind the webview. Run once at startup; prefs
-// mode saves/restores the same state.
-void ot_window_init_overlay(void) {
+void ot_app_hide(void) {
   dispatch_async(dispatch_get_main_queue(), ^{
-    NSWindow *w = otMainWindow();
-    if (w == nil) return;
-    w.opaque = NO;
-    w.backgroundColor = [NSColor clearColor];
-    w.hasShadow = NO; // the panel draws its own CSS shadow
+    if ([NSApp isActive]) [NSApp hide:nil];
   });
 }
 
@@ -746,9 +640,9 @@ void ot_window_init_overlay(void) {
 // so the switcher panel appears on the screen the Placement setting chose and
 // can lay out against its whole area. The window is fully transparent, so its
 // actual bounds are invisible. Dispatched to the main queue.
-void ot_window_fit_screen(uint32_t displayID) {
+void ot_window_fit_screen(void *win, uint32_t displayID) {
   dispatch_async(dispatch_get_main_queue(), ^{
-    NSWindow *w = otMainWindow();
+    NSWindow *w = (__bridge NSWindow *)win;
     if (w == nil) return;
     NSScreen *s = w.screen ?: [NSScreen mainScreen];
     if (displayID != 0) {
@@ -828,12 +722,36 @@ static OTChord gChords[OT_MAX_CHORDS];
 static CFMachPortRef gTap = NULL;
 static CFRunLoopSourceRef gSource = NULL;
 static CFRunLoopRef gRunLoop = NULL;
-static int gActive = 0;          // switcher currently open
+static int gActive = 0;          // chord currently held (activate fired, release pending)
 static uint64_t gHoldMask = 0;   // modifiers held during the active session
 static int gCaptureMode = 0;     // one-shot chord recording for the prefs UI
+// gSwitcherOpen mirrors the Go-side overlay visibility (set via
+// ot_hotkey_set_open). While 1, every key press is consumed and forwarded so
+// typing never leaks into the previously active app — the overlay window never
+// becomes key (the app is not activated), so the tap is its only keyboard
+// source. Written from the Go thread, read on the tap thread.
+static _Atomic int gSwitcherOpen = 0;
 
 static const uint64_t kModMask = (kCGEventFlagMaskControl | kCGEventFlagMaskAlternate |
                                   kCGEventFlagMaskShift | kCGEventFlagMaskCommand);
+
+// forwardKey delivers a key press to Go (goKeyEvent) with its text, so the
+// frontend can run navigation/actions/type-to-search while the overlay is open.
+static void forwardKey(CGEventRef event, uint16_t keycode, uint64_t flags) {
+  UniChar buf[16];
+  UniCharCount len = 0;
+  CGEventKeyboardGetUnicodeString(event, 16, &len, buf);
+  char text[64];
+  text[0] = '\0';
+  if (len > 0) {
+    NSString *s = [[NSString alloc] initWithCharacters:buf length:len];
+    if (s != nil) {
+      strncpy(text, [s UTF8String], sizeof(text) - 1);
+      text[sizeof(text) - 1] = '\0';
+    }
+  }
+  goKeyEvent((int)keycode, flags, text);
+}
 
 static CGEventRef tapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *ctx) {
   (void)proxy;
@@ -855,7 +773,8 @@ static CGEventRef tapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRe
 
   if (type == kCGEventKeyDown) {
     uint16_t keycode = (uint16_t)CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
-    OTLOG("keydown keycode=%u flags=0x%llx active=%d\n", keycode, (unsigned long long)flags, gActive);
+    int open = (int)atomic_load_explicit(&gSwitcherOpen, memory_order_relaxed);
+    OTLOG("keydown keycode=%u flags=0x%llx active=%d open=%d\n", keycode, (unsigned long long)flags, gActive, open);
 
     // Chord recording: the prefs recorder armed a one-shot capture. It runs
     // before chord matching so even the switcher's own chord (or Command+Tab,
@@ -875,7 +794,7 @@ static CGEventRef tapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRe
       return event; // unmodified keys pass through (chords need a modifier)
     }
 
-    if (keycode == 53 && gActive) { // Escape
+    if (keycode == 53 && (gActive || open)) { // Escape
       gActive = 0;
       goHotkeyEvent(4, 0); // cancel
       return NULL;         // consume
@@ -898,6 +817,14 @@ static CGEventRef tapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRe
         goHotkeyEvent(1, gChords[i].id); // advance
       }
       return NULL; // consume the chord
+    }
+
+    // Switcher open but no chord matched: consume the key so it never reaches
+    // the previously active app, and forward it to the overlay (navigation,
+    // window actions, type-to-search).
+    if (open) {
+      forwardKey(event, keycode, flags);
+      return NULL;
     }
   }
   return event;
@@ -935,6 +862,10 @@ static void *hotkeyThread(void *arg) {
 int ot_hotkey_start(void) {
   OTLOG("ot_hotkey_start called; trusted=%d\n", AXIsProcessTrusted());
   if (gTap != NULL) return 1;
+  // Seed frontmost-app tracking early: Wails activates the app at launch, so
+  // from here on frontmostApplication may be us and the observer is the only
+  // source of the real active app.
+  otInstallFrontObserver();
   pthread_t t;
   if (pthread_create(&t, NULL, hotkeyThread, NULL) != 0) return 0;
   pthread_detach(t);
@@ -959,6 +890,10 @@ int ot_hotkey_register(int id, uint64_t modflags, uint16_t keycode, int withShif
 void ot_hotkey_capture_start(void) { gCaptureMode = 1; }
 
 void ot_hotkey_capture_stop(void) { gCaptureMode = 0; }
+
+void ot_hotkey_set_open(int open) {
+  atomic_store_explicit(&gSwitcherOpen, open ? 1 : 0, memory_order_relaxed);
+}
 
 void ot_hotkey_unregister(int id) {
   for (int i = 0; i < OT_MAX_CHORDS; i++) {

@@ -52,9 +52,9 @@ in-memory fake for tests.
 
 | Tool | Version | Install |
 |------|---------|---------|
-| Go | 1.23+ | <https://go.dev/dl> |
+| Go | 1.26+ | <https://go.dev/dl> |
 | Bun | 1.1+ | <https://bun.sh> |
-| Wails CLI | v2 | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
+| Wails CLI | v3 alpha | `go install github.com/wailsapp/wails/v3/cmd/wails3@latest` (only for `wails3 dev` / binding generation) |
 | Task | latest | <https://taskfile.dev/installation> |
 | golangci-lint | v2 | <https://golangci-lint.run/welcome/install> |
 | gofumpt | latest | `go install mvdan.cc/gofumpt@latest` |
@@ -67,7 +67,7 @@ first-run onboarding wizard walks through both grants.
 
 ```bash
 bun install            # install JS/TS dependencies (all workspaces)
-task dev:desktop       # run the desktop app in Wails dev mode (hot-reload)
+task dev:desktop       # build the frontend, then run the desktop app via wails3 dev
 task dev:web           # or run the landing-page dev server
 ```
 
@@ -114,9 +114,10 @@ option-tab/
 ```bash
 task lint          # Biome (JS/TS) + golangci-lint (Go)
 task test          # Vitest (JS/TS) + go test (Go), with race detector
-task build         # next build + wails build (requires Wails CLI)
+task build         # Turbo (web + frontend) + go build (desktop binary)
+task bundle        # scripts/bundle.sh — assemble + package the .app/dmg
 task e2e           # Playwright smoke tests against apps/web
-task dev:desktop   # Wails dev mode with hot-reload
+task dev:desktop   # frontend build + wails3 dev
 task dev:web       # Next.js dev server for the landing page
 ```
 

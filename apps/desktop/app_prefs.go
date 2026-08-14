@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"option-tab/internal/config"
 	"option-tab/internal/platform"
@@ -19,9 +17,7 @@ func (a *App) SetPaused(paused bool) {
 	if a.settingsPath != "" {
 		_ = config.SaveFile(a.settingsPath, a.settings)
 	}
-	if t, ok := a.platform.(platform.Tray); ok && a.trayInstalled {
-		t.SetTrayPaused(paused)
-	}
+	a.syncTray()
 }
 
 // TogglePause flips the paused state and returns the new value.
@@ -35,65 +31,66 @@ func (a *App) IsPaused() bool { return a.controller.Paused() }
 
 // ---- Preferences window ----
 
-// OpenPreferences turns the shared window into a regular titled window and
-// asks the frontend to render the settings panel. Invoked by the menubar
-// "Preferences…" item and on first launch (onboarding).
+// OpenPreferences shows and focuses the preferences window (created hidden at
+// startup; recreated defensively if macOS destroyed it). Invoked by the menubar
+// "Settings…" item and on first launch (onboarding).
 func (a *App) OpenPreferences() {
+	dlog("OpenPreferences: prefsOpen=%v", a.prefsOpen)
 	a.prefsOpen = true
-	if wm, ok := a.platform.(platform.WindowModer); ok {
-		wm.SetPrefsWindowMode(true)
+	// Preferences need keyboard focus: flip the accessory app to a regular,
+	// activated app (the switcher overlay itself never activates).
+	if act, ok := a.platform.(platform.AppActivator); ok {
+		act.ActivateForPrefs()
 	}
-	if a.ctx != nil {
-		runtime.WindowShow(a.ctx)
-	}
-	a.emit("prefs:open", nil)
+	a.showPrefsWindow()
 }
 
-// ClosePreferences hides the window, restores the overlay chrome, and tells
-// the frontend to dismiss the settings panel.
-func (a *App) ClosePreferences() {
-	a.prefsOpen = false
-	a.emit("prefs:close", nil)
-	if a.ctx != nil {
-		runtime.WindowHide(a.ctx)
+// showPrefsWindow shows and focuses the preferences window, recreating it once
+// via the factory if the native window was destroyed under us — the Wails v3
+// alpha has no destroyed-window probe, so a recovered panic is the only signal.
+func (a *App) showPrefsWindow() {
+	w := a.prefs
+	if w == nil && a.prefsFactory != nil {
+		w = a.prefsFactory()
+		a.prefs = w
 	}
-	if wm, ok := a.platform.(platform.WindowModer); ok {
-		wm.SetPrefsWindowMode(false)
-	}
-}
-
-// beforeClose intercepts the titled preferences window's close button: it
-// dismisses preferences instead of quitting. Any other close quits normally.
-func (a *App) beforeClose(_ context.Context) bool {
-	if a.prefsOpen {
-		a.ClosePreferences()
-		return true
-	}
-	return false
-}
-
-// ---- Menubar tray ----
-
-// syncTray reconciles the menubar status item with the ShowMenubarIcon setting,
-// installing or removing it as needed and refreshing the Pause label. It is a
-// no-op when the platform provides no tray (stub/fake).
-func (a *App) syncTray() {
-	t, ok := a.platform.(platform.Tray)
-	if !ok {
+	if w == nil {
 		return
 	}
-	switch {
-	case a.settings.Behavior.ShowMenubarIcon && !a.trayInstalled:
-		cmds := t.InstallTray()
-		a.trayInstalled = true
-		go a.trayLoop(cmds)
-	case !a.settings.Behavior.ShowMenubarIcon && a.trayInstalled:
-		t.RemoveTray()
-		a.trayInstalled = false
+	if !tryShowWindow(w) && a.prefsFactory != nil {
+		w = a.prefsFactory()
+		a.prefs = w
+		tryShowWindow(w)
 	}
-	if a.trayInstalled {
-		t.SetTrayPaused(a.controller.Paused())
-		t.SetTrayStyle(string(a.settings.Behavior.MenubarIconStyle))
+}
+
+func tryShowWindow(w *application.WebviewWindow) (ok bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			dlog("prefs window Show/Focus panicked (window destroyed?): %v", r)
+			ok = false
+		}
+	}()
+	w.Show()
+	w.Focus()
+	return true
+}
+
+// ClosePreferences hides the preferences window and returns the app to the
+// accessory policy (no Dock icon).
+func (a *App) ClosePreferences() {
+	a.closePreferencesWindow()
+}
+
+// closePreferencesWindow is the internal hide path (also used when the switcher
+// opens over an open preferences window and on WindowClosing).
+func (a *App) closePreferencesWindow() {
+	a.prefsOpen = false
+	if a.prefs != nil {
+		a.prefs.Hide()
+	}
+	if h, ok := a.platform.(platform.DockHider); ok {
+		h.HideDockIcon()
 	}
 }
 
@@ -103,36 +100,47 @@ func (a *App) openPreferencesTab(tab string) {
 	a.emit("prefs:tab", tab)
 }
 
-// trayLoop routes menubar commands to the matching action.
-func (a *App) trayLoop(cmds <-chan platform.TrayCommand) {
-	for cmd := range cmds {
-		switch cmd {
-		case platform.TrayPreferences:
-			a.OpenPreferences()
-		case platform.TrayTogglePause:
-			a.TogglePause()
-		case platform.TrayShow:
-			a.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
-		case platform.TrayCheckUpdates:
-			a.CheckForUpdates()
-		case platform.TrayCheckPermissions:
-			// The permissions section lives on the General tab.
-			a.openPreferencesTab("General")
-		case platform.TrayAbout:
-			a.openPreferencesTab("About")
-		case platform.TrayDebugTools:
-			// Reveal the folder holding settings and crash logs.
-			if dir := a.crashDir(); dir != "" && a.ctx != nil {
-				runtime.BrowserOpenURL(a.ctx, "file://"+dir)
-			}
-		case platform.TrayFeedback:
-			a.OpenURL(projectURL + "/issues/new")
-		case platform.TraySupport:
-			a.OpenURL(projectURL)
-		case platform.TrayQuit:
-			if a.ctx != nil {
-				runtime.Quit(a.ctx)
-			}
-		}
+// ---- Menubar tray ----
+
+// trayGlyph maps the MenubarIconStyle setting to the status-item text glyph.
+func trayGlyph(style config.MenubarIconStyle) string {
+	switch style {
+	case config.MenubarIconOutline:
+		return "⧉"
+	case config.MenubarIconDot:
+		return "●"
+	default:
+		return "⌥⇥"
 	}
+}
+
+// syncTray reconciles the menubar status item with the current settings and
+// pause state: visibility (ShowMenubarIcon), the Pause/Resume label, and the
+// icon glyph. Menu mutations touch AppKit, so they are marshaled onto the main
+// thread (and the menu is rebuilt to pick up label changes).
+func (a *App) syncTray() {
+	if a.tray == nil {
+		return
+	}
+	show := a.settings.Behavior.ShowMenubarIcon
+	paused := a.controller.Paused()
+	glyph := trayGlyph(a.settings.Behavior.MenubarIconStyle)
+	application.InvokeAsync(func() {
+		if a.pauseItem != nil {
+			label := "Pause"
+			if paused {
+				label = "Resume"
+			}
+			a.pauseItem.SetLabel(label)
+		}
+		if a.trayMenu != nil {
+			a.trayMenu.Update()
+		}
+		a.tray.SetLabel(glyph)
+		if show {
+			a.tray.Show()
+		} else {
+			a.tray.Hide()
+		}
+	})
 }

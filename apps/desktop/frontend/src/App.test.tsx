@@ -1,21 +1,49 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Mock the Wails v3 seams: the generated App service bindings and the
+// @wailsio/runtime event bus, with a handler registry so tests can fire Go-side
+// events (switcher:show, prefs:tab, ...) exactly like the runtime does.
+const eventHandlers = new Map<string, (ev: { data: unknown }) => void>();
+
+vi.mock("@wailsio/runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@wailsio/runtime")>();
+  return {
+    ...actual,
+    Events: {
+      On: vi.fn((name: string, cb: (ev: { data: unknown }) => void) => {
+        eventHandlers.set(name, cb);
+        return () => eventHandlers.delete(name);
+      }),
+    },
+  };
+});
+
+vi.mock("../bindings/option-tab/app.js", () => ({
+  Advance: vi.fn().mockResolvedValue(undefined),
+  Reverse: vi.fn().mockResolvedValue(undefined),
+  Confirm: vi.fn().mockResolvedValue(undefined),
+  Cancel: vi.fn().mockResolvedValue(undefined),
+  Select: vi.fn().mockResolvedValue(undefined),
+  SetSearch: vi.fn().mockResolvedValue(undefined),
+  CloseSelected: vi.fn().mockResolvedValue(undefined),
+  MinimizeSelected: vi.fn().mockResolvedValue(undefined),
+  FullscreenSelected: vi.fn().mockResolvedValue(undefined),
+  QuitSelectedApp: vi.fn().mockResolvedValue(undefined),
+  HideSelectedApp: vi.fn().mockResolvedValue(undefined),
+  GetSettings: vi.fn().mockResolvedValue("{}"),
+  GetPermissions: vi.fn().mockResolvedValue("{}"),
+  GetVersion: vi.fn().mockResolvedValue("1.2.3"),
+  GetCrashReport: vi.fn().mockResolvedValue(""),
+}));
+
+import * as AppService from "../bindings/option-tab/app.js";
 import App from "./App";
+import { resetBackendProbeForTests } from "./lib/bridge";
 import type { Entry, SwitcherState } from "./lib/types";
 import { emptyState } from "./lib/types";
 
-// stubWailsRuntime installs a fake Wails runtime and returns the handler map
-// so tests can fire Go-side events (switcher:show, prefs:open, ...) directly.
-function stubWailsRuntime(): Record<string, (data: unknown) => void> {
-  const handlers: Record<string, (data: unknown) => void> = {};
-  (globalThis as any).runtime = {
-    EventsOn: (name: string, cb: (data: unknown) => void) => {
-      handlers[name] = cb;
-      return () => delete handlers[name];
-    },
-  };
-  return handlers;
-}
+const mocked = vi.mocked(AppService);
 
 function appEntry(windowId: number, title: string): Entry {
   return {
@@ -34,16 +62,14 @@ function openSwitcherState(overrides: Partial<SwitcherState> = {}): SwitcherStat
   return { ...emptyState, open: true, selected: 0, ...overrides };
 }
 
-afterEach(() => {
+beforeEach(() => {
+  eventHandlers.clear();
+  resetBackendProbeForTests();
   window.location.hash = "";
-  (globalThis as any).runtime = undefined;
-  (globalThis as any).go = undefined;
-  vi.restoreAllMocks();
 });
 
 describe("App", () => {
   it("renders the overlay route (closed) by default", () => {
-    window.location.hash = "";
     const { container } = render(<App />);
     // Overlay renders nothing while closed.
     expect(container.firstChild).toBeNull();
@@ -55,54 +81,27 @@ describe("App", () => {
     expect(screen.getByText(/Preferences/)).toBeInTheDocument();
   });
 
-  it("opens the preferences panel on the prefs:open event", () => {
-    const handlers: Record<string, (data: unknown) => void> = {};
-    (globalThis as any).runtime = {
-      EventsOn: (name: string, cb: (data: unknown) => void) => {
-        handlers[name] = cb;
-        return () => delete handlers[name];
-      },
-    };
-    window.location.hash = "";
-    render(<App />);
-    // No preferences dialog until the menubar fires the event.
-    expect(screen.queryByRole("dialog", { name: "Preferences" })).toBeNull();
-
-    act(() => {
-      handlers["prefs:open"]?.(null);
-    });
-    expect(screen.getByRole("dialog", { name: "Preferences" })).toBeInTheDocument();
-  });
-
   it("selects the clicked entry's index before closing its window", async () => {
     const calls: string[] = [];
     let resolveSelect: () => void = () => {};
-    (globalThis as any).go = {
-      main: {
-        App: {
-          Select: vi.fn((i: number) => {
-            calls.push(`Select(${i})`);
-            return new Promise<void>((resolve) => {
-              resolveSelect = resolve;
-            });
-          }),
-          CloseSelected: vi.fn(() => {
-            calls.push("CloseSelected");
-            return Promise.resolve();
-          }),
-        },
-      },
-    };
-    const handlers = stubWailsRuntime();
-    window.location.hash = "";
+    mocked.Select.mockImplementation((i: number) => {
+      calls.push(`Select(${i})`);
+      return new Promise<void>((resolve) => {
+        resolveSelect = resolve;
+      }) as never;
+    });
+    mocked.CloseSelected.mockImplementation(() => {
+      calls.push("CloseSelected");
+      return Promise.resolve() as never;
+    });
     render(<App />);
 
     act(() => {
-      handlers["switcher:show"]?.(
-        openSwitcherState({
+      eventHandlers.get("switcher:show")?.({
+        data: openSwitcherState({
           entries: [appEntry(11, "Editor"), appEntry(22, "Browser"), appEntry(33, "Terminal")],
         }),
-      );
+      });
     });
 
     // Close the NON-selected third entry (windowId 33 -> index 2).
@@ -117,8 +116,6 @@ describe("App", () => {
   });
 
   it("merges streamed thumbnails and previews by windowId and resets them on show", () => {
-    const handlers = stubWailsRuntime();
-    window.location.hash = "";
     const { container } = render(<App />);
 
     const previewState = () =>
@@ -128,13 +125,13 @@ describe("App", () => {
       });
 
     act(() => {
-      handlers["switcher:show"]?.(previewState());
+      eventHandlers.get("switcher:show")?.({ data: previewState() });
     });
     act(() => {
-      handlers["switcher:thumbnails"]?.({ "1": "data:thumb" });
+      eventHandlers.get("switcher:thumbnails")?.({ data: { "1": "data:thumb" } });
     });
     act(() => {
-      handlers["switcher:preview"]?.({ "1": "data:prev" });
+      eventHandlers.get("switcher:preview")?.({ data: { "1": "data:prev" } });
     });
 
     // The high-resolution preview wins for the selected-window preview...
@@ -149,7 +146,7 @@ describe("App", () => {
 
     // A new session drops the previous captures.
     act(() => {
-      handlers["switcher:show"]?.(previewState());
+      eventHandlers.get("switcher:show")?.({ data: previewState() });
     });
     expect(screen.queryByLabelText("Selected window preview")).toBeNull();
     expect(container.querySelector(".ot-thumb-img")).toBeNull();
@@ -168,31 +165,22 @@ describe("App", () => {
     expect(second.container.querySelector('[data-style="thumbnails"]')).not.toBeNull();
   });
 
-  it("deep-links a preferences tab via prefs:tab and unmounts on prefs:close", () => {
-    const handlers = stubWailsRuntime();
-    window.location.hash = "";
+  it("deep-links a preferences tab via prefs:tab in the settings window", () => {
+    window.location.hash = "#settings";
     render(<App />);
 
-    act(() => {
-      handlers["prefs:open"]?.(null);
-    });
-    const dialog = screen.getByRole("dialog", { name: "Preferences" });
-    expect(within(dialog).getByRole("tab", { name: "General" })).toHaveAttribute(
+    const tabs = screen.getByRole("tablist");
+    expect(within(tabs).getByRole("tab", { name: "General" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
 
     act(() => {
-      handlers["prefs:tab"]?.("About");
+      eventHandlers.get("prefs:tab")?.({ data: "About" });
     });
-    expect(within(dialog).getByRole("tab", { name: "About" })).toHaveAttribute(
+    expect(within(tabs).getByRole("tab", { name: "About" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
-
-    act(() => {
-      handlers["prefs:close"]?.(null);
-    });
-    expect(screen.queryByRole("dialog", { name: "Preferences" })).toBeNull();
   });
 });

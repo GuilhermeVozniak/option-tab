@@ -257,6 +257,10 @@ func (e *hotkeyEngine) Unregister(id int) error {
 
 func (e *hotkeyEngine) Events() <-chan platform.HotkeyEvent { return e.ch }
 
+func (e *hotkeyEngine) Keys() <-chan platform.KeyEvent { return nil }
+
+func (e *hotkeyEngine) SetOpen(bool) {}
+
 func (e *hotkeyEngine) Close() error { return nil }
 
 func (e *hotkeyEngine) emit(ev platform.HotkeyEvent) { e.ch <- ev }

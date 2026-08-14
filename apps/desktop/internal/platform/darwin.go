@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/png"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -28,7 +29,6 @@ import (
 // darwinPlatform is the native macOS backend.
 type darwinPlatform struct {
 	hotkeys *darwinHotkeys
-	tray    *darwinTray
 }
 
 // New returns the native macOS platform backend.
@@ -267,94 +267,30 @@ func (p *darwinPlatform) SetEnabled(v bool) error {
 
 func (p *darwinPlatform) Hotkeys() HotkeyEngine { return p.hotkeys }
 
-// ---- Menubar tray ----
-
-func (p *darwinPlatform) InstallTray() <-chan TrayCommand {
-	if p.tray == nil {
-		p.tray = newDarwinTray()
-	}
-	activeTrayChan = p.tray.ch
-	C.ot_tray_install()
-	return p.tray.ch
-}
-
-func (p *darwinPlatform) SetTrayStyle(style string) {
-	cs := C.CString(style)
-	defer C.free(unsafe.Pointer(cs))
-	C.ot_tray_set_style(cs)
-}
-
 // HideDockIcon implements platform.DockHider: accessory apps have no Dock icon.
 func (p *darwinPlatform) HideDockIcon() { C.ot_hide_dock_icon() }
 
-// PrepareOverlayWindow implements platform.OverlayWindowPreparer, making the
-// window fully transparent so only the rendered switcher panel is visible.
-func (p *darwinPlatform) PrepareOverlayWindow() { C.ot_window_init_overlay() }
+// ActivateForPrefs implements platform.AppActivator: the preferences window
+// needs keyboard focus, so the accessory app flips to regular and activates.
+func (p *darwinPlatform) ActivateForPrefs() { C.ot_activate_prefs() }
 
-// FitOverlayToScreen implements platform.OverlayWindowPreparer, sizing the
+// HideAppIfActive implements platform.AppActivator, dropping an accidental
+// click-activation once the overlay hides.
+func (p *darwinPlatform) HideAppIfActive() { C.ot_app_hide() }
+
+// FitOverlayToScreen implements platform.OverlayWindowFitter, sizing the
 // transparent window to the chosen screen so the panel can use the full area.
-func (p *darwinPlatform) FitOverlayToScreen(screen domain.ScreenID) {
-	C.ot_window_fit_screen(C.uint32_t(screen))
+func (p *darwinPlatform) FitOverlayToScreen(win unsafe.Pointer, screen domain.ScreenID) {
+	C.ot_window_fit_screen(win, C.uint32_t(screen))
 }
 
 // HapticTick implements platform.HapticFeedback with a subtle alignment tap.
 func (p *darwinPlatform) HapticTick() { C.ot_haptic_tick() }
 
-// SetPrefsWindowMode implements platform.WindowModer, flipping the single
-// window between overlay and titled-preferences chrome.
-func (p *darwinPlatform) SetPrefsWindowMode(on bool) {
-	flag := C.int(0)
-	if on {
-		flag = 1
-	}
-	C.ot_window_set_prefs_mode(flag)
-}
-
 // WarpCursorToWindow implements platform.CursorWarper (cursor follows focus).
 func (p *darwinPlatform) WarpCursorToWindow(id domain.WindowID) error {
 	C.ot_warp_cursor(C.uint32_t(id))
 	return nil
-}
-
-func (p *darwinPlatform) SetTrayPaused(paused bool) {
-	flag := C.int(0)
-	if paused {
-		flag = 1
-	}
-	C.ot_tray_set_paused(flag)
-}
-
-func (p *darwinPlatform) RemoveTray() { C.ot_tray_remove() }
-
-// darwinTray streams menubar commands from the native status item to Go.
-type darwinTray struct {
-	ch chan TrayCommand
-}
-
-func newDarwinTray() *darwinTray { return &darwinTray{ch: make(chan TrayCommand, 8)} }
-
-// activeTrayChan is the channel the exported C callback delivers to. There is a
-// single tray per process.
-var activeTrayChan chan TrayCommand
-
-//export goTrayCommand
-func goTrayCommand(cmd C.int) {
-	if activeTrayChan == nil {
-		return
-	}
-	var c TrayCommand
-	switch int(cmd) {
-	case 0:
-		c = TrayPreferences
-	case 1:
-		c = TrayTogglePause
-	case 2:
-		c = TrayQuit
-	}
-	select {
-	case activeTrayChan <- c:
-	default:
-	}
 }
 
 func permFromC(v C.int) PermState {
@@ -366,25 +302,104 @@ func permFromC(v C.int) PermState {
 
 // ---- Hotkey engine ----
 
+// eventQueue is an unbounded ordered hand-off from the C tap thread to a Go
+// consumer. The tap thread must never block (a stalled tap gets disabled by the
+// system), so the exported callbacks append here and a feeder goroutine does
+// the (potentially blocking) channel send. Unlike the old non-blocking send
+// this never drops events — a dropped release used to leave the switcher stuck.
+type eventQueue[T any] struct {
+	mu     sync.Mutex
+	cond   *sync.Cond
+	items  []T
+	closed bool
+}
+
+func newEventQueue[T any]() *eventQueue[T] {
+	q := &eventQueue[T]{}
+	q.cond = sync.NewCond(&q.mu)
+	return q
+}
+
+func (q *eventQueue[T]) push(v T) {
+	q.mu.Lock()
+	if !q.closed {
+		q.items = append(q.items, v)
+		q.cond.Signal()
+	}
+	q.mu.Unlock()
+}
+
+// pop returns the next item, blocking until one is available or the queue
+// closes (ok=false).
+func (q *eventQueue[T]) pop() (T, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for len(q.items) == 0 && !q.closed {
+		q.cond.Wait()
+	}
+	if len(q.items) == 0 {
+		var zero T
+		return zero, false
+	}
+	v := q.items[0]
+	q.items = q.items[1:]
+	return v, true
+}
+
+func (q *eventQueue[T]) close() {
+	q.mu.Lock()
+	q.closed = true
+	q.cond.Broadcast()
+	q.mu.Unlock()
+}
+
 // darwinHotkeys drives the CGEventTap in darwin.m and streams events to Go.
 type darwinHotkeys struct {
-	ch      chan HotkeyEvent
-	started bool
+	events   *eventQueue[HotkeyEvent]
+	keys     *eventQueue[KeyEvent]
+	eventsCh chan HotkeyEvent
+	keysCh   chan KeyEvent
+	started  bool
 }
 
 func newDarwinHotkeys() *darwinHotkeys {
-	return &darwinHotkeys{ch: make(chan HotkeyEvent, 64)}
+	return &darwinHotkeys{
+		events:   newEventQueue[HotkeyEvent](),
+		keys:     newEventQueue[KeyEvent](),
+		eventsCh: make(chan HotkeyEvent, 8),
+		keysCh:   make(chan KeyEvent, 32),
+	}
 }
 
-// activeHotkeyChan is the channel the exported C callback delivers to. There is
-// a single hotkey engine per process.
-var activeHotkeyChan chan HotkeyEvent
+// activeEngine is the engine the exported C callbacks deliver to. There is a
+// single hotkey engine per process.
+var activeEngine *darwinHotkeys
 
 func (h *darwinHotkeys) ensureStarted() {
 	if h.started {
 		return
 	}
-	activeHotkeyChan = h.ch
+	activeEngine = h
+	go func() {
+		for {
+			ev, ok := h.events.pop()
+			if !ok {
+				close(h.eventsCh)
+				return
+			}
+			h.eventsCh <- ev
+		}
+	}()
+	go func() {
+		for {
+			ev, ok := h.keys.pop()
+			if !ok {
+				close(h.keysCh)
+				return
+			}
+			h.keysCh <- ev
+		}
+	}()
 	C.ot_hotkey_start()
 	h.started = true
 }
@@ -407,10 +422,27 @@ func (h *darwinHotkeys) Unregister(id int) error {
 	return nil
 }
 
-func (h *darwinHotkeys) Events() <-chan HotkeyEvent { return h.ch }
+func (h *darwinHotkeys) Events() <-chan HotkeyEvent { return h.eventsCh }
+
+func (h *darwinHotkeys) Keys() <-chan KeyEvent { return h.keysCh }
+
+// SetOpen mirrors the overlay's visibility into the native tap, which consumes
+// and forwards all keyboard input while the switcher is open.
+func (h *darwinHotkeys) SetOpen(open bool) {
+	if !h.started {
+		return
+	}
+	flag := C.int(0)
+	if open {
+		flag = 1
+	}
+	C.ot_hotkey_set_open(flag)
+}
 
 func (h *darwinHotkeys) Close() error {
 	C.ot_hotkey_stop()
+	h.events.close()
+	h.keys.close()
 	return nil
 }
 
@@ -512,7 +544,7 @@ func (p *darwinPlatform) CancelShortcutCapture() {
 
 //export goHotkeyEvent
 func goHotkeyEvent(kind, id C.int) {
-	if activeHotkeyChan == nil {
+	if activeEngine == nil {
 		return
 	}
 	ev := HotkeyEvent{ShortcutID: int(id)}
@@ -528,9 +560,64 @@ func goHotkeyEvent(kind, id C.int) {
 	case 4:
 		ev.Kind = HotkeyCancel
 	}
-	select {
-	case activeHotkeyChan <- ev:
-	default: // drop if the consumer is behind rather than block the tap thread
+	activeEngine.events.push(ev)
+}
+
+//export goKeyEvent
+func goKeyEvent(keycode C.int, flags C.uint64_t, text *C.char) {
+	if activeEngine == nil {
+		return
+	}
+	activeEngine.keys.push(keyEventFromTap(uint16(keycode), uint64(flags), C.GoString(text)))
+}
+
+// specialKeys maps macOS virtual keycodes to the DOM KeyboardEvent.key names
+// the frontend keymap matches on (the tap's unicode text for these is a
+// control character, not a printable key name).
+var specialKeys = map[uint16]string{
+	36:  "Enter",
+	48:  "Tab",
+	51:  "Backspace",
+	53:  "Escape",
+	123: "ArrowLeft",
+	124: "ArrowRight",
+	125: "ArrowDown",
+	126: "ArrowUp",
+}
+
+// domCodes maps macOS virtual keycodes to DOM KeyboardEvent.code (physical key)
+// values. Only the codes the frontend keymap acts on need to be exact: letters
+// and digits map to KeyX/DigitN, plus the named special keys.
+var domCodes = map[uint16]string{
+	36: "Enter", 48: "Tab", 49: "Space", 50: "Backquote", 51: "Backspace", 53: "Escape",
+	123: "ArrowLeft", 124: "ArrowRight", 125: "ArrowDown", 126: "ArrowUp",
+}
+
+func init() {
+	for name, code := range macKeycodes {
+		k := string(name)
+		if len(k) == 1 && k[0] >= 'a' && k[0] <= 'z' {
+			domCodes[code] = "Key" + strings.ToUpper(k)
+		} else if len(k) == 1 && k[0] >= '0' && k[0] <= '9' {
+			domCodes[code] = "Digit" + k
+		}
+	}
+}
+
+// keyEventFromTap builds the DOM-shaped KeyEvent the frontend keymap consumes
+// from a tap-captured key press.
+func keyEventFromTap(keycode uint16, flags uint64, text string) KeyEvent {
+	key := text
+	if special, ok := specialKeys[keycode]; ok {
+		key = special
+	}
+	return KeyEvent{
+		Key:   key,
+		Code:  domCodes[keycode],
+		Shift: flags&cgFlagShift != 0,
+		Ctrl:  flags&cgFlagControl != 0,
+		Alt:   flags&cgFlagOption != 0,
+		Meta:  flags&cgFlagCommand != 0,
 	}
 }
 

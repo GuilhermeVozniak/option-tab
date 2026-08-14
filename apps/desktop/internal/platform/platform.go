@@ -8,6 +8,7 @@ package platform
 import (
 	"image"
 	"time"
+	"unsafe"
 
 	"option-tab/internal/domain"
 	"option-tab/internal/hotkey"
@@ -45,46 +46,6 @@ type IconSource interface {
 // IconSource it is optional: only the native macOS backend implements it.
 type ThumbnailSource interface {
 	ThumbnailDataURL(id domain.WindowID, maxPx int) string
-}
-
-// TrayCommand identifies a menubar (status item) action chosen by the user.
-type TrayCommand int
-
-const (
-	// TrayPreferences opens the preferences UI.
-	TrayPreferences TrayCommand = iota
-	// TrayTogglePause suspends or resumes activation.
-	TrayTogglePause
-	// TrayQuit quits the application.
-	TrayQuit
-	// TrayShow opens the switcher as if the primary hotkey was pressed.
-	TrayShow
-	// TrayCheckUpdates runs a manual update check.
-	TrayCheckUpdates
-	// TrayCheckPermissions opens preferences on the permissions section.
-	TrayCheckPermissions
-	// TrayAbout opens preferences on the About tab.
-	TrayAbout
-	// TrayDebugTools reveals the app's log/crash-report folder.
-	TrayDebugTools
-	// TrayFeedback opens a new GitHub issue.
-	TrayFeedback
-	// TraySupport opens the project page.
-	TraySupport
-)
-
-// Tray is an optional menubar status-item controller. Only the native macOS
-// backend implements it; the stub and fake omit it, so consumers type-assert.
-type Tray interface {
-	// InstallTray shows the menubar icon and returns the channel of user
-	// commands. The wiring layer guards against calling it more than once.
-	InstallTray() <-chan TrayCommand
-	// SetTrayPaused updates the Pause/Resume menu item to reflect state.
-	SetTrayPaused(paused bool)
-	// SetTrayStyle switches the status-item glyph ("default", "outline", "dot").
-	SetTrayStyle(style string)
-	// RemoveTray hides the menubar icon.
-	RemoveTray()
 }
 
 // CursorWarper moves the mouse cursor to a window, used by the "cursor follows
@@ -125,11 +86,32 @@ type HotkeyEvent struct {
 	ShortcutID int
 }
 
+// KeyEvent is a raw key press captured by the native event tap and forwarded
+// to the frontend while the switcher overlay is open. The overlay never
+// activates the app (so it never becomes key), which makes the tap the only
+// keyboard source: navigation, actions, and type-to-search all ride on these.
+// Key/Code mirror the DOM KeyboardEvent fields the frontend keymap consumes.
+type KeyEvent struct {
+	Key   string `json:"key"`
+	Code  string `json:"code"`
+	Shift bool   `json:"shift"`
+	Ctrl  bool   `json:"ctrl"`
+	Alt   bool   `json:"alt"`
+	Meta  bool   `json:"meta"`
+}
+
 // HotkeyEngine registers global chords and streams their events.
 type HotkeyEngine interface {
 	Register(shortcutID int, chord hotkey.Chord) error
 	Unregister(shortcutID int) error
 	Events() <-chan HotkeyEvent
+	// Keys streams the raw key presses captured while the overlay is open.
+	// It may return nil on backends without key forwarding (stub/fake).
+	Keys() <-chan KeyEvent
+	// SetOpen tells the engine whether the switcher overlay is currently open.
+	// While open the engine consumes every key press (so typing never leaks
+	// into the previously active app) and forwards it on Keys.
+	SetOpen(open bool)
 	Close() error
 }
 
@@ -172,22 +154,23 @@ type DockHider interface {
 	HideDockIcon()
 }
 
-// WindowModer flips the single app window between the borderless floating
-// overlay and a regular titled preferences window. Optional: only the native
-// macOS backend implements it, so consumers type-assert for it.
-type WindowModer interface {
-	SetPrefsWindowMode(on bool)
+// AppActivator flips the accessory app to a regular, activated app (used when
+// the preferences window opens, which needs keyboard focus), and drops
+// accidental activations (e.g. a click on the overlay) once the overlay hides.
+// Optional: only the native macOS backend implements it.
+type AppActivator interface {
+	ActivateForPrefs()
+	HideAppIfActive()
 }
 
-// OverlayWindowPreparer makes the app window a fully transparent overlay so
-// only the rendered switcher panel is visible (no opaque window backdrop),
-// and sizes it to the chosen screen before each show. Optional: only the
-// native macOS backend implements it, so consumers type-assert for it.
-type OverlayWindowPreparer interface {
-	PrepareOverlayWindow()
+// OverlayWindowFitter sizes the transparent overlay window to the chosen screen
+// before each show. The win handle is the Wails window's native NSWindow
+// pointer. Optional: only the native macOS backend implements it, so consumers
+// type-assert for it.
+type OverlayWindowFitter interface {
 	// FitOverlayToScreen sizes the window to the screen with the given display
 	// id (0 = keep the window's current screen).
-	FitOverlayToScreen(screen domain.ScreenID)
+	FitOverlayToScreen(win unsafe.Pointer, screen domain.ScreenID)
 }
 
 // HapticFeedback performs a subtle trackpad tap, used when the switcher

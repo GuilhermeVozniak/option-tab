@@ -96,7 +96,7 @@ window is found.
 | Apparition delay before switcher shows | ✅ | `Appearance.ApparitionDelayMs` 0–2000ms slider (Task #6) |
 | Fade in/out animations | ✅ | enter fade+scale (Task #5) and exit fade via `FadeOutAnimation` (Task #6), both reduced-motion aware |
 | Animations toggle | ✅ | `FadeOutAnimation` checkbox (Task #6) |
-| Menubar icon | ✅ | `NSStatusBar` tray; glyph styles default/outline/dot + hidden via General-tab radios (Task #6) |
+| Menubar icon | ✅ | Wails v3 `SystemTray` with a text-glyph label; glyph styles default/outline/dot + hidden via General-tab radios (Task #6) |
 
 ## 4. Filtering & Ordering
 

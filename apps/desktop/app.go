@@ -11,13 +11,12 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"option-tab/internal/config"
 	"option-tab/internal/domain"
@@ -37,12 +36,27 @@ func dlog(format string, args ...any) {
 	}
 }
 
-// App is the Wails-bound adapter. It owns the platform backend and the switcher
+// App is the Wails-bound service. It owns the platform backend and the switcher
 // controller, implements switcher.View by emitting Wails events, and exposes
 // the controller's actions plus settings access to the frontend. It holds no
 // business logic of its own.
 type App struct {
-	ctx          context.Context
+	// wailsApp, overlay, prefs and the tray wiring are injected by main via
+	// setRuntime/setTray after the Wails app and windows are created. The
+	// setters are unexported so they don't become frontend bindings.
+	wailsApp *application.App
+	overlay  *application.WebviewWindow
+	prefs    *application.WebviewWindow
+	// prefsFactory recreates the preferences window if macOS ever destroys it
+	// under us (the Wails v3 alpha has no destroyed-window probe).
+	prefsFactory func() *application.WebviewWindow
+
+	// tray, trayMenu and pauseItem are the Wails v3 menubar pieces; nil until
+	// setTray runs (and on stub/fake test paths).
+	tray      *application.SystemTray
+	trayMenu  *application.Menu
+	pauseItem *application.MenuItem
+
 	platform     platform.Platform
 	controller   *switcher.Controller
 	settings     config.Settings
@@ -55,12 +69,7 @@ type App struct {
 	// it, and a capture goroutine stops emitting once its generation is stale.
 	thumbGen int64
 
-	// trayInstalled tracks whether the menubar status item is currently shown,
-	// so syncTray installs/removes it at most once per state change.
-	trayInstalled bool
-
-	// prefsOpen tracks whether the shared window is currently showing the
-	// preferences UI (titled window mode) rather than the overlay.
+	// prefsOpen tracks whether the preferences window is currently shown.
 	prefsOpen bool
 
 	// lastSelected is the previously shown selection index, used to fire the
@@ -105,22 +114,28 @@ func newApp(p platform.Platform, settings config.Settings, settingsPath string) 
 	return a
 }
 
-// startup captures the Wails context, hides the overlay window, and starts the
-// global hotkey listener.
-func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
+// setRuntime injects the Wails app and the two windows. Called by main before
+// Run; unexported so it is not exposed as a frontend binding.
+func (a *App) setRuntime(wailsApp *application.App, overlay, prefs *application.WebviewWindow, prefsFactory func() *application.WebviewWindow) {
+	a.wailsApp = wailsApp
+	a.overlay = overlay
+	a.prefs = prefs
+	a.prefsFactory = prefsFactory
+}
+
+// setTray injects the menubar tray, its menu, and the Pause item (whose label
+// flips between Pause/Resume). Called by main before Run.
+func (a *App) setTray(tray *application.SystemTray, menu *application.Menu, pauseItem *application.MenuItem) {
+	a.tray = tray
+	a.trayMenu = menu
+	a.pauseItem = pauseItem
+}
+
+// startup runs on ApplicationDidFinishLaunching: requests permissions, syncs
+// the tray, and starts the global hotkey listener and background loops. The
+// overlay window starts hidden (created with Hidden: true).
+func (a *App) startup() {
 	dlog("startup: platform=%s accessibility=%v", a.platform.Name(), a.platform.Accessibility())
-	runtime.WindowHide(ctx)
-	// The overlay window must be fully transparent (Wails leaves it opaque, so
-	// the clear background would otherwise render as a square dark backdrop).
-	if w, ok := a.platform.(platform.OverlayWindowPreparer); ok {
-		w.PrepareOverlayWindow()
-	}
-	// A switcher is a background utility: keep it out of the Dock (bundles also
-	// set LSUIElement; this covers `wails dev` runs).
-	if h, ok := a.platform.(platform.DockHider); ok {
-		h.HideDockIcon()
-	}
 	if !a.settings.Behavior.Onboarded {
 		// First launch: open preferences, where the onboarding wizard walks the
 		// user through granting permissions instead of firing bare OS prompts.
@@ -140,17 +155,30 @@ func (a *App) startup(ctx context.Context) {
 			dlog("startup: screen recording not granted, requesting")
 			a.platform.Request(platform.PermScreenRecording)
 		}
+		// Wails v3 activates the app at launch (its internal DidFinishLaunching
+		// hook calls activateIgnoringOtherApps unconditionally). For a menu-bar
+		// utility that is rude: drop the activation again once startup settles,
+		// unless preferences opened (first launch) and the activation is wanted.
+		if act, ok := a.platform.(platform.AppActivator); ok {
+			go func() {
+				time.Sleep(300 * time.Millisecond)
+				if !a.prefsOpen {
+					act.HideAppIfActive()
+				}
+			}()
+		}
 	}
 	a.syncTray()
 	a.setupCrashCapture()
 	a.registerHotkeys()
 	go a.hotkeyLoop()
+	go a.keyLoop()
 	go a.updateLoop()
 	go a.backgroundCaptureLoop()
 }
 
 func (a *App) emit(name string, data any) {
-	if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, name, data)
+	if a.wailsApp != nil {
+		a.wailsApp.Event.Emit(name, data)
 	}
 }

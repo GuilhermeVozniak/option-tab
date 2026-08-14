@@ -8,8 +8,6 @@ import (
 	goruntime "runtime"
 	"time"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"option-tab/internal/config"
 	"option-tab/internal/update"
 )
@@ -32,8 +30,8 @@ func (a *App) GetVersion() string { return appVersion }
 
 // OpenURL opens a link in the user's default browser (About-tab links).
 func (a *App) OpenURL(url string) {
-	if a.ctx != nil {
-		runtime.BrowserOpenURL(a.ctx, url)
+	if a.wailsApp != nil {
+		_ = a.wailsApp.Browser.OpenURL(url)
 	}
 }
 
