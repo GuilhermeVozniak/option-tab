@@ -23,7 +23,7 @@ Any tag matching `v*` triggers the release workflow.
 2. Runs a matrix build (`macos-latest`, `windows-latest`, `ubuntu-latest`) in parallel.
    Each runner:
    - Installs Bun and Go 1.26.
-   - On Linux, installs WebKit system deps (`libgtk-3-dev`, `libwebkit2gtk-4.1-dev`).
+   - On Linux, installs WebKit system deps (`libgtk-4-dev`, `libwebkitgtk-6.0-dev`).
    - Runs `bun install --frozen-lockfile` and builds the frontend (embedded into the Go
      binary via `//go:embed`).
    - **macOS**: `scripts/bundle.sh` builds the binary, assembles `option-tab.app`

@@ -27,7 +27,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: latest }
       - name: Install desktop system deps
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
       - name: Build frontend (main.go embeds frontend/dist)
         run: bun install --frozen-lockfile && cd apps/desktop/frontend && bun run build
       - run: cd apps/desktop && go test ./... -race -cover

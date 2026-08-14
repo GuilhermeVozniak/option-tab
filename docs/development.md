@@ -32,7 +32,7 @@ wails3 version  # should print v3.0.0-alpha...
 On Linux, Wails also requires system WebKit headers:
 
 ```bash
-sudo apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev
+sudo apt-get install libgtk-4-dev libwebkitgtk-6.0-dev
 ```
 
 ### Task (taskfile.dev)
