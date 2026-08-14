@@ -40,8 +40,10 @@ func main() {
 	// global hotkey. Show() never activates the app (Wails v3's windowShow is a
 	// bare makeKeyAndOrderFront), so the previously active app keeps keyboard
 	// focus — activating here is what broke option+tab switching under Wails v2.
-	// The transparent backdrop (opaque=NO + clear color + no shadow) is applied
-	// natively by Wails from these options; no CGO window patching needed.
+	// The transparent backdrop (opaque=NO + clear color) is applied natively by
+	// Wails from these options. AlwaysOnTop is NOT: for hidden windows Wails
+	// only applies it on WindowDidBecomeKey, which never fires for a
+	// never-activated window, so App.Show re-asserts it via SetAlwaysOnTop.
 	overlay := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:          "overlay",
 		Title:         "Option Tab",
