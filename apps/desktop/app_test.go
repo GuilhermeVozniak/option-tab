@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"path/filepath"
 	"sync"
@@ -71,6 +70,8 @@ func (e *recordingHotkeyEngine) Unregister(id int) error {
 }
 
 func (e *recordingHotkeyEngine) Events() <-chan platform.HotkeyEvent { return e.ch }
+func (e *recordingHotkeyEngine) Keys() <-chan platform.KeyEvent      { return nil }
+func (e *recordingHotkeyEngine) SetOpen(bool)                        {}
 func (e *recordingHotkeyEngine) Close() error                        { return nil }
 
 func (e *recordingHotkeyEngine) registeredIDs() map[int]bool {
@@ -137,61 +138,6 @@ func (p *thumbnailRecorderPlatform) captureCalls() []thumbnailCall {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return append([]thumbnailCall(nil), p.calls...)
-}
-
-// trayRecorderPlatform implements platform.Tray and records every call.
-type trayRecorderPlatform struct {
-	*fake.Fake
-	mu       sync.Mutex
-	installs int
-	removes  int
-	styles   []string
-	paused   []bool
-	cmds     chan platform.TrayCommand
-}
-
-func newTrayRecorderPlatform() *trayRecorderPlatform {
-	return &trayRecorderPlatform{Fake: fake.New(), cmds: make(chan platform.TrayCommand)}
-}
-
-func (p *trayRecorderPlatform) InstallTray() <-chan platform.TrayCommand {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.installs++
-	return p.cmds
-}
-
-func (p *trayRecorderPlatform) RemoveTray() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.removes++
-}
-
-func (p *trayRecorderPlatform) SetTrayStyle(style string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.styles = append(p.styles, style)
-}
-
-func (p *trayRecorderPlatform) SetTrayPaused(paused bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.paused = append(p.paused, paused)
-}
-
-func (p *trayRecorderPlatform) counts() (installs, removes int) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.installs, p.removes
-}
-
-func (p *trayRecorderPlatform) lastStyle() string {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if len(p.styles) == 0 {
-		return ""
-	}
-	return p.styles[len(p.styles)-1]
 }
 
 // hapticRecorderPlatform implements platform.HapticFeedback with a tick counter.
@@ -350,59 +296,26 @@ func TestCapture_GuardsSkipPlatformCalls(t *testing.T) {
 	}
 }
 
-func TestSyncTray_InstallRemoveAndStyle(t *testing.T) {
-	p := newTrayRecorderPlatform()
-	s := config.Default()
-	s.Behavior.ShowMenubarIcon = false
-	a := newApp(p, s, "")
+func TestTrayGlyph_MapsStyles(t *testing.T) {
+	cases := map[config.MenubarIconStyle]string{
+		config.MenubarIconDefault: "⌥⇥",
+		config.MenubarIconOutline: "⧉",
+		config.MenubarIconDot:     "●",
+		"bogus":                   "⌥⇥",
+	}
+	for style, want := range cases {
+		if got := trayGlyph(style); got != want {
+			t.Errorf("trayGlyph(%q) = %q, want %q", style, got, want)
+		}
+	}
+}
 
-	on := config.Default()
-	on.Behavior.ShowMenubarIcon = true
-	on.Behavior.MenubarIconStyle = config.MenubarIconDot
-	onJSON, _ := json.Marshal(on)
-	if err := a.SaveSettings(string(onJSON)); err != nil {
-		t.Fatalf("SaveSettings error: %v", err)
-	}
-	installs, removes := p.counts()
-	if installs != 1 || removes != 0 {
-		t.Fatalf("after enabling: installs=%d removes=%d, want 1/0", installs, removes)
-	}
-	if !a.trayInstalled {
-		t.Fatal("trayInstalled should be true after enabling the menubar icon")
-	}
-	if got := p.lastStyle(); got != "dot" {
-		t.Fatalf("SetTrayStyle = %q, want %q", got, "dot")
-	}
-
-	// Saving the same settings again must not reinstall.
-	if err := a.SaveSettings(string(onJSON)); err != nil {
-		t.Fatalf("SaveSettings error: %v", err)
-	}
-	if installs, _ := p.counts(); installs != 1 {
-		t.Fatalf("repeat save installed again: installs=%d, want 1", installs)
-	}
-
-	off := on
-	off.Behavior.ShowMenubarIcon = false
-	offJSON, _ := json.Marshal(off)
-	if err := a.SaveSettings(string(offJSON)); err != nil {
-		t.Fatalf("SaveSettings error: %v", err)
-	}
-	installs, removes = p.counts()
-	if installs != 1 || removes != 1 {
-		t.Fatalf("after disabling: installs=%d removes=%d, want 1/1", installs, removes)
-	}
-	if a.trayInstalled {
-		t.Fatal("trayInstalled should be false after disabling the menubar icon")
-	}
-
-	// Saving disabled settings again must not remove twice.
-	if err := a.SaveSettings(string(offJSON)); err != nil {
-		t.Fatalf("SaveSettings error: %v", err)
-	}
-	if _, removes := p.counts(); removes != 1 {
-		t.Fatalf("repeat save removed again: removes=%d, want 1", removes)
-	}
+func TestSyncTray_NilTrayIsNoOp(t *testing.T) {
+	// Without an injected Wails tray (tests, stub platforms) syncTray must not
+	// touch the platform or panic.
+	a := newApp(fake.New(), config.Default(), "")
+	a.syncTray()
+	a.SetPaused(true)
 }
 
 func TestSaveSettings_StartAtLoginTogglesLoginItem(t *testing.T) {
@@ -482,49 +395,39 @@ func TestGetVersion(t *testing.T) {
 	}
 }
 
-func TestTrayLoop_RoutesCommands(t *testing.T) {
+func TestTrayMenuActions(t *testing.T) {
+	// The menubar menu (wired in main.go) calls these App methods directly;
+	// exercise the same paths the menu items trigger.
 	f := fake.New()
 	f.SetWindows(appTestWindows())
 	a := newApp(f, config.Default(), "")
 
-	// Route each command in its own synchronous loop run; TrayShow goes first
-	// because pausing would gate activation.
-	route := func(cmd platform.TrayCommand) {
-		cmds := make(chan platform.TrayCommand, 1)
-		cmds <- cmd
-		close(cmds)
-		a.trayLoop(cmds)
-	}
-
-	route(platform.TrayShow)
+	// "Show Option Tab" activates the switcher as if the primary hotkey fired.
+	a.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
 	if !a.controller.IsOpen() {
-		t.Fatal("TrayShow should open the switcher")
+		t.Fatal("Show menu action should open the switcher")
 	}
 
-	route(platform.TrayTogglePause)
+	// "Pause" suspends activation.
+	a.TogglePause()
 	if !a.IsPaused() {
-		t.Fatal("TrayTogglePause should pause activation")
+		t.Fatal("Pause menu action should pause activation")
 	}
 
-	route(platform.TrayPreferences)
+	// "Settings…" opens the preferences window.
+	a.OpenPreferences()
 	if !a.prefsOpen {
-		t.Fatal("TrayPreferences should open the preferences window")
+		t.Fatal("Settings menu action should open the preferences window")
 	}
 }
 
-func TestBeforeClose_PrefsOpenPreventsQuit(t *testing.T) {
+func TestClosePreferencesWindow_ResetsState(t *testing.T) {
 	a := newApp(fake.New(), config.Default(), "")
 
 	a.prefsOpen = true
-	if !a.beforeClose(context.Background()) {
-		t.Fatal("beforeClose with preferences open should prevent quitting")
-	}
+	a.closePreferencesWindow()
 	if a.prefsOpen {
-		t.Fatal("beforeClose should have dismissed the preferences window")
-	}
-
-	if a.beforeClose(context.Background()) {
-		t.Fatal("beforeClose with preferences closed should allow quitting")
+		t.Fatal("closePreferencesWindow should mark preferences closed")
 	}
 }
 
@@ -534,7 +437,7 @@ func TestShow_DismissesOpenPreferences(t *testing.T) {
 
 	a.Show(switcher.State{Entries: []switcher.Entry{{WindowID: 1}}})
 	if a.prefsOpen {
-		t.Fatal("Show should dismiss the open preferences window (shared window)")
+		t.Fatal("Show should dismiss the open preferences window")
 	}
 }
 

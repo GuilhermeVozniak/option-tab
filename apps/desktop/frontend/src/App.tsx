@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAbout, useCrash, usePermissions } from "./hooks/useBridge";
-import { loadSettings, onSwitcherEvent, saveSettings, switcher } from "./lib/bridge";
+import {
+  hasBackend,
+  loadSettings,
+  onPrefsTab,
+  onSwitcherEvent,
+  saveSettings,
+  switcher,
+} from "./lib/bridge";
 import { demoStateFor } from "./lib/demo";
 import type { VisualStyle } from "./lib/types";
 import {
@@ -67,9 +74,10 @@ function useSettingsModel() {
   return { settings, onChange };
 }
 
-// App is the desktop frontend shell. In the overlay window it subscribes to the
-// Go controller's events and renders the switcher; in the preferences window
-// (#settings) it renders the settings form. It holds no business logic.
+// App is the desktop frontend shell. Two Wails windows load it: the overlay
+// window (default route) subscribes to the Go controller's events and renders
+// the switcher; the preferences window (#/settings) renders the settings form.
+// It holds no business logic.
 export default function App() {
   if (isSettingsRoute()) return <SettingsRoute />;
   if (isDemoRoute()) {
@@ -86,8 +94,20 @@ function OverlayRoute() {
   const [state, setState] = useState<SwitcherState>(emptyState);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [previews, setPreviews] = useState<Record<string, string>>({});
-  const [prefsOpen, setPrefsOpen] = useState(false);
-  const [prefsTab, setPrefsTab] = useState<string | null>(null);
+  // The overlay window never becomes key (the app is not activated on show), so
+  // in the real app keyboard input arrives as native-tap "switcher:key" events.
+  // The DOM listener in Overlay is only a fallback for browser dev, enabled
+  // until the backend probe answers.
+  const [nativeKeys, setNativeKeys] = useState(true);
+  useEffect(() => {
+    let active = true;
+    hasBackend().then((ok) => {
+      if (active) setNativeKeys(ok);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     return onSwitcherEvent({
@@ -100,12 +120,6 @@ function OverlayRoute() {
       onHide: () => setState((s) => ({ ...s, open: false })),
       onThumbnails: (t) => setThumbs((prev) => ({ ...prev, ...t })),
       onPreview: (p) => setPreviews((prev) => ({ ...prev, ...p })),
-      onPrefsOpen: () => setPrefsOpen(true),
-      onPrefsClose: () => {
-        setPrefsOpen(false);
-        setPrefsTab(null); // next plain open starts on the default tab
-      },
-      onPrefsTab: setPrefsTab,
     });
   }, []);
 
@@ -155,42 +169,20 @@ function OverlayRoute() {
     [indexOfWindow, indexOfApp],
   );
 
-  return (
-    <>
-      <Overlay state={stateWithThumbs} handlers={handlers} />
-      {prefsOpen ? <PreferencesPanel requestedTab={prefsTab} /> : null}
-    </>
-  );
+  return <Overlay state={stateWithThumbs} handlers={handlers} nativeKeys={nativeKeys} />;
 }
 
-// PreferencesPanel fills the window with the settings form. The Go side turns
-// the shared window into a regular titled window while it is open (prefs:open/
-// prefs:close events), so closing happens via the native close button.
-function PreferencesPanel({ requestedTab }: { requestedTab?: string | null }) {
-  const { settings, onChange } = useSettingsModel();
-  const perms = usePermissions();
-  const about = useAbout();
-  const crash = useCrash();
-
-  return (
-    <div className="fixed inset-0 overflow-auto" role="dialog" aria-label="Preferences">
-      <Settings
-        settings={settings}
-        onChange={onChange}
-        permissions={perms}
-        about={about}
-        crash={crash}
-        requestedTab={requestedTab}
-      />
-    </div>
-  );
-}
-
+// SettingsRoute renders the preferences window's contents. The window is a
+// regular titled window (its own Wails window since the Wails v3 migration);
+// the menubar can deep-link a tab via the "prefs:tab" event.
 function SettingsRoute() {
   const { settings, onChange } = useSettingsModel();
   const perms = usePermissions();
   const about = useAbout();
   const crash = useCrash();
+  const [requestedTab, setRequestedTab] = useState<string | null>(null);
+
+  useEffect(() => onPrefsTab(setRequestedTab), []);
 
   return (
     <Settings
@@ -199,6 +191,7 @@ function SettingsRoute() {
       permissions={perms}
       about={about}
       crash={crash}
+      requestedTab={requestedTab}
     />
   );
 }

@@ -78,38 +78,34 @@ char *ot_app_icon_png_base64(int pid, int maxpx);
 // Screen Recording permission). Caller frees the returned string.
 char *ot_thumbnail_dataurl(uint32_t wid, int maxpx);
 
-// Menubar status item. ot_tray_install shows the icon and wires its menu to the
-// exported goTrayCommand (0=preferences, 1=toggle pause, 2=quit). All three are
-// safe to call from any thread; the work is dispatched to the main queue.
-void ot_tray_install(void);
-void ot_tray_set_paused(int paused);
-// Sets the status-item glyph: "default", "outline", or "dot".
-void ot_tray_set_style(const char *style);
-void ot_tray_remove(void);
+// Menubar tray is provided by the Wails v3 SystemTray manager (Go side), so
+// there are no native tray entry points here anymore.
 
 // Warps the mouse cursor to the center of the window (cursor follows focus).
 void ot_warp_cursor(uint32_t wid);
 
 // ot_hide_dock_icon switches the app to the accessory activation policy so it
 // never shows in the Dock or the Cmd-Tab app switcher (bundles also set
-// LSUIElement; this covers `wails dev` runs). Safe to call repeatedly.
+// LSUIElement and Wails applies ActivationPolicyAccessory at launch; this is
+// used to flip back after the preferences window activated the app).
 void ot_hide_dock_icon(void);
 
-// ot_window_set_prefs_mode(1) turns the single Wails window into a regular
-// titled, movable, closable preferences window; (0) restores the borderless
-// floating overlay chrome. Dispatched to the main queue.
-void ot_window_set_prefs_mode(int on);
+// ot_activate_prefs captures the currently frontmost app (for the switcher's
+// active-app scope), then flips the app to the regular activation policy and
+// activates it so the preferences window can take keyboard focus.
+void ot_activate_prefs(void);
 
-// ot_window_init_overlay makes the app window non-opaque with a clear
-// background so only the webview's rounded panel is visible (no square
-// window backdrop). Call once at startup; dispatched to the main queue.
-void ot_window_init_overlay(void);
+// ot_app_hide hides the app ([NSApp hide:]) when it is currently active, which
+// returns focus to the previously active app. Used after the overlay hides to
+// drop an accidental click-activation. No-op when the app is not active.
+void ot_app_hide(void);
 
 // ot_window_fit_screen resizes the (transparent) overlay window to the
 // visible frame of the screen with the given display id (0 or unknown = the
 // window's current screen), giving the switcher the whole screen to lay out
-// in. Call before each show; dispatched to the main queue.
-void ot_window_fit_screen(uint32_t displayID);
+// in. win is the Wails window's NSWindow pointer. Call before each show;
+// dispatched to the main queue.
+void ot_window_fit_screen(void *win, uint32_t displayID);
 
 // ot_haptic_tick performs a subtle trackpad haptic tap (no-op on hardware
 // without a Force Touch trackpad).
@@ -121,10 +117,17 @@ int ot_login_item_set(int enabled);
 
 // Hotkey engine. Events are delivered to Go via the exported goHotkeyEvent.
 // kinds: 0 activate, 1 advance, 2 reverse, 3 release, 4 cancel.
+// Raw key presses while the switcher is open go to goKeyEvent.
 int ot_hotkey_start(void);
 int ot_hotkey_register(int id, uint64_t modflags, uint16_t keycode, int withShift);
 void ot_hotkey_unregister(int id);
 void ot_hotkey_stop(void);
+
+// ot_hotkey_set_open tells the tap whether the switcher overlay is open. While
+// open, every key press is consumed (so it never reaches the previously active
+// app) and forwarded to Go via goKeyEvent; Escape cancels regardless of
+// modifier state (covers the "when released: do nothing" mode).
+void ot_hotkey_set_open(int open);
 
 // One-shot chord recording for the preferences UI: while armed, the next
 // modifier+key press anywhere is delivered to goHotkeyCaptured (and consumed)

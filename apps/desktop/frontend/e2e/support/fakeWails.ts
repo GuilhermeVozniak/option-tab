@@ -99,93 +99,150 @@ export function showState(overrides: ShowState = {}): ShowState {
   };
 }
 
-// installFakeWails injects a fake Wails runtime + bound App before the app
-// script runs, so the real event-driven OverlayRoute is fully interactive in a
-// plain browser. Navigation methods mutate a shared state and re-emit
-// switcher:update (a NEW object each time so React re-renders); window/app
-// action methods are recorded on window.__calls for assertions.
+// Bound-method ids from the generated bindings (bindings/option-tab/app.js).
+// They are deterministic hashes of the Go service method names, so they only
+// change when a method is renamed — regenerate mentally via that file.
+const METHOD = {
+  Advance: 3974603045,
+  Reverse: 2687580445,
+  Select: 149583269,
+  SetSearch: 1454005219,
+  Confirm: 3228319335,
+  Cancel: 2191755235,
+  CloseSelected: 2868361114,
+  MinimizeSelected: 1240045732,
+  FullscreenSelected: 529416953,
+  QuitSelectedApp: 3876391122,
+  HideSelectedApp: 3942268823,
+  GetVersion: 1049863377,
+} as const;
+
+const METHOD_NAME = new Map<number, string>(Object.entries(METHOD).map(([name, id]) => [id, name]));
+
+// installFakeWails emulates the Wails v3 backend in a plain browser:
+//
+//   - RPC: the generated bindings POST {object, method, args} to
+//     /wails/runtime; a route handler answers navigation/action calls, driving
+//     a shared fake controller state and re-emitting switcher:update.
+//   - Events: page-side dispatch goes through window._wails.dispatchWailsEvent,
+//     which the real @wailsio/runtime installs on import.
+//   - Keyboard: the production overlay takes keys from native-tap "switcher:key"
+//     events, so a DOM keydown listener re-emits them in that exact shape (the
+//     tap only forwards while the switcher is open, hence the __state.open gate).
+//
+// Window/app action calls are recorded on window.__calls for assertions.
 export async function installFakeWails(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    const w = window as any;
-    w.__handlers = {};
+    const w = window as unknown as {
+      __calls: unknown[][];
+      __state: Record<string, unknown> | null;
+      _wails?: { dispatchWailsEvent?: (ev: { name: string; data: unknown }) => void };
+    };
     w.__calls = [];
     w.__state = null;
-    w.runtime = {
-      EventsOn: (event: string, cb: (d: unknown) => void) => {
-        (w.__handlers[event] = w.__handlers[event] || []).push(cb);
-        return () => {
-          w.__handlers[event] = (w.__handlers[event] || []).filter((h: unknown) => h !== cb);
-        };
-      },
-      EventsOff: () => {},
-      EventsEmit: () => {},
-    };
-    w.__emit = (event: string, data: unknown) => {
-      for (const h of w.__handlers[event] || []) h(data);
-    };
-    const clamp = (i: number, n: number) => ((i % n) + n) % n;
-    const patch = (p: Record<string, unknown>) => {
-      w.__state = { ...w.__state, ...p };
-      w.__emit("switcher:update", w.__state);
-    };
-    const rec =
-      (name: string) =>
-      (...args: unknown[]) => {
-        w.__calls.push([name, ...args]);
-        return Promise.resolve();
-      };
-    w.go = {
-      main: {
-        App: {
-          Advance: () => {
-            patch({ selected: clamp(w.__state.selected + 1, w.__state.entries.length) });
-            return Promise.resolve();
-          },
-          Reverse: () => {
-            patch({ selected: clamp(w.__state.selected - 1, w.__state.entries.length) });
-            return Promise.resolve();
-          },
-          Select: (i: number) => {
-            patch({ selected: i });
-            return Promise.resolve();
-          },
-          SetSearch: (q: string) => {
-            patch({ search: q });
-            return Promise.resolve();
-          },
-          Confirm: () => {
-            w.__calls.push(["Confirm"]);
-            w.__emit("switcher:hide", null);
-            return Promise.resolve();
-          },
-          Cancel: () => {
-            w.__calls.push(["Cancel"]);
-            w.__emit("switcher:hide", null);
-            return Promise.resolve();
-          },
-          CloseSelected: rec("CloseSelected"),
-          MinimizeSelected: rec("MinimizeSelected"),
-          FullscreenSelected: rec("FullscreenSelected"),
-          QuitSelectedApp: rec("QuitSelectedApp"),
-          HideSelectedApp: rec("HideSelectedApp"),
+    window.addEventListener("keydown", (e) => {
+      if (!w.__state?.open) return; // the native tap only forwards while open
+      w._wails?.dispatchWailsEvent?.({
+        name: "switcher:key",
+        data: {
+          key: e.key,
+          code: e.code,
+          shift: e.shiftKey,
+          ctrl: e.ctrlKey,
+          alt: e.altKey,
+          meta: e.metaKey,
         },
-      },
+      });
+    });
+  });
+
+  await page.route("**/wails/runtime", async (route) => {
+    // Binding calls arrive as {object: CallBinding, method: 0, args: {"call-id",
+    // methodID, args: [...]}} — the numeric methodID selects the Go method.
+    const body = route.request().postDataJSON() as {
+      args?: { methodID?: number; args?: unknown[] };
     };
+    const name = METHOD_NAME.get(body.args?.methodID ?? 0);
+    const args = body.args?.args ?? [];
+    const json = (result: unknown) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify(result) });
+
+    const evaluate = (fn: (arg: unknown) => void, arg?: unknown) => page.evaluate(fn, arg);
+
+    switch (name) {
+      case "GetVersion":
+        return json("0.0.0-e2e");
+      case "Advance":
+      case "Reverse":
+      case "Select":
+      case "SetSearch": {
+        await evaluate(
+          ([n, a]) => {
+            const w = window as any;
+            const st = w.__state;
+            if (!st) return;
+            const clamp = (i: number, len: number) => ((i % len) + len) % len;
+            if (n === "Advance") st.selected = clamp(st.selected + 1, st.entries.length);
+            else if (n === "Reverse") st.selected = clamp(st.selected - 1, st.entries.length);
+            else if (n === "Select") st.selected = a;
+            else st.search = a;
+            w.__state = { ...st };
+            w._wails?.dispatchWailsEvent?.({ name: "switcher:update", data: w.__state });
+          },
+          [name, args[0]],
+        );
+        return json(null);
+      }
+      case "Confirm":
+      case "Cancel": {
+        await evaluate((n) => {
+          const w = window as any;
+          w.__calls.push([n]);
+          w.__state = { ...w.__state, open: false };
+          w._wails?.dispatchWailsEvent?.({ name: "switcher:hide", data: null });
+        }, name);
+        return json(null);
+      }
+      case "CloseSelected":
+      case "MinimizeSelected":
+      case "FullscreenSelected":
+      case "QuitSelectedApp":
+      case "HideSelectedApp": {
+        await evaluate((n) => {
+          (window as any).__calls.push([n]);
+        }, name);
+        return json(null);
+      }
+      default:
+        // Anything unmapped behaves as "no backend": the bridge degrades to its
+        // browser defaults (empty settings, no permissions UI, ...).
+        return route.fulfill({ status: 500, body: "unbound method" });
+    }
   });
 }
 
-// emitShow waits until the app has subscribed to switcher events, then pushes a
-// switcher:show with the given state (also seeding the controller-sim state).
+// emitShow pushes a switcher:show with the given state (also seeding the fake
+// controller state). The runtime's listener registry is module-private, so a
+// lost race shows up as the overlay never appearing — retry a few times.
 export async function emitShow(page: Page, state: ShowState): Promise<void> {
   await page.waitForFunction(() => {
     const w = window as any;
-    return (w.__handlers?.["switcher:show"]?.length ?? 0) > 0;
+    return typeof w._wails?.dispatchWailsEvent === "function";
   });
-  await page.evaluate((s) => {
-    const w = window as any;
-    w.__state = s;
-    w.__emit("switcher:show", s);
-  }, state);
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await page.evaluate((s) => {
+      const w = window as any;
+      w.__state = s;
+      w._wails.dispatchWailsEvent({ name: "switcher:show", data: s });
+    }, state);
+    try {
+      await page.locator(".ot-overlay").waitFor({ state: "visible", timeout: 500 });
+      return;
+    } catch {
+      // subscription not ready yet; dispatch again
+    }
+  }
+  throw new Error("switcher:show never rendered the overlay");
 }
 
 // getCalls returns the recorded bound-method names, in order.

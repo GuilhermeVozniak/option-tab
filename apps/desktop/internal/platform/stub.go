@@ -79,4 +79,6 @@ type stubHotkeys struct {
 func (h *stubHotkeys) Register(int, hotkey.Chord) error { return nil }
 func (h *stubHotkeys) Unregister(int) error             { return nil }
 func (h *stubHotkeys) Events() <-chan HotkeyEvent       { return h.ch }
+func (h *stubHotkeys) Keys() <-chan KeyEvent            { return nil }
+func (h *stubHotkeys) SetOpen(bool)                     {}
 func (h *stubHotkeys) Close() error                     { close(h.ch); return nil }

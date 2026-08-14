@@ -6,8 +6,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wailsapp/wails/v2/pkg/runtime"
-
 	"option-tab/internal/config"
 	"option-tab/internal/hotkey"
 	"option-tab/internal/platform"
@@ -48,39 +46,47 @@ func (a *App) hotkeyLoop() {
 	}
 }
 
+// keyLoop forwards raw key presses the native tap captured while the overlay
+// was open to the frontend. The overlay window never becomes key (the app is
+// not activated on show), so this is the overlay's only keyboard source.
+func (a *App) keyLoop() {
+	keys := a.platform.Hotkeys().Keys()
+	if keys == nil {
+		return // backend without key forwarding (stub/fake)
+	}
+	for ev := range keys {
+		if a.controller.IsOpen() {
+			a.emit("switcher:key", ev)
+		}
+	}
+}
+
 // ---- switcher.View ----
 
 // Show reveals the overlay window and pushes the initial state. If the
-// preferences window is open it is dismissed first, since both share the
-// single Wails window.
+// preferences window is open it is dismissed first. The overlay is shown
+// WITHOUT activating the app (v3 Show is a bare makeKeyAndOrderFront): the
+// previously active app keeps focus, so the active-app scope filter keeps
+// seeing the real frontmost app — activating here was the v2 switching bug.
 func (a *App) Show(st switcher.State) {
 	dlog("Show: %d entries, selected=%d", len(st.Entries), st.Selected)
 	if a.prefsOpen {
-		a.prefsOpen = false
-		a.emit("prefs:close", nil)
-		if wm, ok := a.platform.(platform.WindowModer); ok {
-			wm.SetPrefsWindowMode(false)
-		}
+		a.closePreferencesWindow()
 	}
+	// Tell the native tap to consume and forward all keyboard input before the
+	// window appears, so a quick follow-up Tab never leaks to the previous app.
+	a.platform.Hotkeys().SetOpen(true)
 	a.enrichIcons(&st)
 	a.emit("switcher:show", st)
 	a.lastSelected = st.Selected
 	// Size the transparent window to the screen the Placement setting chose
 	// (resolved by the controller) so the panel appears there and lays out
 	// against the real screen size.
-	fitted := false
-	if f, ok := a.platform.(platform.OverlayWindowPreparer); ok {
-		f.FitOverlayToScreen(st.PlacementScreenID)
-		fitted = true
-	}
-	if a.ctx != nil {
-		// FitOverlayToScreen already positions the window on the target screen, so
-		// no WindowCenter there (it could move it onto the wrong display). On
-		// backends without a fit path, center so it isn't shown at a stale spot.
-		if !fitted {
-			runtime.WindowCenter(a.ctx)
+	if a.overlay != nil {
+		if f, ok := a.platform.(platform.OverlayWindowFitter); ok {
+			f.FitOverlayToScreen(a.overlay.NativeWindow(), st.PlacementScreenID)
 		}
-		runtime.WindowShow(a.ctx)
+		a.overlay.Show()
 	}
 	a.emitCachedThumbnails(st)
 	a.captureThumbnails(st)
@@ -103,9 +109,15 @@ func (a *App) Update(st switcher.State) {
 // Hide pushes the hide event and hides the overlay window.
 func (a *App) Hide() {
 	atomic.AddInt64(&a.thumbGen, 1) // invalidate any in-flight thumbnail capture
+	a.platform.Hotkeys().SetOpen(false)
 	a.emit("switcher:hide", nil)
-	if a.ctx != nil {
-		runtime.WindowHide(a.ctx)
+	if a.overlay != nil {
+		a.overlay.Hide()
+	}
+	// Clicking the overlay activates the app (a plain NSWindow can't avoid it);
+	// drop that activation so focus returns to the previously active app.
+	if act, ok := a.platform.(platform.AppActivator); ok {
+		act.HideAppIfActive()
 	}
 }
 

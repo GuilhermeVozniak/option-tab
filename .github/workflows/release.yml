@@ -48,17 +48,22 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: latest }
       - uses: actions/setup-go@v5
-        with: { go-version: "1.23" }
+        with: { go-version: "1.26" }
       - name: Install Linux system deps
         if: matrix.platform == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
-      - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
       - run: bun install --frozen-lockfile
-      - name: Build desktop binary
-        # ubuntu-latest (24.04) ships webkit2gtk-4.1 only; wails needs the
-        # webkit2_41 tag to link against it.
-        run: cd apps/desktop && wails build -platform ${{ matrix.platform }}/${{ matrix.arch }} ${{ matrix.platform == 'linux' && '-tags webkit2_41' || '' }}
+      - name: Build frontend (embedded via //go:embed)
+        run: cd apps/desktop/frontend && bun run build
+      # The desktop binary is a plain `go build` (Wails v3 serves the embedded
+      # frontend from the binary); macOS bundling/signing/notarization lives in
+      # scripts/bundle.sh. Windows/Linux are stub-platform demo builds.
+      - name: Build desktop binary (Windows)
+        if: matrix.platform == 'windows'
+        run: cd apps/desktop && go build -o build/bin/option-tab.exe .
+      - name: Build desktop binary (Linux)
+        if: matrix.platform == 'linux'
+        run: cd apps/desktop && go build -o build/bin/option-tab .
       # Signing/notarization steps are skipped when the signing secrets are
       # absent (e.g. forks), so unsigned releases still build.
       - name: Import signing certificate (macOS)
@@ -79,35 +84,16 @@ jobs:
           rm "$RUNNER_TEMP/cert.p12"
           # fail here, not at codesign, if the p12 lacks a Developer ID identity.
           security find-identity -v -p codesigning "$KEYCHAIN" | grep "Developer ID Application"
-      - name: Sign app (macOS)
+      - name: Enable signing for bundle.sh (macOS)
         if: matrix.platform == 'darwin' && env.HAS_MACOS_SIGNING == 'true'
-        run: |
-          codesign --force --deep --options runtime --timestamp \
-            --sign "Developer ID Application" apps/desktop/build/bin/option-tab.app
-          codesign --verify --deep --strict --verbose=2 apps/desktop/build/bin/option-tab.app
-      - name: Package artifact (macOS .dmg)
+        run: echo "CODESIGN_IDENTITY=Developer ID Application" >> "$GITHUB_ENV"
+      - name: Bundle, sign, and package dmg (macOS)
         if: matrix.platform == 'darwin'
-        # appdmg lays out the drag-to-Applications installer window (background
-        # art, volume icon, app + /Applications side by side); config and assets
-        # live in build/darwin/dmg.
-        run: |
-          cd apps/desktop
-          npx --yes appdmg build/darwin/dmg/appdmg.json \
-            "build/bin/option-tab_${GITHUB_REF_NAME#v}_darwin_${{ matrix.arch }}.dmg"
-      - name: Sign, notarize, and staple dmg (macOS)
-        if: matrix.platform == 'darwin' && env.HAS_MACOS_SIGNING == 'true'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-        run: |
-          DMG=(apps/desktop/build/bin/*.dmg)
-          codesign --force --timestamp --sign "Developer ID Application" "${DMG[0]}"
-          xcrun notarytool submit "${DMG[0]}" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_APP_PASSWORD" --wait
-          # staple fails if notarization did not fully succeed, failing the job.
-          xcrun stapler staple "${DMG[0]}"
-          xcrun stapler validate "${DMG[0]}"
+        run: VERSION="${GITHUB_REF_NAME#v}" ./scripts/bundle.sh
       - name: Package artifact (Windows .zip)
         if: matrix.platform == 'windows'
         shell: pwsh

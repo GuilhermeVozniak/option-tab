@@ -1,8 +1,45 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SwitcherState } from "../lib/types";
 import { emptyState } from "../lib/types";
 import { Overlay } from "./Overlay";
+
+// Mock the Wails v3 event bus: the native tap's forwarded keys arrive as
+// "switcher:key" events; keyFor dispatches them like the Go side does.
+let keyHandler: ((ev: { data: unknown }) => void) | undefined;
+
+vi.mock("@wailsio/runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@wailsio/runtime")>();
+  return {
+    ...actual,
+    Events: {
+      On: vi.fn((name: string, cb: (ev: { data: unknown }) => void) => {
+        if (name === "switcher:key") keyHandler = cb;
+        return () => {};
+      }),
+    },
+  };
+});
+
+beforeEach(() => {
+  keyHandler = undefined;
+});
+
+// pressKey simulates a native-tap key press (the production keyboard path).
+function pressKey(p: { key: string; code?: string; shift?: boolean; alt?: boolean }) {
+  act(() => {
+    keyHandler?.({
+      data: {
+        key: p.key,
+        code: p.code ?? "",
+        shift: !!p.shift,
+        ctrl: false,
+        alt: !!p.alt,
+        meta: false,
+      },
+    });
+  });
+}
 
 function stateWith(overrides: Partial<SwitcherState>): SwitcherState {
   return {
@@ -85,41 +122,53 @@ describe("Overlay", () => {
   it("routes Tab/Shift+Tab/Escape/Enter to handlers", () => {
     const h = noopHandlers();
     render(<Overlay state={stateWith({})} handlers={h} />);
+    pressKey({ key: "Tab" });
+    expect(h.onAdvance).toHaveBeenCalled();
+    pressKey({ key: "Tab", shift: true });
+    expect(h.onReverse).toHaveBeenCalled();
+    pressKey({ key: "Escape" });
+    expect(h.onCancel).toHaveBeenCalled();
+    pressKey({ key: "Enter" });
+    expect(h.onConfirm).toHaveBeenCalled();
+  });
+
+  it("falls back to DOM keydown when nativeKeys is off (browser dev)", () => {
+    const h = noopHandlers();
+    render(<Overlay state={stateWith({})} handlers={h} nativeKeys={false} />);
     fireEvent.keyDown(window, { key: "Tab" });
     expect(h.onAdvance).toHaveBeenCalled();
-    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
-    expect(h.onReverse).toHaveBeenCalled();
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(h.onCancel).toHaveBeenCalled();
     fireEvent.keyDown(window, { key: "Enter" });
     expect(h.onConfirm).toHaveBeenCalled();
+    // The native path must not double-handle while the DOM fallback is active.
+    pressKey({ key: "Tab" });
+    expect(h.onAdvance).toHaveBeenCalledTimes(1);
   });
 
   it("routes held-modifier action keys to the selected entry", () => {
     const h = noopHandlers();
     render(<Overlay state={stateWith({ selected: 1 })} handlers={h} />);
     // Option+W closes the selected window (id 2 == second entry).
-    fireEvent.keyDown(window, { key: "∑", code: "KeyW", altKey: true });
+    pressKey({ key: "∑", code: "KeyW", alt: true });
     expect(h.onClose).toHaveBeenCalledWith(2);
-    fireEvent.keyDown(window, { key: "f", code: "KeyF", altKey: true });
+    pressKey({ key: "f", code: "KeyF", alt: true });
     expect(h.onFullscreen).toHaveBeenCalledWith(2);
   });
 
   it("navigates with vim keys when enabled", () => {
     const h = noopHandlers();
     render(<Overlay state={stateWith({ vimKeys: true })} handlers={h} />);
-    fireEvent.keyDown(window, { key: "j", code: "KeyJ" });
+    pressKey({ key: "j", code: "KeyJ" });
     expect(h.onAdvance).toHaveBeenCalled();
-    fireEvent.keyDown(window, { key: "k", code: "KeyK" });
+    pressKey({ key: "k", code: "KeyK" });
     expect(h.onReverse).toHaveBeenCalled();
   });
 
   it("types into the search query", () => {
     const h = noopHandlers();
     render(<Overlay state={stateWith({ search: "ab" })} handlers={h} />);
-    fireEvent.keyDown(window, { key: "c" });
+    pressKey({ key: "c" });
     expect(h.onSearchChange).toHaveBeenCalledWith("abc");
-    fireEvent.keyDown(window, { key: "Backspace" });
+    pressKey({ key: "Backspace" });
     expect(h.onSearchChange).toHaveBeenCalledWith("a");
   });
 
@@ -296,18 +345,18 @@ describe("Overlay", () => {
   it("navigates with arrow keys only when arrowKeys is enabled", () => {
     const h = noopHandlers();
     const { rerender } = render(<Overlay state={stateWith({ arrowKeys: true })} handlers={h} />);
-    fireEvent.keyDown(window, { key: "ArrowRight" });
+    pressKey({ key: "ArrowRight" });
     expect(h.onAdvance).toHaveBeenCalledTimes(1);
-    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    pressKey({ key: "ArrowLeft" });
     expect(h.onReverse).toHaveBeenCalledTimes(1);
 
     rerender(<Overlay state={stateWith({ arrowKeys: false })} handlers={h} />);
-    fireEvent.keyDown(window, { key: "ArrowRight" });
-    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    pressKey({ key: "ArrowRight" });
+    pressKey({ key: "ArrowLeft" });
     expect(h.onAdvance).toHaveBeenCalledTimes(1);
     expect(h.onReverse).toHaveBeenCalledTimes(1);
     // Tab keeps working with arrows disabled.
-    fireEvent.keyDown(window, { key: "Tab" });
+    pressKey({ key: "Tab" });
     expect(h.onAdvance).toHaveBeenCalledTimes(2);
   });
 
@@ -325,11 +374,11 @@ describe("Overlay", () => {
     const h = noopHandlers();
     render(<Overlay state={stateWith({ selected: 1 })} handlers={h} />);
     // Option mangles the character, so routing matches on e.code.
-    fireEvent.keyDown(window, { key: "µ", code: "KeyM", altKey: true });
+    pressKey({ key: "µ", code: "KeyM", alt: true });
     expect(h.onMinimize).toHaveBeenCalledWith(2);
-    fireEvent.keyDown(window, { key: "œ", code: "KeyQ", altKey: true });
+    pressKey({ key: "œ", code: "KeyQ", alt: true });
     expect(h.onQuit).toHaveBeenCalledWith(2);
-    fireEvent.keyDown(window, { key: "˙", code: "KeyH", altKey: true });
+    pressKey({ key: "˙", code: "KeyH", alt: true });
     expect(h.onHide).toHaveBeenCalledWith(2);
     expect(h.onConfirm).not.toHaveBeenCalled();
   });

@@ -14,10 +14,14 @@ tasks:
       - bun run test
       - cd apps/desktop && go test ./... -race -cover
   build:
-    desc: Build web + desktop
+    desc: Build web + desktop (frontend via turbo, then the Go binary with embedded assets)
     cmds:
       - bun run build
-      - cd apps/desktop && wails build
+      - cd apps/desktop && (wails3 generate bindings || echo 'wails3 not installed, using committed bindings') && go build -o bin/option-tab .
+  bundle:
+    desc: Assemble the macOS .app bundle and dmg into apps/desktop/build/bin
+    cmds:
+      - ./scripts/bundle.sh
   e2e:
     desc: Run Playwright e2e (landing page + desktop UI)
     cmds:
@@ -27,5 +31,7 @@ tasks:
     desc: Run the landing page dev server
     cmds: [cd apps/web && bun run dev]
   dev:desktop:
-    desc: Run the desktop app in Wails dev mode
-    cmds: [cd apps/desktop && wails dev]
+    desc: Build the frontend, then run the desktop app in Wails v3 dev mode
+    cmds:
+      - cd apps/desktop/frontend && bun run build
+      - cd apps/desktop && wails3 dev

@@ -4,11 +4,11 @@
 
 Install all prerequisites before running any `task` commands.
 
-### Go 1.23+
+### Go 1.26+
 
 ```bash
 # Download from https://go.dev/dl and follow the platform instructions.
-go version  # should print go1.23.x or higher
+go version  # should print go1.26.x or higher
 ```
 
 ### Bun 1.1+
@@ -18,17 +18,21 @@ curl -fsSL https://bun.sh/install | bash
 bun --version  # should print 1.1.x or higher
 ```
 
-### Wails CLI v2
+### Wails CLI v3 (alpha)
+
+The desktop app uses Wails v3 (`v3.0.0-alpha2.117`). The CLI is only needed for
+`wails3 dev` and for regenerating the committed frontend bindings — builds are plain
+`go build`:
 
 ```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
-wails version  # should print v2.x.x
+go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+wails3 version  # should print v3.0.0-alpha...
 ```
 
 On Linux, Wails also requires system WebKit headers:
 
 ```bash
-sudo apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev
+sudo apt-get install libgtk-4-dev libwebkitgtk-6.0-dev
 ```
 
 ### Task (taskfile.dev)
@@ -77,9 +81,10 @@ bun install
 |---------|-------------|
 | `task lint` | Biome check (JS/TS/JSON) via Turbo + golangci-lint (Go) |
 | `task test` | Vitest (all JS/TS workspaces) via Turbo + `go test ./... -race -cover` |
-| `task build` | `next build` (landing page) via Turbo + `wails build` (desktop binary) |
+| `task build` | Turbo (landing page + frontend) + `go build` (desktop binary at `apps/desktop/bin/option-tab`) |
+| `task bundle` | `scripts/bundle.sh` — assemble/sign/package the `.app` + dmg into `apps/desktop/build/bin` |
 | `task e2e` | Playwright smoke tests against the built landing page |
-| `task dev:desktop` | Wails dev mode — hot-reloads both Go and React |
+| `task dev:desktop` | Frontend build + `wails3 dev` (restarts the Go process on Go changes) |
 | `task dev:web` | Next.js dev server for the landing page |
 
 > Note: `dev:desktop` and `dev:web` must be specified explicitly — there is no shorthand `dev` target.
@@ -92,43 +97,55 @@ bun install
 
 ```bash
 task dev:desktop
-# Equivalent to: cd apps/desktop && wails dev
+# Equivalent to: cd apps/desktop/frontend && bun run build && cd .. && wails3 dev
 ```
 
-`wails dev` does the following automatically:
-
-1. Builds the React frontend (`apps/desktop/frontend`) and writes output to `frontend/dist`.
-2. Starts the Vite dev server for the frontend (with hot module replacement).
-3. Compiles and runs the Go binary, which serves the Wails WebKit window.
-
-Changes to Go files restart the Go process. Changes to frontend files are hot-reloaded by Vite.
+`wails3 dev` compiles and runs the Go binary, which serves the embedded frontend in the
+app's two WebKit windows, and restarts the process when Go files change. There is no
+frontend HMR: the app serves the embedded `frontend/dist`, so after editing frontend
+files rebuild them (`cd apps/desktop/frontend && bun run build`, or keep
+`vite build --watch` running) and let `wails3 dev` pick the change up. The overlay UI can
+also be iterated on quickly in a plain browser (`cd apps/desktop/frontend && bun run dev`)
+— the bridge degrades gracefully without a backend (DOM keydown replaces native key
+events, bindings no-op).
 
 ### How Wails bindings work
 
-`main.go` binds `*App` to the Wails runtime via `Bind: []interface{}{app}`. Wails injects the bound methods on the JavaScript global `go.main.App` at runtime.
+`main.go` registers `*App` as a Wails v3 service (`application.NewService(app)`); every
+exported method becomes callable from the frontend. The typed bindings are **generated and
+committed** at `apps/desktop/frontend/bindings/`:
 
-The frontend accesses these bindings through `apps/desktop/frontend/src/lib/bridge.ts`:
+```bash
+cd apps/desktop && wails3 generate bindings   # re-run after changing App's methods
+```
+
+The frontend never calls the bindings directly — it goes through
+`apps/desktop/frontend/src/lib/bridge.ts`, which wraps them (plus `@wailsio/runtime`
+`Events`) and degrades gracefully when no backend answers (browser dev, tests):
 
 ```ts
-// desktop.ts reads the Wails global at call time rather than importing
-// generated wailsjs/ files, so the frontend builds standalone in CI.
-function wailsApp(): WailsApp {
-  return (window as unknown as { go: { main: { App: WailsApp } } }).go.main.App;
-}
+import { Events } from "@wailsio/runtime";
+import * as AppService from "../../bindings/option-tab/app.js";
 
-export function greet(name: string): Promise<string> {
-  return wailsApp().Greet(name);
-}
+export const switcher = {
+  advance: () => call(AppService.Advance()),
+  // ...
+};
 ```
 
 This approach means:
 
-- The frontend compiles and tests run without a live Wails process (the `wailsApp()` call is mocked in tests).
-- Generated `wailsjs/` files are not checked in or imported.
+- The frontend compiles and tests run without a live Wails process (the bindings module
+  and `@wailsio/runtime` are mocked in tests).
+- Binding method IDs are deterministic hashes of the Go method names; the e2e suite
+  intercepts the `/wails/runtime` HTTP calls and answers them by id
+  (`e2e/support/fakeWails.ts`).
 
 ### Go embed dependency
 
-`main.go` uses `//go:embed all:frontend/dist` to bundle the React build into the binary. When running `wails build` directly (not via `wails dev`), the frontend must be built first. `task build` handles this via Turbo's dependency ordering (`bun run build` runs before `wails build`).
+`main.go` uses `//go:embed all:frontend/dist` to bundle the React build into the binary.
+The frontend must be built before `go build`; `task build` runs Turbo first, and
+`scripts/bundle.sh` builds it again itself.
 
 ### Adding a new business unit
 
