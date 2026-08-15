@@ -43,6 +43,22 @@ func SwapApp(newApp, targetApp string) error {
 	return os.RemoveAll(backup)
 }
 
+// parseTeamID extracts the TeamIdentifier from `codesign -dv` output. It
+// errors when the bundle carries none (unsigned, or ad-hoc: "not set").
+func parseTeamID(out []byte) (string, error) {
+	for _, line := range strings.Split(string(out), "\n") {
+		team, ok := strings.CutPrefix(strings.TrimSpace(line), "TeamIdentifier=")
+		if !ok {
+			continue
+		}
+		if team == "" || team == "not set" {
+			break
+		}
+		return team, nil
+	}
+	return "", errors.New("update: bundle has no Team Identifier")
+}
+
 // relaunchScript waits for pid to exit, then opens the (replaced) app bundle.
 // The updater runs it detached right before quitting: a plain `open` while we
 // are still alive would be swallowed by the single-instance guard.

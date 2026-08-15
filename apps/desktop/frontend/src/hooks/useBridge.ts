@@ -8,9 +8,11 @@ import {
   loadPermissions,
   loadVersion,
   onUpdateAvailable,
+  onUpdateChecked,
   onUpdateProgress,
   permissions as permissionsApi,
   system,
+  type UpdateCheck,
   type UpdateInfo,
   type UpdateProgress,
 } from "../lib/bridge";
@@ -56,6 +58,7 @@ export function useAbout(): AboutControl {
   const [version, setVersion] = useState("dev");
   const [update, setUpdate] = useState<UpdateInfo | undefined>(undefined);
   const [progress, setProgress] = useState<UpdateProgress | undefined>(undefined);
+  const [checked, setChecked] = useState<UpdateCheck | undefined>(undefined);
   useEffect(() => {
     let active = true;
     loadVersion().then((v) => {
@@ -67,10 +70,14 @@ export function useAbout(): AboutControl {
     const offProgress = onUpdateProgress((p) => {
       if (active) setProgress(p);
     });
+    const offChecked = onUpdateChecked((c) => {
+      if (active) setChecked(c);
+    });
     return () => {
       active = false;
       off();
       offProgress();
+      offChecked();
     };
   }, []);
   return useMemo(
@@ -78,11 +85,12 @@ export function useAbout(): AboutControl {
       version,
       update,
       progress,
+      checked,
       onOpenURL: (url) => void system.openURL(url),
       onCheckUpdates: () => void system.checkForUpdates(),
       onInstallUpdate: () => void system.installUpdate(),
     }),
-    [version, update, progress],
+    [version, update, progress, checked],
   );
 }
 

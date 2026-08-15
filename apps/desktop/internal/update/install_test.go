@@ -76,6 +76,33 @@ func TestSwapAppRollsBackWhenNewAppMissing(t *testing.T) {
 	}
 }
 
+func TestParseTeamID(t *testing.T) {
+	out := "Executable=/Applications/Option Tab.app/Contents/MacOS/option-tab\n" +
+		"Identifier=com.optiontab.app\n" +
+		"TeamIdentifier=CT22R575UG\n" +
+		"Sealed Resources version=2 rules=13 files=3\n"
+	got, err := parseTeamID([]byte(out))
+	if err != nil {
+		t.Fatalf("parseTeamID: %v", err)
+	}
+	if got != "CT22R575UG" {
+		t.Fatalf("got %q, want CT22R575UG", got)
+	}
+}
+
+func TestParseTeamIDRejectsUnsignedOrMissing(t *testing.T) {
+	for name, out := range map[string]string{
+		"ad-hoc":   "Identifier=com.optiontab.app\nTeamIdentifier=not set\n",
+		"absent":   "Identifier=com.optiontab.app\n",
+		"empty":    "",
+		"blank-id": "TeamIdentifier=\n",
+	} {
+		if got, err := parseTeamID([]byte(out)); err == nil {
+			t.Errorf("%s: expected error, got team %q", name, got)
+		}
+	}
+}
+
 func TestRelaunchScript(t *testing.T) {
 	s := relaunchScript(4242, "/Applications/Option Tab.app")
 	if !strings.Contains(s, "kill -0 4242") {

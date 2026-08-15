@@ -25,6 +25,9 @@ export interface AboutControl {
   // progress is the self-installer's current stage while an update installs
   // (downloading/installing/restarting; "error" carries a failure message).
   progress?: { stage: string; message?: string };
+  // checked is the outcome of the most recent update check, so the tab can
+  // say "up to date" / "could not check" when no install banner applies.
+  checked?: { latest?: string; available: boolean; error?: string };
   onOpenURL: (url: string) => void;
   onCheckUpdates: () => void;
   onInstallUpdate?: () => void;

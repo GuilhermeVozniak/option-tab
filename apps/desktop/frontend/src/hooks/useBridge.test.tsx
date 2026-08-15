@@ -139,6 +139,13 @@ describe("useAbout", () => {
     expect(result.current.progress).toEqual({ stage: "installing" });
     result.current.onInstallUpdate?.();
     expect(mocked.InstallUpdate).toHaveBeenCalledTimes(1);
+
+    // Every check's outcome (even "no update") flows into the hook, so the
+    // About tab can answer a manual check instead of staying silent.
+    act(() => {
+      eventHandlers.get("update:checked")?.({ data: { latest: "v9.9.9", available: false } });
+    });
+    expect(result.current.checked).toEqual({ latest: "v9.9.9", available: false });
   });
 });
 

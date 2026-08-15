@@ -69,36 +69,51 @@ func (a *App) updateLoop() {
 	}
 }
 
-// checkForUpdate fetches the latest release and, when newer, records it as
-// the pending update and emits "update:available". autoInstall triggers the
-// full self-install immediately ("auto" policy, background loop only).
+// checkForUpdate fetches the latest release and always emits "update:checked"
+// with the outcome, so a manual check can answer "you're up to date" or
+// "could not check" instead of silence. A newer release is also recorded as
+// the pending update and emits "update:available" for the install banner;
+// autoInstall triggers the full self-install immediately ("auto" policy,
+// background loop only).
 func (a *App) checkForUpdate(autoInstall bool) {
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(updateCheckURL)
+	rel, err := a.fetchLatestRelease()
 	if err != nil {
 		dlog("update: check failed: %v", err)
+		a.emit("update:checked", map[string]any{"available": false, "error": err.Error()})
 		return
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return // e.g. no releases yet (404) or rate-limited
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return
-	}
-	rel, err := update.ParseLatest(body)
-	if err != nil || !update.Newer(appVersion, rel.Version) {
+	if !update.Newer(appVersion, rel.Version) {
+		a.emit("update:checked", map[string]any{"latest": rel.Version, "available": false})
 		return
 	}
 	dlog("update: %s available at %s", rel.Version, rel.URL)
 	a.updateMu.Lock()
 	a.pendingUpdate = &rel
 	a.updateMu.Unlock()
+	a.emit("update:checked", map[string]any{"latest": rel.Version, "available": true})
 	a.emit("update:available", map[string]string{"version": rel.Version, "url": rel.URL})
 	if autoInstall {
 		a.installRelease(rel)
 	}
+}
+
+// fetchLatestRelease fetches and parses the newest published GitHub release.
+func (a *App) fetchLatestRelease() (update.Release, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(updateCheckURL)
+	if err != nil {
+		return update.Release{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		// e.g. no releases yet (404) or rate-limited.
+		return update.Release{}, fmt.Errorf("update: check: %s", resp.Status)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return update.Release{}, err
+	}
+	return update.ParseLatest(body)
 }
 
 // installRelease downloads rel and self-installs it, emitting

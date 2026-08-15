@@ -186,6 +186,22 @@ export function onUpdateProgress(cb: (p: UpdateProgress) => void): () => void {
   return Events.On("update:progress", (ev) => cb(ev.data as UpdateProgress));
 }
 
+// UpdateCheck is the outcome of one release check: the newest published
+// version (when the lookup succeeded), whether it is newer than this build,
+// and the failure reason otherwise.
+export interface UpdateCheck {
+  latest?: string;
+  available: boolean;
+  error?: string;
+}
+
+// onUpdateChecked subscribes to the outcome of every update check, so the
+// About tab can answer a manual check with "up to date" / "check failed"
+// instead of staying silent whenever no install banner applies.
+export function onUpdateChecked(cb: (c: UpdateCheck) => void): () => void {
+  return Events.On("update:checked", (ev) => cb(ev.data as UpdateCheck));
+}
+
 // crashReports exposes the crash-report flow: open a prefilled GitHub issue
 // with the pending report, or discard it.
 export const crashReports = {
