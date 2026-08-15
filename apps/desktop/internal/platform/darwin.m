@@ -34,6 +34,11 @@ static int otDebug(void) {
 
 // Private API used (as AltTab does) to map an AXUIElement to its CGWindowID.
 extern AXError _AXUIElementGetWindow(AXUIElementRef element, CGWindowID *windowID);
+// Private API: build an AXUIElement for another process from a 20-byte remote
+// token (pid, 0, 'coco', AXUIElementID). The only way to reach windows absent
+// from a kAXWindowsAttribute scan, i.e. windows on other Spaces (AltTab's
+// windowByBruteForce). Returns +1 retained, or NULL for a dead id.
+extern AXUIElementRef _AXUIElementCreateWithRemoteToken(CFDataRef token);
 
 // Private CGS (SkyLight) API for Space resolution, as AltTab uses. These live in
 // CoreGraphics and link without a public header. All callers degrade to 0 when
@@ -42,7 +47,8 @@ extern AXError _AXUIElementGetWindow(AXUIElementRef element, CGWindowID *windowI
 typedef int CGSConnectionID;
 extern CGSConnectionID CGSMainConnectionID(void);
 extern uint64_t CGSGetActiveSpace(CGSConnectionID cid);
-extern CFArrayRef CGSCopySpacesForWindows(CGSConnectionID cid, int mask, CFArrayRef windowIDs);
+extern CFArrayRef CGSCopyManagedDisplaySpaces(CGSConnectionID cid);
+extern CFArrayRef CGSCopyWindowsWithOptionsAndTags(CGSConnectionID cid, uint32_t owner, CFArrayRef spaces, uint32_t options, uint64_t *setTags, uint64_t *clearTags);
 
 // ---- Helpers ----
 
@@ -78,24 +84,36 @@ static BOOL isFullscreenRect(uint32_t disp, CGFloat x, CGFloat y, CGFloat w, CGF
 
 // ---- Space helpers ----
 
-// spaceForWindow resolves the Space id containing wid via the private CGS API,
-// returning 0 when it cannot be determined (so Space filters stay inert).
-static uint64_t spaceForWindow(CGSConnectionID cid, CGWindowID wid) {
-  if (cid == 0 || wid == 0) return 0;
-  CFNumberRef num = CFNumberCreate(NULL, kCFNumberSInt32Type, &wid);
-  CFArrayRef warr = CFArrayCreate(NULL, (const void **)&num, 1, &kCFTypeArrayCallBacks);
-  uint64_t sid = 0;
-  CFArrayRef spaces = CGSCopySpacesForWindows(cid, 0x7, warr);
-  if (spaces) {
-    if (CFArrayGetCount(spaces) > 0) {
-      CFNumberRef s = (CFNumberRef)CFArrayGetValueAtIndex(spaces, 0);
-      CFNumberGetValue(s, kCFNumberSInt64Type, &sid);
+// buildWindowSpaceMap returns wid -> Space id for every window the
+// WindowServer reports on any Space. The resolution is inverted versus the
+// obvious per-window CGSCopySpacesForWindows call because that call returns an
+// empty array for most windows that are NOT on the active Space (observed on
+// macOS 26.5), which left off-Space windows tagged space=0. One
+// CGSCopyWindowsWithOptionsAndTags query per Space (AltTab's approach) is both
+// correct and cheaper: M per-Space calls instead of N per-window calls.
+// Returns nil when the private API yields nothing, so Space data degrades to 0
+// ("unknown", filters stay inert) rather than misbehaving.
+static NSDictionary<NSNumber *, NSNumber *> *buildWindowSpaceMap(CGSConnectionID cid) {
+  if (cid == 0) return nil;
+  CFArrayRef raw = CGSCopyManagedDisplaySpaces(cid);
+  if (raw == NULL) return nil;
+  NSArray *displays = (__bridge_transfer NSArray *)raw;
+  NSMutableDictionary *map = [NSMutableDictionary dictionary];
+  for (NSDictionary *display in displays) {
+    for (NSDictionary *space in display[@"Spaces"]) {
+      NSNumber *sid = space[@"id64"];
+      if (sid == nil) continue;
+      uint64_t setTags = 0, clearTags = 0;
+      CFArrayRef wins = CGSCopyWindowsWithOptionsAndTags(
+          cid, 0, (__bridge CFArrayRef)@[ sid ], 0x7, &setTags, &clearTags);
+      if (wins == NULL) continue;
+      NSArray *wids = (__bridge_transfer NSArray *)wins;
+      for (NSNumber *w in wids) {
+        if (map[w] == nil) map[w] = sid; // first Space wins
+      }
     }
-    CFRelease(spaces);
   }
-  CFRelease(warr);
-  CFRelease(num);
-  return sid;
+  return map;
 }
 
 // ---- Minimized detection ----
@@ -147,6 +165,7 @@ char *ot_list_windows_json(void) {
 
     NSSet<NSNumber *> *minimized = minimizedWindowIDs();
     CGSConnectionID cid = CGSMainConnectionID();
+    NSDictionary<NSNumber *, NSNumber *> *spaceMap = buildWindowSpaceMap(cid);
 
     int z = 0; // z-order index among included windows (0 == frontmost)
     for (NSDictionary *info in windows) {
@@ -176,7 +195,7 @@ char *ot_list_windows_json(void) {
       uint32_t screen = displayForPoint(bx + bw / 2, by + bh / 2);
       BOOL fullscreen = isFullscreenRect(screen, bx, by, bw, bh);
       BOOL isMin = wid != nil && [minimized containsObject:wid];
-      uint64_t space = spaceForWindow(cid, wid != nil ? (CGWindowID)[wid unsignedIntValue] : 0);
+      uint64_t space = wid != nil ? [spaceMap[wid] unsignedLongLongValue] : 0;
 
       [out addObject:@{
         @"id": wid ?: @0,
@@ -394,19 +413,70 @@ static AXUIElementRef copyAXWindow(uint32_t wid, int pid) {
   return found;
 }
 
-// otMakeKeyWindow posts the two SkyLight event records AltTab uses to make a
-// specific window key after its process is fronted.
+// otMakeKeyWindow posts the synthetic SkyLight event record that makes wid its
+// app's key window after the process is fronted (AltTab's current technique).
+// Only a left-mouse-DOWN is posted: on macOS 26.5 the down alone transfers key
+// focus, while a full down/up pair forms a real click that can activate window
+// content. The window-relative point at 0x20 is aimed far past any window's
+// bottom-right corner so an app that sanitizes the coordinate can't land it on
+// real UI (the old NaN point from memset 0xff was sanitized to (0,0) by some
+// apps, clicking their top-left control); the event targets the window by id
+// at 0x3c, not by this point. The buffer is 0x100 while the declared record
+// length at 0x04 stays 0xf8: macOS 14.7.4+'s CGSEncodeEventRecord reads past
+// the record and can crash on a tight allocation.
 static void otMakeKeyWindow(ProcessSerialNumber psn, uint32_t wid) {
-  uint8_t bytes[0xf8] = {0};
-  bytes[0x04] = 0xf8;
-  bytes[0x08] = 0x01;
+  uint8_t bytes[0x100] = {0};
+  CGPoint point = CGPointMake(300000, 300000);
+  bytes[0x04] = 0xf8; // declared record length
+  bytes[0x08] = 0x01; // kCGEventLeftMouseDown
   bytes[0x3a] = 0x10;
+  memcpy(&bytes[0x20], &point, sizeof(CGPoint));
   memcpy(&bytes[0x3c], &wid, sizeof(uint32_t));
-  memset(&bytes[0x20], 0xff, 0x10);
-  bytes[0x08] = 0x02;
   SLPSPostEventRecordTo(&psn, bytes);
-  bytes[0x08] = 0x01;
-  SLPSPostEventRecordTo(&psn, bytes);
+}
+
+// copyAXWindowByBruteForce resolves the AX element for a window that a fresh
+// kAXWindowsAttribute scan cannot see — a window on another Space. There is no
+// wid→element API, so it enumerates the app's AXUIElementID space through
+// remote tokens (AltTab's windowByBruteForce) until it finds the element that
+// (a) resolves to wid and (b) has the AXWindow role — descendants (buttons,
+// tab bars) resolve to the containing window's wid too, so the role gate keeps
+// scanning past them to the window root. Time-bounded: the id space is 64-bit
+// and a long-lived app's windows can sit at high ids.
+static AXUIElementRef copyAXWindowByBruteForce(uint32_t wid, int pid) {
+  uint8_t token[20] = {0};
+  int32_t pid32 = (int32_t)pid;
+  int32_t magic = 0x636f636f; // 'coco'
+  memcpy(token, &pid32, sizeof(pid32));
+  memcpy(token + 8, &magic, sizeof(magic));
+  CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
+  CFAbsoluteTime deadline = start + 0.25; // wall-clock budget, AltTab parity
+  for (uint64_t axid = 0;; axid++) {
+    memcpy(token + 12, &axid, sizeof(axid));
+    CFDataRef data = CFDataCreate(NULL, token, sizeof(token));
+    AXUIElementRef candidate = _AXUIElementCreateWithRemoteToken(data);
+    CFRelease(data);
+    if (candidate) {
+      CGWindowID cgid = 0;
+      if (_AXUIElementGetWindow(candidate, &cgid) == kAXErrorSuccess && cgid == wid) {
+        CFStringRef role = NULL;
+        if (AXUIElementCopyAttributeValue(candidate, kAXRoleAttribute, (CFTypeRef *)&role) == kAXErrorSuccess && role) {
+          BOOL isRoot = CFEqual(role, kAXWindowRole);
+          CFRelease(role);
+          if (isRoot) {
+            OTLOG("focus: brute-force found root at id=%llu after %.0fms\n",
+                  (unsigned long long)axid, (CFAbsoluteTimeGetCurrent() - start) * 1000.0);
+            return candidate;
+          }
+        }
+      }
+      CFRelease(candidate);
+    }
+    if (CFAbsoluteTimeGetCurrent() > deadline) {
+      OTLOG("focus: brute-force timeout at id=%llu\n", (unsigned long long)axid);
+      return NULL;
+    }
+  }
 }
 
 int ot_focus_window(uint32_t wid, int pid) {
@@ -421,11 +491,25 @@ int ot_focus_window(uint32_t wid, int pid) {
       otMakeKeyWindow(psn, wid);
       fronted = YES;
     }
+    OTLOG("focus: wid=%u pid=%d fronted=%d active-space=%llu\n", wid, pid, fronted,
+          (unsigned long long)ot_active_space());
     AXUIElementRef w = copyAXWindow(wid, pid);
-    if (w == NULL) return 0;
-    AXUIElementPerformAction(w, kAXRaiseAction);
-    AXUIElementSetAttributeValue(w, kAXMainAttribute, kCFBooleanTrue);
-    CFRelease(w);
+    if (w == NULL) {
+      // Cross-Space: the fresh kAXWindowsAttribute scan above only lists
+      // current-Space and minimized windows, so resolve the element by
+      // remote-token brute force instead. The raise below is what makes macOS
+      // navigate to the window's Space.
+      w = copyAXWindowByBruteForce(wid, pid);
+      OTLOG("focus: brute-force fallback %s\n", w != NULL ? "hit" : "miss");
+    }
+    BOOL raised = NO;
+    if (w != NULL) {
+      AXError raiseErr = AXUIElementPerformAction(w, kAXRaiseAction);
+      AXUIElementSetAttributeValue(w, kAXMainAttribute, kCFBooleanTrue);
+      OTLOG("focus: raise err=%d\n", (int)raiseErr);
+      CFRelease(w);
+      raised = YES;
+    }
     if (!fronted) {
       // The pid could not be resolved for SkyLight fronting (e.g. an accessory
       // process): fall back to activating the app so the window still gets
@@ -434,7 +518,7 @@ int ot_focus_window(uint32_t wid, int pid) {
           [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
       [app activateWithOptions:NSApplicationActivateIgnoringOtherApps];
     }
-    return 1;
+    return (fronted || raised) ? 1 : 0;
   }
 }
 
