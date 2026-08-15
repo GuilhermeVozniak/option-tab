@@ -7,7 +7,7 @@ test("landing page renders and exposes per-OS download links", async ({ page }) 
   const macLink = page.getByTestId("download-darwin");
   await expect(macLink).toHaveAttribute(
     "href",
-    /\/releases\/download\/v0\.3\.0\/option-tab_0\.3\.0_darwin_arm64\.dmg$/,
+    /\/releases\/download\/v0\.4\.0\/option-tab_0\.4\.0_darwin_arm64\.dmg$/,
   );
 });
 
@@ -18,7 +18,7 @@ test.describe("primary download (platform detection)", () => {
     await page.goto("/");
     const primary = page.getByTestId("primary-download");
     await expect(primary).toHaveAttribute("data-platform", "darwin");
-    await expect(primary).toHaveAttribute("href", /option-tab_0\.3\.0_darwin_arm64\.dmg$/);
+    await expect(primary).toHaveAttribute("href", /option-tab_0\.4\.0_darwin_arm64\.dmg$/);
   });
 });
 
