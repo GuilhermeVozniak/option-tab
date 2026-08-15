@@ -70,6 +70,44 @@ test.describe("preferences (#settings route)", () => {
     await expect(page.getByLabel("Reset to defaults")).toBeVisible();
   });
 
+  test("keeps the update banner global and jumps to the update settings", async ({ page }) => {
+    await page.waitForFunction(
+      () =>
+        typeof (window as unknown as { _wails?: { dispatchWailsEvent?: unknown } })._wails
+          ?.dispatchWailsEvent === "function",
+    );
+    const banner = page.getByText("Version v9.9.9 is available.");
+    // The runtime's listener registry is module-private, so a lost race shows
+    // up as the banner never appearing — dispatch until it lands.
+    await expect(async () => {
+      await page.evaluate(() => {
+        (
+          window as unknown as {
+            _wails: { dispatchWailsEvent: (e: { name: string; data: unknown }) => void };
+          }
+        )._wails.dispatchWailsEvent({
+          name: "update:available",
+          data: { version: "v9.9.9", url: "https://example.com/rel" },
+        });
+      });
+      await expect(banner).toBeVisible({ timeout: 500 });
+    }).toPass();
+
+    // App-level chrome: one banner, still there on any other tab.
+    await expect(banner).toHaveCount(1);
+    await page.getByRole("tab", { name: "Appearance" }).click();
+    await expect(banner).toBeVisible();
+
+    // Clicking it reveals the Updates section of the General tab.
+    await page.getByLabel("Show update settings").click();
+    await expect(page.getByRole("tab", { name: "General" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.getByRole("heading", { name: "Updates" })).toBeVisible();
+    await expect(page.getByLabel("Check for updates now")).toBeVisible();
+  });
+
   test("shows the About tab with the dev version fallback", async ({ page }) => {
     await page.getByRole("tab", { name: "About" }).click();
     await expect(page.getByText("Version dev")).toBeVisible();

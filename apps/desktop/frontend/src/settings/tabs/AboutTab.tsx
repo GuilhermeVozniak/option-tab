@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AboutControl, TabContext } from "../shared";
@@ -7,12 +6,11 @@ import { ACTIONS_ROW, HINT, PROJECT_URL } from "../shared";
 interface AboutTabProps {
   ctx: TabContext;
   about?: AboutControl;
-  updateBanner: ReactNode;
   openURL: (url: string) => void;
   checkUpdates: () => void;
 }
 
-export function AboutTab({ ctx, about, updateBanner, openURL, checkUpdates }: AboutTabProps) {
+export function AboutTab({ ctx, about, openURL, checkUpdates }: AboutTabProps) {
   const { t } = ctx;
   return (
     <Card>
@@ -28,7 +26,6 @@ export function AboutTab({ ctx, about, updateBanner, openURL, checkUpdates }: Ab
             "A free, open-source AltTab-style window switcher for macOS. Hold ⌥ and press ⇥ to switch windows.",
           )}
         </p>
-        {updateBanner}
         <div className={ACTIONS_ROW}>
           <Button aria-label="Open project website" onClick={() => openURL(PROJECT_URL)}>
             {t("Website / GitHub")}

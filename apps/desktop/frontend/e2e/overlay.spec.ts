@@ -17,6 +17,14 @@ test.describe("overlay — visual styles (demo route)", () => {
     });
   }
 
+  test("shows the selected-window preview under the grid", async ({ page }) => {
+    await page.goto("/#demo");
+    const preview = page.locator(".ot-preview-img");
+    await expect(preview).toBeVisible();
+    // The preview belongs to the selected entry, inside the panel.
+    await expect(page.locator(".ot-panel .ot-preview")).toHaveCount(1);
+  });
+
   test("marks the selected entry and renders status icons", async ({ page }) => {
     await page.goto("/#demo");
     await expect(page.locator(".ot-entry.ot-selected")).toHaveCount(1);
