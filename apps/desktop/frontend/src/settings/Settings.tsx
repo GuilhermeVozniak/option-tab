@@ -86,6 +86,7 @@ export function Settings({
 
   const update = about?.update;
   const progress = about?.progress;
+  const checked = about?.checked;
   const installing = progress != null && progress.stage !== "error";
   const stageText: Record<string, string> = {
     downloading: t("Downloading update…"),
@@ -111,6 +112,12 @@ export function Settings({
         {t("Install update & restart")}
       </Button>
     </div>
+  ) : checked ? (
+    <p className="my-2 text-xs leading-relaxed text-muted-foreground">
+      {checked.error
+        ? `${t("Could not check for updates.")} ${checked.error}`
+        : t("You're up to date.")}
+    </p>
   ) : null;
 
   return (

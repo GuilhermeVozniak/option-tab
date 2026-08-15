@@ -67,6 +67,7 @@ import {
   onSwitcherEvent,
   onSwitcherKey,
   onUpdateAvailable,
+  onUpdateChecked,
   onUpdateProgress,
   permissions,
   resetBackendProbeForTests,
@@ -194,6 +195,15 @@ describe("onUpdateProgress", () => {
     onUpdateProgress(cb);
     eventHandlers.get("update:progress")?.({ data: { stage: "downloading" } });
     expect(cb).toHaveBeenCalledWith({ stage: "downloading" });
+  });
+});
+
+describe("onUpdateChecked", () => {
+  it("dispatches the check outcome", () => {
+    const cb = vi.fn();
+    onUpdateChecked(cb);
+    eventHandlers.get("update:checked")?.({ data: { latest: "v1.2.3", available: false } });
+    expect(cb).toHaveBeenCalledWith({ latest: "v1.2.3", available: false });
   });
 });
 

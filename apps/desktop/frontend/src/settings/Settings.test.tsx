@@ -321,6 +321,38 @@ describe("Settings", () => {
     expect(screen.getAllByLabelText("Install update")[0]).toBeEnabled();
   });
 
+  it("reports 'up to date' when a check found nothing newer", () => {
+    render(
+      <Settings
+        settings={defaultSettings}
+        onChange={vi.fn()}
+        about={{
+          version: "0.4.1",
+          checked: { latest: "v0.4.1", available: false },
+          onOpenURL: vi.fn(),
+          onCheckUpdates: vi.fn(),
+        }}
+      />,
+    );
+    expect(screen.getAllByText("You're up to date.").length).toBeGreaterThan(0);
+  });
+
+  it("reports a failed update check with the reason", () => {
+    render(
+      <Settings
+        settings={defaultSettings}
+        onChange={vi.fn()}
+        about={{
+          version: "0.4.1",
+          checked: { available: false, error: "github releases lookup failed: 403" },
+          onOpenURL: vi.fn(),
+          onCheckUpdates: vi.fn(),
+        }}
+      />,
+    );
+    expect(screen.getAllByText(/Could not check for updates/).length).toBeGreaterThan(0);
+  });
+
   it("shows the crash banner with report and dismiss actions", () => {
     const onReport = vi.fn();
     const onDismiss = vi.fn();
