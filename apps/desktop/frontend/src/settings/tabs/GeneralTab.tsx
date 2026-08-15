@@ -203,9 +203,7 @@ export function GeneralTab({
             ))}
           </fieldset>
           <p className={HINT}>
-            {t(
-              "Auto-install downloads the new installer to your Downloads folder and opens it when an update is found.",
-            )}
+            {t("Auto-install downloads, installs, and restarts the app when an update is found.")}
           </p>
           <div className={ACTIONS_ROW}>
             <Button aria-label="Check for updates now" onClick={checkUpdates}>

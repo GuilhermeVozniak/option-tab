@@ -1,10 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	goruntime "runtime"
 	"time"
 
@@ -15,8 +15,7 @@ import (
 // appVersion is shown in the About tab.
 const appVersion = "0.3.0"
 
-// projectURL and releasesURL are the About-tab links; the free clone has no
-// auto-updater, so "check for updates" opens the releases page.
+// projectURL and releasesURL are the About-tab links.
 const (
 	projectURL  = "https://github.com/GuilhermeVozniak/option-tab"
 	releasesURL = projectURL + "/releases"
@@ -35,25 +34,45 @@ func (a *App) OpenURL(url string) {
 	}
 }
 
-// CheckForUpdates opens the releases page in the browser (manual check).
-func (a *App) CheckForUpdates() { a.OpenURL(releasesURL) }
+// CheckForUpdates runs a release check now and opens the About tab, where the
+// update banner (with the install button) appears when a newer version
+// exists. The manual check never auto-installs, even under the "auto" policy.
+func (a *App) CheckForUpdates() {
+	go a.checkForUpdate(false)
+	a.openPreferencesTab("About")
+}
+
+// InstallUpdate downloads and installs the release the update banner shows,
+// then relaunches the app. Progress rides the "update:progress" event.
+func (a *App) InstallUpdate() {
+	a.updateMu.Lock()
+	rel := a.pendingUpdate
+	a.updateMu.Unlock()
+	if rel == nil {
+		return
+	}
+	go a.installRelease(*rel)
+}
 
 // updateLoop checks for a newer release shortly after launch and then daily,
 // honoring Behavior.UpdatePolicy. A hit emits "update:available" so the
-// preferences UI can show a download banner. There is no silent auto-install:
-// the "auto" policy behaves like "check" until a signed updater exists.
+// preferences UI can show the install banner; under the "auto" policy the
+// install (and relaunch) runs without further confirmation.
 func (a *App) updateLoop() {
 	timer := time.NewTimer(10 * time.Second)
 	defer timer.Stop()
 	for range timer.C {
 		if a.settings.Behavior.UpdatePolicy != config.UpdatesOff {
-			a.checkForUpdateOnce()
+			a.checkForUpdate(a.settings.Behavior.UpdatePolicy == config.UpdatesAuto)
 		}
 		timer.Reset(24 * time.Hour)
 	}
 }
 
-func (a *App) checkForUpdateOnce() {
+// checkForUpdate fetches the latest release and, when newer, records it as
+// the pending update and emits "update:available". autoInstall triggers the
+// full self-install immediately ("auto" policy, background loop only).
+func (a *App) checkForUpdate(autoInstall bool) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(updateCheckURL)
 	if err != nil {
@@ -73,45 +92,94 @@ func (a *App) checkForUpdateOnce() {
 		return
 	}
 	dlog("update: %s available at %s", rel.Version, rel.URL)
+	a.updateMu.Lock()
+	a.pendingUpdate = &rel
+	a.updateMu.Unlock()
 	a.emit("update:available", map[string]string{"version": rel.Version, "url": rel.URL})
-	if a.settings.Behavior.UpdatePolicy == config.UpdatesAuto {
-		a.downloadAndOpenUpdate(rel)
+	if autoInstall {
+		a.installRelease(rel)
 	}
 }
 
-// downloadAndOpenUpdate fetches the release's installer for this platform into
-// ~/Downloads and opens it (mounting the dmg), the closest safe equivalent of
-// "auto-install" without a privileged updater.
-func (a *App) downloadAndOpenUpdate(rel update.Release) {
-	url := rel.AssetFor("darwin_" + goruntime.GOARCH)
-	if url == "" {
+// installRelease downloads rel and self-installs it, emitting
+// "update:progress" stages (downloading → installing → restarting; "error"
+// with a message on failure) so the preferences UI can follow along. On
+// non-macOS stub builds it falls back to opening the release page.
+func (a *App) installRelease(rel update.Release) {
+	a.updateMu.Lock()
+	if a.updateInstalling {
+		a.updateMu.Unlock()
 		return
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
+	a.updateInstalling = true
+	a.updateMu.Unlock()
+	defer func() {
+		a.updateMu.Lock()
+		a.updateInstalling = false
+		a.updateMu.Unlock()
+	}()
+
+	if goruntime.GOOS != "darwin" {
+		a.OpenURL(rel.URL)
 		return
+	}
+
+	a.emitUpdateProgress("downloading", "")
+	dmg, err := a.downloadUpdate(rel)
+	if err != nil {
+		dlog("update: download failed: %v", err)
+		a.emitUpdateProgress("error", err.Error())
+		return
+	}
+	defer func() { _ = os.Remove(dmg) }()
+
+	a.emitUpdateProgress("installing", "")
+	appPath, err := update.InstallDMG(dmg)
+	if err != nil {
+		dlog("update: install failed: %v", err)
+		a.emitUpdateProgress("error", err.Error())
+		return
+	}
+
+	dlog("update: installed %s over %s; relaunching", rel.Version, appPath)
+	a.emitUpdateProgress("restarting", "")
+	if err := update.RelaunchSelf(appPath, os.Getpid()); err != nil {
+		a.emitUpdateProgress("error", err.Error())
+		return
+	}
+	if a.wailsApp != nil {
+		a.wailsApp.Quit()
+	}
+}
+
+func (a *App) emitUpdateProgress(stage, message string) {
+	a.emit("update:progress", map[string]string{"stage": stage, "message": message})
+}
+
+// downloadUpdate fetches the release's macOS installer into a temp file and
+// returns its path; the caller removes it.
+func (a *App) downloadUpdate(rel update.Release) (string, error) {
+	url := rel.AssetFor("darwin_" + goruntime.GOARCH)
+	if url == "" {
+		return "", fmt.Errorf("update: no darwin_%s asset in %s", goruntime.GOARCH, rel.Version)
 	}
 	client := &http.Client{Timeout: 5 * time.Minute}
 	resp, err := client.Get(url)
 	if err != nil {
-		dlog("update: download failed: %v", err)
-		return
+		return "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return
+		return "", fmt.Errorf("update: download: %s", resp.Status)
 	}
-	dest := filepath.Join(home, "Downloads", filepath.Base(url))
-	f, err := os.Create(dest)
+	f, err := os.CreateTemp("", "option-tab-*.dmg")
 	if err != nil {
-		return
+		return "", err
 	}
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		_ = f.Close()
-		_ = os.Remove(dest)
-		return
+		_ = os.Remove(f.Name())
+		return "", err
 	}
-	_ = f.Close()
-	dlog("update: downloaded %s", dest)
-	a.OpenURL("file://" + dest)
+	return f.Name(), f.Close()
 }

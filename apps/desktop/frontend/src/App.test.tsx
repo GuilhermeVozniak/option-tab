@@ -34,6 +34,7 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   GetSettings: vi.fn().mockResolvedValue("{}"),
   GetPermissions: vi.fn().mockResolvedValue("{}"),
   GetVersion: vi.fn().mockResolvedValue("1.2.3"),
+  InstallUpdate: vi.fn().mockResolvedValue(undefined),
   GetCrashReport: vi.fn().mockResolvedValue(""),
 }));
 

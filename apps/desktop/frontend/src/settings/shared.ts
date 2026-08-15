@@ -22,8 +22,12 @@ export interface PermissionsControl {
 export interface AboutControl {
   version: string;
   update?: { version: string; url: string };
+  // progress is the self-installer's current stage while an update installs
+  // (downloading/installing/restarting; "error" carries a failure message).
+  progress?: { stage: string; message?: string };
   onOpenURL: (url: string) => void;
   onCheckUpdates: () => void;
+  onInstallUpdate?: () => void;
 }
 
 // CrashControl surfaces a crash log from the previous run: report opens a

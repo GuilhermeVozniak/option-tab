@@ -264,7 +264,7 @@ describe("Settings", () => {
   });
 
   it("shows the update banner when a newer release is available", () => {
-    const onOpenURL = vi.fn();
+    const onInstallUpdate = vi.fn();
     render(
       <Settings
         settings={defaultSettings}
@@ -272,14 +272,53 @@ describe("Settings", () => {
         about={{
           version: "0.1.0",
           update: { version: "v0.2.0", url: "https://example.com/rel" },
-          onOpenURL,
+          onOpenURL: vi.fn(),
           onCheckUpdates: vi.fn(),
+          onInstallUpdate,
         }}
       />,
     );
     expect(screen.getAllByText("Version v0.2.0 is available.").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getAllByLabelText("Download update")[0]);
-    expect(onOpenURL).toHaveBeenCalledWith("https://example.com/rel");
+    fireEvent.click(screen.getAllByLabelText("Install update")[0]);
+    expect(onInstallUpdate).toHaveBeenCalled();
+  });
+
+  it("shows the self-update progress and disables the install button while running", () => {
+    render(
+      <Settings
+        settings={defaultSettings}
+        onChange={vi.fn()}
+        about={{
+          version: "0.1.0",
+          update: { version: "v0.2.0", url: "https://example.com/rel" },
+          progress: { stage: "downloading" },
+          onOpenURL: vi.fn(),
+          onCheckUpdates: vi.fn(),
+          onInstallUpdate: vi.fn(),
+        }}
+      />,
+    );
+    expect(screen.getAllByText("Downloading update…").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("Install update")[0]).toBeDisabled();
+  });
+
+  it("surfaces a self-update failure in the banner and re-enables the button", () => {
+    render(
+      <Settings
+        settings={defaultSettings}
+        onChange={vi.fn()}
+        about={{
+          version: "0.1.0",
+          update: { version: "v0.2.0", url: "https://example.com/rel" },
+          progress: { stage: "error", message: "mount dmg: boom" },
+          onOpenURL: vi.fn(),
+          onCheckUpdates: vi.fn(),
+          onInstallUpdate: vi.fn(),
+        }}
+      />,
+    );
+    expect(screen.getAllByText(/Update failed\./).length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("Install update")[0]).toBeEnabled();
   });
 
   it("shows the crash banner with report and dismiss actions", () => {

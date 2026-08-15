@@ -23,6 +23,7 @@ import (
 	"option-tab/internal/mru"
 	"option-tab/internal/platform"
 	"option-tab/internal/switcher"
+	"option-tab/internal/update"
 )
 
 // selfBundleID is the switcher's own bundle id, excluded from its window list.
@@ -80,6 +81,13 @@ type App struct {
 	// the switcher can paint instantly when CaptureInBackground is enabled.
 	thumbCacheMu sync.Mutex
 	thumbCache   map[domain.WindowID]string
+
+	// updateMu guards the self-update state shared by the background checker
+	// goroutine and the frontend-triggered install: the newest release found
+	// (what the banner offers to install) and whether an install is running.
+	updateMu         sync.Mutex
+	pendingUpdate    *update.Release
+	updateInstalling bool
 }
 
 // NewApp wires production dependencies: the native platform backend and the

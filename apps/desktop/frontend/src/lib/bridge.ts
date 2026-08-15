@@ -68,6 +68,9 @@ export const system = {
   openPreferences: () => call(AppService.OpenPreferences()),
   closePreferences: () => call(AppService.ClosePreferences()),
   checkForUpdates: () => call(AppService.CheckForUpdates()),
+  // installUpdate downloads, installs, and relaunches the pending update (the
+  // one the banner shows); progress arrives via onUpdateProgress.
+  installUpdate: () => call(AppService.InstallUpdate()),
   // captureShortcut arms native chord recording (sees Command+Tab and the
   // switcher's own chord, which never reach the DOM). Resolves with the chord,
   // "" on cancel/timeout, or null when there is no backend (browser/dev) so
@@ -169,6 +172,18 @@ export interface UpdateInfo {
 // onUpdateAvailable subscribes to the Go update checker's event.
 export function onUpdateAvailable(cb: (u: UpdateInfo) => void): () => void {
   return Events.On("update:available", (ev) => cb(ev.data as UpdateInfo));
+}
+
+// UpdateProgress is one stage of the self-installer, emitted as it downloads,
+// swaps the bundle, and relaunches ("error" carries a failure message).
+export interface UpdateProgress {
+  stage: string;
+  message?: string;
+}
+
+// onUpdateProgress subscribes to the self-installer's stage events.
+export function onUpdateProgress(cb: (p: UpdateProgress) => void): () => void {
+  return Events.On("update:progress", (ev) => cb(ev.data as UpdateProgress));
 }
 
 // crashReports exposes the crash-report flow: open a prefilled GitHub issue

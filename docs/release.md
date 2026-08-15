@@ -66,7 +66,7 @@ When a new desktop release is made, update `APP_VERSION` in `apps/web/lib/downlo
 | Windows/Linux are stub builds | No native window-switching backend on those platforms yet (synthetic demo data only) |
 | Windows code signing | Optional but reduces SmartScreen warnings |
 | linux/arm64, darwin/amd64 assets | Only `darwin/arm64` is published for macOS; `UNIVERSAL=1 scripts/bundle.sh` can produce a universal binary locally |
-| Auto-update | The app checks GitHub Releases and downloads the dmg; there is no in-app updater |
+| Auto-update | macOS self-updates in place (downloads the dmg, swaps the `.app`, relaunches); Windows/Linux stub builds update manually from the releases page |
 
 ---
 
