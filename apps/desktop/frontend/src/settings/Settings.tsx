@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { makeT, resolveLang } from "../lib/i18n";
@@ -28,7 +28,10 @@ interface SettingsProps {
   permissions?: PermissionsControl;
   about?: AboutControl;
   crash?: CrashControl;
-  /** Deep-link from the menubar (e.g. "About"); applied when it changes. */
+  /**
+   * Deep-link from the menubar, either a tab ("About") or a tab and a section
+   * within it ("General#updates"); applied when it changes.
+   */
   requestedTab?: string | null;
 }
 
@@ -50,11 +53,30 @@ export function Settings({
   requestedTab,
 }: SettingsProps) {
   const [tab, setTab] = useState<Tab>("General");
+  // Updates live in a section of the General tab; the global banner and the
+  // menubar's "Check for updates…" both jump there rather than to another tab.
+  const [pendingUpdatesScroll, setPendingUpdatesScroll] = useState(false);
+  const updatesRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    if (requestedTab && (TABS as readonly string[]).includes(requestedTab)) {
-      setTab(requestedTab as Tab);
-    }
+    if (!requestedTab) return;
+    const [name, section] = requestedTab.split("#");
+    if ((TABS as readonly string[]).includes(name)) setTab(name as Tab);
+    if (section === "updates") setPendingUpdatesScroll(true);
   }, [requestedTab]);
+
+  // Scroll only once the General tab is the active one, so the section is
+  // actually on screen when it is revealed.
+  useEffect(() => {
+    if (!pendingUpdatesScroll || tab !== "General") return;
+    updatesRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    setPendingUpdatesScroll(false);
+  }, [pendingUpdatesScroll, tab]);
+
+  const showUpdateSettings = useCallback(() => {
+    setTab("General");
+    setPendingUpdatesScroll(true);
+  }, []);
   const openURL = about?.onOpenURL ?? ((url: string) => window.open(url, "_blank", "noopener"));
   const checkUpdates = about?.onCheckUpdates ?? (() => openURL(`${PROJECT_URL}/releases`));
   const t = makeT(resolveLang(settings.behavior.language));
@@ -94,14 +116,19 @@ export function Settings({
     restarting: t("Restarting…"),
   };
   const updateBanner = update ? (
-    <div className="my-2 flex flex-wrap items-center gap-3 rounded-xl border border-primary/40 bg-primary/15 px-3.5 py-2.5 text-[13px] shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-md">
-      <span>
+    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-primary/40 bg-primary/15 px-3.5 py-2.5 text-[13px] shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-md">
+      <button
+        type="button"
+        aria-label="Show update settings"
+        onClick={showUpdateSettings}
+        className="m-0 cursor-pointer border-0 bg-transparent p-0 text-left text-[13px] text-foreground underline-offset-2 hover:underline"
+      >
         {progress?.stage === "error"
           ? t("Update failed.").concat(progress.message ? ` ${progress.message}` : "")
           : installing
             ? (stageText[progress.stage] ?? t("Downloading update…"))
             : t("Version {v} is available.").replace("{v}", update.version)}
-      </span>
+      </button>
       <Button
         variant="default"
         size="sm"
@@ -112,7 +139,11 @@ export function Settings({
         {t("Install update & restart")}
       </Button>
     </div>
-  ) : checked ? (
+  ) : null;
+
+  // The check result stays in the Updates section: it answers a check the user
+  // just ran there, unlike the banner, which is app-level news.
+  const updateCheckResult = checked ? (
     <p className="my-2 text-xs leading-relaxed text-muted-foreground">
       {checked.error
         ? `${t("Could not check for updates.")} ${checked.error}`
@@ -126,6 +157,10 @@ export function Settings({
         <h1 className="m-0 mb-5 text-xl font-semibold tracking-tight">
           {t("Option Tab — Preferences")}
         </h1>
+
+        {/* App-level: an available update is news for the whole window, not for
+            one tab, so the banner sits above the tab strip and stays put. */}
+        {updateBanner}
 
         <nav
           className="mb-6 flex w-fit flex-wrap gap-1 rounded-xl border border-white/12 bg-white/6 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-xl"
@@ -154,7 +189,8 @@ export function Settings({
             ctx={ctx}
             permissions={permissions}
             crash={crash}
-            updateBanner={updateBanner}
+            updatesRef={updatesRef}
+            updateCheckResult={updateCheckResult}
             checkUpdates={checkUpdates}
           />
         </section>
@@ -171,13 +207,7 @@ export function Settings({
           <BlacklistsTab ctx={ctx} />
         </section>
         <section hidden={tab !== "About"} aria-label="About" className="space-y-4">
-          <AboutTab
-            ctx={ctx}
-            about={about}
-            updateBanner={updateBanner}
-            openURL={openURL}
-            checkUpdates={checkUpdates}
-          />
+          <AboutTab ctx={ctx} about={about} openURL={openURL} checkUpdates={checkUpdates} />
         </section>
       </div>
     </div>

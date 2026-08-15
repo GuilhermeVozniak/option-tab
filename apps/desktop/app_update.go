@@ -34,12 +34,18 @@ func (a *App) OpenURL(url string) {
 	}
 }
 
-// CheckForUpdates runs a release check now and opens the About tab, where the
-// update banner (with the install button) appears when a newer version
-// exists. The manual check never auto-installs, even under the "auto" policy.
+// updatesDeepLink targets the Updates section of the General tab, where the
+// update policy, the manual check and its result live. The preferences UI
+// parses the "<tab>#<section>" form.
+const updatesDeepLink = "General#updates"
+
+// CheckForUpdates runs a release check now and reveals the Updates section of
+// the General tab, where the check's outcome appears (the install banner is
+// app-level chrome, shown on every tab). The manual check never auto-installs,
+// even under the "auto" policy.
 func (a *App) CheckForUpdates() {
 	go a.checkForUpdate(false)
-	a.openPreferencesTab("About")
+	a.openPreferencesTab(updatesDeepLink)
 }
 
 // InstallUpdate downloads and installs the release the update banner shows,

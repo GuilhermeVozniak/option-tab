@@ -263,7 +263,7 @@ describe("Settings", () => {
     expect(screen.getByLabelText("Start at login")).toBeInTheDocument();
   });
 
-  it("shows the update banner when a newer release is available", () => {
+  it("shows a single update banner that stays visible on every tab", () => {
     const onInstallUpdate = vi.fn();
     render(
       <Settings
@@ -278,9 +278,50 @@ describe("Settings", () => {
         }}
       />,
     );
-    expect(screen.getAllByText("Version v0.2.0 is available.").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getAllByLabelText("Install update")[0]);
+    // One banner for the whole window, not one per tab panel.
+    expect(screen.getAllByText("Version v0.2.0 is available.")).toHaveLength(1);
+    expect(screen.getAllByLabelText("Install update")).toHaveLength(1);
+
+    // It is app-level chrome: switching tabs never hides it.
+    for (const tab of ["Controls", "Appearance", "Blacklists"]) {
+      fireEvent.click(screen.getByRole("tab", { name: tab }));
+      expect(screen.getByText("Version v0.2.0 is available.")).toBeInTheDocument();
+    }
+
+    fireEvent.click(screen.getByLabelText("Install update"));
     expect(onInstallUpdate).toHaveBeenCalled();
+  });
+
+  it("opens the General tab's update settings when the banner is clicked", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    render(
+      <Settings
+        settings={defaultSettings}
+        onChange={vi.fn()}
+        about={{
+          version: "0.1.0",
+          update: { version: "v0.2.0", url: "https://example.com/rel" },
+          onOpenURL: vi.fn(),
+          onCheckUpdates: vi.fn(),
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+    fireEvent.click(screen.getByLabelText("Show update settings"));
+
+    expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("deep-links to the update section on the General tab", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    render(
+      <Settings settings={defaultSettings} onChange={vi.fn()} requestedTab="General#updates" />,
+    );
+    expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
+    expect(scrollIntoView).toHaveBeenCalled();
   });
 
   it("shows the self-update progress and disables the install button while running", () => {
@@ -317,8 +358,8 @@ describe("Settings", () => {
         }}
       />,
     );
-    expect(screen.getAllByText(/Update failed\./).length).toBeGreaterThan(0);
-    expect(screen.getAllByLabelText("Install update")[0]).toBeEnabled();
+    expect(screen.getAllByText(/Update failed\./)).toHaveLength(1);
+    expect(screen.getByLabelText("Install update")).toBeEnabled();
   });
 
   it("reports 'up to date' when a check found nothing newer", () => {
