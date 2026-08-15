@@ -85,16 +85,30 @@ export function Settings({
   }
 
   const update = about?.update;
+  const progress = about?.progress;
+  const installing = progress != null && progress.stage !== "error";
+  const stageText: Record<string, string> = {
+    downloading: t("Downloading update…"),
+    installing: t("Installing update…"),
+    restarting: t("Restarting…"),
+  };
   const updateBanner = update ? (
     <div className="my-2 flex flex-wrap items-center gap-3 rounded-xl border border-primary/40 bg-primary/15 px-3.5 py-2.5 text-[13px] shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-md">
-      <span>{t("Version {v} is available.").replace("{v}", update.version)}</span>
+      <span>
+        {progress?.stage === "error"
+          ? t("Update failed.").concat(progress.message ? ` ${progress.message}` : "")
+          : installing
+            ? (stageText[progress.stage] ?? t("Downloading update…"))
+            : t("Version {v} is available.").replace("{v}", update.version)}
+      </span>
       <Button
         variant="default"
         size="sm"
-        aria-label="Download update"
-        onClick={() => openURL(update.url)}
+        aria-label="Install update"
+        disabled={installing}
+        onClick={() => about?.onInstallUpdate?.()}
       >
-        {t("Download update…")}
+        {t("Install update & restart")}
       </Button>
     </div>
   ) : null;

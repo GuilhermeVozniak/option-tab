@@ -47,6 +47,7 @@ vi.mock("../../bindings/option-tab/app.js", () => ({
   GetVersion: vi.fn().mockResolvedValue("1.2.3"),
   OpenURL: vi.fn().mockResolvedValue(undefined),
   CheckForUpdates: vi.fn().mockResolvedValue(undefined),
+  InstallUpdate: vi.fn().mockResolvedValue(undefined),
   GetCrashReport: vi.fn().mockResolvedValue(""),
   DismissCrashReport: vi.fn().mockResolvedValue(undefined),
   ReportCrash: vi.fn().mockResolvedValue(undefined),
@@ -66,6 +67,7 @@ import {
   onSwitcherEvent,
   onSwitcherKey,
   onUpdateAvailable,
+  onUpdateProgress,
   permissions,
   resetBackendProbeForTests,
   saveSettings,
@@ -186,15 +188,26 @@ describe("onUpdateAvailable", () => {
   });
 });
 
+describe("onUpdateProgress", () => {
+  it("dispatches the stage payload", () => {
+    const cb = vi.fn();
+    onUpdateProgress(cb);
+    eventHandlers.get("update:progress")?.({ data: { stage: "downloading" } });
+    expect(cb).toHaveBeenCalledWith({ stage: "downloading" });
+  });
+});
+
 describe("system bindings", () => {
   it("calls the bound Go methods", async () => {
     await system.togglePause();
     await system.setPaused(true);
     await system.closePreferences();
+    await system.installUpdate();
 
     expect(mocked.TogglePause).toHaveBeenCalled();
     expect(mocked.SetPaused).toHaveBeenCalledWith(true);
     expect(mocked.ClosePreferences).toHaveBeenCalled();
+    expect(mocked.InstallUpdate).toHaveBeenCalled();
   });
 });
 

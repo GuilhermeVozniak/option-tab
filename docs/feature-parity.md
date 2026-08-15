@@ -133,7 +133,7 @@ window is found.
 | Permissions: Accessibility prompt + open-settings | ✅ | Settings “Permissions” section shows live state + Grant / Open-Settings (Task #2, 2026-06-28) |
 | Permissions: Screen Recording prompt + open-settings | ✅ | same section; Grant triggers `CGRequestScreenCaptureAccess`, Open-Settings deep-links the privacy pane |
 | Language selection | ✅ | full i18n (Task #7): English, Português (Brasil), Español dictionaries in `lib/i18n.ts`; “System default” sniffs `navigator.language`; missing keys fall back to English; aria-labels stay English as stable identifiers |
-| Check for updates / auto-update policy | ✅ | background checker (Task #7): `internal/update` + daily GitHub releases poll honoring the policy; “update available” banner with Download in General/About; manual check opens releases. No *silent* auto-install (needs a signed updater) — “auto” behaves like “check”, stated in the UI |
+| Check for updates / auto-update policy | ✅ | background checker (Task #7): `internal/update` + daily GitHub releases poll honoring the policy; “update available” banner in General/About with one-click **Install update & restart** (downloads the dmg, swaps the .app in place, relaunches); “auto” policy installs silently; manual check opens the About tab |
 | Crash-reports policy | ✅ | real crash capture (Task #7): `internal/crash` + `debug.SetCrashOutput` write fatal panics to a local log; next launch shows a banner with Report (prefilled GitHub issue — user sees exactly what is shared) / Dismiss; policy “never” disables capture and clears leftovers |
 | About tab (version, links, feedback, support) | ✅ | About tab with Go-reported version, website/GitHub, send-feedback (issues), support + check-for-updates links (Task #6) |
 | Export / Import settings | ✅ | General tab: Export downloads JSON, Import reads a JSON file (Task #4) |
@@ -203,7 +203,6 @@ via custom `UnmarshalJSON`.
 
 Remaining known gaps (not present in these screenshots or needing new native
 work): trackpad gestures, group apps/tabs, show-apps-with-no-open-window,
-silent auto-install of updates (needs a signed updater; checks + banner exist),
 per-shortcut minimum window count, AltTab Pro skins.
 
 ### Caveat follow-up — 2026-07-04 (Task #7) ✅

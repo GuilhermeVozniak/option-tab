@@ -8,9 +8,11 @@ import {
   loadPermissions,
   loadVersion,
   onUpdateAvailable,
+  onUpdateProgress,
   permissions as permissionsApi,
   system,
   type UpdateInfo,
+  type UpdateProgress,
 } from "../lib/bridge";
 import type { Permissions } from "../lib/types";
 import type { AboutControl, CrashControl, PermissionsControl } from "../settings/Settings";
@@ -53,6 +55,7 @@ export function usePermissions(): PermissionsControl | undefined {
 export function useAbout(): AboutControl {
   const [version, setVersion] = useState("dev");
   const [update, setUpdate] = useState<UpdateInfo | undefined>(undefined);
+  const [progress, setProgress] = useState<UpdateProgress | undefined>(undefined);
   useEffect(() => {
     let active = true;
     loadVersion().then((v) => {
@@ -61,19 +64,25 @@ export function useAbout(): AboutControl {
     const off = onUpdateAvailable((u) => {
       if (active) setUpdate(u);
     });
+    const offProgress = onUpdateProgress((p) => {
+      if (active) setProgress(p);
+    });
     return () => {
       active = false;
       off();
+      offProgress();
     };
   }, []);
   return useMemo(
     () => ({
       version,
       update,
+      progress,
       onOpenURL: (url) => void system.openURL(url),
       onCheckUpdates: () => void system.checkForUpdates(),
+      onInstallUpdate: () => void system.installUpdate(),
     }),
-    [version, update],
+    [version, update, progress],
   );
 }
 

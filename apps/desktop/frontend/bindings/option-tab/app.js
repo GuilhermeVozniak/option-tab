@@ -53,7 +53,9 @@ export function CaptureShortcut() {
 }
 
 /**
- * CheckForUpdates opens the releases page in the browser (manual check).
+ * CheckForUpdates runs a release check now and opens the About tab, where the
+ * update banner (with the install button) appears when a newer version
+ * exists. The manual check never auto-installs, even under the "auto" policy.
  * @returns {$CancellablePromise<void>}
  */
 export function CheckForUpdates() {
@@ -146,6 +148,15 @@ export function Hide() {
  */
 export function HideSelectedApp() {
     return $Call.ByID(3942268823);
+}
+
+/**
+ * InstallUpdate downloads and installs the release the update banner shows,
+ * then relaunches the app. Progress rides the "update:progress" event.
+ * @returns {$CancellablePromise<void>}
+ */
+export function InstallUpdate() {
+    return $Call.ByID(2443992793);
 }
 
 /**

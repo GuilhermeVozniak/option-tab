@@ -115,6 +115,7 @@ const METHOD = {
   QuitSelectedApp: 3876391122,
   HideSelectedApp: 3942268823,
   GetVersion: 1049863377,
+  InstallUpdate: 2443992793,
 } as const;
 
 const METHOD_NAME = new Map<number, string>(Object.entries(METHOD).map(([name, id]) => [id, name]));
@@ -172,6 +173,12 @@ export async function installFakeWails(page: Page): Promise<void> {
     switch (name) {
       case "GetVersion":
         return json("0.0.0-e2e");
+      case "InstallUpdate":
+        // No real install in e2e: acknowledge and stay put.
+        await evaluate((n) => {
+          (window as any).__calls.push([n]);
+        }, name);
+        return json(null);
       case "Advance":
       case "Reverse":
       case "Select":

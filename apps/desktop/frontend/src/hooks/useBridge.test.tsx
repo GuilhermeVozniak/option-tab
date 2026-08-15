@@ -26,6 +26,7 @@ vi.mock("../../bindings/option-tab/app.js", () => ({
   GetVersion: vi.fn().mockResolvedValue("1.2.3"),
   OpenURL: vi.fn().mockResolvedValue(undefined),
   CheckForUpdates: vi.fn().mockResolvedValue(undefined),
+  InstallUpdate: vi.fn().mockResolvedValue(undefined),
   GetCrashReport: vi.fn().mockResolvedValue(""),
   ReportCrash: vi.fn().mockResolvedValue(undefined),
   DismissCrashReport: vi.fn().mockResolvedValue(undefined),
@@ -129,6 +130,15 @@ describe("useAbout", () => {
     expect(mocked.OpenURL).toHaveBeenCalledWith("https://option-tab.dev");
     result.current.onCheckUpdates();
     expect(mocked.CheckForUpdates).toHaveBeenCalledTimes(1);
+
+    // A background update:progress event flows into the hook; the install
+    // action routes to the bound Go method.
+    act(() => {
+      eventHandlers.get("update:progress")?.({ data: { stage: "installing" } });
+    });
+    expect(result.current.progress).toEqual({ stage: "installing" });
+    result.current.onInstallUpdate?.();
+    expect(mocked.InstallUpdate).toHaveBeenCalledTimes(1);
   });
 });
 
