@@ -1,4 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { APP_VERSION } from "../lib/download";
+
+// Expectations derive from APP_VERSION so a release bump cannot break them.
+const v = APP_VERSION.replaceAll(".", "\\.");
+const macDmg = new RegExp(`option-tab_${v}_darwin_arm64\\.dmg$`);
 
 test("landing page renders and exposes per-OS download links", async ({ page }) => {
   await page.goto("/");
@@ -7,7 +12,7 @@ test("landing page renders and exposes per-OS download links", async ({ page }) 
   const macLink = page.getByTestId("download-darwin");
   await expect(macLink).toHaveAttribute(
     "href",
-    /\/releases\/download\/v0\.4\.1\/option-tab_0\.4\.1_darwin_arm64\.dmg$/,
+    new RegExp(`/releases/download/v${v}/option-tab_${v}_darwin_arm64\\.dmg$`),
   );
 });
 
@@ -18,7 +23,7 @@ test.describe("primary download (platform detection)", () => {
     await page.goto("/");
     const primary = page.getByTestId("primary-download");
     await expect(primary).toHaveAttribute("data-platform", "darwin");
-    await expect(primary).toHaveAttribute("href", /option-tab_0\.4\.1_darwin_arm64\.dmg$/);
+    await expect(primary).toHaveAttribute("href", macDmg);
   });
 });
 
