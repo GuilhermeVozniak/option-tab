@@ -46,11 +46,13 @@ type App struct {
 	// setRuntime/setTray after the Wails app and windows are created. The
 	// setters are unexported so they don't become frontend bindings.
 	wailsApp *application.App
-	overlay  *application.WebviewWindow
-	prefs    *application.WebviewWindow
+	// overlay and prefs are liveness-tracked: a window macOS destroyed must
+	// never be messaged again (see liveWindow).
+	overlay *liveWindow
+	prefs   *liveWindow
 	// prefsFactory recreates the preferences window if macOS ever destroys it
 	// under us (the Wails v3 alpha has no destroyed-window probe).
-	prefsFactory func() *application.WebviewWindow
+	prefsFactory func() nativeWindow
 
 	// tray, trayMenu and pauseItem are the Wails v3 menubar pieces; nil until
 	// setTray runs (and on stub/fake test paths).
@@ -124,10 +126,10 @@ func newApp(p platform.Platform, settings config.Settings, settingsPath string) 
 
 // setRuntime injects the Wails app and the two windows. Called by main before
 // Run; unexported so it is not exposed as a frontend binding.
-func (a *App) setRuntime(wailsApp *application.App, overlay, prefs *application.WebviewWindow, prefsFactory func() *application.WebviewWindow) {
+func (a *App) setRuntime(wailsApp *application.App, overlay, prefs nativeWindow, prefsFactory func() nativeWindow) {
 	a.wailsApp = wailsApp
-	a.overlay = overlay
-	a.prefs = prefs
+	a.overlay = newLiveWindow(overlay)
+	a.prefs = newLiveWindow(prefs)
 	a.prefsFactory = prefsFactory
 }
 
