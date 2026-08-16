@@ -82,16 +82,18 @@ func (a *App) Show(st switcher.State) {
 	// Size the transparent window to the screen the Placement setting chose
 	// (resolved by the controller) so the panel appears there and lays out
 	// against the real screen size.
-	if a.overlay != nil {
+	if a.overlay.alive() {
 		if f, ok := a.platform.(platform.OverlayWindowFitter); ok {
-			f.FitOverlayToScreen(a.overlay.NativeWindow(), st.PlacementScreenID)
+			if native := a.overlay.native(); native != nil {
+				f.FitOverlayToScreen(native, st.PlacementScreenID)
+			}
 		}
 		// Re-assert the floating level on every show: Wails v3 applies
 		// AlwaysOnTop from a WindowDidBecomeKey handler, which never fires for
 		// this never-activated window, so without this it stays at normal level
 		// and slides behind other apps' windows.
-		a.overlay.SetAlwaysOnTop(true)
-		a.overlay.Show()
+		a.overlay.setAlwaysOnTop(true)
+		a.overlay.show()
 	}
 	a.emitCachedThumbnails(st)
 	a.captureThumbnails(st)
@@ -116,9 +118,7 @@ func (a *App) Hide() {
 	atomic.AddInt64(&a.thumbGen, 1) // invalidate any in-flight thumbnail capture
 	a.platform.Hotkeys().SetOpen(false)
 	a.emit("switcher:hide", nil)
-	if a.overlay != nil {
-		a.overlay.Hide()
-	}
+	a.overlay.hide()
 	// Clicking the overlay activates the app (a plain NSWindow can't avoid it);
 	// drop that activation so focus returns to the previously active app.
 	if act, ok := a.platform.(platform.AppActivator); ok {

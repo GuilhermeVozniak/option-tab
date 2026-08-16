@@ -49,22 +49,24 @@ func (a *App) OpenPreferences() {
 // via the factory if the native window was destroyed under us — the Wails v3
 // alpha has no destroyed-window probe, so a recovered panic is the only signal.
 func (a *App) showPrefsWindow() {
-	w := a.prefs
-	if w == nil && a.prefsFactory != nil {
-		w = a.prefsFactory()
-		a.prefs = w
+	// A window macOS destroyed is retired by markPrefsClosedIf; build a fresh
+	// one rather than messaging the dead one (which would abort the process).
+	if !a.prefs.alive() && a.prefsFactory != nil {
+		a.prefs = newLiveWindow(a.prefsFactory())
 	}
+	w := a.prefs.get()
 	if w == nil {
 		return
 	}
 	if !tryShowWindow(w) && a.prefsFactory != nil {
-		w = a.prefsFactory()
-		a.prefs = w
-		tryShowWindow(w)
+		a.prefs = newLiveWindow(a.prefsFactory())
+		if next := a.prefs.get(); next != nil {
+			tryShowWindow(next)
+		}
 	}
 }
 
-func tryShowWindow(w *application.WebviewWindow) (ok bool) {
+func tryShowWindow(w nativeWindow) (ok bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			dlog("prefs window Show/Focus panicked (window destroyed?): %v", r)
@@ -86,9 +88,7 @@ func (a *App) ClosePreferences() {
 // opens over an open preferences window and on WindowClosing).
 func (a *App) closePreferencesWindow() {
 	a.prefsOpen = false
-	if a.prefs != nil {
-		a.prefs.Hide()
-	}
+	a.prefs.hide()
 	if h, ok := a.platform.(platform.DockHider); ok {
 		h.HideDockIcon()
 	}

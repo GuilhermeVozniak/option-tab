@@ -66,7 +66,7 @@ func main() {
 	// window (the app keeps running as a menu-bar accessory) and drop the Dock
 	// icon that opening preferences added. The factory lets OpenPreferences
 	// recreate the window if it was ever destroyed anyway.
-	makePrefs := func() *application.WebviewWindow {
+	makePrefs := func() nativeWindow {
 		prefs := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 			Title:  "Option Tab",
 			Width:  900,
@@ -81,8 +81,16 @@ func main() {
 			e.Cancel()
 			app.closePreferencesWindow()
 		})
+		// If macOS destroys the window anyway, retire it: messaging a destroyed
+		// window aborts the process, so the next open builds a fresh one.
+		prefs.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
+			app.markPrefsClosedIf(prefs)
+		})
 		return prefs
 	}
+	overlay.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
+		app.markOverlayClosed()
+	})
 	app.setRuntime(wailsApp, overlay, makePrefs(), makePrefs)
 
 	// --- Menubar tray ---
