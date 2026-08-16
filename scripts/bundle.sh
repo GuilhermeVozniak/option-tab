@@ -59,6 +59,12 @@ iconutil -c icns "$ICONSET" -o "$BIN_DIR/iconfile.icns"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$PLIST" "$APP/Contents/Info.plist"
+# Stamp the release version into the bundle. The committed plist is only the
+# fallback VERSION source above; without this the bundle keeps whatever
+# version was last hand-edited there (0.4.2 and 0.4.3 both shipped reporting
+# 0.4.1 to Finder, Get Info and anything else reading the bundle).
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist"
 cp "$BIN_DIR/option-tab" "$APP/Contents/MacOS/option-tab"
 cp "$BIN_DIR/iconfile.icns" "$APP/Contents/Resources/"
 
