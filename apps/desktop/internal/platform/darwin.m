@@ -728,6 +728,13 @@ void ot_window_fit_screen(void *win, uint32_t displayID) {
   dispatch_async(dispatch_get_main_queue(), ^{
     NSWindow *w = (__bridge NSWindow *)win;
     if (w == nil) return;
+    // Wails applies Mac.DisableShadow to a hidden window from a
+    // WindowDidBecomeKey handler, which never fires for this never-activated
+    // window — so the native shadow stays on. On macOS 26 that shadow draws a
+    // dark rounded rim around the panel (the transparent window's opaque
+    // content), visible as a black outline on dark wallpapers. Re-assert it
+    // here on every show, like App.Show already does for AlwaysOnTop.
+    w.hasShadow = NO;
     NSScreen *s = w.screen ?: [NSScreen mainScreen];
     if (displayID != 0) {
       for (NSScreen *cand in [NSScreen screens]) {
