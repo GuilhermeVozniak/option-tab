@@ -128,6 +128,18 @@ func main() {
 	wailsApp.Event.OnApplicationEvent(events.Mac.ApplicationDidFinishLaunching, func(*application.ApplicationEvent) {
 		app.startup()
 	})
+	// Launching the app while it is already running (Spotlight, Finder, `open`)
+	// does not start a second process: Launch Services sends the running app a
+	// reopen event. Wails' built-in reopen listener would Show() EVERY hidden
+	// window — including the invisible switcher overlay, which then floats
+	// always-on-top over the preferences window and swallows its mouse input.
+	// Hooks run before listeners, so cancel the event and route the reopen to
+	// the same path as the tray's Settings… item instead.
+	wailsApp.Event.RegisterApplicationEventHook(events.Mac.ApplicationShouldHandleReopen, func(e *application.ApplicationEvent) {
+		e.Cancel()
+		dlog("reopen: opening preferences")
+		app.OpenPreferences()
+	})
 
 	if err := wailsApp.Run(); err != nil {
 		slog.Error("app exited", "err", err)
