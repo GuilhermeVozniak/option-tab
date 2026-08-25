@@ -129,6 +129,14 @@ void ot_hotkey_stop(void);
 // modifier state (covers the "when released: do nothing" mode).
 void ot_hotkey_set_open(int open);
 
+// Focus observation: watches real focus changes (app activations via
+// NSWorkspace, in-app window switches via per-app AX observers) and delivers
+// the focused window's CGWindowID to Go via the exported goFocusEvent. Runs on
+// the main run loop; requires Accessibility (degrades to a no-op without it);
+// focus events for option-tab itself are filtered out. Idempotent; observers
+// live for the process lifetime (goFocusEvent drops safely after engine close).
+void ot_focus_observer_start(void);
+
 // One-shot chord recording for the preferences UI: while armed, the next
 // modifier+key press anywhere is delivered to goHotkeyCaptured (and consumed)
 // instead of being processed as a hotkey — including chords the webview never

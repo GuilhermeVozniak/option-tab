@@ -572,3 +572,76 @@ func TestActivate_MRUOrderAfterConfirm(t *testing.T) {
 		t.Errorf("confirmed window should lead the MRU order, got %v", ids(st.Entries))
 	}
 }
+
+func TestNoteFocus_ReordersMRU(t *testing.T) {
+	c, _, v := newController(t, threeWins(), nil)
+
+	// The user clicks into window 2, then window 3, outside the switcher.
+	c.NoteFocus(2)
+	c.NoteFocus(3)
+
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	got := ids(v.last().Entries)
+	if len(got) != 3 || got[0] != 3 || got[1] != 2 {
+		t.Errorf("entries = %v, want [3 2 1] (recency from NoteFocus)", got)
+	}
+}
+
+func TestNoteFocus_IgnoredWhileOpen(t *testing.T) {
+	c, _, v := newController(t, threeWins(), nil)
+	c.NoteFocus(2) // 2 is most recent before the switcher opens
+
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	c.NoteFocus(3) // e.g. a stray activation echo while cycling: must not reorder
+	c.Cancel()
+
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if len(v.shows) != 2 {
+		t.Fatalf("expected 2 Shows, got %d", len(v.shows))
+	}
+	got := ids(v.shows[1].Entries)
+	if len(got) != 3 || got[0] != 2 {
+		t.Errorf("entries = %v, want 2 first (NoteFocus while open ignored)", got)
+	}
+}
+
+func TestNoteFocus_ZeroIgnored(t *testing.T) {
+	c, _, _ := newController(t, threeWins(), nil)
+	c.NoteFocus(0)
+	if n := c.deps.MRU.Len(); n != 0 {
+		t.Errorf("MRU.Len = %d after NoteFocus(0), want 0", n)
+	}
+}
+
+func TestNoteFocus_BeatsStaleConfirm(t *testing.T) {
+	// Regression for MRU poisoning: a window confirmed through the switcher
+	// once must not outrank windows the user has since focused by clicking.
+	c, _, v := newController(t, threeWins(), nil)
+
+	// Confirm window 3 via the switcher.
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	idx := -1
+	for i, e := range v.last().Entries {
+		if e.WindowID == 3 {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		t.Fatalf("window 3 missing from entries %+v", v.last().Entries)
+	}
+	c.Select(idx)
+	c.Confirm()
+
+	// The user then clicks into 1, then 2, outside the switcher.
+	c.NoteFocus(1)
+	c.NoteFocus(2)
+
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if len(v.shows) != 2 {
+		t.Fatalf("expected 2 Shows, got %d", len(v.shows))
+	}
+	got := ids(v.shows[1].Entries)
+	if len(got) != 3 || got[0] != 2 || got[1] != 1 || got[2] != 3 {
+		t.Errorf("entries = %v, want [2 1 3] (clicks beat the stale confirm)", got)
+	}
+}

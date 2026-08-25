@@ -344,6 +344,19 @@ func (c *Controller) Confirm() {
 	c.deps.View.Hide()
 }
 
+// NoteFocus records a focus change that happened outside the switcher (a
+// click, the Dock, Spotlight, the OS's own ⌘Tab) into the MRU tracker, so
+// "recently focused" ordering reflects reality. Events are ignored while the
+// overlay is open: mid-cycle reordering would make the visible list jump, and
+// Confirm already Touches the window it focuses (the activation echo of that
+// focus arrives here a beat later — re-touching the same id is a no-op).
+func (c *Controller) NoteFocus(id domain.WindowID) {
+	if id == 0 || c.IsOpen() {
+		return
+	}
+	c.deps.MRU.Touch(id)
+}
+
 // Cancel closes the overlay without changing focus.
 func (c *Controller) Cancel() {
 	c.mu.Lock()

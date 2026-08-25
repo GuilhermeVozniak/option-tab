@@ -250,6 +250,12 @@ int ot_window_pid(uint32_t wid) {
 static pid_t gLastRealFrontPid = 0;
 static BOOL gFrontObserverInstalled = NO;
 
+// From the focus-observation section below; the activation observer doubles
+// as the lazy (re)install + report hook once focus tracking is on.
+static BOOL gFocusObserverStarted; // tentative; defined below
+static void otInstallAXObserver(pid_t pid);
+static void otReportFocusedWindowOfApp(pid_t pid);
+
 static void otInstallFrontObserver(void) {
   if (gFrontObserverInstalled) return;
   gFrontObserverInstalled = YES;
@@ -266,6 +272,15 @@ static void otInstallFrontObserver(void) {
     NSRunningApplication *app = note.userInfo[NSWorkspaceApplicationKey];
     if (app && app.processIdentifier != self) {
       gLastRealFrontPid = app.processIdentifier;
+      // Focus tracking rides on the same notification (gated so the eager
+      // install from ot_active_app_pid never emits before Go is listening):
+      // (re)install the app's AX observer lazily — covers apps launched after
+      // start and apps that were not AX-ready earlier — and report the window
+      // this activation focused.
+      if (gFocusObserverStarted) {
+        otInstallAXObserver(app.processIdentifier);
+        otReportFocusedWindowOfApp(app.processIdentifier);
+      }
     }
   }];
 }
@@ -280,6 +295,120 @@ int ot_active_app_pid(void) {
     }
     return (int)app.processIdentifier;
   }
+}
+
+// ---- Focus observation (MRU feed) ----
+
+// Real focus changes (clicks, the Dock, Spotlight, the OS's own ⌘Tab) must
+// reach the Go MRU tracker, or "recently focused" ordering only reflects
+// switches made through the overlay. Two sources cover the space, as AltTab
+// does: NSWorkspaceDidActivateApplicationNotification for app-level switches
+// (piggybacked on the front observer above) and a per-app AXObserver on
+// kAXFocusedWindowChangedNotification for window switches within an app. Both
+// resolve the focused window to its CGWindowID and hand it to goFocusEvent,
+// which appends to the Go-side event queue and never blocks.
+//
+// All state here is touched only on the main thread — NSWorkspace notification
+// blocks and AXObserver callbacks are delivered on the main run loop, and
+// ot_focus_observer_start dispatches its body there — so no locking is needed.
+extern void goFocusEvent(uint32_t wid);
+
+static BOOL gFocusObserverStarted = NO; // declared above for the front observer
+static NSMutableDictionary<NSNumber *, id> *gAXObservers = nil; // pid → AXObserverRef
+
+// otReportFocusedWindowOfApp resolves pid's focused window and reports it.
+// Failure is silent: an app that is not AX-ready yet (just launched) gets its
+// first real focus reported by its AXObserver instead.
+static void otReportFocusedWindowOfApp(pid_t pid) {
+  if (!AXIsProcessTrusted()) return;
+  AXUIElementRef axApp = AXUIElementCreateApplication(pid);
+  if (!axApp) return;
+  // A hung app must not stall the main thread for the default 6s.
+  AXUIElementSetMessagingTimeout(axApp, 1.0);
+  AXUIElementRef win = NULL;
+  if (AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute, (CFTypeRef *)&win) == kAXErrorSuccess && win) {
+    CGWindowID wid = 0;
+    if (_AXUIElementGetWindow(win, &wid) == kAXErrorSuccess && wid != 0) {
+      OTLOG("focusobs: report pid=%d wid=%u\n", pid, wid);
+      goFocusEvent(wid);
+    }
+    CFRelease(win);
+  }
+  CFRelease(axApp);
+}
+
+// otAXFocusCallback fires on kAXFocusedWindowChangedNotification; element IS
+// the newly focused window, so a single _AXUIElementGetWindow resolves it — no
+// second AX round trip. refcon carries the pid as a fallback for elements that
+// fail to resolve (rare: some AX-hostile apps hand back odd elements).
+static void otAXFocusCallback(AXObserverRef obs, AXUIElementRef element,
+                              CFStringRef notification, void *refcon) {
+  CGWindowID wid = 0;
+  if (_AXUIElementGetWindow(element, &wid) == kAXErrorSuccess && wid != 0) {
+    OTLOG("focusobs: ax pid=%d wid=%u\n", (int)(intptr_t)refcon, wid);
+    goFocusEvent(wid);
+    return;
+  }
+  otReportFocusedWindowOfApp((pid_t)(intptr_t)refcon);
+}
+
+// otInstallAXObserver subscribes to pid's focused-window changes. Idempotent.
+// Failure (app not AX-ready yet, AXObserverCreate error) is a silent skip: the
+// activation observer retries on the app's next activation, no timers needed.
+static void otInstallAXObserver(pid_t pid) {
+  if (!AXIsProcessTrusted()) return;
+  if (pid == [[NSProcessInfo processInfo] processIdentifier]) return;
+  if (!gAXObservers) gAXObservers = [NSMutableDictionary dictionary];
+  if (gAXObservers[@(pid)]) return;
+  AXObserverRef obs = NULL;
+  if (AXObserverCreate(pid, otAXFocusCallback, &obs) != kAXErrorSuccess || !obs) return;
+  AXUIElementRef axApp = AXUIElementCreateApplication(pid);
+  if (!axApp) { CFRelease(obs); return; }
+  AXUIElementSetMessagingTimeout(axApp, 1.0);
+  AXError err = AXObserverAddNotification(obs, axApp, kAXFocusedWindowChangedNotification, (void *)(intptr_t)pid);
+  CFRelease(axApp); // the registration lives in the AX server, not this token
+  if (err != kAXErrorSuccess) { CFRelease(obs); return; }
+  CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), kCFRunLoopDefaultMode);
+  gAXObservers[@(pid)] = (__bridge_transfer id)obs; // dict owns Create's +1
+  OTLOG("focusobs: installed pid=%d\n", pid);
+}
+
+static void otRemoveAXObserver(pid_t pid) {
+  id boxed = gAXObservers[@(pid)];
+  if (!boxed) return;
+  AXObserverRef obs = (__bridge AXObserverRef)boxed;
+  CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(obs), kCFRunLoopDefaultMode);
+  [gAXObservers removeObjectForKey:@(pid)]; // ARC releases the observer
+  OTLOG("focusobs: removed pid=%d\n", pid);
+}
+
+void ot_focus_observer_start(void) {
+  // Main-queue machinery, unlike ot_hotkey_start's dedicated tap thread: the
+  // AX observer run-loop sources must live where the callbacks are serviced.
+  dispatch_async(dispatch_get_main_queue(), ^{
+    if (gFocusObserverStarted) return;
+    gFocusObserverStarted = YES;
+    otInstallFrontObserver(); // shared with active-app tracking; idempotent
+    // Observe every running regular app now; apps launched later are picked
+    // up lazily by the activation block in otInstallFrontObserver.
+    for (NSRunningApplication *app in [[NSWorkspace sharedWorkspace] runningApplications]) {
+      if (app.activationPolicy != NSApplicationActivationPolicyRegular) continue;
+      otInstallAXObserver(app.processIdentifier);
+    }
+    [[[NSWorkspace sharedWorkspace] notificationCenter]
+        addObserverForName:NSWorkspaceDidTerminateApplicationNotification
+                    object:nil
+                     queue:nil
+                usingBlock:^(NSNotification *note) {
+      NSRunningApplication *app = note.userInfo[NSWorkspaceApplicationKey];
+      if (app) otRemoveAXObserver(app.processIdentifier);
+    }];
+    // Seed the MRU with the currently focused window so the first activation
+    // after launch already has one true recency entry (the alternative —
+    // seeding the whole z-order — would erase the tracked/untracked split the
+    // ordering relies on).
+    if (gLastRealFrontPid != 0) otReportFocusedWindowOfApp(gLastRealFrontPid);
+  });
 }
 
 // ---- Environment: Spaces & screens ----

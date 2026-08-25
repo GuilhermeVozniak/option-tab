@@ -49,7 +49,8 @@ type Fake struct {
 	RequestCalls         []platform.PermKind
 	loginEnabled         bool
 
-	engine *hotkeyEngine
+	engine  *hotkeyEngine
+	focusCh chan domain.WindowID
 }
 
 // New returns a Fake with sensible empty defaults and one screen/space active.
@@ -62,6 +63,7 @@ func New() *Fake {
 		AccessibilityState:   platform.PermGranted,
 		ScreenRecordingState: platform.PermGranted,
 		engine:               newHotkeyEngine(),
+		focusCh:              make(chan domain.WindowID, 64),
 	}
 }
 
@@ -231,6 +233,12 @@ func (f *Fake) Hotkeys() platform.HotkeyEngine { return f.engine }
 
 // EmitHotkey pushes an event onto the engine's channel for tests.
 func (f *Fake) EmitHotkey(ev platform.HotkeyEvent) { f.engine.emit(ev) }
+
+// FocusEvents implements platform.FocusEventSource.
+func (f *Fake) FocusEvents() <-chan domain.WindowID { return f.focusCh }
+
+// EmitFocus pushes a focus-change event onto the channel for tests.
+func (f *Fake) EmitFocus(id domain.WindowID) { f.focusCh <- id }
 
 // hotkeyEngine is a buffered-channel fake of platform.HotkeyEngine.
 type hotkeyEngine struct {

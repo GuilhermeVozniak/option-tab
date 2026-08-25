@@ -54,6 +54,15 @@ type CursorWarper interface {
 	WarpCursorToWindow(domain.WindowID) error
 }
 
+// FocusEventSource streams the id of the window that gained focus through any
+// means outside the switcher (clicking, Dock, Spotlight, the OS's own ⌘Tab).
+// The MRU tracker consumes these so "recently focused" ordering reflects
+// reality, not just switches made through the overlay. Optional: only the
+// native macOS backend implements it.
+type FocusEventSource interface {
+	FocusEvents() <-chan domain.WindowID
+}
+
 // Environment reports the current foreground context used for filtering.
 type Environment interface {
 	ActiveApp() domain.AppID
