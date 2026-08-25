@@ -46,6 +46,19 @@ func (a *App) hotkeyLoop() {
 	}
 }
 
+// focusLoop feeds real focus changes (clicks, Dock, Spotlight, the OS's own
+// ⌘Tab) from the platform into the MRU tracker, so "recently focused"
+// ordering reflects reality instead of only switches made through the overlay.
+func (a *App) focusLoop() {
+	src, ok := a.platform.(platform.FocusEventSource)
+	if !ok {
+		return // backend without focus observation (stub)
+	}
+	for id := range src.FocusEvents() {
+		a.controller.NoteFocus(id)
+	}
+}
+
 // keyLoop forwards raw key presses the native tap captured while the overlay
 // was open to the frontend. The overlay window never becomes key (the app is
 // not activated on show), so this is the overlay's only keyboard source.

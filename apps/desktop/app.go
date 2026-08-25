@@ -183,6 +183,7 @@ func (a *App) startup() {
 	a.registerHotkeys()
 	go a.hotkeyLoop()
 	go a.keyLoop()
+	go a.focusLoop()
 	go a.updateLoop()
 	go a.backgroundCaptureLoop()
 }

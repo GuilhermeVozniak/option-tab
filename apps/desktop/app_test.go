@@ -260,6 +260,25 @@ func TestHotkeyLoop_ActivatesController(t *testing.T) {
 	})
 }
 
+func TestFocusLoop_TouchesMRU(t *testing.T) {
+	p := fake.New()
+	p.SetWindows(appTestWindows())
+	a := newApp(p, config.Default(), filepath.Join(t.TempDir(), "settings.json"))
+	go a.focusLoop()
+
+	// A real (outside-the-switcher) focus change must reach the MRU: the
+	// focused window then leads the list on the next activation. Focus events
+	// are dropped while the overlay is open, so each poll iteration re-emits
+	// before a synchronous activate/snapshot/cancel round.
+	pollUntil(t, time.Second, "focus event to lead MRU order", func() bool {
+		p.EmitFocus(2)
+		a.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+		st := a.controller.State()
+		a.controller.Cancel()
+		return len(st.Entries) > 0 && st.Entries[0].WindowID == 2
+	})
+}
+
 func TestCapture_GuardsSkipPlatformCalls(t *testing.T) {
 	p := &thumbnailRecorderPlatform{Fake: fake.New()}
 	a := newApp(p, config.Default(), "")

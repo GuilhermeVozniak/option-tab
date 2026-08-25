@@ -60,9 +60,10 @@ type rawWindow struct {
 
 // zOrderBase anchors the synthetic LastFocused timestamps derived from window
 // z-order. It sits far below the MRU tracker's reference point (time.Unix(1<<31))
-// so any window the user has explicitly switched to in-session still sorts ahead
-// of a z-order-only guess, while z-order still gives a real recency signal for
-// windows that have never been touched through the switcher.
+// so any window with a real focus event in-session (clicks and app switches
+// observed by ot_focus_observer_start, plus switcher confirms) sorts ahead of a
+// z-order-only guess, while z-order still gives a recency signal for windows
+// never focused since launch.
 var zOrderBase = time.Unix(1_000_000_000, 0) // 2001-09-09 UTC
 
 // mapRawWindows is the pure translation from the native JSON payload to domain
@@ -293,6 +294,13 @@ func (p *darwinPlatform) WarpCursorToWindow(id domain.WindowID) error {
 	return nil
 }
 
+// FocusEvents implements platform.FocusEventSource. Events flow once the
+// hotkey engine starts (registerHotkeys at startup runs before the consuming
+// focusLoop goroutine); like Keys, this does not start the engine itself.
+func (p *darwinPlatform) FocusEvents() <-chan domain.WindowID {
+	return p.hotkeys.focusCh
+}
+
 func permFromC(v C.int) PermState {
 	if v == 1 {
 		return PermGranted
@@ -357,8 +365,10 @@ func (q *eventQueue[T]) close() {
 type darwinHotkeys struct {
 	events   *eventQueue[HotkeyEvent]
 	keys     *eventQueue[KeyEvent]
+	focus    *eventQueue[domain.WindowID]
 	eventsCh chan HotkeyEvent
 	keysCh   chan KeyEvent
+	focusCh  chan domain.WindowID
 	started  bool
 }
 
@@ -366,8 +376,10 @@ func newDarwinHotkeys() *darwinHotkeys {
 	return &darwinHotkeys{
 		events:   newEventQueue[HotkeyEvent](),
 		keys:     newEventQueue[KeyEvent](),
+		focus:    newEventQueue[domain.WindowID](),
 		eventsCh: make(chan HotkeyEvent, 8),
 		keysCh:   make(chan KeyEvent, 32),
+		focusCh:  make(chan domain.WindowID, 16),
 	}
 }
 
@@ -400,7 +412,18 @@ func (h *darwinHotkeys) ensureStarted() {
 			h.keysCh <- ev
 		}
 	}()
+	go func() {
+		for {
+			id, ok := h.focus.pop()
+			if !ok {
+				close(h.focusCh)
+				return
+			}
+			h.focusCh <- id
+		}
+	}()
 	C.ot_hotkey_start()
+	C.ot_focus_observer_start()
 	h.started = true
 }
 
@@ -443,6 +466,7 @@ func (h *darwinHotkeys) Close() error {
 	C.ot_hotkey_stop()
 	h.events.close()
 	h.keys.close()
+	h.focus.close()
 	return nil
 }
 
@@ -569,6 +593,14 @@ func goKeyEvent(keycode C.int, flags C.uint64_t, text *C.char) {
 		return
 	}
 	activeEngine.keys.push(keyEventFromTap(uint16(keycode), uint64(flags), C.GoString(text)))
+}
+
+//export goFocusEvent
+func goFocusEvent(wid C.uint32_t) {
+	if activeEngine == nil {
+		return
+	}
+	activeEngine.focus.push(domain.WindowID(wid))
 }
 
 // specialKeys maps macOS virtual keycodes to the DOM KeyboardEvent.key names
