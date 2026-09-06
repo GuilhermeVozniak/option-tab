@@ -744,28 +744,21 @@ describe("Settings", () => {
     }
   });
 
-  it("imports settings from a JSON file and ignores malformed files", async () => {
+  it("delegates imports before changing settings and shows import failures", async () => {
     const onChange = vi.fn();
-    const { container } = render(<Settings settings={defaultSettings} onChange={onChange} />);
+    const onImport = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      <Settings settings={defaultSettings} onChange={onChange} onImport={onImport} />,
+    );
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(input).not.toBeNull();
-
-    const imported = { ...defaultSettings, order: "alphabetical" as const };
-    const good = new File([JSON.stringify(imported)], "settings.json", {
-      type: "application/json",
-    });
-    // jsdom's File may lack .text(); provide it on the instance.
-    Object.defineProperty(good, "text", {
-      value: () => Promise.resolve(JSON.stringify(imported)),
-    });
-    fireEvent.change(input, { target: { files: [good] } });
-    await waitFor(() => expect(onChange).toHaveBeenCalledWith(imported));
-
-    onChange.mockClear();
-    const bad = new File(["{not json"], "settings.json", { type: "application/json" });
-    Object.defineProperty(bad, "text", { value: () => Promise.resolve("{not json") });
-    fireEvent.change(input, { target: { files: [bad] } });
-    await new Promise((r) => setTimeout(r, 0));
+    const file = new File(["{}"], "settings.json", { type: "application/json" });
+    Object.defineProperty(file, "text", { value: () => Promise.resolve("{}") });
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(onImport).toHaveBeenCalledWith("{}"));
+    expect(onChange).not.toHaveBeenCalled();
+    onImport.mockRejectedValueOnce(new Error("invalid document"));
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("invalid document"));
     expect(onChange).not.toHaveBeenCalled();
   });
 

@@ -68,8 +68,9 @@ func (a *App) updateLoop() {
 	timer := time.NewTimer(10 * time.Second)
 	defer timer.Stop()
 	for range timer.C {
-		if a.settings.Behavior.UpdatePolicy != config.UpdatesOff {
-			a.checkForUpdate(a.settings.Behavior.UpdatePolicy == config.UpdatesAuto)
+		policy := a.settingsSnapshot().Behavior.UpdatePolicy
+		if policy != config.UpdatesOff {
+			a.checkForUpdate(policy == config.UpdatesAuto)
 		}
 		timer.Reset(24 * time.Hour)
 	}

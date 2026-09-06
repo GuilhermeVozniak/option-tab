@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -11,28 +13,59 @@ import (
 
 // GetSettings returns the current settings as JSON for the preferences UI.
 func (a *App) GetSettings() string {
-	b, err := json.Marshal(a.settings)
+	b, err := json.Marshal(a.settingsSnapshot())
 	if err != nil {
 		return "{}"
 	}
 	return string(b)
 }
 
-// SaveSettings validates, applies, and persists settings from the preferences
-// UI, then re-registers hotkeys to reflect any chord changes.
+// settingsSnapshot copies the slice-backed fields so callers cannot mutate
+// shared settings after the read lock has been released.
+func (a *App) settingsSnapshot() config.Settings {
+	a.settingsMu.RLock()
+	defer a.settingsMu.RUnlock()
+	s := a.settings
+	s.Shortcuts = slices.Clone(s.Shortcuts)
+	s.Filters.AppBlacklist = slices.Clone(s.Filters.AppBlacklist)
+	return s
+}
+
+// SaveSettings serializes saves and publishes only successfully persisted settings.
 func (a *App) SaveSettings(jsonStr string) error {
 	s, err := config.Load(strings.NewReader(jsonStr))
 	if err != nil {
 		return err
 	}
-	if s.Behavior.StartAtLogin != a.settings.Behavior.StartAtLogin {
-		_ = a.platform.SetEnabled(s.Behavior.StartAtLogin)
+	a.saveMu.Lock()
+	defer a.saveMu.Unlock()
+	return a.saveSettingsLocked(s)
+}
+
+// saveSettingsLocked requires saveMu. Platform and disk failures leave the
+// currently published settings unchanged.
+func (a *App) saveSettingsLocked(s config.Settings) error {
+	previous := a.settingsSnapshot()
+	loginChanged := s.Behavior.StartAtLogin != previous.Behavior.StartAtLogin
+	if loginChanged {
+		if err := a.platform.SetEnabled(s.Behavior.StartAtLogin); err != nil {
+			return fmt.Errorf("settings: start at login: %w", err)
+		}
 	}
-	a.settings = s
-	a.controller.SetSettings(s)
 	if a.settingsPath != "" {
-		_ = config.SaveFile(a.settingsPath, s)
+		if err := config.SaveFile(a.settingsPath, s); err != nil {
+			if loginChanged {
+				if rollbackErr := a.platform.SetEnabled(previous.Behavior.StartAtLogin); rollbackErr != nil {
+					return fmt.Errorf("%w; restoring start at login failed: %v", err, rollbackErr)
+				}
+			}
+			return err
+		}
 	}
+	a.settingsMu.Lock()
+	a.settings = s
+	a.settingsMu.Unlock()
+	a.controller.SetSettings(s)
 	a.reRegisterHotkeys()
 	a.syncTray()
 	return nil

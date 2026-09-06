@@ -24,7 +24,7 @@ func (a *App) setupCrashCapture() {
 	if dir == "" {
 		return
 	}
-	if a.settings.Behavior.CrashReports == config.CrashNever {
+	if a.settingsSnapshot().Behavior.CrashReports == config.CrashNever {
 		_ = crash.Dismiss(dir)
 		return
 	}
@@ -40,7 +40,7 @@ func (a *App) setupCrashCapture() {
 // none (or the policy is "never").
 func (a *App) GetCrashReport() string {
 	dir := a.crashDir()
-	if dir == "" || a.settings.Behavior.CrashReports == config.CrashNever {
+	if dir == "" || a.settingsSnapshot().Behavior.CrashReports == config.CrashNever {
 		return ""
 	}
 	return crash.Pending(dir)

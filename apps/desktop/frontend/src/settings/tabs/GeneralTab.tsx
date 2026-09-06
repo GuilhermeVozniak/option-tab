@@ -1,4 +1,4 @@
-import { type ReactNode, type RefObject, useRef } from "react";
+import { type ReactNode, type RefObject, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -9,7 +9,6 @@ import {
   type CrashPolicy,
   defaultSettings,
   type MenubarIconStyle,
-  type Settings as SettingsModel,
   type UpdatePolicy,
 } from "../../lib/types";
 import { PermissionRow } from "../PermissionRow";
@@ -32,6 +31,7 @@ interface GeneralTabProps {
   /** Outcome of the last check ("up to date" / "could not check"). */
   updateCheckResult: ReactNode;
   checkUpdates: () => void;
+  onImport?: (text: string) => Promise<void>;
 }
 
 export function GeneralTab({
@@ -41,8 +41,10 @@ export function GeneralTab({
   updatesRef,
   updateCheckResult,
   checkUpdates,
+  onImport,
 }: GeneralTabProps) {
   const { settings, t, onChange, patchBehavior } = ctx;
+  const [importError, setImportError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const exportSettings = () => {
@@ -58,18 +60,15 @@ export function GeneralTab({
       // Download is unavailable (e.g. in tests); ignore.
     }
   };
-  const importFile = (file: File | undefined) => {
+  const importFile = async (file: File | undefined) => {
     if (!file) return;
-    file
-      .text()
-      .then((txt) => {
-        try {
-          onChange(JSON.parse(txt) as SettingsModel);
-        } catch {
-          // Ignore malformed files; the Go layer also validates on save.
-        }
-      })
-      .catch(() => {});
+    try {
+      if (!onImport) throw new Error("Import settings in the desktop app.");
+      await onImport(await file.text());
+      setImportError(null);
+    } catch (error) {
+      setImportError(`Could not import settings: ${String(error)}`);
+    }
   };
 
   return (
@@ -257,6 +256,11 @@ export function GeneralTab({
           <CardTitle>{t("Settings file")}</CardTitle>
         </CardHeader>
         <CardContent>
+          {importError ? (
+            <p role="alert" className="text-red-300">
+              {importError}
+            </p>
+          ) : null}
           <div className={ACTIONS_ROW}>
             <Button aria-label="Export settings" onClick={exportSettings}>
               {t("Export…")}
@@ -276,7 +280,10 @@ export function GeneralTab({
               type="file"
               accept="application/json,.json"
               hidden
-              onChange={(e) => importFile(e.target.files?.[0])}
+              onChange={(e) => {
+                void importFile(e.target.files?.[0]);
+                e.target.value = "";
+              }}
             />
           </div>
         </CardContent>
