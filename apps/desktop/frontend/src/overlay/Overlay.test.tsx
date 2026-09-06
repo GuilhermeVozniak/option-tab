@@ -76,6 +76,7 @@ const noopHandlers = () => ({
   onAdvance: vi.fn(),
   onReverse: vi.fn(),
   onConfirm: vi.fn(),
+  onConfirmWindow: vi.fn(),
   onCancel: vi.fn(),
   onSelect: vi.fn(),
   onSearchChange: vi.fn(),
@@ -177,14 +178,26 @@ describe("Overlay", () => {
     expect(screen.getByText(/term/)).toBeInTheDocument();
   });
 
-  it("selects on hover and confirms on click", () => {
+  it("selects on hover and confirms the clicked window by id", () => {
     const h = noopHandlers();
     render(<Overlay state={stateWith({})} handlers={h} />);
     const second = screen.getByText("GitHub").closest('[role="option"]') as HTMLElement;
     fireEvent.mouseEnter(second);
     expect(h.onSelect).toHaveBeenCalledWith(1);
     fireEvent.click(second);
-    expect(h.onConfirm).toHaveBeenCalled();
+    expect(h.onConfirmWindow).toHaveBeenCalledWith(2);
+    expect(h.onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("confirms a clicked unselected window when hover selection is disabled", () => {
+    const h = noopHandlers();
+    render(<Overlay state={stateWith({ selected: 0, mouseHover: false })} handlers={h} />);
+    const second = screen.getByText("GitHub").closest('[role="option"]') as HTMLElement;
+    fireEvent.mouseEnter(second);
+    expect(h.onSelect).not.toHaveBeenCalled();
+    fireEvent.click(second);
+    expect(h.onConfirmWindow).toHaveBeenCalledWith(2);
+    expect(h.onConfirm).not.toHaveBeenCalled();
   });
 
   it("fires window controls without confirming", () => {

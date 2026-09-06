@@ -108,6 +108,7 @@ const METHOD = {
   Select: 149583269,
   SetSearch: 1454005219,
   Confirm: 3228319335,
+  ConfirmWindow: 3813603255,
   Cancel: 2191755235,
   CloseSelected: 2868361114,
   MinimizeSelected: 1240045732,
@@ -201,13 +202,17 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json(null);
       }
       case "Confirm":
+      case "ConfirmWindow":
       case "Cancel": {
-        await evaluate((n) => {
-          const w = window as any;
-          w.__calls.push([n]);
-          w.__state = { ...w.__state, open: false };
-          w._wails?.dispatchWailsEvent?.({ name: "switcher:hide", data: null });
-        }, name);
+        await evaluate(
+          ([n, a]) => {
+            const w = window as any;
+            w.__calls.push(a === undefined ? [n] : [n, a]);
+            w.__state = { ...w.__state, open: false };
+            w._wails?.dispatchWailsEvent?.({ name: "switcher:hide", data: null });
+          },
+          [name, args[0]],
+        );
         return json(null);
       }
       case "CloseSelected":
@@ -255,4 +260,10 @@ export async function emitShow(page: Page, state: ShowState): Promise<void> {
 // getCalls returns the recorded bound-method names, in order.
 export async function getCalls(page: Page): Promise<string[]> {
   return page.evaluate(() => ((window as any).__calls || []).map((c: unknown[]) => c[0] as string));
+}
+
+// getCallRecords returns method names with their arguments for assertions
+// where the target ID is part of the behavior under test.
+export async function getCallRecords(page: Page): Promise<unknown[][]> {
+  return page.evaluate(() => (window as any).__calls || []);
 }

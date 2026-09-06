@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"option-tab/internal/config"
+	"option-tab/internal/domain"
 	"option-tab/internal/hotkey"
 	"option-tab/internal/platform"
 	"option-tab/internal/switcher"
@@ -300,9 +301,12 @@ func (a *App) enrichIcons(st *switcher.State) {
 
 // ---- Bound controller actions (called from the frontend) ----
 
-func (a *App) Advance()            { a.controller.Advance() }
-func (a *App) Reverse()            { a.controller.Reverse() }
-func (a *App) Confirm()            { a.controller.Confirm() }
+func (a *App) Advance() { a.controller.Advance() }
+func (a *App) Reverse() { a.controller.Reverse() }
+func (a *App) Confirm() { a.controller.Confirm() }
+
+func (a *App) ConfirmWindow(id uint64) { a.controller.ConfirmWindow(domain.WindowID(id)) }
+
 func (a *App) Cancel()             { a.controller.Cancel() }
 func (a *App) Select(index int)    { a.controller.Select(index) }
 func (a *App) SetSearch(q string)  { a.controller.SetSearch(q) }

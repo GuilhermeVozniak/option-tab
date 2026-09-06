@@ -293,6 +293,68 @@ func TestConfirm_NoCursorWarpByDefault(t *testing.T) {
 	}
 }
 
+func TestConfirmWindow_FocusesRequestedWindowRegardlessOfSelection(t *testing.T) {
+	c, f, v := newController(t, threeWins(), func(s *config.Settings) {
+		s.Behavior.CursorFollowFocus = true
+	})
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+
+	// Activation selects window 2. A click on window 3 must carry its own ID
+	// instead of depending on a preceding asynchronous Select call.
+	c.ConfirmWindow(3)
+
+	if got := f.LastFocused; got != 3 {
+		t.Errorf("focused window = %d, want clicked window 3", got)
+	}
+	if c.IsOpen() {
+		t.Error("switcher should close after confirming a clicked window")
+	}
+	if v.hides != 1 {
+		t.Errorf("expected 1 Hide, got %d", v.hides)
+	}
+	if len(f.WarpCalls) != 1 || f.WarpCalls[0] != 3 {
+		t.Errorf("cursor should warp to clicked window 3, got %v", f.WarpCalls)
+	}
+
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if got := ids(v.shows[1].Entries); len(got) != 3 || got[0] != 3 {
+		t.Errorf("entries = %v, want clicked window 3 first in MRU order", got)
+	}
+}
+
+func TestConfirmWindow_MissingIDDoesNotFocusCurrentSelection(t *testing.T) {
+	tests := []struct {
+		name    string
+		id      domain.WindowID
+		prepare func(*Controller)
+	}{
+		{name: "zero", id: 0},
+		{name: "unknown", id: 99},
+		{name: "filtered_out", id: 3, prepare: func(c *Controller) { c.SetSearch("a") }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, f, v := newController(t, threeWins(), nil)
+			c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+			if tt.prepare != nil {
+				tt.prepare(c)
+			}
+
+			c.ConfirmWindow(tt.id)
+
+			if len(f.FocusCalls) != 0 {
+				t.Errorf("missing clicked id must not focus current selection, got %v", f.FocusCalls)
+			}
+			if c.IsOpen() {
+				t.Error("switcher should close after the click is consumed")
+			}
+			if v.hides != 1 {
+				t.Errorf("expected 1 Hide, got %d", v.hides)
+			}
+		})
+	}
+}
+
 func TestActivate_PerShortcutOrderOverride(t *testing.T) {
 	wins := []domain.Window{
 		{ID: 1, AppID: 1, AppName: "Zed", Title: "z", OnScreen: true, SpaceID: 1, ScreenID: 1},

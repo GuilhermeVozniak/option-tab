@@ -64,7 +64,7 @@ export function EntryItem({
       aria-selected={selected}
       className={`ot-entry ot-entry-${style}${selected ? " ot-selected" : ""}`}
       onMouseEnter={mouseHover ? () => handlers.onSelect(index) : undefined}
-      onClick={() => handlers.onConfirm()}
+      onClick={() => handlers.onConfirmWindow(entry.windowId)}
       style={{ maxWidth }}
     >
       {style === "thumbnails" ? (

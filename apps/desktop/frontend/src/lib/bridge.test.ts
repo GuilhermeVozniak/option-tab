@@ -25,6 +25,7 @@ vi.mock("../../bindings/option-tab/app.js", () => ({
   Advance: vi.fn().mockResolvedValue(undefined),
   Reverse: vi.fn().mockResolvedValue(undefined),
   Confirm: vi.fn().mockResolvedValue(undefined),
+  ConfirmWindow: vi.fn().mockResolvedValue(undefined),
   Cancel: vi.fn().mockResolvedValue(undefined),
   Select: vi.fn().mockResolvedValue(undefined),
   SetSearch: vi.fn().mockResolvedValue(undefined),
@@ -107,6 +108,7 @@ describe("switcher bindings", () => {
     await switcher.setSearch("hi");
     await switcher.reverse();
     await switcher.confirm();
+    await switcher.confirmWindow(42);
     await switcher.cancel();
     await switcher.closeSelected();
     await switcher.minimizeSelected();
@@ -119,6 +121,7 @@ describe("switcher bindings", () => {
     expect(mocked.SetSearch).toHaveBeenCalledWith("hi");
     expect(mocked.Reverse).toHaveBeenCalledTimes(1);
     expect(mocked.Confirm).toHaveBeenCalledTimes(1);
+    expect(mocked.ConfirmWindow).toHaveBeenCalledWith(42);
     expect(mocked.Cancel).toHaveBeenCalledTimes(1);
     expect(mocked.CloseSelected).toHaveBeenCalledTimes(1);
     expect(mocked.MinimizeSelected).toHaveBeenCalledTimes(1);
