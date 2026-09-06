@@ -106,7 +106,7 @@ func (p *darwinPlatform) Windows() ([]domain.Window, error) {
 	if err := json.Unmarshal([]byte(data), &raws); err != nil {
 		return nil, err
 	}
-	return mapRawWindows(raws), nil
+	return retiredWindows.filter(mapRawWindows(raws), nativeRetirementInventory, nativeWindowReappeared), nil
 }
 
 func (p *darwinPlatform) Focus(id domain.WindowID) error {

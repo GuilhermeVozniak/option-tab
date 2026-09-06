@@ -13,3 +13,6 @@ void smoke_warp(double x,double y);
 char *smoke_fixture_surfaces(int pid);
 
 void smoke_tracking_diagnostic(void *host);
+int smoke_ax_destroy_watch(int pid, uint32_t window);
+int smoke_ax_destroy_count(void);
+void smoke_ax_destroy_stop(void);

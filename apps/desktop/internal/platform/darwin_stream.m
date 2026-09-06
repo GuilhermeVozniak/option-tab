@@ -1,5 +1,6 @@
 //go:build darwin
 #import "darwin_stream.h"
+#import "darwin_retirement.h"
 #import "darwin.h"
 #import <ApplicationServices/ApplicationServices.h>
 extern AXError _AXUIElementGetWindow(AXUIElementRef element,
@@ -10,10 +11,13 @@ extern AXError _AXUIElementGetWindow(AXUIElementRef element,
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
 extern void goStreamFrame(uint64_t token, char *data);
 extern void goStreamDone(uint64_t token);
-extern void goStreamUnavailable(uint64_t token);
+extern void goStreamDestroyed(uint64_t token);
 
 @interface OTWindowStream : NSObject <SCStreamOutput, SCStreamDelegate>
 @property uint64_t token;
+@property int ownerPID;
+@property uint64_t startSec;
+@property uint64_t startUsec;
 @property SCStream *stream;
 @property CIContext *images;
 @property BOOL stopped;
@@ -102,7 +106,7 @@ static void windowDestroyed(AXObserverRef observer, AXUIElementRef element,
   dispatch_async(controlQueue(), ^{
     OTWindowStream *s = sessions()[@(token)];
     if (s && !s.stopped) {
-      goStreamUnavailable(token);
+      goStreamDestroyed(token);
       stopSession(s);
     }
   });
@@ -111,7 +115,8 @@ static void windowDestroyed(AXObserverRef observer, AXUIElementRef element,
 // absence in an app-wide enumeration (which can omit windows on other Spaces).
 static void observeWindow(OTWindowStream *s, uint32_t window) {
   pid_t owner = ot_window_pid(window);
-  if (owner <= 0 || !AXIsProcessTrusted())
+  if (owner <= 0 || !AXIsProcessTrusted() ||
+      !ot_retirement_matches(window, s.ownerPID, s.startSec, s.startUsec))
     return;
   AXUIElementRef app = AXUIElementCreateApplication(owner);
   AXUIElementSetMessagingTimeout(app, 0.15);
@@ -124,15 +129,19 @@ static void observeWindow(OTWindowStream *s, uint32_t window) {
       AXUIElementRef target =
           (AXUIElementRef)CFArrayGetValueAtIndex(windows, i);
       CGWindowID identifier = 0;
+      pid_t targetOwner = 0;
       if (_AXUIElementGetWindow(target, &identifier) != kAXErrorSuccess ||
-          identifier != window)
+          identifier != window ||
+          AXUIElementGetPid(target, &targetOwner) != kAXErrorSuccess ||
+          targetOwner != owner)
         continue;
       AXObserverRef observer = NULL;
       if (AXObserverCreate(owner, windowDestroyed, &observer) ==
           kAXErrorSuccess) {
         if (AXObserverAddNotification(
                 observer, target, kAXUIElementDestroyedNotification,
-                (void *)(uintptr_t)s.token) == kAXErrorSuccess) {
+                (void *)(uintptr_t)s.token) == kAXErrorSuccess &&
+            ot_retirement_matches(window, s.ownerPID, s.startSec, s.startUsec)) {
           s.observer = observer;
           s.observedWindow = (AXUIElementRef)CFRetain(target);
           CFRunLoopAddSource(observationLoop(),
@@ -192,7 +201,8 @@ static void observeWindow(OTWindowStream *s, uint32_t window) {
   }
 }
 @end
-void ot_stream_start(uint64_t token, uint32_t window, int maxpx) {
+void ot_stream_start(uint64_t token, uint32_t window, int maxpx, int pid,
+                     uint64_t startSec, uint64_t startUsec) {
   dispatch_async(controlQueue(), ^{
     if (@available(macOS 12.3, *)) {
       if (!CGPreflightScreenCaptureAccess()) {
@@ -201,6 +211,9 @@ void ot_stream_start(uint64_t token, uint32_t window, int maxpx) {
       }
       OTWindowStream *s = [OTWindowStream new];
       s.token = token;
+      s.ownerPID = pid;
+      s.startSec = startSec;
+      s.startUsec = startUsec;
       s.images = [CIContext contextWithOptions:nil];
       sessions()[@(token)] = s;
       observeWindow(s, window);

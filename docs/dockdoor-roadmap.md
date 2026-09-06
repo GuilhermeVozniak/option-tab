@@ -29,7 +29,7 @@ Bulk close/minimize and cache lifecycle are implemented with remaining native li
 
 App grouping, running windowless apps, independent mode settings, Dock hover previews, exact preview focus/actions, independent Dock appearance and scoped pointer/capture transport are implemented. Required lint, unit/race, production build and browser checks pass. Disposable native fixtures have proved real Dock hover, nonactivating Close against the exact second preview, windowless application activation, and bounded capture returning to idle.
 
-Acceptance remains partial for the broader native matrix: actual shortcut delivery, other-Space focus, all physical Dock/display configurations, restart, lock and permission transitions are not established by the combined harness. C04 still needs configurable spacing, and C06 retains a confirmed stale-entry limitation for deliberately retained closed NSWindows. See [the app/Dock validation report](superpowers/reports/2026-09-06-app-groups-and-dock-previews.md). Unchecked IDs continue to distinguish implementation from completed acceptance.
+Acceptance remains partial for the broader native matrix: actual shortcut delivery, other-Space focus, all physical Dock/display configurations, restart, lock and permission transitions are not established by the combined harness. C04 spacing implementation is in progress. A [positive window-retirement follow-up](superpowers/reports/2026-09-06-positive-window-retirement.md) fixes deliberately retained closed NSWindows when exact AX destruction was observed; broader C06 coverage remains incomplete. See [the app/Dock validation report](superpowers/reports/2026-09-06-app-groups-and-dock-previews.md). Unchecked IDs continue to distinguish implementation from completed acceptance.
 
 ## A. Window actions
 
@@ -43,7 +43,7 @@ Acceptance remains partial for the broader native matrix: actual shortcut delive
 ## B. Switcher improvements
 
 - [ ] B01 App-grouped Command+Tab mode: one icon per app and the selected app's window preview.
-- [ ] B02 Include running apps without windows in app mode.
+- [x] B02 Include running apps without windows in app mode.
 - [ ] B03 Separate app-switcher and window-switcher appearance/behavior settings.
 - [x] B04 Configurable physical-key window-action bindings with conflict validation.
 - [x] B05 Configurable middle-click actions, defaulting to close where enabled.

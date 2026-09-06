@@ -38,3 +38,95 @@ void smoke_tracking_diagnostic(void *host) {onMain(^{
  }[queue addObjectsFromArray:v.subviews];}
  }
  });}
+
+// Independent, test-only exact-destruction evidence. All state belongs to main.
+// The callback carries only an integer generation; it never inspects the
+// destroyed AX object or reads identity from it.
+static AXObserverRef smokeDestroyObserver;
+static AXUIElementRef smokeDestroyWindow;
+static uint64_t smokeDestroyGeneration;
+static int smokeDestroyPID;
+static uint32_t smokeDestroyWindowID;
+static int smokeDestroyCount;
+static void smoke_destroyed(AXObserverRef observer, AXUIElementRef element,
+                            CFStringRef notification, void *context) {
+  (void)observer;
+  (void)element;
+  if ((uint64_t)(uintptr_t)context != smokeDestroyGeneration ||
+      !smokeDestroyObserver ||
+      !CFEqual(notification, kAXUIElementDestroyedNotification))
+    return;
+  smokeDestroyCount++;
+  printf("AX DESTROYED token=%llu pid=%d window=%u count=%d\n",
+         (unsigned long long)smokeDestroyGeneration, smokeDestroyPID,
+         smokeDestroyWindowID, smokeDestroyCount);
+  fflush(stdout);
+}
+void smoke_ax_destroy_stop(void) {
+  onMain(^{
+    if (smokeDestroyObserver) {
+      CFRunLoopRemoveSource(CFRunLoopGetMain(),
+          AXObserverGetRunLoopSource(smokeDestroyObserver), kCFRunLoopCommonModes);
+      if (smokeDestroyWindow && !smokeDestroyCount)
+        AXObserverRemoveNotification(smokeDestroyObserver, smokeDestroyWindow,
+                                     kAXUIElementDestroyedNotification);
+      CFRelease(smokeDestroyObserver);
+      smokeDestroyObserver = NULL;
+    }
+    if (smokeDestroyWindow) {
+      CFRelease(smokeDestroyWindow);
+      smokeDestroyWindow = NULL;
+    }
+    smokeDestroyGeneration++;
+  });
+}
+int smoke_ax_destroy_watch(int pid, uint32_t window) {
+  smoke_ax_destroy_stop();
+  __block AXError result = kAXErrorNoValue;
+  onMain(^{
+    smokeDestroyPID = pid;
+    smokeDestroyWindowID = window;
+    smokeDestroyCount = 0;
+    AXUIElementRef app = AXUIElementCreateApplication(pid);
+    AXUIElementSetMessagingTimeout(app, 0.2);
+    CFTypeRef value = NULL;
+    result = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute, &value);
+    if (result == kAXErrorSuccess && value && CFGetTypeID(value) == CFArrayGetTypeID()) {
+      CFArrayRef windows = (CFArrayRef)value;
+      result = kAXErrorNoValue;
+      CFIndex count = MIN(CFArrayGetCount(windows), 32);
+      for (CFIndex i = 0; i < count; i++) {
+        AXUIElementRef candidate = (AXUIElementRef)CFArrayGetValueAtIndex(windows, i);
+        AXUIElementSetMessagingTimeout(candidate, 0.1);
+        CGWindowID candidateID = 0;
+        pid_t candidatePID = 0;
+        if (_AXUIElementGetWindow(candidate, &candidateID) != kAXErrorSuccess ||
+            candidateID != window || AXUIElementGetPid(candidate, &candidatePID) != kAXErrorSuccess ||
+            candidatePID != pid)
+          continue;
+        result = AXObserverCreate(pid, smoke_destroyed, &smokeDestroyObserver);
+        if (result == kAXErrorSuccess) {
+          smokeDestroyWindow = (AXUIElementRef)CFRetain(candidate);
+          result = AXObserverAddNotification(smokeDestroyObserver, candidate,
+              kAXUIElementDestroyedNotification, (void *)(uintptr_t)smokeDestroyGeneration);
+          if (result == kAXErrorSuccess)
+            CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(smokeDestroyObserver),
+                               kCFRunLoopCommonModes);
+        }
+        break;
+      }
+    }
+    if (value) CFRelease(value);
+    CFRelease(app);
+    printf("AX REGISTER token=%llu pid=%d window=%u result=%d\n",
+           (unsigned long long)smokeDestroyGeneration, pid, window, result);
+    fflush(stdout);
+  });
+  if (result != kAXErrorSuccess) smoke_ax_destroy_stop();
+  return result;
+}
+int smoke_ax_destroy_count(void) {
+  __block int count = 0;
+  onMain(^{ count = smokeDestroyCount; });
+  return count;
+}

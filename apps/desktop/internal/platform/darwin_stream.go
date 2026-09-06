@@ -24,6 +24,7 @@ type streamDelivery struct {
 	done        chan struct{}
 	once        sync.Once
 	unavailable atomic.Bool
+	observation windowObservation
 }
 
 var (
@@ -42,10 +43,12 @@ func goStreamFrame(token C.uint64_t, data *C.char) {
 	}
 }
 
-//export goStreamUnavailable
-func goStreamUnavailable(token C.uint64_t) {
+//export goStreamDestroyed
+func goStreamDestroyed(token C.uint64_t) {
 	if v, ok := streamRegistry.Load(uint64(token)); ok {
-		v.(*streamDelivery).unavailable.Store(true)
+		s := v.(*streamDelivery)
+		retiredWindows.destroyed(s.observation)
+		s.unavailable.Store(true)
 	}
 }
 
@@ -68,10 +71,12 @@ func (p *darwinPlatform) StreamWindow(ctx context.Context, id domain.WindowID, p
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	token := streamToken.Add(1)
-	s := &streamDelivery{frames: make(chan string, 1), done: make(chan struct{})}
+	identity := nativeWindowIdentity(id)
+	s := &streamDelivery{frames: make(chan string, 1), done: make(chan struct{}), observation: retiredWindows.observe(identity)}
+	defer retiredWindows.finish(s.observation)
 	streamRegistry.Store(token, s)
 	defer streamRegistry.Delete(token)
-	C.ot_stream_start(C.uint64_t(token), C.uint32_t(id), C.int(px))
+	C.ot_stream_start(C.uint64_t(token), C.uint32_t(id), C.int(px), C.int(identity.PID), C.uint64_t(identity.StartSec), C.uint64_t(identity.StartUsec))
 	for {
 		select {
 		case url := <-s.frames:

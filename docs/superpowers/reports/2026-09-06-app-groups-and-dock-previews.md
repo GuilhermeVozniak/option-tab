@@ -37,6 +37,8 @@ Repeatable native runners: [app inventory](../../../apps/desktop/internal/platfo
 
 The combined runner does not produce an overall PASS: its stale-window inventory assertion remains red in both the deliberately retained and owner-release fixture variants. Dropping the owner array reference did not establish actual `NSWindow` deallocation. The last-document-close/windowless activation stage was therefore not reached in this combined runner; the separate inventory fixture evidence remains distinct.
 
+The later [positive window-retirement fix](2026-09-06-positive-window-retirement.md) resolves the observed retained-window regression and passes the combined last-document gate. The limitations below describe the original checkpoint; the follow-up report states current observed-root coverage.
+
 ## Limits and outstanding acceptance
 
 - Both available displays report scale 1. Mixed-scale/Retina placement, physical display disconnect, and negative-origin combinations require additional hardware validation.

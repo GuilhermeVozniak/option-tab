@@ -34,10 +34,11 @@ var assets embed.FS
 
 type smokePlatform struct {
 	platform.Platform
-	allowed     map[domain.AppID]bool
-	windows     map[domain.WindowID]bool
-	active, max atomic.Int64
-	frames      atomic.Int64
+	allowed                    map[domain.AppID]bool
+	windows                    map[domain.WindowID]bool
+	active, max                atomic.Int64
+	frames                     atomic.Int64
+	windowActive, windowFrames sync.Map
 }
 
 func (p *smokePlatform) Windows() ([]domain.Window, error) {
@@ -149,6 +150,12 @@ func (p *smokePlatform) StreamWindow(ctx context.Context, w domain.WindowID, px 
 	if e := p.guard(w); e != nil {
 		return e
 	}
+	activeValue, _ := p.windowActive.LoadOrStore(w, &atomic.Int64{})
+	activeCounter := activeValue.(*atomic.Int64)
+	activeCounter.Add(1)
+	defer activeCounter.Add(-1)
+	frameValue, _ := p.windowFrames.LoadOrStore(w, &atomic.Int64{})
+	frameCounter := frameValue.(*atomic.Int64)
 	n := p.active.Add(1)
 	for {
 		old := p.max.Load()
@@ -157,7 +164,7 @@ func (p *smokePlatform) StreamWindow(ctx context.Context, w domain.WindowID, px 
 		}
 	}
 	defer p.active.Add(-1)
-	err := p.Platform.(platform.WindowStreamSource).StreamWindow(ctx, w, px, func(s string) { p.frames.Add(1); frame(s) })
+	err := p.Platform.(platform.WindowStreamSource).StreamWindow(ctx, w, px, func(s string) { p.frames.Add(1); frameCounter.Add(1); frame(s) })
 	fmt.Printf("STREAM END window=%d error=%v context=%v\n", w, err, ctx.Err())
 	return err
 }
@@ -441,6 +448,8 @@ func runSmoke(app *App, p *smokePlatform, probe *SmokeProbe, overlay *applicatio
 	app.viewMu.Lock()
 	bounds = app.dockState.Bounds
 	app.viewMu.Unlock()
+	C.smoke_activate(C.int(empty))
+	time.Sleep(100 * time.Millisecond)
 	fmt.Printf("NATIVE CLOSE point=%g,%g foreground=%d expected=%d target=%d\n", bounds.X+point.X, bounds.Y+point.Y, C.smoke_foreground(), empty, second.ID)
 	if int(C.smoke_foreground()) != empty {
 		return fmt.Errorf("foreground changed before close")
@@ -475,9 +484,17 @@ func runSmoke(app *App, p *smokePlatform, probe *SmokeProbe, overlay *applicatio
 	var mx, my C.double
 	C.smoke_pointer(&mx, &my)
 	fmt.Printf("CLOSE POINTER %g,%g\n", float64(mx), float64(my))
+	if result := C.smoke_ax_destroy_watch(C.int(pid), C.uint32_t(second.ID)); result != 0 {
+		return fmt.Errorf("exact AXDestroyed registration failed: %d", result)
+	}
+	defer C.smoke_ax_destroy_stop()
 	if out, err := exec.Command("/opt/homebrew/bin/cliclick", fmt.Sprintf("c:%d,%d", int(bounds.X+point.X), int(bounds.Y+point.Y))).CombinedOutput(); err != nil {
 		return fmt.Errorf("cliclick click: %w %s", err, out)
 	}
+	if e := waitSmoke("independent exact AXDestroyed", func() bool { return C.smoke_ax_destroy_count() > 0 }); e != nil {
+		return e
+	}
+	fmt.Printf("AX DESTROYED VERIFIED window=%d foreground=%d expected=%d\n", second.ID, C.smoke_foreground(), empty)
 	if e := waitSmoke("second closed", func() bool { ws := fixtureDocuments(p); return len(ws) == 1 && ws[0].ID == first.ID }); e != nil {
 		diag, _ := reportDOM(host(), probe, "({events:window.__smokeClicks,error:document.querySelector('[role=alert]')?.textContent})")
 		fmt.Println("CLICK EVENTS", diag)
@@ -495,6 +512,19 @@ func runSmoke(app *App, p *smokePlatform, probe *SmokeProbe, overlay *applicatio
 		return fmt.Errorf("close stole foreground")
 	}
 	fmt.Printf("CLOSE exact=%d foreground=%d preserved\n", second.ID, C.smoke_foreground())
+	if e := waitSmoke("closed stream and cache retired", func() bool {
+		v, ok := p.windowActive.Load(second.ID)
+		return ok && v.(*atomic.Int64).Load() == 0 && app.captures.Cached()[second.ID] == ""
+	}); e != nil {
+		return e
+	}
+	count, _ := p.windowFrames.Load(second.ID)
+	before := count.(*atomic.Int64).Load()
+	time.Sleep(250 * time.Millisecond)
+	if count.(*atomic.Int64).Load() != before {
+		return fmt.Errorf("closed window emitted another frame")
+	}
+	fmt.Printf("CLOSED CAPTURE window=%d frames=%d active=0 cached=false stable250ms\n", second.ID, before)
 	// Close remaining fixture explicitly; the running app must remain in grouping.
 	if e := p.Close(first.ID); e != nil {
 		return e
