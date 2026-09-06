@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { emitShow, getCalls, installFakeWails, showState } from "./support/fakeWails";
+import {
+  emitShow,
+  getCallRecords,
+  getCalls,
+  installFakeWails,
+  showState,
+} from "./support/fakeWails";
 
 // ---- Static rendering via the built-in #demo route (no backend needed) ----
 test.describe("overlay — visual styles (demo route)", () => {
@@ -95,10 +101,12 @@ test.describe("overlay — interactive", () => {
     expect(await getCalls(page)).toContain("Cancel");
   });
 
-  test("clicking an entry confirms the selection", async ({ page }) => {
-    await emitShow(page, showState({}));
+  test("clicking an unselected entry confirms its window when hover selection is disabled", async ({
+    page,
+  }) => {
+    await emitShow(page, showState({ selected: 0, mouseHover: false }));
     await page.getByRole("option").nth(1).click();
-    expect(await getCalls(page)).toContain("Confirm");
+    expect(await getCallRecords(page)).toContainEqual(["ConfirmWindow", 2]);
   });
 
   test("hover controls call the matching window/app actions", async ({ page }) => {

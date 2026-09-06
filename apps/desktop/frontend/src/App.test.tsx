@@ -23,6 +23,7 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   Advance: vi.fn().mockResolvedValue(undefined),
   Reverse: vi.fn().mockResolvedValue(undefined),
   Confirm: vi.fn().mockResolvedValue(undefined),
+  ConfirmWindow: vi.fn().mockResolvedValue(undefined),
   Cancel: vi.fn().mockResolvedValue(undefined),
   Select: vi.fn().mockResolvedValue(undefined),
   SetSearch: vi.fn().mockResolvedValue(undefined),
@@ -114,6 +115,24 @@ describe("App", () => {
     expect(calls).toEqual(["Select(2)"]);
     resolveSelect();
     await waitFor(() => expect(calls).toEqual(["Select(2)", "CloseSelected"]));
+  });
+
+  it("confirms a clicked entry atomically by window id", async () => {
+    render(<App />);
+    await waitFor(() => expect(mocked.GetVersion).toHaveBeenCalled());
+
+    act(() => {
+      eventHandlers.get("switcher:show")?.({
+        data: openSwitcherState({
+          mouseHover: false,
+          entries: [appEntry(11, "Editor"), appEntry(22, "Browser")],
+        }),
+      });
+    });
+
+    fireEvent.click(screen.getByText("Browser").closest('[role="option"]') as HTMLElement);
+    expect(mocked.ConfirmWindow).toHaveBeenCalledWith(22);
+    expect(mocked.Confirm).not.toHaveBeenCalled();
   });
 
   it("merges streamed thumbnails and previews by windowId and resets them on show", () => {

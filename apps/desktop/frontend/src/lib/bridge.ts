@@ -50,6 +50,7 @@ export const switcher = {
   advance: () => call(AppService.Advance()),
   reverse: () => call(AppService.Reverse()),
   confirm: () => call(AppService.Confirm()),
+  confirmWindow: (windowId: number) => call(AppService.ConfirmWindow(windowId)),
   cancel: () => call(AppService.Cancel()),
   select: (index: number) => call(AppService.Select(index)),
   setSearch: (query: string) => call(AppService.SetSearch(query)),

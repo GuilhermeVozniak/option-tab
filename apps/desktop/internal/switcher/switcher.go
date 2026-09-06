@@ -328,6 +328,31 @@ func (c *Controller) Confirm() {
 	if len(c.list) > 0 && c.selected < len(c.list) {
 		focusID = c.list[c.selected].ID
 	}
+	c.confirmLocked(focusID)
+}
+
+// ConfirmWindow focuses the requested visible window and closes the overlay.
+// The ID is resolved while holding the controller lock so a click does not
+// depend on a separate, asynchronous selection update from the frontend.
+func (c *Controller) ConfirmWindow(id domain.WindowID) {
+	c.mu.Lock()
+	if !c.open {
+		c.mu.Unlock()
+		return
+	}
+	var focusID domain.WindowID
+	for _, window := range c.list {
+		if window.ID == id {
+			focusID = id
+			break
+		}
+	}
+	c.confirmLocked(focusID)
+}
+
+// confirmLocked commits focusID and closes the current switcher session.
+// Caller must hold c.mu; this method releases it before external side effects.
+func (c *Controller) confirmLocked(focusID domain.WindowID) {
 	follow := c.settings.Behavior.CursorFollowFocus
 	c.reset()
 	c.mu.Unlock()

@@ -4,6 +4,7 @@ export interface OverlayHandlers {
   onAdvance: () => void;
   onReverse: () => void;
   onConfirm: () => void;
+  onConfirmWindow: (windowId: number) => void;
   onCancel: () => void;
   onSelect: (index: number) => void;
   onSearchChange: (query: string) => void;

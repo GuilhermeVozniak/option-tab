@@ -86,6 +86,14 @@ export function Confirm() {
 }
 
 /**
+ * @param {number} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function ConfirmWindow(id) {
+    return $Call.ByID(3813603255, id);
+}
+
+/**
  * DismissCrashReport discards the pending crash log.
  * @returns {$CancellablePromise<void>}
  */
