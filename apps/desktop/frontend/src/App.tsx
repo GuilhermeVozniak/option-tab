@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAbout, useCrash, usePermissions } from "./hooks/useBridge";
 import {
   hasBackend,
+  importSettings,
   loadSettings,
   onPrefsTab,
   onSwitcherEvent,
@@ -59,20 +60,55 @@ const noopHandlers: OverlayHandlers = {
 // no-op (browser/dev/tests).
 function useSettingsModel() {
   const [settings, setSettings] = useState<SettingsModel>(defaultSettings);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const revision = useRef(0);
+  const pendingImports = useRef(0);
+  const [importing, setImporting] = useState(false);
   useEffect(() => {
     let active = true;
+    const initialRevision = revision.current;
     loadSettings().then((s) => {
-      if (active && s) setSettings(s);
+      if (active && s && s.behavior && revision.current === initialRevision) setSettings(s);
     });
     return () => {
       active = false;
     };
   }, []);
   const onChange = useCallback((next: SettingsModel) => {
+    if (pendingImports.current > 0) return;
+    const current = ++revision.current;
     setSettings(next);
-    void saveSettings(next);
+    queue.current = queue.current.then(async () => {
+      try {
+        await saveSettings(next);
+        if (revision.current === current) setSaveError(null);
+      } catch (error) {
+        setSaveError(`Could not save settings: ${String(error)}`);
+      }
+    });
   }, []);
-  return { settings, onChange };
+  const onImport = useCallback((text: string): Promise<void> => {
+    ++revision.current;
+    ++pendingImports.current;
+    setImporting(true);
+    const imported = queue.current
+      .then(async () => {
+        const canonical = await importSettings(text);
+        setSettings(canonical);
+        setSaveError(null);
+      })
+      .finally(() => {
+        --pendingImports.current;
+        setImporting(pendingImports.current > 0);
+      });
+    // Publish every successful import in queue order, even when a later one
+    // fails. Edits are disabled until the queue drains to avoid saving a
+    // pre-import snapshot over newly imported settings.
+    queue.current = imported.catch(() => {});
+    return imported;
+  }, []);
+  return { settings, onChange, onImport, saveError, importing };
 }
 
 // App is the desktop frontend shell. Two Wails windows load it: the overlay
@@ -178,7 +214,7 @@ function OverlayRoute() {
 // regular titled window (its own Wails window since the Wails v3 migration);
 // the menubar can deep-link a tab via the "prefs:tab" event.
 function SettingsRoute() {
-  const { settings, onChange } = useSettingsModel();
+  const { settings, onChange, onImport, saveError, importing } = useSettingsModel();
   const perms = usePermissions();
   const about = useAbout();
   const crash = useCrash();
@@ -187,13 +223,17 @@ function SettingsRoute() {
   useEffect(() => onPrefsTab(setRequestedTab), []);
 
   return (
-    <Settings
-      settings={settings}
-      onChange={onChange}
-      permissions={perms}
-      about={about}
-      crash={crash}
-      requestedTab={requestedTab}
-    />
+    <fieldset disabled={importing} aria-busy={importing} className="m-0 min-w-0 border-0 p-0">
+      <Settings
+        settings={settings}
+        onChange={onChange}
+        onImport={onImport}
+        saveError={saveError}
+        permissions={perms}
+        about={about}
+        crash={crash}
+        requestedTab={requestedTab}
+      />
+    </fieldset>
   );
 }

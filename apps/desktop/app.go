@@ -12,6 +12,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"sync"
 	"time"
@@ -62,6 +63,8 @@ type App struct {
 
 	platform     platform.Platform
 	controller   *switcher.Controller
+	settingsMu   sync.RWMutex
+	saveMu       sync.Mutex // serializes persistence and platform/controller application
 	settings     config.Settings
 	settingsPath string
 
@@ -97,8 +100,19 @@ type App struct {
 func NewApp() *App {
 	p, _ := platform.New()
 	path, _ := config.DefaultPath()
-	settings, _ := config.LoadFile(path)
+	settings := loadStartupSettings(path)
 	return newApp(p, settings, path)
+}
+
+// loadStartupSettings keeps the app usable when the persisted file cannot be
+// read, and leaves the original file untouched for recovery.
+func loadStartupSettings(path string) config.Settings {
+	settings, err := config.LoadFile(path)
+	if err != nil {
+		slog.Error("Could not load settings; using defaults. Check or restore the settings file", "path", path, "error", err)
+		return config.Default()
+	}
+	return settings
 }
 
 // newApp builds an App from explicit dependencies (used by tests).
@@ -146,7 +160,7 @@ func (a *App) setTray(tray *application.SystemTray, menu *application.Menu, paus
 // overlay window starts hidden (created with Hidden: true).
 func (a *App) startup() {
 	dlog("startup: platform=%s accessibility=%v", a.platform.Name(), a.platform.Accessibility())
-	if !a.settings.Behavior.Onboarded {
+	if !a.settingsSnapshot().Behavior.Onboarded {
 		// First launch: open preferences, where the onboarding wizard walks the
 		// user through granting permissions instead of firing bare OS prompts.
 		go func() {

@@ -17,7 +17,7 @@ import (
 
 func (a *App) registerHotkeys() {
 	eng := a.platform.Hotkeys()
-	for _, sc := range a.settings.Shortcuts {
+	for _, sc := range a.settingsSnapshot().Shortcuts {
 		if !sc.Enabled {
 			continue
 		}
@@ -120,7 +120,7 @@ func (a *App) Update(st switcher.State) {
 	a.emit("switcher:update", st)
 	if st.Selected != a.lastSelected {
 		a.lastSelected = st.Selected
-		if h, ok := a.platform.(platform.HapticFeedback); ok && a.settings.Behavior.HapticFeedback {
+		if h, ok := a.platform.(platform.HapticFeedback); ok && a.settingsSnapshot().Behavior.HapticFeedback {
 			h.HapticTick()
 		}
 	}
@@ -170,7 +170,8 @@ func (a *App) backgroundCaptureLoop() {
 	ticker := time.NewTicker(4 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		if !a.settings.Behavior.CaptureInBackground || a.controller.IsOpen() || a.controller.Paused() {
+		settings := a.settingsSnapshot()
+		if !settings.Behavior.CaptureInBackground || a.controller.IsOpen() || a.controller.Paused() {
 			continue
 		}
 		src, ok := a.platform.(platform.ThumbnailSource)
@@ -181,7 +182,7 @@ func (a *App) backgroundCaptureLoop() {
 		if err != nil {
 			continue
 		}
-		px := a.settings.Appearance.ThumbnailMaxPx
+		px := settings.Appearance.ThumbnailMaxPx
 		if px <= 0 {
 			px = 256
 		}

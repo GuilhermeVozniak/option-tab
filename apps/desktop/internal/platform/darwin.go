@@ -262,8 +262,7 @@ func (p *darwinPlatform) SetEnabled(v bool) error {
 	if v {
 		flag = 1
 	}
-	C.ot_login_item_set(flag)
-	return nil
+	return loginItemResult(int(C.ot_login_item_set(flag)))
 }
 
 func (p *darwinPlatform) Hotkeys() HotkeyEngine { return p.hotkeys }

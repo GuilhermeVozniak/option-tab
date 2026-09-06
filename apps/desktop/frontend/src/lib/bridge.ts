@@ -258,5 +258,27 @@ export async function loadSettings(): Promise<Settings | null> {
 
 // saveSettings persists settings through Go; a no-op when unavailable.
 export async function saveSettings(s: Settings): Promise<void> {
-  await call(AppService.SaveSettings(JSON.stringify(s)));
+  if (!(await hasBackend())) return;
+  await AppService.SaveSettings(JSON.stringify(s));
+}
+
+// Import through Go before exposing any untrusted document to React. Go owns
+// defaults, migration and normalization; a failed save leaves current UI intact.
+export async function importSettings(text: string): Promise<Settings> {
+  const document: unknown = JSON.parse(text);
+  if (document === null || typeof document !== "object" || Array.isArray(document)) {
+    throw new Error("Settings must be a JSON object.");
+  }
+  if (!(await hasBackend())) throw new Error("Import settings in the desktop app.");
+  await AppService.SaveSettings(text);
+  const settings = await loadSettings();
+  if (
+    !settings?.behavior ||
+    !settings.appearance ||
+    !settings.filters ||
+    !Array.isArray(settings.shortcuts)
+  ) {
+    throw new Error("Could not reload imported settings.");
+  }
+  return settings;
 }

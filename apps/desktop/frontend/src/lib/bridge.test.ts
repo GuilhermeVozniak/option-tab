@@ -60,6 +60,7 @@ import * as AppService from "../../bindings/option-tab/app.js";
 import {
   crashReports,
   hasBackend,
+  importSettings,
   loadCrashReport,
   loadPermissions,
   loadSettings,
@@ -76,7 +77,7 @@ import {
   switcher,
   system,
 } from "./bridge";
-import type { Settings } from "./types";
+import { defaultSettings, type Settings } from "./types";
 
 const mocked = vi.mocked(AppService);
 
@@ -352,5 +353,31 @@ describe("permissions bindings", () => {
   it("loadPermissions resolves null on a parse error", async () => {
     mocked.GetPermissions.mockResolvedValueOnce("not-json");
     await expect(loadPermissions()).resolves.toBeNull();
+  });
+});
+
+describe("settings failures and imports", () => {
+  it("reports a real backend save failure", async () => {
+    mocked.SaveSettings.mockRejectedValueOnce(new Error("disk full"));
+    await expect(saveSettings(defaultSettings)).rejects.toThrow("disk full");
+  });
+  it.each([
+    "null",
+    "[]",
+    "42",
+    "not-json",
+  ])("rejects an invalid imported root: %s", async (text) => {
+    await expect(importSettings(text)).rejects.toThrow();
+    expect(mocked.SaveSettings).not.toHaveBeenCalled();
+  });
+  it("uses canonical backend settings after importing a partial document", async () => {
+    mocked.GetSettings.mockResolvedValueOnce(JSON.stringify(defaultSettings));
+    await expect(importSettings('{"version":1}')).resolves.toEqual(defaultSettings);
+    expect(mocked.SaveSettings).toHaveBeenCalledWith('{"version":1}');
+  });
+  it("does not load or publish an import when persistence fails", async () => {
+    mocked.SaveSettings.mockRejectedValueOnce(new Error("read only"));
+    await expect(importSettings("{}")).rejects.toThrow("read only");
+    expect(mocked.GetSettings).not.toHaveBeenCalled();
   });
 });

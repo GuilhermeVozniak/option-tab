@@ -1,6 +1,8 @@
 package main
 
 import (
+	"log/slog"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"option-tab/internal/config"
@@ -12,17 +14,24 @@ import (
 // SetPaused suspends or resumes activation, persists the choice, and reflects it
 // in the menubar. While paused the global hotkey does not open the switcher.
 func (a *App) SetPaused(paused bool) {
-	a.settings.Behavior.Paused = paused
-	a.controller.SetPaused(paused)
-	if a.settingsPath != "" {
-		_ = config.SaveFile(a.settingsPath, a.settings)
+	a.saveMu.Lock()
+	defer a.saveMu.Unlock()
+	s := a.settingsSnapshot()
+	s.Behavior.Paused = paused
+	if err := a.saveSettingsLocked(s); err != nil {
+		slog.Error("Could not save pause setting", "error", err)
 	}
-	a.syncTray()
 }
 
-// TogglePause flips the paused state and returns the new value.
+// TogglePause serializes read-modify-write with other settings changes.
 func (a *App) TogglePause() bool {
-	a.SetPaused(!a.controller.Paused())
+	a.saveMu.Lock()
+	defer a.saveMu.Unlock()
+	s := a.settingsSnapshot()
+	s.Behavior.Paused = !s.Behavior.Paused
+	if err := a.saveSettingsLocked(s); err != nil {
+		slog.Error("Could not save pause setting", "error", err)
+	}
 	return a.controller.Paused()
 }
 
@@ -122,9 +131,10 @@ func (a *App) syncTray() {
 	if a.tray == nil {
 		return
 	}
-	show := a.settings.Behavior.ShowMenubarIcon
+	settings := a.settingsSnapshot()
+	show := settings.Behavior.ShowMenubarIcon
 	paused := a.controller.Paused()
-	glyph := trayGlyph(a.settings.Behavior.MenubarIconStyle)
+	glyph := trayGlyph(settings.Behavior.MenubarIconStyle)
 	application.InvokeAsync(func() {
 		if a.pauseItem != nil {
 			label := "Pause"

@@ -53,9 +53,10 @@ export function CaptureShortcut() {
 }
 
 /**
- * CheckForUpdates runs a release check now and opens the About tab, where the
- * update banner (with the install button) appears when a newer version
- * exists. The manual check never auto-installs, even under the "auto" policy.
+ * CheckForUpdates runs a release check now and reveals the Updates section of
+ * the General tab, where the check's outcome appears (the install banner is
+ * app-level chrome, shown on every tab). The manual check never auto-installs,
+ * even under the "auto" policy.
  * @returns {$CancellablePromise<void>}
  */
 export function CheckForUpdates() {
@@ -253,8 +254,7 @@ export function Reverse() {
 }
 
 /**
- * SaveSettings validates, applies, and persists settings from the preferences
- * UI, then re-registers hotkeys to reflect any chord changes.
+ * SaveSettings serializes saves and publishes only successfully persisted settings.
  * @param {string} jsonStr
  * @returns {$CancellablePromise<void>}
  */
@@ -302,7 +302,7 @@ export function Show(st) {
 }
 
 /**
- * TogglePause flips the paused state and returns the new value.
+ * TogglePause serializes read-modify-write with other settings changes.
  * @returns {$CancellablePromise<boolean>}
  */
 export function TogglePause() {

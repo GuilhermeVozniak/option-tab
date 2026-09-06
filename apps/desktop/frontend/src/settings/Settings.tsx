@@ -25,6 +25,8 @@ export { PROJECT_URL };
 interface SettingsProps {
   settings: SettingsModel;
   onChange: (next: SettingsModel) => void;
+  onImport?: (text: string) => Promise<void>;
+  saveError?: string | null;
   permissions?: PermissionsControl;
   about?: AboutControl;
   crash?: CrashControl;
@@ -47,6 +49,8 @@ type Tab = (typeof TABS)[number];
 export function Settings({
   settings,
   onChange,
+  onImport,
+  saveError,
   permissions,
   about,
   crash,
@@ -158,6 +162,12 @@ export function Settings({
           {t("Option Tab — Preferences")}
         </h1>
 
+        {saveError ? (
+          <p role="alert" className="text-red-300">
+            {saveError}
+          </p>
+        ) : null}
+
         {/* App-level: an available update is news for the whole window, not for
             one tab, so the banner sits above the tab strip and stays put. */}
         {updateBanner}
@@ -192,6 +202,7 @@ export function Settings({
             updatesRef={updatesRef}
             updateCheckResult={updateCheckResult}
             checkUpdates={checkUpdates}
+            onImport={onImport}
           />
         </section>
         <section hidden={tab !== "Controls"} aria-label="Controls" className="space-y-4">
