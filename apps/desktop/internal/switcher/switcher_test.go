@@ -253,6 +253,20 @@ func TestRelease_DoNothingKeepsSwitcherOpen(t *testing.T) {
 	}
 }
 
+func TestRelease_HoldToCycleDisabledKeepsSwitcherOpen(t *testing.T) {
+	c, f, _ := newController(t, threeWins(), func(s *config.Settings) {
+		s.Behavior.HoldToCycle = false
+	})
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyRelease, ShortcutID: 1})
+	if !c.IsOpen() {
+		t.Fatal("release must keep the switcher open when hold-to-cycle is disabled")
+	}
+	if len(f.FocusCalls) != 0 {
+		t.Errorf("release must not focus when hold-to-cycle is disabled, got %v", f.FocusCalls)
+	}
+}
+
 func TestActivate_IgnoredWhenActiveAppBlacklistedForShortcuts(t *testing.T) {
 	wins := threeWins()
 	wins[0].BundleID = "com.game"

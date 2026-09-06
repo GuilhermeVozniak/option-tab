@@ -124,6 +124,20 @@ type HotkeyEngine interface {
 	Close() error
 }
 
+// HotkeyPolicy is the tap-side activation policy. Native engines use this
+// snapshot to decide whether the original key event must pass through before
+// asynchronously notifying the controller.
+type HotkeyPolicy struct {
+	Enabled     bool
+	IgnoredApps []string
+}
+
+// HotkeyPolicyUpdater is an optional native-engine capability. The policy is
+// copied by the implementation and must be safe to read from its event thread.
+type HotkeyPolicyUpdater interface {
+	SetHotkeyPolicy(HotkeyPolicy)
+}
+
 // PermState is the grant state of an OS permission.
 type PermState int
 

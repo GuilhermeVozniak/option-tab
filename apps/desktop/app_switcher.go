@@ -17,7 +17,9 @@ import (
 
 func (a *App) registerHotkeys() {
 	eng := a.platform.Hotkeys()
-	for _, sc := range a.settingsSnapshot().Shortcuts {
+	settings := a.settingsSnapshot()
+	a.syncHotkeyPolicy(settings)
+	for _, sc := range settings.Shortcuts {
 		if !sc.Enabled {
 			continue
 		}
@@ -30,6 +32,23 @@ func (a *App) registerHotkeys() {
 			dlog("registerHotkeys: register error: %v", rerr)
 		}
 	}
+}
+
+func (a *App) syncHotkeyPolicy(settings config.Settings) {
+	updater, ok := a.platform.Hotkeys().(platform.HotkeyPolicyUpdater)
+	if !ok {
+		return
+	}
+	ignoredApps := make([]string, 0, len(settings.Filters.AppBlacklist))
+	for _, entry := range settings.Filters.AppBlacklist {
+		if entry.IgnoreShortcuts && entry.Match != "" {
+			ignoredApps = append(ignoredApps, entry.Match)
+		}
+	}
+	updater.SetHotkeyPolicy(platform.HotkeyPolicy{
+		Enabled:     !settings.Behavior.Paused,
+		IgnoredApps: ignoredApps,
+	})
 }
 
 func (a *App) reRegisterHotkeys() {
