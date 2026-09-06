@@ -1,16 +1,26 @@
-# DockDoor parity implementation scope
+# Option Tab Dock enhancement scope
 
 Baseline: v0.4.8. Branch: `feat/dockdoor-parity`.
 Status: proposed scope for review; unchecked items are not implemented.
 
-This inventory combines the supplied website recording, DockDoor Free's public feature page and automation documentation, and the separately identified DockDoor Pro scope. Existing Option Tab features are retained. The initial recommendation is Free parity first, with Pro replacement tracked separately pending the scope decision.
+This scope was narrowed after reviewing the other projects in `~/Dev/pessoal`. It adds complementary Option Tab features rather than duplicating products we already maintain. Existing Option Tab features are retained. Native Dock enhancements come first; Pro-style replacement remains separately scoped and unapproved.
+
+## Removed overlaps and product ownership
+
+| Removed from this roadmap | Existing owner |
+|---|---|
+| A01–A04: maximize/restore, centering, halves and quarters; no new tiling/edge-snap engine | Tiles Spliter |
+| E07–E08: calendar panel, event feed, permissions and calendar-provider work | Calendium |
+| H10: file staging shelf, pinned-folder shelf and AirDrop zone | DragZone |
+| H11 saved-command execution | DragZone |
+| H13 weather provider/widget | Calendium |
+
+Removed IDs stay retired so existing references remain meaningful. These features are excluded, not marked completed in Option Tab. No automatic integration with sibling apps is implied.
+
+Option Tab-specific interfaces remain: dragging a *window preview* is different from Tiles Spliter's desktop edge snapping; Folder Pop is different from DragZone's saved folder action; window automation is different from DragZone's file/action commands. Do not build another generic CLI/script-action platform. Native panel styling, localization and release compatibility remain requirements for Option Tab even when another project has similar infrastructure.
 
 ## A. Window actions
 
-- [ ] A01 Maximize to usable screen bounds and restore the previous size/position.
-- [ ] A02 Center a window without changing its size.
-- [ ] A03 Position in left, right, top, or bottom half.
-- [ ] A04 Position in any of the four screen quarters.
 - [ ] A05 New Window for apps that expose a supported command; indicate unsupported apps.
 - [ ] A06 Force quit an app through an explicit action.
 - [ ] A07 Close all windows belonging to an app, preserving native save dialogs.
@@ -54,11 +64,11 @@ This inventory combines the supplied website recording, DockDoor Free's public f
 - [ ] D10 Scroll up to show an app and down to hide it; handle wheel, trackpad and momentum.
 - [ ] D11 Command-right-click to quit; Command-Option-right-click to force quit.
 - [ ] D12 Configurable two-finger preview swipes, with directions relative to Dock position.
-- [ ] D13 Drag a preview onto the desktop to reposition its underlying window.
+- [ ] D13 Drag a preview onto the desktop to reposition its underlying window; no edge snapping or tiling engine.
 - [ ] D14 Aero Shake with configurable minimize/close-other-window action.
 - [ ] D15 Lock the native Dock to a selected monitor, with bypass modifier and disconnect recovery.
 
-## E. Folder, media and calendar panels
+## E. Folder and media panels
 
 - [ ] E01 Folder Pop: hover a Dock folder to view contents.
 - [ ] E02 Sort folder contents and open files/folders.
@@ -66,14 +76,12 @@ This inventory combines the supplied website recording, DockDoor Free's public f
 - [ ] E04 Spotify and Apple Music now-playing details, artwork and playback controls.
 - [ ] E05 Synchronized lyrics when an available, permitted provider supplies them.
 - [ ] E06 Pin media panels to the screen.
-- [ ] E07 Calendar Dock hover showing today's events.
-- [ ] E08 Calendar permission, timezone/day changes and empty/error states.
 
 ## F. Automation
 
 - [ ] F01 AppleScript commands to open the switcher and show/hide app previews.
 - [ ] F02 Resolve apps by name, bundle ID or PID; accept explicit preview coordinates.
-- [ ] F03 Focus/close/minimize/maximize/hide/fullscreen/center/snap by window ID or active window.
+- [ ] F03 Focus/close/minimize/hide/fullscreen by window ID or active window; no tiling commands.
 - [ ] F04 JSON queries for running apps, window lists and active-window details.
 - [ ] F05 Optional cached preview images in query responses.
 - [ ] F06 Document Terminal/osascript and macro-tool integration.
@@ -96,12 +104,11 @@ This inventory combines the supplied website recording, DockDoor Free's public f
 - [ ] H05 Custom item icons and drag reordering/grouping.
 - [ ] H06 Spring magnification, configurable scale/reach, and high-refresh animation.
 - [ ] H07 Native materials, tint, borders, transparency, size and light/dark appearance.
-- [ ] H08 Floating/full-width layouts, auto-hide, and overlap avoidance.
+- [ ] H08 Floating/full-width layouts, auto-hide, and Dock overlap avoidance; no general window-tiling controls.
 - [ ] H09 Folder fan-out with list/grid presentation.
-- [ ] H10 File staging tray, pinned folders and AirDrop zone.
-- [ ] H11 Rich context menus with show-all, relaunch and user-saved commands.
+- [ ] H11 App context menus with show-all and relaunch; no saved-command runner.
 - [ ] H12 Media scrubbing and audio-output device switching.
-- [ ] H13 Clock, weather, battery, network and audio widgets with stacks.
+- [ ] H13 Clock, battery, network and audio widgets with stacks; weather stays in Calendium.
 - [ ] H14 Community widget format, installation flow and documented extension capabilities.
 - [ ] H15 Dock pinch/swipe gestures, haptics and letter navigation.
 - [ ] H16 Notification badges where a supported source is available.
@@ -114,6 +121,8 @@ Nine activation shortcuts; window-based switching; fuzzy search; Vim/arrow navig
 ## Delivery order and acceptance
 
 Implement A–B first, then C–D, E, F and G. H is independently scoped because it replaces the Dock instead of enhancing it. Each milestone gets focused tests and native smoke checks before being marked complete. A setting or demo-only UI does not count as implemented native behavior.
+
+The removed-feature table takes precedence over the competitor inventory: full DockDoor parity is no longer the goal.
 
 Architecture and milestone acceptance criteria: [design proposal](superpowers/specs/2026-09-06-dockdoor-parity-design.md).
 
