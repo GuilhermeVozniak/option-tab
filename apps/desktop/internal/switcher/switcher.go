@@ -185,7 +185,8 @@ func (c *Controller) HandleHotkey(ev platform.HotkeyEvent) {
 func (c *Controller) releaseDoesNothing() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.open && c.shortcut.WhenReleased == config.ReleaseDoNothing
+	return c.open && (!c.settings.Behavior.HoldToCycle ||
+		c.shortcut.WhenReleased == config.ReleaseDoNothing)
 }
 
 // SetPaused enables or disables activation. While paused, hotkeys do not open
