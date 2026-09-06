@@ -37,6 +37,7 @@ interface SettingsProps {
    * within it ("General#updates"); applied when it changes.
    */
   requestedTab?: string | null;
+  dockInputError?: string;
 }
 
 const TABS = [
@@ -65,6 +66,7 @@ export function Settings({
   about,
   crash,
   requestedTab,
+  dockInputError,
 }: SettingsProps) {
   const [tab, setTab] = useState<Tab>("General");
   const [mode, setMode] = useState<SwitcherMode>("windows");
@@ -278,7 +280,7 @@ export function Settings({
           <BlacklistsTab ctx={ctx} />
         </section>
         <section hidden={tab !== "Dock"} aria-label="Dock" className="space-y-4">
-          <DockTab ctx={ctx} permissions={permissions} />
+          <DockTab ctx={ctx} permissions={permissions} inputError={dockInputError} />
         </section>
         <section hidden={tab !== "About"} aria-label="About" className="space-y-4">
           <AboutTab ctx={ctx} about={about} openURL={openURL} checkUpdates={checkUpdates} />

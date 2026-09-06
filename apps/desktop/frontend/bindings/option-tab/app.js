@@ -41,10 +41,34 @@ export function Advance() {
 }
 
 /**
+ * @param {number} session
+ * @param {number} gesture
+ * @param {number} windowID
+ * @param {number} appID
+ * @param {number} pointerX
+ * @param {number} pointerY
+ * @param {number} grabX
+ * @param {number} grabY
+ * @returns {$CancellablePromise<void>}
+ */
+export function BeginDockPreviewDrag(session, gesture, windowID, appID, pointerX, pointerY, grabX, grabY) {
+    return $Call.ByID(3337788529, session, gesture, windowID, appID, pointerX, pointerY, grabX, grabY);
+}
+
+/**
  * @returns {$CancellablePromise<void>}
  */
 export function Cancel() {
     return $Call.ByID(2191755235);
+}
+
+/**
+ * @param {number} session
+ * @param {number} gesture
+ * @returns {$CancellablePromise<void>}
+ */
+export function CancelDockPreviewDrag(session, gesture) {
+    return $Call.ByID(418174098, session, gesture);
 }
 
 /**
@@ -385,6 +409,18 @@ export function SelectDockWindow(session, id) {
  */
 export function SetDockPanelSize(session, width, height) {
     return $Call.ByID(1080314307, session, width, height);
+}
+
+/**
+ * SetDockPreviewRegions publishes clipped panel-local card geometry. Native
+ * code copies this policy and captures one immutable target at gesture begin.
+ * @param {number} session
+ * @param {number} revision
+ * @param {$models.DockPreviewRegion[]} regions
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetDockPreviewRegions(session, revision, regions) {
+    return $Call.ByID(3579515437, session, revision, regions);
 }
 
 /**

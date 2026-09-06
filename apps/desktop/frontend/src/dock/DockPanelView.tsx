@@ -4,11 +4,45 @@ import { computeLayout, effectiveStyle } from "../lib/layout";
 import { truncateTitle } from "../lib/text";
 import type { DockViewState, WindowAction } from "../lib/types";
 import "./dock.css";
+
+let dockDragGesture = 0;
+const nextDockDragGesture = () => ++dockDragGesture;
+const clamp01 = (value: number) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+type DragState = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  rect: DOMRect;
+  windowId: number;
+  appId: number;
+  gesture: number;
+  suppress: boolean;
+  terminal: boolean;
+  dragging: boolean;
+};
 export interface DockPanelHandlers {
   onSelectWindow: (session: number, id: number) => void;
   onFocusWindow: (session: number, id: number, appId: number) => void;
   onAction: (session: number, kind: WindowAction, id: number, appId: number) => void;
   onSize: (session: number, width: number, height: number) => void;
+  onRegions?: (session: number, revision: number, regions: PreviewRegion[]) => void;
+  onBeginDrag?: (request: PreviewDragRequest) => Promise<void> | void;
+  onCancelDrag?: (session: number, gesture: number) => Promise<void> | void;
+}
+export interface PreviewDragRequest {
+  session: number;
+  gesture: number;
+  windowId: number;
+  appId: number;
+  pointerX: number;
+  pointerY: number;
+  grabX: number;
+  grabY: number;
+}
+export interface PreviewRegion {
+  windowId: number;
+  appId: number;
+  bounds: { x: number; y: number; w: number; h: number };
 }
 export function DockPanelView({
   state,
@@ -21,6 +55,31 @@ export function DockPanelView({
   t?: (text: string) => string;
   nativePointer?: DockPointer | null;
 }) {
+  dockDragGesture = Math.max(dockDragGesture, state.dragGestureFloor ?? 0);
+  const drag = useRef<DragState | null>(null);
+  const [, redrawDrag] = useState(0);
+  const finishDrag = (pointerId: number, cancel = true) => {
+    const current = drag.current;
+    if (!current || current.pointerId !== pointerId) return;
+    if (current.gesture && cancel) void handlers.onCancelDrag?.(state.session, current.gesture);
+    if (current.suppress) {
+      current.terminal = true;
+      current.dragging = false;
+    } else drag.current = null;
+    redrawDrag((n) => n + 1);
+  };
+  useEffect(() => {
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !drag.current?.gesture) return;
+      void handlers.onCancelDrag?.(state.session, drag.current.gesture);
+      drag.current.terminal = true;
+      drag.current.dragging = false;
+      drag.current.suppress = true;
+      redrawDrag((n) => n + 1);
+    };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, [handlers.onCancelDrag, state.session]);
   const [hoveredWindowId, setHoveredWindowId] = useState(0);
   const lastPointerTarget = useRef(0);
   const a = state.appearance;
@@ -63,9 +122,15 @@ export function DockPanelView({
   const visibleRows = style === "titles" ? Math.min(a.maxRows, Math.max(1, count)) : rows;
   const selected = state.entries.find((e) => e.windowId === state.selectedWindowId);
   const preview = a.previewSelected ? selected?.preview || selected?.thumbnail : undefined;
-  const contentWidth = Math.max(280, columns * (cellWidth + 12) + (columns - 1) * 7);
+  const cardSpacingPx = Math.max(0, Math.min(24, state.cardSpacingPx ?? 7));
+  const contentWidth = Math.max(280, columns * (cellWidth + 12) + (columns - 1) * cardSpacingPx);
   const ref = useRef<HTMLDivElement>(null);
   const lastSize = useRef("");
+  const regionState = useRef({ session: 0, revision: 0, signature: "" });
+  const regionsHandler = useRef(handlers.onRegions);
+  const regionsSession = useRef(state.session);
+  regionsHandler.current = handlers.onRegions;
+  regionsSession.current = state.session;
   const entryIdentity = state.entries.map((entry) => entry.windowId).join(",");
   useEffect(() => {
     const resolve = () => {
@@ -95,9 +160,82 @@ export function DockPanelView({
     entryIdentity,
     style,
     contentWidth,
+    cardSpacingPx,
     cardHeight,
     visibleRows,
   ]);
+  useLayoutEffect(() => {
+    if (!handlers.onRegions) return;
+    const panel = ref.current?.closest<HTMLElement>(".ot-dock-panel");
+    const viewport = ref.current?.querySelector<HTMLElement>(".ot-dock-list-viewport");
+    if (!panel) return;
+    const round = (value: number) => Math.round(value * 100) / 100;
+    const report = () => {
+      if (regionState.current.session !== state.session) {
+        if (regionState.current.session)
+          handlers.onRegions?.(regionState.current.session, ++regionState.current.revision, []);
+        regionState.current = { session: state.session, revision: 0, signature: "" };
+      }
+      const clips = [panel.getBoundingClientRect()];
+      if (viewport) clips.push(viewport.getBoundingClientRect());
+      const entries = new Map(state.entries.map((entry) => [entry.windowId, entry]));
+      const regions: PreviewRegion[] = [];
+      for (const article of ref.current?.querySelectorAll<HTMLElement>("article[data-window-id]") ??
+        []) {
+        const windowId = Number(article.dataset.windowId ?? 0);
+        const entry = entries.get(windowId);
+        if (!entry) continue;
+        let { left, top, right, bottom } = article.getBoundingClientRect();
+        for (const clip of clips) {
+          left = Math.max(left, clip.left);
+          top = Math.max(top, clip.top);
+          right = Math.min(right, clip.right);
+          bottom = Math.min(bottom, clip.bottom);
+        }
+        if (right <= left || bottom <= top) continue;
+        regions.push({
+          windowId,
+          appId: entry.appId,
+          bounds: { x: round(left), y: round(top), w: round(right - left), h: round(bottom - top) },
+        });
+      }
+      const signature = JSON.stringify(regions);
+      if (signature === regionState.current.signature) return;
+      regionState.current.signature = signature;
+      const revision = ++regionState.current.revision;
+      handlers.onRegions?.(state.session, revision, regions);
+    };
+    report();
+    viewport?.addEventListener("scroll", report, { passive: true });
+    if (typeof ResizeObserver === "undefined")
+      return () => viewport?.removeEventListener("scroll", report);
+    const observer = new ResizeObserver(report);
+    observer.observe(panel);
+    if (viewport) observer.observe(viewport);
+    for (const article of ref.current?.querySelectorAll<HTMLElement>("article[data-window-id]") ??
+      [])
+      observer.observe(article);
+    return () => {
+      viewport?.removeEventListener("scroll", report);
+      observer.disconnect();
+    };
+  }, [
+    handlers.onRegions,
+    state.session,
+    entryIdentity,
+    style,
+    contentWidth,
+    cardSpacingPx,
+    cardHeight,
+    visibleRows,
+  ]);
+  useEffect(
+    () => () => {
+      if (!regionsHandler.current || regionState.current.session !== regionsSession.current) return;
+      regionsHandler.current(regionsSession.current, ++regionState.current.revision, []);
+    },
+    [],
+  );
   // Measure intrinsic content, not the viewport-capped outer panel or its scroll
   // extent. List overflow has an explicit row limit; native display clamping
   // cannot feed back into the desired content width/height.
@@ -125,6 +263,7 @@ export function DockPanelView({
     count,
     state.error,
     contentWidth,
+    cardSpacingPx,
     cardHeight,
     visibleRows,
     preview,
@@ -135,7 +274,7 @@ export function DockPanelView({
   ]);
   return (
     <div
-      className={`ot-dock-panel ot-theme-${a.theme}${a.blur ? " ot-dock-blur" : ""}`}
+      className={`ot-dock-panel ot-theme-${a.theme}${a.blur ? " ot-dock-blur" : ""}${state.previewDragEnabled ? " ot-dock-drag-enabled" : ""}`}
       style={
         {
           "--ot-accent": a.accentColor,
@@ -149,12 +288,16 @@ export function DockPanelView({
           "--ot-dock-image-height": `${imageHeight}px`,
           "--ot-dock-preview-height": `${previewHeight}px`,
           "--ot-dock-icon": `${a.iconSizePx}px`,
-          "--ot-dock-list-height": `${visibleRows * cardHeight + (visibleRows - 1) * 7}px`,
+          "--ot-dock-spacing": `${cardSpacingPx}px`,
+          "--ot-dock-list-height": `${visibleRows * cardHeight + (visibleRows - 1) * cardSpacingPx}px`,
         } as React.CSSProperties
       }
     >
       <div ref={ref} className="ot-dock-content" style={{ width: contentWidth }}>
         <header>{state.item.title}</header>
+        {state.previewDragEnabled ? (
+          <span className="ot-dock-drag-hint">{t("Drag a preview to move its window")}</span>
+        ) : null}
         {state.error ? (
           <p role="alert" className="ot-dock-error">
             {state.error}
@@ -177,9 +320,100 @@ export function DockPanelView({
                   >
                     <button
                       type="button"
-                      className="ot-dock-preview"
+                      className={`ot-dock-preview${drag.current?.windowId === e.windowId && drag.current.dragging ? " is-dragging" : ""}`}
                       aria-label={`Focus ${e.title || e.appName}`}
-                      onClick={() => handlers.onFocusWindow(state.session, e.windowId, e.appId)}
+                      draggable={false}
+                      onPointerDown={(event) => {
+                        if (
+                          !state.previewDragEnabled ||
+                          event.button !== 0 ||
+                          event.isPrimary === false
+                        )
+                          return;
+                        drag.current = {
+                          pointerId: event.pointerId,
+                          startX: event.clientX,
+                          startY: event.clientY,
+                          rect: event.currentTarget.getBoundingClientRect(),
+                          windowId: e.windowId,
+                          appId: e.appId,
+                          gesture: 0,
+                          suppress: false,
+                          terminal: false,
+                          dragging: false,
+                        };
+                        try {
+                          event.currentTarget.setPointerCapture(event.pointerId);
+                        } catch {
+                          /* optional in WebKit */
+                        }
+                      }}
+                      onPointerMove={(event) => {
+                        const current = drag.current;
+                        if (
+                          !current ||
+                          current.pointerId !== event.pointerId ||
+                          current.gesture ||
+                          current.terminal ||
+                          Math.hypot(
+                            event.clientX - current.startX,
+                            event.clientY - current.startY,
+                          ) < 6
+                        )
+                          return;
+                        current.gesture = nextDockDragGesture();
+                        current.suppress = true;
+                        current.dragging = true;
+                        redrawDrag((n) => n + 1);
+                        const gesture = current.gesture;
+                        void Promise.resolve(
+                          handlers.onBeginDrag?.({
+                            session: state.session,
+                            gesture,
+                            windowId: current.windowId,
+                            appId: current.appId,
+                            pointerX: event.screenX,
+                            pointerY: event.screenY,
+                            grabX: clamp01(
+                              (current.startX - current.rect.left) / current.rect.width,
+                            ),
+                            grabY: clamp01(
+                              (current.startY - current.rect.top) / current.rect.height,
+                            ),
+                          }),
+                        )
+                          .catch(() => {})
+                          .finally(() => {
+                            if (drag.current?.gesture === gesture) {
+                              drag.current.terminal = true;
+                              drag.current.dragging = false;
+                              drag.current.suppress = true;
+                              redrawDrag((n) => n + 1);
+                            }
+                          });
+                      }}
+                      onPointerUp={(event) => finishDrag(event.pointerId)}
+                      onPointerCancel={(event) => {
+                        const target = event.currentTarget;
+                        const current = drag.current;
+                        finishDrag(event.pointerId, false);
+                        if (current?.gesture)
+                          window.setTimeout(() => {
+                            if (target.isConnected && drag.current === current)
+                              void handlers.onCancelDrag?.(state.session, current.gesture);
+                          }, 0);
+                      }}
+                      onClick={(event) => {
+                        if (drag.current?.suppress) {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          drag.current = null;
+                          redrawDrag((n) => n + 1);
+                          return;
+                        }
+                        drag.current = null;
+                        handlers.onFocusWindow(state.session, e.windowId, e.appId);
+                      }}
                     >
                       {style !== "titles" ? (
                         <span className="ot-dock-image">

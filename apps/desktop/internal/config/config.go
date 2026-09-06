@@ -599,7 +599,7 @@ func (s Settings) Validate() error {
 	if err := validateModePreferences("app", s.AppSwitcher); err != nil {
 		return err
 	}
-	if s.Dock.HoverDelayMs < 0 || s.Dock.HoverDelayMs > 2000 || s.Dock.DismissDelayMs < 0 || s.Dock.DismissDelayMs > 2000 || s.Dock.HoverSlopPx < 0 || s.Dock.HoverSlopPx > 32 || s.Dock.BridgePaddingPx < 0 || s.Dock.BridgePaddingPx > 48 {
+	if s.Dock.HoverDelayMs < 0 || s.Dock.HoverDelayMs > 2000 || s.Dock.DismissDelayMs < 0 || s.Dock.DismissDelayMs > 2000 || s.Dock.HoverSlopPx < 0 || s.Dock.HoverSlopPx > 32 || s.Dock.BridgePaddingPx < 0 || s.Dock.BridgePaddingPx > 48 || s.Dock.CardSpacingPx < 0 || s.Dock.CardSpacingPx > 24 {
 		return errors.New("config: dock value out of range")
 	}
 	if s.Dock.Scope.AppScope != AppScopeAll || (s.Dock.Scope.Spaces != "" && !s.Dock.Scope.Spaces.Valid()) || (s.Dock.Scope.Screens != "" && !s.Dock.Scope.Screens.Valid()) || (s.Dock.Scope.Order != "" && !s.Dock.Scope.Order.Valid()) {
@@ -607,6 +607,15 @@ func (s Settings) Validate() error {
 	}
 	if err := validateAppearance("dock", s.Dock.Appearance); err != nil {
 		return err
+	}
+	if !s.Dock.Input.SwipeTowardDock.ValidSwipe() ||
+		!s.Dock.Input.SwipeAwayFromDock.ValidSwipe() ||
+		!s.Dock.Input.SwipePrevious.ValidSwipe() ||
+		!s.Dock.Input.SwipeNext.ValidSwipe() {
+		return errors.New("config: invalid dock preview swipe action")
+	}
+	if !validAeroShakeAction(s.Dock.Input.AeroShakeAction) {
+		return fmt.Errorf("config: invalid dock Aero Shake action %q", s.Dock.Input.AeroShakeAction)
 	}
 	return nil
 }
@@ -778,6 +787,7 @@ func (s Settings) Normalize() Settings {
 	out.Dock.DismissDelayMs = clampInt(out.Dock.DismissDelayMs, 0, 2000)
 	out.Dock.HoverSlopPx = clampInt(out.Dock.HoverSlopPx, 0, 32)
 	out.Dock.BridgePaddingPx = clampInt(out.Dock.BridgePaddingPx, 0, 48)
+	out.Dock.CardSpacingPx = clampInt(out.Dock.CardSpacingPx, 0, 24)
 	if out.Dock.Scope.AppScope != AppScopeAll {
 		out.Dock.Scope.AppScope = AppScopeAll
 	}
@@ -791,6 +801,21 @@ func (s Settings) Normalize() Settings {
 		out.Dock.Scope.Order = ""
 	}
 	out.Dock.Appearance = normalizeAppearance(out.Dock.Appearance, d.Dock.Appearance)
+	if !out.Dock.Input.SwipeTowardDock.ValidSwipe() {
+		out.Dock.Input.SwipeTowardDock = PointerNone
+	}
+	if !out.Dock.Input.SwipeAwayFromDock.ValidSwipe() {
+		out.Dock.Input.SwipeAwayFromDock = PointerNone
+	}
+	if !out.Dock.Input.SwipePrevious.ValidSwipe() {
+		out.Dock.Input.SwipePrevious = PointerNone
+	}
+	if !out.Dock.Input.SwipeNext.ValidSwipe() {
+		out.Dock.Input.SwipeNext = PointerNone
+	}
+	if !validAeroShakeAction(out.Dock.Input.AeroShakeAction) {
+		out.Dock.Input.AeroShakeAction = "none"
+	}
 
 	if out.Version == 0 {
 		out.Version = CurrentVersion

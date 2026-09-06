@@ -26,11 +26,34 @@ func (s *testObservationSource) ObserveDock(ctx context.Context, emit func(platf
 	}
 }
 
+func TestPanelSizeIncludesCardSpacingBetweenBoundedRowsAndColumns(t *testing.T) {
+	a := config.Default().Dock.Appearance
+	a.ThumbnailMaxPx = 150
+	a.MaxColumns = 2
+	a.MaxRows = 2
+	w0, h0 := panelSize(5, a, 0)
+	w24, h24 := panelSize(5, a, 24)
+	if w24-w0 != 24 || h24-h0 != 24 {
+		t.Fatalf("spacing delta width=%v height=%v, want 24 each", w24-w0, h24-h0)
+	}
+}
+
 type dockRecordView struct {
 	mu             sync.Mutex
 	shows, updates []State
 	hides          []uint64
 	pointers       []PointerState
+	targets        []platform.DockInputTarget
+}
+
+func (v *dockRecordView) InputTarget(_ uint64, target platform.DockInputTarget) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if target.Item != nil {
+		item := *target.Item
+		target.Item = &item
+	}
+	v.targets = append(v.targets, target)
 }
 
 func (v *dockRecordView) Show(s State) {
@@ -106,8 +129,51 @@ func dockTestItem(id domain.AppID) *platform.DockItem {
 
 func (h *dockHarness) observe(item *platform.DockItem, x, y float64) {
 	h.sequence++
-	h.source.events <- platform.DockObservation{Sequence: h.sequence, Generation: h.generation, PointerX: x, PointerY: y, Item: item, Status: "ready"}
+	h.source.events <- platform.DockObservation{Sequence: h.sequence, Generation: h.generation, DockPID: 77, ObservedAt: time.Now(), PointerX: x, PointerY: y, Item: item, Status: "ready"}
 	synctest.Wait()
+}
+
+func TestDockControllerPublishesFreshInputTargetBeforeHoverAndRetainsIdentityOnExit(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newDockHarness(t, nil, nil)
+		observedAt := time.Now().Add(-40 * time.Millisecond)
+		item := dockTestItem(10)
+		h.sequence++
+		h.source.events <- platform.DockObservation{Sequence: h.sequence, Generation: 4, DockPID: 77, ObservedAt: observedAt, PointerX: 424, PointerY: 750, Item: item, Status: "ready"}
+		synctest.Wait()
+		if h.view.showCount() != 0 || len(h.view.targets) == 0 {
+			t.Fatal("input target must publish before hover delay")
+		}
+		got := h.view.targets[len(h.view.targets)-1]
+		if got.Generation != 4 || got.DockPID != 77 || !got.ObservedAt.Equal(observedAt) || got.Item == nil || got.Item.AppID != 10 {
+			t.Fatalf("target did not preserve observed identity/time: %+v", got)
+		}
+		item.AppID = 999
+		if got.Item.AppID != 10 {
+			t.Fatal("published target aliases observation item")
+		}
+
+		h.sequence++
+		h.source.events <- platform.DockObservation{Sequence: h.sequence, Generation: 4, DockPID: 77, ObservedAt: time.Now(), PointerX: 100, PointerY: 100, Status: "ready"}
+		synctest.Wait()
+		exit := h.view.targets[len(h.view.targets)-1]
+		if exit.Generation != 4 || exit.DockPID != 77 || exit.Item != nil {
+			t.Fatalf("ordinary exit must retain Dock identity with nil item: %+v", exit)
+		}
+	})
+}
+
+func TestDockControllerInvalidatesInputTargetOnSuspend(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newDockHarness(t, nil, nil)
+		h.observe(dockTestItem(10), 424, 750)
+		h.c.Suspend(true)
+		synctest.Wait()
+		got := h.view.targets[len(h.view.targets)-1]
+		if got.Generation != 0 || got.Item != nil {
+			t.Fatalf("suspend did not explicitly invalidate input: %+v", got)
+		}
+	})
 }
 
 func TestDockControllerHoverDelayAndPointerContinuity(t *testing.T) {

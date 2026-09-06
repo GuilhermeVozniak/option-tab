@@ -11,5 +11,6 @@ export {
     DockBounds,
     DockItemView,
     DockPointer,
+    DockPreviewRegion,
     DockViewState
 } from "./models.js";

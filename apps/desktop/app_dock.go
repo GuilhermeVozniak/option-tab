@@ -34,15 +34,19 @@ type DockItemView struct {
 }
 
 type DockViewState struct {
-	Open             bool              `json:"open"`
-	Revision         uint64            `json:"revision"`
-	Session          uint64            `json:"session"`
-	Item             DockItemView      `json:"item"`
-	Entries          []switcher.Entry  `json:"entries"`
-	SelectedWindowID domain.WindowID   `json:"selectedWindowId"`
-	Appearance       config.Appearance `json:"appearance"`
-	EmptyReason      string            `json:"emptyReason"`
-	Pointer          *DockPointer      `json:"pointer,omitempty"`
+	Open               bool              `json:"open"`
+	Revision           uint64            `json:"revision"`
+	Session            uint64            `json:"session"`
+	Item               DockItemView      `json:"item"`
+	Entries            []switcher.Entry  `json:"entries"`
+	SelectedWindowID   domain.WindowID   `json:"selectedWindowId"`
+	Appearance         config.Appearance `json:"appearance"`
+	CardSpacingPx      int               `json:"cardSpacingPx"`
+	EmptyReason        string            `json:"emptyReason"`
+	Pointer            *DockPointer      `json:"pointer,omitempty"`
+	Error              string            `json:"error,omitempty"`
+	PreviewDragEnabled bool              `json:"previewDragEnabled"`
+	DragGestureFloor   uint64            `json:"dragGestureFloor"`
 }
 
 type DockPointer struct {
@@ -51,6 +55,12 @@ type DockPointer struct {
 	X        float64 `json:"x"`
 	Y        float64 `json:"y"`
 	Inside   bool    `json:"inside"`
+}
+
+type DockPreviewRegion struct {
+	WindowID domain.WindowID `json:"windowId"`
+	AppID    domain.AppID    `json:"appId"`
+	Bounds   DockBounds      `json:"bounds"`
 }
 
 type dockFrames struct {
@@ -69,6 +79,9 @@ func (v appDockView) Show(st dock.State)           { v.app.showDock(st, true) }
 func (v appDockView) Update(st dock.State)         { v.app.showDock(st, false) }
 func (v appDockView) Hide(session uint64)          { v.app.hideDock(session) }
 func (v appDockView) Pointer(st dock.PointerState) { v.app.moveDockPointer(st) }
+func (v appDockView) InputTarget(epoch uint64, target platform.DockInputTarget) {
+	v.app.setDockInputTarget(epoch, target)
+}
 
 func (a *App) moveDockPointer(st dock.PointerState) {
 	a.viewMu.Lock()
@@ -91,12 +104,20 @@ func (a *App) moveDockPointer(st dock.PointerState) {
 }
 
 func (a *App) startDock() {
-	if a.dockController == nil {
+	if a.dockController == nil && a.dockInput == nil && a.dockShake == nil {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { <-a.captureStop; cancel() }()
-	go a.dockController.Run(ctx)
+	if a.dockController != nil {
+		go a.dockController.Run(ctx)
+	}
+	if a.dockInput != nil {
+		go a.dockInput.Run(ctx)
+	}
+	if a.dockShake != nil {
+		go a.dockShake.Run(ctx)
+	}
 }
 
 func (a *App) dockAllowedLocked() bool {
@@ -136,6 +157,9 @@ func (a *App) showDock(st dock.State, first bool) {
 	dto.Open = true
 	dto.Revision = a.dockRevision
 	dto.Pointer = a.dockViewState.Pointer
+	dto.Error = a.dockInputError
+	dto.PreviewDragEnabled = a.settingsSnapshot().Dock.Input.PreviewDrag
+	dto.DragGestureFloor = a.dockDragFloor(st.Session)
 	icons := switcher.State{Entries: dto.Entries, Appearance: st.Appearance}
 	a.enrichIcons(&icons)
 	dto.Entries = icons.Entries
@@ -170,7 +194,7 @@ func dockStateView(st dock.State) DockViewState {
 	for _, w := range st.Windows {
 		entries = append(entries, switcher.Entry{WindowID: w.ID, AppID: w.AppID, Title: w.Title, AppName: w.AppName, BundleID: w.BundleID, SpaceID: w.SpaceID, Minimized: w.Minimized, Hidden: w.Hidden, Fullscreen: w.Fullscreen})
 	}
-	return DockViewState{Session: st.Session, Item: DockItemView{Kind: item.Kind, AppID: item.AppID, BundleID: item.BundleID, Path: item.Path, Title: item.Title, Bounds: DockBounds{X: item.Bounds.X, Y: item.Bounds.Y, W: item.Bounds.W, H: item.Bounds.H}, ScreenID: item.ScreenID, Edge: item.Edge}, Entries: entries, SelectedWindowID: st.SelectedWindowID, Appearance: st.Appearance, EmptyReason: st.EmptyReason}
+	return DockViewState{Session: st.Session, Item: DockItemView{Kind: item.Kind, AppID: item.AppID, BundleID: item.BundleID, Path: item.Path, Title: item.Title, Bounds: DockBounds{X: item.Bounds.X, Y: item.Bounds.Y, W: item.Bounds.W, H: item.Bounds.H}, ScreenID: item.ScreenID, Edge: item.Edge}, Entries: entries, SelectedWindowID: st.SelectedWindowID, Appearance: st.Appearance, CardSpacingPx: st.CardSpacingPx, EmptyReason: st.EmptyReason}
 }
 
 // GetDockState lets a newly loaded hidden webview catch up with a hover that
@@ -180,9 +204,10 @@ func (a *App) GetDockState() *DockViewState {
 	defer a.viewMu.Unlock()
 	state := a.dockViewState
 	if a.dockState.Session == 0 {
-		state = DockViewState{Session: a.dockLastSession, Revision: a.dockRevision, Entries: []switcher.Entry{}}
+		state = DockViewState{Session: a.dockLastSession, Revision: a.dockRevision, Entries: []switcher.Entry{}, Error: a.dockInputError}
 	}
 	state.Entries = slices.Clone(state.Entries)
+	state.DragGestureFloor = a.dockDragFloor(state.Session)
 	if state.Pointer != nil {
 		pointer := *state.Pointer
 		state.Pointer = &pointer
@@ -198,6 +223,12 @@ func (a *App) hideDock(session uint64) {
 	}
 }
 
+// SetDockPreviewRegions publishes clipped panel-local card geometry. Native
+// code copies this policy and captures one immutable target at gesture begin.
+func (a *App) SetDockPreviewRegions(session, revision uint64, regions []DockPreviewRegion) error {
+	return a.setDockPreviewRegions(session, revision, regions)
+}
+
 func (a *App) dismissDockLocked() {
 	session := a.dockState.Session
 	if session == 0 {
@@ -206,6 +237,7 @@ func (a *App) dismissDockLocked() {
 	a.captures.Hide()
 	a.captureDockSession.Store(0)
 	a.dockState = dock.State{}
+	a.retireDockWheelState()
 	a.dockViewState = DockViewState{}
 	a.dockRevision++
 	if a.dockWindow != nil {
@@ -221,10 +253,15 @@ func (a *App) syncDockSuspensionLocked() {
 	if !a.dockAllowedLocked() {
 		a.dismissDockLocked()
 	}
+	a.syncDockInputLocked()
+	a.syncDockShakeLocked()
 }
 
 func (a *App) setSessionInactive(inactive bool) {
 	a.transitionSession(0, inactive)
+	if inactive {
+		a.cancelDockPreviewDrag()
+	}
 }
 
 func (a *App) backgroundCaptureAllowed() bool {
@@ -365,11 +402,16 @@ func switcherFramePayload(session uint64, frames map[string]string) any {
 
 func (a *App) configureDock(settings config.Settings) {
 	a.viewMu.Lock()
-	defer a.viewMu.Unlock()
+	// Eligibility may change independently of the gesture feature switches.
+	// Retire the admitted owner before publishing the next Dock configuration.
+	a.cancelDockPreviewDrag()
 	if a.dockController != nil {
 		a.dockController.Configure(settings)
 	}
 	a.syncDockSuspensionLocked()
+	a.viewMu.Unlock()
+	a.disableDockWheel()
+	a.syncDockPreviewDrag(settings)
 }
 
 func (a *App) wireDockController() {

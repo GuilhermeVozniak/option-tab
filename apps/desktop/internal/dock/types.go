@@ -14,6 +14,7 @@ type State struct {
 	SelectedWindowID domain.WindowID
 	Bounds           domain.Bounds
 	Appearance       config.Appearance
+	CardSpacingPx    int
 	EmptyReason      string
 }
 
@@ -46,3 +47,10 @@ type PointerState struct {
 
 // PointerView optionally receives native pointer samples after panel publication.
 type PointerView interface{ Pointer(PointerState) }
+
+// InputTargetView optionally receives exact native Dock observations for the
+// input source cache. The admission epoch lets an outer owner reject a target
+// delivered after suspension or reconfiguration.
+type InputTargetView interface {
+	InputTarget(admissionEpoch uint64, target platform.DockInputTarget)
+}

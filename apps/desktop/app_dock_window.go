@@ -138,7 +138,11 @@ func (d *dockWindow) reconcile() {
 		// Publish the live wrapper before invoking native code, which can synchronously
 		// announce host closure. Neither the factory nor AppKit executes under mu.
 		panel, err := d.host.CreateDockPanel(r.window.native())
-		r.panel = panel
+		d.mu.Lock()
+		if d.current == r {
+			r.panel = panel
+		}
+		d.mu.Unlock()
 		if err != nil {
 			d.failed(r, err)
 			return
@@ -184,5 +188,33 @@ func (d *dockWindow) dispose(r *dockWindowResources) {
 	d.mu.Unlock()
 	if closer, ok := w.(interface{ Close() }); ok {
 		closer.Close()
+	}
+}
+
+func (d *dockWindow) wheelPanel() platform.DockPanel {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.closed || d.current == nil || !d.current.window.alive() {
+		return nil
+	}
+	return d.current.panel
+}
+
+func (d *dockWindow) SetDockPanelWheelPolicy(policy platform.DockPanelWheelPolicy, emit func(platform.DockPanelWheelEvent)) error {
+	panel, ok := d.wheelPanel().(platform.DockPanelWheelSource)
+	if !ok {
+		return platform.ErrDockPanelHostClosed
+	}
+	return panel.SetDockPanelWheelPolicy(policy, emit)
+}
+
+func (d *dockWindow) ValidateDockPanelWheelGesture(session, revision, gesture uint64) bool {
+	panel, ok := d.wheelPanel().(platform.DockPanelWheelGestureValidator)
+	return ok && panel.ValidateDockPanelWheelGesture(session, revision, gesture)
+}
+
+func (d *dockWindow) CompleteDockPanelWheelGesture(session, revision, gesture uint64) {
+	if panel, ok := d.wheelPanel().(platform.DockPanelWheelGestureAcknowledger); ok {
+		panel.CompleteDockPanelWheelGesture(session, revision, gesture)
 	}
 }

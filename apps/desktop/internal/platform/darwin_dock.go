@@ -138,6 +138,7 @@ func runDockObservation(ctx context.Context, emit func(DockObservation), factory
 				done <- nil
 				return
 			}
+			observedAt := time.Now()
 			raw, err := poller.Poll()
 			if child.Err() != nil {
 				done <- nil
@@ -152,6 +153,7 @@ func runDockObservation(ctx context.Context, emit func(DockObservation), factory
 				lastDiagnostic = raw.Diagnostic
 			}
 			observation := mapDockObservation(raw, sequence, epoch)
+			observation.ObservedAt = observedAt
 			if raw.Item != nil && len(dockMatchingApps(raw.Item)) > 1 {
 				if raw.Item.Path != lastAmbiguousPath {
 					log.Printf("Dock observer: ambiguous live application identity for %q; ignoring icon", raw.Item.Path)
@@ -199,7 +201,7 @@ func runDockObservation(ctx context.Context, emit func(DockObservation), factory
 }
 
 func mapDockObservation(raw dockRaw, sequence, epoch uint64) DockObservation {
-	out := DockObservation{Sequence: sequence, Generation: (epoch << 32) | raw.Generation, PointerX: raw.PointerX, PointerY: raw.PointerY, Status: raw.Status}
+	out := DockObservation{DockPID: raw.DockPID, Sequence: sequence, Generation: (epoch << 32) | raw.Generation, PointerX: raw.PointerX, PointerY: raw.PointerY, Status: raw.Status}
 	if raw.Status != "ready" || raw.Item == nil {
 		return out
 	}

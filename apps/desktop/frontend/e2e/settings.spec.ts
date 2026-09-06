@@ -55,6 +55,14 @@ test.describe("preferences (#settings route)", () => {
     await expect(page.getByText("Dock window list")).toBeVisible();
     await expect(page.getByLabel("Dock app scope")).toBeVisible();
     await expect(page.getByLabel("Dock max columns")).toBeVisible();
+    await expect(page.getByText("Input and gestures")).toBeVisible();
+    await page.getByLabel("Click Dock icon to hide app").click();
+    await expect(page.getByLabel("Click Dock icon to hide app")).toBeChecked();
+    await page.getByLabel("Swipe toward Dock").selectOption("fullscreen");
+    await expect(page.getByLabel("Swipe toward Dock")).toHaveValue("fullscreen");
+    await page.getByLabel("Aero Shake action").selectOption("closeOthers");
+    await expect(page.getByLabel("Aero Shake action")).toHaveValue("closeOthers");
+    await expect(page.getByText(/Precise trackpad scrolling/)).toBeVisible();
   });
 
   test("adds a keyboard shortcut (lowest free id)", async ({ page }) => {

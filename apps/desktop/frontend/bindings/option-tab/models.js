@@ -202,6 +202,52 @@ export class DockPointer {
     }
 }
 
+export class DockPreviewRegion {
+    /**
+     * Creates a new DockPreviewRegion instance.
+     * @param {Partial<DockPreviewRegion>} [$$source = {}] - The source object to create the DockPreviewRegion.
+     */
+    constructor($$source = {}) {
+        if (!("windowId" in $$source)) {
+            /**
+             * @member
+             * @type {domain$0.WindowID}
+             */
+            this["windowId"] = 0;
+        }
+        if (!("appId" in $$source)) {
+            /**
+             * @member
+             * @type {domain$0.AppID}
+             */
+            this["appId"] = 0;
+        }
+        if (!("bounds" in $$source)) {
+            /**
+             * @member
+             * @type {DockBounds}
+             */
+            this["bounds"] = (new DockBounds());
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DockPreviewRegion instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {DockPreviewRegion}
+     */
+    static createFrom($$source = {}) {
+        const $$createField2_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("bounds" in $$parsedSource) {
+            $$parsedSource["bounds"] = $$createField2_0($$parsedSource["bounds"]);
+        }
+        return new DockPreviewRegion(/** @type {Partial<DockPreviewRegion>} */($$parsedSource));
+    }
+}
+
 export class DockViewState {
     /**
      * Creates a new DockViewState instance.
@@ -257,6 +303,13 @@ export class DockViewState {
              */
             this["appearance"] = (new config$0.Appearance());
         }
+        if (!("cardSpacingPx" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["cardSpacingPx"] = 0;
+        }
         if (!("emptyReason" in $$source)) {
             /**
              * @member
@@ -271,6 +324,27 @@ export class DockViewState {
              */
             this["pointer"] = undefined;
         }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+        if (!("previewDragEnabled" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["previewDragEnabled"] = false;
+        }
+        if (!("dragGestureFloor" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["dragGestureFloor"] = 0;
+        }
 
         Object.assign(this, $$source);
     }
@@ -284,7 +358,7 @@ export class DockViewState {
         const $$createField3_0 = $$createType1;
         const $$createField4_0 = $$createType3;
         const $$createField6_0 = $$createType4;
-        const $$createField8_0 = $$createType6;
+        const $$createField9_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("item" in $$parsedSource) {
             $$parsedSource["item"] = $$createField3_0($$parsedSource["item"]);
@@ -296,7 +370,7 @@ export class DockViewState {
             $$parsedSource["appearance"] = $$createField6_0($$parsedSource["appearance"]);
         }
         if ("pointer" in $$parsedSource) {
-            $$parsedSource["pointer"] = $$createField8_0($$parsedSource["pointer"]);
+            $$parsedSource["pointer"] = $$createField9_0($$parsedSource["pointer"]);
         }
         return new DockViewState(/** @type {Partial<DockViewState>} */($$parsedSource));
     }

@@ -13,6 +13,37 @@ export const dock = {
   action: (session: number, kind: WindowAction, id: number, appId: number) =>
     AppService.PerformDockAction(session, kind, id, appId) as Promise<WindowActionResult>,
   size: (session: number, w: number, h: number) => AppService.SetDockPanelSize(session, w, h),
+  regions: (
+    session: number,
+    revision: number,
+    regions: Array<{
+      windowId: number;
+      appId: number;
+      bounds: { x: number; y: number; w: number; h: number };
+    }>,
+  ) => AppService.SetDockPreviewRegions(session, revision, regions),
+  beginDrag: (
+    session: number,
+    gesture: number,
+    windowId: number,
+    appId: number,
+    pointerX: number,
+    pointerY: number,
+    grabX: number,
+    grabY: number,
+  ) =>
+    AppService.BeginDockPreviewDrag(
+      session,
+      gesture,
+      windowId,
+      appId,
+      pointerX,
+      pointerY,
+      grabX,
+      grabY,
+    ),
+  cancelDrag: (session: number, gesture: number) =>
+    AppService.CancelDockPreviewDrag(session, gesture),
 };
 export interface DockEvents {
   show: (state: DockViewState) => void;
@@ -42,4 +73,11 @@ export function onDockEvent(h: DockEvents) {
     Events.On("dock:pointer", (e) => h.pointer(e.data as DockPointer)),
   ];
   return () => off.forEach((fn) => fn());
+}
+
+export function onDockInputStatus(handler: (revision: number, message: string) => void) {
+  return Events.On("dock:input-status", (event) => {
+    const data = event.data as { revision?: number; message?: string };
+    handler(Number(data.revision ?? 0), String(data.message ?? ""));
+  });
 }

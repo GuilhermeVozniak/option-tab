@@ -136,6 +136,9 @@ export interface DockViewState {
   appearance: Appearance;
   emptyReason: string;
   error?: string;
+  cardSpacingPx?: number;
+  previewDragEnabled?: boolean;
+  dragGestureFloor?: number;
   pointer?: DockPointer;
 }
 export interface DockPointer {
@@ -295,8 +298,21 @@ export interface DockSettings {
   dismissDelayMs: number;
   hoverSlopPx: number;
   bridgePaddingPx: number;
+  cardSpacingPx: number;
   scope: ShortcutScope;
   appearance: Appearance;
+  input: DockInputSettings;
+}
+export interface DockInputSettings {
+  clickToHide: boolean;
+  scrollShowHide: boolean;
+  modifiedRightClick: boolean;
+  swipeTowardDock: PointerAction;
+  swipeAwayFromDock: PointerAction;
+  swipePrevious: PointerAction;
+  swipeNext: PointerAction;
+  previewDrag: boolean;
+  aeroShakeAction: "none" | "minimizeOthers" | "closeOthers";
 }
 
 export interface Settings {
@@ -387,6 +403,7 @@ export const defaultSettings: Settings = {
     dismissDelayMs: 250,
     hoverSlopPx: 8,
     bridgePaddingPx: 12,
+    cardSpacingPx: 7,
     scope: { appScope: "all" },
     appearance: {
       ...emptyState.appearance,
@@ -397,6 +414,17 @@ export const defaultSettings: Settings = {
       previewSelected: false,
       showWindowControls: true,
       fadeOutAnimation: false,
+    },
+    input: {
+      clickToHide: false,
+      scrollShowHide: false,
+      modifiedRightClick: false,
+      swipeTowardDock: "none",
+      swipeAwayFromDock: "none",
+      swipePrevious: "none",
+      swipeNext: "none",
+      previewDrag: false,
+      aeroShakeAction: "none",
     },
   },
 };

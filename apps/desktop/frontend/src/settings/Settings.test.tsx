@@ -1071,3 +1071,66 @@ it("edits the full Dock appearance independently without exposing unused timing 
   ).not.toBeInTheDocument();
   expect(screen.getAllByLabelText("Dock thumbnail size")).toHaveLength(1);
 });
+
+it("edits every Dock input gesture independently", () => {
+  let current = structuredClone(defaultSettings);
+  const original = structuredClone(current);
+  const onChange = vi.fn((next: typeof current) => {
+    current = next;
+  });
+  const { rerender } = render(<Settings settings={current} onChange={onChange} />);
+  fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  const refresh = () => rerender(<Settings settings={current} onChange={onChange} />);
+  fireEvent.change(screen.getByLabelText("Dock card spacing"), { target: { value: "0" } });
+  expect(current.dock.cardSpacingPx).toBe(0);
+  refresh();
+  fireEvent.change(screen.getByLabelText("Dock card spacing"), { target: { value: "24" } });
+  expect(current.dock.cardSpacingPx).toBe(24);
+  expect(current.appearance).toEqual(original.appearance);
+  expect(current.appSwitcher).toEqual(original.appSwitcher);
+  refresh();
+  for (const [label, field] of [
+    ["Click Dock icon to hide app", "clickToHide"],
+    ["Scroll Dock icon to show or hide app", "scrollShowHide"],
+    ["Command-right-click to quit app", "modifiedRightClick"],
+    ["Drag previews to move windows", "previewDrag"],
+  ] as const) {
+    fireEvent.click(screen.getByLabelText(label));
+    expect(current.dock.input[field]).toBe(true);
+    expect(current.dock.scope).toEqual(original.dock.scope);
+    expect(current.dock.appearance).toEqual(original.dock.appearance);
+    expect(current.appearance).toEqual(original.appearance);
+    expect(current.appSwitcher).toEqual(original.appSwitcher);
+    expect(current.behavior).toEqual(original.behavior);
+    refresh();
+  }
+  for (const [label, field] of [
+    ["Swipe toward Dock", "swipeTowardDock"],
+    ["Swipe away from Dock", "swipeAwayFromDock"],
+    ["Swipe to previous preview", "swipePrevious"],
+    ["Swipe to next preview", "swipeNext"],
+  ] as const) {
+    fireEvent.change(screen.getByLabelText(label), { target: { value: "close" } });
+    expect(current.dock.input[field]).toBe("close");
+    refresh();
+  }
+  fireEvent.change(screen.getByLabelText("Aero Shake action"), {
+    target: { value: "minimizeOthers" },
+  });
+  expect(current.dock.input.aeroShakeAction).toBe("minimizeOthers");
+  expect(screen.getByText(/Precise trackpad scrolling/)).toBeInTheDocument();
+});
+
+it("shows retained native Dock input failures without opening a preview", () => {
+  render(
+    <Settings
+      settings={defaultSettings}
+      onChange={vi.fn()}
+      requestedTab="Dock"
+      dockInputError="Input Monitoring permission required"
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Dock input unavailable: Input Monitoring permission required",
+  );
+});

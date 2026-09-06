@@ -33,6 +33,9 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   FocusDockWindow: vi.fn().mockResolvedValue({ succeeded: 1, failures: [] }),
   PerformDockAction: vi.fn().mockResolvedValue({ succeeded: 1, failures: [] }),
   SetDockPanelSize: vi.fn().mockResolvedValue(undefined),
+  SetDockPreviewRegions: vi.fn().mockResolvedValue(undefined),
+  BeginDockPreviewDrag: vi.fn().mockResolvedValue(undefined),
+  CancelDockPreviewDrag: vi.fn().mockResolvedValue(undefined),
   Cancel: vi.fn().mockResolvedValue(undefined),
   Select: vi.fn().mockResolvedValue(undefined),
   SetSearch: vi.fn().mockResolvedValue(undefined),
@@ -375,6 +378,57 @@ describe("App", () => {
     expect(AppService.FocusDockWindow).not.toHaveBeenCalled();
     expect(AppService.PerformDockAction).not.toHaveBeenCalled();
     Reflect.deleteProperty(document, "elementFromPoint");
+  });
+
+  it("publishes visible Dock preview regions through the current session bridge", async () => {
+    window.location.hash = "#dock";
+    const rect = {
+      x: 10,
+      y: 10,
+      left: 10,
+      top: 10,
+      right: 110,
+      bottom: 70,
+      width: 100,
+      height: 60,
+      toJSON: () => ({}),
+    } as DOMRect;
+    const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rect);
+    (AppService as any).SetDockPreviewRegions.mockClear();
+    render(<App />);
+    act(() =>
+      eventHandlers.get("dock:show")?.({
+        data: {
+          session: 21,
+          revision: 1,
+          open: true,
+          item: {
+            appId: 10,
+            bundleId: "a",
+            path: "/A.app",
+            title: "A",
+            bounds: { x: 0, y: 0, w: 40, h: 40 },
+            screenId: 1,
+            edge: "bottom",
+            kind: "app",
+          },
+          entries: [{ ...appEntry(101, "Region target"), appId: 10 }],
+          selectedWindowId: 101,
+          appearance: emptyState.appearance,
+          emptyReason: "",
+        },
+      }),
+    );
+    await waitFor(() =>
+      expect((AppService as any).SetDockPreviewRegions).toHaveBeenCalledWith(21, 1, [
+        expect.objectContaining({
+          windowId: 101,
+          appId: 10,
+          bounds: { x: 10, y: 10, w: 100, h: 60 },
+        }),
+      ]),
+    );
+    bounds.mockRestore();
   });
 
   it("uses a Dock error revision as a state high-water mark", () => {

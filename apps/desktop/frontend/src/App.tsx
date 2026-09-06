@@ -12,7 +12,7 @@ import {
   switcher,
 } from "./lib/bridge";
 import { demoStateFor } from "./lib/demo";
-import { type DockPointer, dock, onDockEvent } from "./lib/dock-bridge";
+import { type DockPointer, dock, onDockEvent, onDockInputStatus } from "./lib/dock-bridge";
 import { makeT, resolveLang } from "./lib/i18n";
 import type { DockViewState, VisualStyle } from "./lib/types";
 import {
@@ -518,6 +518,24 @@ function DockRoute() {
         if (session === activeSession.current)
           void dock.size(session, width, height).catch(() => {});
       },
+      onRegions: (session, revision, regions) => {
+        if (session === activeSession.current)
+          void dock.regions(session, revision, regions).catch(() => {});
+      },
+      onBeginDrag: (request) => {
+        if (request.session === activeSession.current)
+          return dock.beginDrag(
+            request.session,
+            request.gesture,
+            request.windowId,
+            request.appId,
+            request.pointerX,
+            request.pointerY,
+            request.grabX,
+            request.grabY,
+          );
+      },
+      onCancelDrag: (session, gesture) => dock.cancelDrag(session, gesture),
     }),
     [run],
   );
@@ -535,8 +553,28 @@ function SettingsRoute() {
   const about = useAbout();
   const crash = useCrash();
   const [requestedTab, setRequestedTab] = useState<string | null>(null);
+  const [dockInputError, setDockInputError] = useState("");
+  const dockInputRevision = useRef(0);
 
   useEffect(() => onPrefsTab(setRequestedTab), []);
+  useEffect(() => {
+    let active = true;
+    void dock.state().then((state) => {
+      const revision = Number(state?.revision ?? 0);
+      if (!active || !state || revision < dockInputRevision.current) return;
+      dockInputRevision.current = revision;
+      setDockInputError(state.error ?? "");
+    });
+    const off = onDockInputStatus((revision, message) => {
+      if (!active || revision < dockInputRevision.current) return;
+      dockInputRevision.current = revision;
+      setDockInputError(message);
+    });
+    return () => {
+      active = false;
+      off();
+    };
+  }, []);
 
   return (
     <fieldset disabled={importing} aria-busy={importing} className="m-0 min-w-0 border-0 p-0">
@@ -549,6 +587,7 @@ function SettingsRoute() {
         about={about}
         crash={crash}
         requestedTab={requestedTab}
+        dockInputError={dockInputError}
       />
     </fieldset>
   );

@@ -2,6 +2,7 @@ package platform
 
 import (
 	"context"
+	"time"
 
 	"option-tab/internal/domain"
 )
@@ -10,6 +11,8 @@ import (
 // Generation changes when the native Dock identity or environment is invalidated.
 type DockObservation struct {
 	Sequence, Generation uint64
+	DockPID              int
+	ObservedAt           time.Time
 	PointerX, PointerY   float64
 	Item                 *DockItem
 	Status               string

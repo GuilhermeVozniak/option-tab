@@ -163,6 +163,7 @@ func (l *controllerLoop) run() {
 	l.restartObserver()
 	defer func() {
 		l.stop()
+		l.publishInputTarget(platform.DockInputTarget{})
 		l.reset()
 		if l.observerDone != nil {
 			<-l.observerDone
@@ -216,6 +217,7 @@ func (l *controllerLoop) restartObserver() {
 	l.admission = l.controller.AdmissionEpoch()
 	l.stop()
 	l.reset()
+	l.publishInputTarget(platform.DockInputTarget{})
 	l.hover = NewHover(time.Duration(l.settings.Dock.HoverDelayMs)*time.Millisecond, time.Duration(l.settings.Dock.DismissDelayMs)*time.Millisecond)
 	l.sequence = 0
 	l.generation = 0
@@ -304,6 +306,7 @@ func (l *controllerLoop) observe(event observation) {
 		l.sequence = value.Sequence
 	}
 	if value.Status != "ready" {
+		l.publishInputTarget(platform.DockInputTarget{})
 		l.reset()
 		l.blocked = nil
 		return
@@ -316,9 +319,17 @@ func (l *controllerLoop) observe(event observation) {
 		l.blocked = nil
 		l.generation = value.Generation
 	}
+	target := platform.DockInputTarget{Generation: value.Generation, DockPID: value.DockPID, ObservedAt: value.ObservedAt, Item: cloneDockItem(value.Item)}
+	l.publishInputTarget(target)
 	l.last = &value
 	l.step(time.Now())
 	l.publishPointer()
+}
+
+func (l *controllerLoop) publishInputTarget(target platform.DockInputTarget) {
+	if view, ok := l.controller.deps.View.(InputTargetView); ok {
+		view.InputTarget(l.admission, target)
+	}
 }
 
 func (l *controllerLoop) step(at time.Time) {
@@ -565,7 +576,7 @@ func (l *controllerLoop) accept(result windowResult) {
 		}
 	}
 	l.screen = result.screen
-	l.state = State{AdmissionEpoch: l.admission, Session: l.session, Item: *l.candidate, Windows: result.windows, SelectedWindowID: selected, Appearance: l.settings.Dock.Appearance, EmptyReason: result.emptyReason}
+	l.state = State{AdmissionEpoch: l.admission, Session: l.session, Item: *l.candidate, Windows: result.windows, SelectedWindowID: selected, Appearance: l.settings.Dock.Appearance, CardSpacingPx: l.settings.Dock.CardSpacingPx, EmptyReason: result.emptyReason}
 	l.place()
 	first := !l.shown
 	l.shown = true
@@ -573,7 +584,7 @@ func (l *controllerLoop) accept(result windowResult) {
 }
 
 func (l *controllerLoop) place() {
-	w, h := panelSize(len(l.state.Windows), l.settings.Dock.Appearance)
+	w, h := panelSize(len(l.state.Windows), l.settings.Dock.Appearance, l.settings.Dock.CardSpacingPx)
 	if validSize(l.measured.W, l.measured.H) {
 		w, h = l.measured.W, l.measured.H
 	}
@@ -600,7 +611,7 @@ func validSize(w, h float64) bool {
 	return w > 0 && h > 0 && !math.IsInf(w, 0) && !math.IsInf(h, 0) && !math.IsNaN(w) && !math.IsNaN(h)
 }
 
-func panelSize(count int, a config.Appearance) (float64, float64) {
+func panelSize(count int, a config.Appearance, spacing int) (float64, float64) {
 	if count == 0 {
 		return 320, 120
 	}
@@ -614,7 +625,8 @@ func panelSize(count int, a config.Appearance) (float64, float64) {
 		cardWidth = max(240, float64(a.TitleMaxWidthPx))
 		cardHeight = 52
 	}
-	return 24 + float64(columns)*(cardWidth+12), 56 + float64(rows)*(cardHeight+12)
+	return 24 + float64(columns)*(cardWidth+12) + float64(columns-1)*float64(spacing),
+		56 + float64(rows)*cardHeight + float64(rows-1)*float64(spacing)
 }
 
 func inflate(b domain.Bounds, padding float64) domain.Bounds {

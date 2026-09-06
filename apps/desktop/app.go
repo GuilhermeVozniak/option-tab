@@ -93,19 +93,40 @@ type App struct {
 	captureStopOnce          sync.Once
 
 	// prefsOpen tracks whether the preferences window is currently shown.
-	prefsOpen              bool
-	switcherVisible        bool
-	visibleSwitcherSession uint64
-	sessionInactive        bool
-	sessionMu              sync.Mutex // serializes native and runtime session transitions; never nested by View
-	sessionGeneration      uint64
-	sessionObserveOnce     sync.Once
-	dockController         *dock.Controller
-	dockWindow             *dockWindow
-	dockState              dock.State
-	dockViewState          DockViewState
-	dockLastSession        uint64
-	dockRevision           uint64
+	prefsOpen                 bool
+	switcherVisible           bool
+	visibleSwitcherSession    uint64
+	sessionInactive           bool
+	sessionMu                 sync.Mutex // serializes native and runtime session transitions; never nested by View
+	sessionGeneration         uint64
+	sessionObserveOnce        sync.Once
+	dockController            *dock.Controller
+	dockInput                 *dock.InputController
+	dockShake                 *dock.ShakeController
+	dockInputError            string
+	dockFeatureErrors         [4]string
+	dockWheelMu               sync.Mutex
+	dockWheelPublishMu        sync.Mutex
+	dockWheelSource           platform.DockPanelWheelSource
+	dockWheel                 *dock.PanelGestureRecognizer
+	dockWheelSession          uint64
+	dockWheelRevision         uint64
+	dockWheelFrontendRevision uint64
+	dockWheelAdmission        uint64
+	dockWheelPending          struct{ session, revision, gesture uint64 }
+	dockDragMu                sync.Mutex
+	dockDragGesture           uint64
+	dockDragSession           uint64
+	dockDragHighGesture       uint64
+	dockDragHighSession       uint64
+	dockDragCancel            func()
+	dockDragCancelled         uint64
+	dockDragCancelledSession  uint64
+	dockWindow                *dockWindow
+	dockState                 dock.State
+	dockViewState             DockViewState
+	dockLastSession           uint64
+	dockRevision              uint64
 
 	// lastSelected is the previously shown selection index, used to fire the
 	// haptic tick only when the selection actually moves.
@@ -170,6 +191,8 @@ func newApp(p platform.Platform, settings config.Settings, settingsPath string) 
 	deps.AppWindows, _ = p.(platform.ApplicationWindowPresenceSource)
 	a.controller = switcher.New(deps, settings)
 	a.wireDockController()
+	a.wireDockInput()
+	a.wireDockShake()
 	return a
 }
 
@@ -251,6 +274,7 @@ func (a *App) emit(name string, data any) {
 
 // stopCapture is safe before startup and on repeated shutdown notifications.
 func (a *App) stopCapture() {
+	a.cancelDockPreviewDrag()
 	a.viewMu.Lock()
 	a.cancelDismissalLocked()
 	a.dismissDockLocked()
@@ -268,6 +292,7 @@ func (a *App) stopCapture() {
 	a.platform.Hotkeys().SetOpen(false)
 	a.setKeySession(0)
 	a.viewMu.Unlock()
+	a.cancelDockPreviewDrag()
 	// Stopping can call the View again. The terminal channel closes admission
 	// first; never hold viewMu while retiring controller state.
 	if a.controller != nil {

@@ -2,20 +2,35 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import type { AppScopeMode } from "../../lib/types";
+import type { AppScopeMode, DockInputSettings, PointerAction } from "../../lib/types";
 import { HINT, type PermissionsControl, ROW, type TabContext } from "../shared";
 import { AppearanceTab } from "./AppearanceTab";
 
 export function DockTab({
   ctx,
   permissions,
+  inputError,
 }: {
   ctx: TabContext;
   permissions?: PermissionsControl;
+  inputError?: string;
 }) {
   const { settings, t, patch } = ctx;
   const d = settings.dock;
   const patchDock = (p: Partial<typeof d>) => patch({ dock: { ...d, ...p } });
+  const input: DockInputSettings = d.input ?? {
+    clickToHide: false,
+    scrollShowHide: false,
+    modifiedRightClick: false,
+    swipeTowardDock: "none",
+    swipeAwayFromDock: "none",
+    swipePrevious: "none",
+    swipeNext: "none",
+    previewDrag: false,
+    aeroShakeAction: "none",
+  };
+  const patchInput = (value: Partial<DockInputSettings>) =>
+    patchDock({ input: { ...input, ...value } });
   const appearanceContext: TabContext = {
     ...ctx,
     modeAppearance: d.appearance,
@@ -56,6 +71,88 @@ export function DockTab({
               "Accessibility identifies Dock icons and window controls. Screen Recording provides thumbnails.",
             )}
           </p>
+          {inputError ? (
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+              {t("Dock input unavailable")}: {inputError}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Input and gestures")}</CardTitle>
+          <CardDescription>
+            {t(
+              "Precise trackpad scrolling powers preview swipes. macOS does not reliably expose the number of fingers.",
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {(
+            [
+              ["Click Dock icon to hide app", "clickToHide"],
+              ["Scroll Dock icon to show or hide app", "scrollShowHide"],
+              ["Command-right-click to quit app", "modifiedRightClick"],
+              ["Drag previews to move windows", "previewDrag"],
+            ] as const
+          ).map(([label, field]) => (
+            <label className={ROW} key={field}>
+              <span>{t(label)}</span>
+              <Checkbox
+                aria-label={label}
+                checked={input[field]}
+                onChange={(event) => patchInput({ [field]: event.target.checked })}
+              />
+            </label>
+          ))}
+          {(
+            [
+              ["Swipe toward Dock", "swipeTowardDock"],
+              ["Swipe away from Dock", "swipeAwayFromDock"],
+              ["Swipe to previous preview", "swipePrevious"],
+              ["Swipe to next preview", "swipeNext"],
+            ] as const
+          ).map(([label, field]) => (
+            <label className={ROW} key={field}>
+              <span>{t(label)}</span>
+              <Select
+                aria-label={label}
+                value={input[field]}
+                onChange={(event) => patchInput({ [field]: event.target.value as PointerAction })}
+              >
+                {(
+                  [
+                    ["none", "None"],
+                    ["close", "Close"],
+                    ["minimize", "Minimize"],
+                    ["fullscreen", "Fullscreen"],
+                    ["hide", "Hide app"],
+                    ["quit", "Quit app"],
+                  ] as const
+                ).map(([value, text]) => (
+                  <option value={value} key={value}>
+                    {t(text)}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          ))}
+          <label className={ROW}>
+            <span>{t("Aero Shake action")}</span>
+            <Select
+              aria-label="Aero Shake action"
+              value={input.aeroShakeAction}
+              onChange={(event) =>
+                patchInput({
+                  aeroShakeAction: event.target.value as DockInputSettings["aeroShakeAction"],
+                })
+              }
+            >
+              <option value="none">{t("None")}</option>
+              <option value="minimizeOthers">{t("Minimize other windows")}</option>
+              <option value="closeOthers">{t("Close other windows")}</option>
+            </Select>
+          </label>
         </CardContent>
       </Card>
       <Card>
@@ -69,6 +166,7 @@ export function DockTab({
               ["Dock dismiss delay", "dismissDelayMs", 0, 2000],
               ["Dock movement tolerance", "hoverSlopPx", 0, 32],
               ["Dock corridor padding", "bridgePaddingPx", 0, 48],
+              ["Dock card spacing", "cardSpacingPx", 0, 24],
             ] as const
           ).map(([label, field, min, max]) => (
             <label className={ROW} key={field}>
