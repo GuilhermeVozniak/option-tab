@@ -32,6 +32,8 @@ App input now also rejects non-app item kinds and any captured input-policy chan
 
 The fixture commands and evidence boundaries are documented in the [native README](../../../apps/desktop/internal/platform/testdata/folder-pop/README.md). The implementation plan is [here](../plans/2026-09-06-folder-pop.md).
 
+Combined with monitor protection e018020: 258 desktop + 5 shared + 3 site unit tests, all 18 Go packages with race detection, 59 desktop + 4 site browser tests, lint and production builds pass. Both independent settings and lifecycle owners are preserved.
+
 ## Remaining native acceptance
 
 Visible approval in the real chooser, access reuse after that approval, exact real recipient-window opening/cleanup, physical folder scrolling and distributed signing/TCC behavior remain pending. Path-based NSWorkspace dispatch has a remaining non-atomic interval between final filesystem identity checks and URL resolution. The implementation does not claim atomic file-descriptor opening.

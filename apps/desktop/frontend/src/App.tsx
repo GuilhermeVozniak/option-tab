@@ -13,8 +13,14 @@ import {
 } from "./lib/bridge";
 import { demoStateFor } from "./lib/demo";
 import { type DockPointer, dock, onDockEvent, onDockInputStatus } from "./lib/dock-bridge";
+import { dockLock } from "./lib/dock-lock-bridge";
 import { makeT, resolveLang } from "./lib/i18n";
-import type { DockViewState, VisualStyle } from "./lib/types";
+import type {
+  DockLockDisplay,
+  DockMonitorLockState,
+  DockViewState,
+  VisualStyle,
+} from "./lib/types";
 import {
   defaultSettings,
   emptyState,
@@ -568,6 +574,13 @@ function SettingsRoute() {
   const [requestedTab, setRequestedTab] = useState<string | null>(null);
   const [dockInputError, setDockInputError] = useState("");
   const dockInputRevision = useRef(0);
+  const [lockState, setLockState] = useState<DockMonitorLockState>();
+  const [lockDisplays, setLockDisplays] = useState<DockLockDisplay[]>([]);
+  const [lockLoadError, setLockLoadError] = useState("");
+  const [lockPlacementError, setLockPlacementError] = useState("");
+  const [lockPlacePending, setLockPlacePending] = useState(false);
+  const lockMark = useRef<[number, number, number]>([0, 0, 0]);
+  const lockSeen = useRef(false);
 
   useEffect(() => onPrefsTab(setRequestedTab), []);
   useEffect(() => {
@@ -588,6 +601,41 @@ function SettingsRoute() {
       off();
     };
   }, []);
+  useEffect(() => {
+    let active = true;
+    const accept = (state: DockMonitorLockState) => {
+      const next: [number, number, number] = [state.session, state.revision, state.sequence];
+      const old = lockMark.current;
+      if (
+        !active ||
+        next[0] < old[0] ||
+        (next[0] === old[0] &&
+          (next[1] < old[1] ||
+            (next[1] === old[1] && (next[2] < old[2] || (lockSeen.current && next[2] === old[2])))))
+      )
+        return;
+      lockSeen.current = true;
+      lockMark.current = next;
+      setLockState(state);
+      if (state.generation > 0) {
+        setLockDisplays(state.displays ?? []);
+        setLockLoadError("");
+      }
+    };
+    const off = dockLock.onState(accept);
+    void dockLock
+      .state()
+      .then(accept)
+      .catch((e) => active && !lockSeen.current && setLockLoadError(String(e)));
+    void dockLock
+      .displays()
+      .then((value) => active && setLockDisplays(value))
+      .catch((e) => active && !lockSeen.current && setLockLoadError(String(e)));
+    return () => {
+      active = false;
+      off();
+    };
+  }, []);
 
   return (
     <fieldset disabled={importing} aria-busy={importing} className="m-0 min-w-0 border-0 p-0">
@@ -601,6 +649,29 @@ function SettingsRoute() {
         crash={crash}
         requestedTab={requestedTab}
         dockInputError={dockInputError}
+        monitorLock={{
+          state: lockState,
+          displays: lockDisplays,
+          error: lockPlacementError || lockLoadError,
+          pending: lockPlacePending,
+          onEnable: () => {
+            if (perms && perms.state.accessibility !== "granted") perms.onRequest("accessibility");
+          },
+          onPlace: (session, revision, generation) => {
+            setLockPlacementError("");
+            setLockPlacePending(true);
+            void dockLock
+              .place(session, revision, generation)
+              .then((r) => {
+                if (!r.verified) setLockPlacementError(r.reason || r.status);
+              })
+              .catch((e) => setLockPlacementError(String(e)))
+              .finally(() => setLockPlacePending(false));
+          },
+          onCancel: () => {
+            void dockLock.cancel().catch((e) => setLockPlacementError(String(e)));
+          },
+        }}
       />
     </fieldset>
   );

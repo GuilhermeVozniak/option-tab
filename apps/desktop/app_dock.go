@@ -106,7 +106,7 @@ func (a *App) moveDockPointer(st dock.PointerState) {
 }
 
 func (a *App) startDock() {
-	if a.dockController == nil && a.dockInput == nil && a.dockShake == nil {
+	if a.dockController == nil && a.dockInput == nil && a.dockShake == nil && a.dockMonitorLock == nil {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -119,6 +119,9 @@ func (a *App) startDock() {
 	}
 	if a.dockShake != nil {
 		go a.dockShake.Run(ctx)
+	}
+	if a.dockMonitorLock != nil {
+		go a.dockMonitorLock.Run(ctx)
 	}
 }
 
@@ -296,6 +299,7 @@ func (a *App) syncDockSuspensionLocked() {
 	a.syncDockInputLocked()
 	a.syncDockShakeLocked()
 	a.syncDockFolderGrantLocked()
+	a.syncDockMonitorLockLocked()
 }
 
 func (a *App) setSessionInactive(inactive bool) {

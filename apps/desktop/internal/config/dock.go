@@ -1,23 +1,37 @@
 package config
 
+import "regexp"
+
 // DockSettings controls the optional Dock hover preview surface. Empty Space/
 // Screen scope fields inherit the global filters.
 type DockSettings struct {
-	Enabled         bool              `json:"enabled"`
-	HoverDelayMs    int               `json:"hoverDelayMs"`
-	DismissDelayMs  int               `json:"dismissDelayMs"`
-	HoverSlopPx     int               `json:"hoverSlopPx"`
-	BridgePaddingPx int               `json:"bridgePaddingPx"`
-	CardSpacingPx   int               `json:"cardSpacingPx"`
-	Scope           ShortcutScope     `json:"scope"`
-	Appearance      Appearance        `json:"appearance"`
-	Input           DockInputSettings `json:"input"`
-	FolderPop       FolderPopSettings `json:"folderPop"`
+	Enabled         bool                    `json:"enabled"`
+	HoverDelayMs    int                     `json:"hoverDelayMs"`
+	DismissDelayMs  int                     `json:"dismissDelayMs"`
+	HoverSlopPx     int                     `json:"hoverSlopPx"`
+	BridgePaddingPx int                     `json:"bridgePaddingPx"`
+	CardSpacingPx   int                     `json:"cardSpacingPx"`
+	Scope           ShortcutScope           `json:"scope"`
+	Appearance      Appearance              `json:"appearance"`
+	Input           DockInputSettings       `json:"input"`
+	FolderPop       FolderPopSettings       `json:"folderPop"`
+	MonitorLock     DockMonitorLockSettings `json:"monitorLock"`
 }
 
 type FolderPopSettings struct {
 	Enabled bool `json:"enabled"`
 }
+
+type DockMonitorLockSettings struct {
+	Enabled        bool   `json:"enabled"`
+	Target         string `json:"target"`
+	DisplayUUID    string `json:"displayUUID"`
+	BypassModifier string `json:"bypassModifier"`
+}
+
+var displayUUIDPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
+func validDisplayUUID(value string) bool { return displayUUIDPattern.MatchString(value) }
 
 type DockInputSettings struct {
 	ClickToHide        bool          `json:"clickToHide"`
@@ -58,7 +72,8 @@ func dockDefaults(window Appearance) DockSettings {
 		HoverSlopPx: 8, BridgePaddingPx: 12,
 		CardSpacingPx: 7,
 		Scope:         ShortcutScope{AppScope: AppScopeAll}, Appearance: a,
-		Input:     defaultDockInput(),
-		FolderPop: FolderPopSettings{Enabled: false},
+		Input:       defaultDockInput(),
+		FolderPop:   FolderPopSettings{Enabled: false},
+		MonitorLock: DockMonitorLockSettings{Target: "main", BypassModifier: "option"},
 	}
 }

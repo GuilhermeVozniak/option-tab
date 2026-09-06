@@ -24,6 +24,24 @@ func TestDockValidationRejectsOutOfRangeValues(t *testing.T) {
 	}
 }
 
+func TestDockMonitorLockDefaultsAndNormalization(t *testing.T) {
+	s := Default()
+	if s.Dock.MonitorLock.Enabled || s.Dock.MonitorLock.Target != "main" || s.Dock.MonitorLock.BypassModifier != "option" {
+		t.Fatalf("defaults=%+v", s.Dock.MonitorLock)
+	}
+	s.Dock.Enabled = false
+	s.Dock.MonitorLock = DockMonitorLockSettings{Enabled: true, Target: "display", DisplayUUID: "11111111-1111-1111-1111-111111111111", BypassModifier: "command"}
+	got := s.Normalize()
+	if !got.Dock.MonitorLock.Enabled || got.Dock.MonitorLock.DisplayUUID != "11111111-1111-1111-1111-111111111111" || got.Dock.Enabled {
+		t.Fatalf("independence lost: %+v", got.Dock)
+	}
+	s.Dock.MonitorLock.Target, s.Dock.MonitorLock.BypassModifier = "bad", "bad"
+	got = s.Normalize()
+	if got.Dock.MonitorLock.Target != "main" || got.Dock.MonitorLock.BypassModifier != "option" || got.Dock.MonitorLock.DisplayUUID != "11111111-1111-1111-1111-111111111111" {
+		t.Fatalf("normalized=%+v", got.Dock.MonitorLock)
+	}
+}
+
 func TestDockInputDefaultsAndMissingSchema3Object(t *testing.T) {
 	for name, s := range map[string]Settings{
 		"default": Default(),

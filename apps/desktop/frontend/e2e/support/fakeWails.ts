@@ -133,6 +133,11 @@ const METHOD = {
   RequestDockFolderAccess: 1355609963,
   CancelDockFolderAccess: 3062959714,
   OpenDockFolderEntry: 1164782910,
+  GetDockMonitorLockDisplays: 961307694,
+  GetDockMonitorLockState: 3014544674,
+  PlaceDockOnSelectedMonitor: 1589667255,
+  CancelDockPlacement: 2631637315,
+  SaveSettings: 1949631069,
 } as const;
 
 const METHOD_NAME = new Map<number, string>(Object.entries(METHOD).map(([name, id]) => [id, name]));
@@ -157,6 +162,9 @@ export async function installFakeWails(page: Page): Promise<void> {
       __actionResult?: { succeeded: number; failures: { windowId: number; error: string }[] };
       __actionError?: string;
       __dockState?: Record<string, unknown> | null;
+      __dockLockState?: Record<string, unknown>;
+      __dockLockDisplays?: unknown[];
+      __dockPlacementResult?: Record<string, unknown>;
       _wails?: { dispatchWailsEvent?: (ev: { name: string; data: unknown }) => void };
     };
     w.__calls = [];
@@ -164,6 +172,27 @@ export async function installFakeWails(page: Page): Promise<void> {
     w.__actionResult = undefined;
     w.__actionError = undefined;
     w.__dockState = null;
+    w.__dockLockState = {
+      session: 0,
+      revision: 0,
+      generation: 0,
+      sequence: 0,
+      status: "disabled",
+      reason: "",
+      targetUUID: "",
+      actualUUID: "",
+      edge: "",
+      displays: [],
+    };
+    w.__dockLockDisplays = [];
+    w.__dockPlacementResult = {
+      requestId: 1,
+      status: "protected",
+      reason: "",
+      actualUUID: "",
+      verified: true,
+      cursorRestored: true,
+    };
     window.addEventListener("keydown", (e) => {
       if (!w.__state?.open) return; // the native tap only forwards while open
       w._wails?.dispatchWailsEvent?.({
@@ -199,6 +228,26 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json("0.0.0-e2e");
       case "GetDockState":
         return json(await page.evaluate(() => (window as any).__dockState));
+      case "GetDockMonitorLockState":
+        return json(await page.evaluate(() => (window as any).__dockLockState));
+      case "GetDockMonitorLockDisplays":
+        return json(await page.evaluate(() => (window as any).__dockLockDisplays));
+      case "PlaceDockOnSelectedMonitor": {
+        const result = await page.evaluate(
+          ([n, a]) => {
+            const w = window as any;
+            w.__calls.push([n, ...a]);
+            return w.__dockPlacementResult;
+          },
+          [name, args],
+        );
+        return json(result);
+      }
+      case "CancelDockPlacement":
+      case "SaveSettings": {
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        return json(null);
+      }
       case "InstallUpdate":
         // No real install in e2e: acknowledge and stay put.
         await evaluate((n) => {

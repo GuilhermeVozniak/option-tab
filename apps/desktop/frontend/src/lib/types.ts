@@ -334,6 +334,36 @@ export interface DockSettings {
   appearance: Appearance;
   input: DockInputSettings;
   folderPop: { enabled: boolean };
+  monitorLock: DockMonitorLockSettings;
+}
+export interface DockMonitorLockSettings {
+  enabled: boolean;
+  target: "main" | "display";
+  displayUUID: string;
+  bypassModifier: "option" | "control" | "command" | "shift";
+}
+export interface DockLockDisplay {
+  uuid: string;
+  id: number;
+  name: string;
+  bounds: Bounds;
+  scale: number;
+  main: boolean;
+  mirrored: boolean;
+}
+export interface DockMonitorLockState {
+  session: number;
+  revision: number;
+  generation: number;
+  sequence: number;
+  observedAtMs: number;
+  status: string;
+  reason: string;
+  targetUUID: string;
+  actualUUID: string;
+  edge: string;
+  displays: DockLockDisplay[];
+  placementAvailable?: boolean;
 }
 export interface DockInputSettings {
   clickToHide: boolean;
@@ -459,5 +489,6 @@ export const defaultSettings: Settings = {
       aeroShakeAction: "none",
     },
     folderPop: { enabled: false },
+    monitorLock: { enabled: false, target: "main", displayUUID: "", bypassModifier: "option" },
   },
 };
