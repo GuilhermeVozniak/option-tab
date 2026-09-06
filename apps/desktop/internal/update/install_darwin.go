@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 )
@@ -103,7 +104,7 @@ func verifyBundle(app string) error {
 // RelaunchSelf starts a detached helper that reopens the app once this
 // process has exited. The caller should quit immediately after.
 func RelaunchSelf(appPath string, pid int) error {
-	cmd := exec.Command("/bin/sh", "-c", relaunchScript(pid, appPath))
+	cmd := exec.Command("/bin/sh", "-c", relaunchScript(), "option-tab-updater", strconv.Itoa(pid), appPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	return cmd.Start()
 }

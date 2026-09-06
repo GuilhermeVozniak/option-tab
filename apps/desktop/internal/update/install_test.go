@@ -2,8 +2,10 @@ package update
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
-	"strings"
+	"runtime"
+	"strconv"
 	"testing"
 )
 
@@ -104,12 +106,43 @@ func TestParseTeamIDRejectsUnsignedOrMissing(t *testing.T) {
 }
 
 func TestRelaunchScript(t *testing.T) {
-	s := relaunchScript(4242, "/Applications/Option Tab.app")
-	if !strings.Contains(s, "kill -0 4242") {
-		t.Fatalf("script should wait on the pid, got %q", s)
+	if runtime.GOOS == "windows" {
+		t.Skip("relaunch script requires a POSIX shell")
 	}
-	if !strings.Contains(s, `open -n "/Applications/Option Tab.app"`) {
-		t.Fatalf("script should open the quoted bundle path, got %q", s)
+
+	tmp := t.TempDir()
+	marker := filepath.Join(tmp, "expanded")
+	argsFile := filepath.Join(tmp, "open-args")
+	fakeOpen := filepath.Join(tmp, "open")
+	writeFile(t, fakeOpen, "#!/bin/sh\nif kill -0 \"$EXPECTED_PID\" 2>/dev/null; then exit 42; fi\nprintf '%s\\n' \"$@\" > \"$OPEN_ARGS\"\n")
+	if err := os.Chmod(fakeOpen, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	appPath := filepath.Join(tmp, "Option Tab $(touch "+marker+") `quoted` \"double\" 'bundle'.app\nline")
+	waitFor := exec.Command("/bin/sleep", "0.05")
+	err := waitFor.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() { _ = waitFor.Wait() }()
+
+	cmd := exec.Command("/bin/sh", "-c", relaunchScript(), "updater", strconv.Itoa(waitFor.Process.Pid), appPath)
+	cmd.Env = append(os.Environ(), "EXPECTED_PID="+strconv.Itoa(waitFor.Process.Pid), "OPEN_ARGS="+argsFile, "PATH="+tmp+":"+os.Getenv("PATH"))
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("relaunch script failed: %v (%s)", err, output)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("app path was interpreted by the shell; marker stat error: %v", err)
+	}
+
+	args, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "-n\n" + appPath + "\n"
+	if string(args) != want {
+		t.Fatalf("open received %q, want %q", args, want)
 	}
 }
 

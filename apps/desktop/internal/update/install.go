@@ -59,9 +59,9 @@ func parseTeamID(out []byte) (string, error) {
 	return "", errors.New("update: bundle has no Team Identifier")
 }
 
-// relaunchScript waits for pid to exit, then opens the (replaced) app bundle.
-// The updater runs it detached right before quitting: a plain `open` while we
-// are still alive would be swallowed by the single-instance guard.
-func relaunchScript(pid int, appPath string) string {
-	return fmt.Sprintf("while kill -0 %d 2>/dev/null; do sleep 0.2; done; open -n %q", pid, appPath)
+// relaunchScript waits for the PID in $1 to exit, then opens the app bundle in
+// $2. The updater runs it detached right before quitting: a plain `open` while
+// we are still alive would be swallowed by the single-instance guard.
+func relaunchScript() string {
+	return `while kill -0 "$1" 2>/dev/null; do sleep 0.2; done; open -n "$2"`
 }
