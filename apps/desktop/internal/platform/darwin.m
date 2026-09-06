@@ -22,6 +22,9 @@ extern CGError SLPSPostEventRecordTo(ProcessSerialNumber *psn, uint8_t *bytes);
 extern void goHotkeyEvent(int kind, int id);
 // Receives a raw key press forwarded while the switcher overlay is open.
 extern void goKeyEvent(int keycode, uint64_t flags, const char *text);
+// Receives frontmost-app identity changes so Go applies the same Unicode
+// case-folding semantics as the controller before the next tap decision.
+extern void goHotkeyFrontAppChanged(const char *bundle_id, const char *app_name);
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -221,12 +224,26 @@ char *ot_list_windows_json(void) {
   }
 }
 
+// windowIDArray builds the pointer-sized value array CoreGraphics expects.
+// CGWindowID itself is only 32 bits, so passing its address as const void **
+// makes CFArrayCreate read past the integer on 64-bit systems.
+static CFArrayRef windowIDArray(uint32_t wid) {
+  const void *value = (const void *)(uintptr_t)wid;
+  return CFArrayCreate(NULL, &value, 1, NULL);
+}
+
+uintptr_t ot_window_id_array_value(uint32_t wid) {
+  CFArrayRef arr = windowIDArray(wid);
+  uintptr_t value = (uintptr_t)CFArrayGetValueAtIndex(arr, 0);
+  CFRelease(arr);
+  return value;
+}
+
 // ot_window_pid resolves the owning pid of a single window id via a targeted
 // CGWindowList query (no AX/Space enrichment), keeping the action path fast.
 int ot_window_pid(uint32_t wid) {
   @autoreleasepool {
-    CGWindowID ids[1] = { (CGWindowID)wid };
-    CFArrayRef arr = CFArrayCreate(NULL, (const void **)ids, 1, NULL);
+    CFArrayRef arr = windowIDArray(wid);
     CFArrayRef list = CGWindowListCreateDescriptionFromArray(arr);
     CFRelease(arr);
     int pid = 0;
@@ -263,6 +280,8 @@ static void otInstallFrontObserver(void) {
   NSRunningApplication *front = [[NSWorkspace sharedWorkspace] frontmostApplication];
   if (front && front.processIdentifier != self) {
     gLastRealFrontPid = front.processIdentifier;
+    goHotkeyFrontAppChanged(front.bundleIdentifier.UTF8String,
+                            front.localizedName.UTF8String);
   }
   [[[NSWorkspace sharedWorkspace] notificationCenter]
       addObserverForName:NSWorkspaceDidActivateApplicationNotification
@@ -272,6 +291,8 @@ static void otInstallFrontObserver(void) {
     NSRunningApplication *app = note.userInfo[NSWorkspaceApplicationKey];
     if (app && app.processIdentifier != self) {
       gLastRealFrontPid = app.processIdentifier;
+      goHotkeyFrontAppChanged(app.bundleIdentifier.UTF8String,
+                              app.localizedName.UTF8String);
       // Focus tracking rides on the same notification (gated so the eager
       // install from ot_active_app_pid never emits before Go is listening):
       // (re)install the app's AX observer lazily — covers apps launched after
@@ -834,6 +855,8 @@ void ot_activate_prefs(void) {
     NSRunningApplication *front = [[NSWorkspace sharedWorkspace] frontmostApplication];
     if (front && front.processIdentifier != [[NSProcessInfo processInfo] processIdentifier]) {
       gLastRealFrontPid = front.processIdentifier;
+      goHotkeyFrontAppChanged(front.bundleIdentifier.UTF8String,
+                              front.localizedName.UTF8String);
     }
   }
   dispatch_async(dispatch_get_main_queue(), ^{
@@ -931,7 +954,8 @@ extern void goHotkeyCaptured(uint64_t modflags, uint16_t keycode);
 
 typedef struct {
   int id;
-  uint64_t modflags; // required modifier mask (excluding shift)
+  uint64_t modflags; // exact modifier mask used to match the key press
+  uint64_t holdMask; // base modifiers whose release ends the session
   uint16_t keycode;
   int withShift;     // 1 if this registration is the shift/reverse variant
   int used;
@@ -939,6 +963,7 @@ typedef struct {
 
 #define OT_MAX_CHORDS 32
 static OTChord gChords[OT_MAX_CHORDS];
+static pthread_mutex_t gChordLock = PTHREAD_MUTEX_INITIALIZER;
 static CFMachPortRef gTap = NULL;
 static CFRunLoopSourceRef gSource = NULL;
 static CFRunLoopRef gRunLoop = NULL;
@@ -952,8 +977,53 @@ static int gCaptureMode = 0;     // one-shot chord recording for the prefs UI
 // source. Written from the Go thread, read on the tap thread.
 static _Atomic int gSwitcherOpen = 0;
 
+// Go recomputes eligibility when settings or the frontmost app changes. The
+// event tap only performs this atomic read: no Go callback, AX query, string
+// conversion, or case folding occurs on the latency-sensitive tap thread.
+static _Atomic int gHotkeysEligible = 1;
+
 static const uint64_t kModMask = (kCGEventFlagMaskControl | kCGEventFlagMaskAlternate |
                                   kCGEventFlagMaskShift | kCGEventFlagMaskCommand);
+
+void ot_hotkey_set_eligible(int eligible) {
+  atomic_store_explicit(&gHotkeysEligible, eligible ? 1 : 0,
+                        memory_order_release);
+}
+
+static int hotkeyPolicyAllowsFrontApp(void) {
+  return (int)atomic_load_explicit(&gHotkeysEligible, memory_order_acquire);
+}
+
+int ot_hotkey_decide(uint64_t modflags, uint16_t keycode, int active, int open,
+                     int *shortcutID, uint64_t *holdMask) {
+  OTChord matched = {0};
+  uint64_t flags = modflags & kModMask;
+
+  pthread_mutex_lock(&gChordLock);
+  // Explicit chords win over generated shift/reverse variants with the same
+  // key and modifier mask, independent of registration order.
+  for (int synthetic = 0; synthetic <= 1 && !matched.used; synthetic++) {
+    for (int i = 0; i < OT_MAX_CHORDS; i++) {
+      if (!gChords[i].used || gChords[i].withShift != synthetic) continue;
+      if (gChords[i].keycode != keycode || gChords[i].modflags != flags) continue;
+      matched = gChords[i];
+      break;
+    }
+  }
+  pthread_mutex_unlock(&gChordLock);
+
+  if (!matched.used) return 0;
+  if (!active && !open && !hotkeyPolicyAllowsFrontApp()) return 0;
+  if (shortcutID != NULL) *shortcutID = matched.id;
+  if (holdMask != NULL) *holdMask = matched.holdMask;
+  if (!active) return 1;
+  return matched.withShift ? 3 : 2;
+}
+
+int ot_hotkey_should_release(uint64_t modflags, uint64_t holdMask) {
+  uint64_t flags = modflags & kModMask;
+  return (flags & holdMask) != holdMask;
+}
 
 // forwardKey delivers a key press to Go (goKeyEvent) with its text, so the
 // frontend can run navigation/actions/type-to-search while the overlay is open.
@@ -984,7 +1054,7 @@ static CGEventRef tapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRe
   uint64_t flags = (uint64_t)CGEventGetFlags(event) & kModMask;
 
   if (type == kCGEventFlagsChanged) {
-    if (gActive && (flags & gHoldMask) != gHoldMask) {
+    if (gActive && ot_hotkey_should_release(flags, gHoldMask)) {
       gActive = 0;
       goHotkeyEvent(3, 0); // release
     }
@@ -1020,23 +1090,21 @@ static CGEventRef tapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRe
       return NULL;         // consume
     }
 
-    int shiftHeld = (flags & kCGEventFlagMaskShift) ? 1 : 0;
-    for (int i = 0; i < OT_MAX_CHORDS; i++) {
-      if (!gChords[i].used) continue;
-      if (gChords[i].keycode != keycode) continue;
-      uint64_t need = gChords[i].modflags;
-      if ((flags & need) != need) continue;
-
-      if (!gActive) {
+    int shortcutID = 0;
+    uint64_t holdMask = 0;
+    int action = ot_hotkey_decide(flags, keycode, gActive, open, &shortcutID,
+                                  &holdMask);
+    if (action != 0) {
+      if (action == 1) {
         gActive = 1;
-        gHoldMask = need;
-        goHotkeyEvent(0, gChords[i].id); // activate
-      } else if (shiftHeld) {
-        goHotkeyEvent(2, gChords[i].id); // reverse
+        gHoldMask = holdMask;
+        goHotkeyEvent(0, shortcutID);
+      } else if (action == 2) {
+        goHotkeyEvent(1, shortcutID);
       } else {
-        goHotkeyEvent(1, gChords[i].id); // advance
+        goHotkeyEvent(2, shortcutID);
       }
-      return NULL; // consume the chord
+      return NULL;
     }
 
     // Switcher open but no chord matched: consume the key so it never reaches
@@ -1094,16 +1162,20 @@ int ot_hotkey_start(void) {
 
 int ot_hotkey_register(int id, uint64_t modflags, uint16_t keycode, int withShift) {
   OTLOG("register id=%d keycode=%u mods=0x%llx shift=%d\n", id, keycode, (unsigned long long)modflags, withShift);
+  pthread_mutex_lock(&gChordLock);
   for (int i = 0; i < OT_MAX_CHORDS; i++) {
     if (!gChords[i].used) {
       gChords[i].id = id;
       gChords[i].modflags = modflags | (withShift ? kCGEventFlagMaskShift : 0);
+      gChords[i].holdMask = modflags;
       gChords[i].keycode = keycode;
       gChords[i].withShift = withShift;
       gChords[i].used = 1;
+      pthread_mutex_unlock(&gChordLock);
       return 1;
     }
   }
+  pthread_mutex_unlock(&gChordLock);
   return 0;
 }
 
@@ -1116,9 +1188,11 @@ void ot_hotkey_set_open(int open) {
 }
 
 void ot_hotkey_unregister(int id) {
+  pthread_mutex_lock(&gChordLock);
   for (int i = 0; i < OT_MAX_CHORDS; i++) {
     if (gChords[i].used && gChords[i].id == id) gChords[i].used = 0;
   }
+  pthread_mutex_unlock(&gChordLock);
 }
 
 void ot_hotkey_stop(void) {

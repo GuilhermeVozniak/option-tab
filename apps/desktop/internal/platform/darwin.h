@@ -24,6 +24,10 @@ int ot_active_app_pid(void);
 // pass.
 int ot_window_pid(uint32_t wid);
 
+// Returns the pointer-sized value stored by the targeted window-ID array.
+// Used to verify the native representation independently of live windows.
+uintptr_t ot_window_id_array_value(uint32_t wid);
+
 // ot_active_space returns the id of the currently active Space, or 0 if it
 // cannot be resolved (private CGS API unavailable).
 uint64_t ot_active_space(void);
@@ -122,6 +126,19 @@ int ot_hotkey_start(void);
 int ot_hotkey_register(int id, uint64_t modflags, uint16_t keycode, int withShift);
 void ot_hotkey_unregister(int id);
 void ot_hotkey_stop(void);
+
+// Atomically updates whether a closed tap session may consume a shortcut.
+// Go computes this when settings or the frontmost app identity changes.
+void ot_hotkey_set_eligible(int eligible);
+
+// Returns the tap decision for a key press: 0 pass through, 1 activate,
+// 2 advance, 3 reverse. shortcut_id and hold_mask are set only for consumed
+// chords. hold_mask excludes synthetic Shift while retaining explicit Shift.
+int ot_hotkey_decide(uint64_t modflags, uint16_t keycode, int active, int open,
+                     int *shortcut_id, uint64_t *hold_mask);
+
+// Reports whether the active shortcut's required modifier was released.
+int ot_hotkey_should_release(uint64_t modflags, uint64_t hold_mask);
 
 // ot_hotkey_set_open tells the tap whether the switcher overlay is open. While
 // open, every key press is consumed (so it never reaches the previously active

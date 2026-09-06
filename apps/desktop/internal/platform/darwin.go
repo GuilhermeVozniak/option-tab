@@ -147,6 +147,10 @@ func (p *darwinPlatform) findPID(id domain.WindowID) int {
 	return int(C.ot_window_pid(C.uint32_t(id)))
 }
 
+func nativeWindowIDArrayValue(id uint32) uintptr {
+	return uintptr(C.ot_window_id_array_value(C.uint32_t(id)))
+}
+
 func (p *darwinPlatform) Thumbnail(id domain.WindowID, maxPx int) (image.Image, error) {
 	cstr := C.ot_thumbnail_png_base64(C.uint32_t(id), C.int(maxPx))
 	defer C.free(unsafe.Pointer(cstr))
@@ -369,6 +373,11 @@ type darwinHotkeys struct {
 	keysCh   chan KeyEvent
 	focusCh  chan domain.WindowID
 	started  bool
+
+	policyMu    sync.Mutex
+	policy      HotkeyPolicy
+	frontBundle string
+	frontName   string
 }
 
 func newDarwinHotkeys() *darwinHotkeys {
@@ -379,6 +388,7 @@ func newDarwinHotkeys() *darwinHotkeys {
 		eventsCh: make(chan HotkeyEvent, 8),
 		keysCh:   make(chan KeyEvent, 32),
 		focusCh:  make(chan domain.WindowID, 16),
+		policy:   HotkeyPolicy{Enabled: true},
 	}
 }
 
@@ -434,13 +444,13 @@ func (h *darwinHotkeys) Register(id int, c hotkey.Chord) error {
 	}
 	mods := modMask(c)
 	// Base chord (advance / activate) plus a shift variant (reverse).
-	C.ot_hotkey_register(C.int(id), C.uint64_t(mods), C.uint16_t(keycode), 0)
-	C.ot_hotkey_register(C.int(id), C.uint64_t(mods), C.uint16_t(keycode), 1)
+	registerNativeHotkey(id, mods, keycode, false)
+	registerNativeHotkey(id, mods, keycode, true)
 	return nil
 }
 
 func (h *darwinHotkeys) Unregister(id int) error {
-	C.ot_hotkey_unregister(C.int(id))
+	unregisterNativeHotkey(id)
 	return nil
 }
 
@@ -461,12 +471,94 @@ func (h *darwinHotkeys) SetOpen(open bool) {
 	C.ot_hotkey_set_open(flag)
 }
 
+func (h *darwinHotkeys) SetHotkeyPolicy(policy HotkeyPolicy) {
+	h.policyMu.Lock()
+	defer h.policyMu.Unlock()
+	policy.IgnoredApps = append([]string(nil), policy.IgnoredApps...)
+	h.policy = policy
+	h.syncNativeEligibilityLocked()
+}
+
+func (h *darwinHotkeys) setFrontApp(bundleID, appName string) {
+	h.policyMu.Lock()
+	defer h.policyMu.Unlock()
+	h.frontBundle = bundleID
+	h.frontName = appName
+	h.syncNativeEligibilityLocked()
+}
+
+func (h *darwinHotkeys) syncNativeEligibilityLocked() {
+	eligible := h.policy.Enabled
+	if eligible {
+		for _, match := range h.policy.IgnoredApps {
+			if strings.EqualFold(match, h.frontBundle) || strings.EqualFold(match, h.frontName) {
+				eligible = false
+				break
+			}
+		}
+	}
+	setNativeHotkeyEligibility(eligible)
+}
+
 func (h *darwinHotkeys) Close() error {
 	C.ot_hotkey_stop()
 	h.events.close()
 	h.keys.close()
 	h.focus.close()
 	return nil
+}
+
+const (
+	nativeHotkeyPass = iota
+	nativeHotkeyActivate
+	nativeHotkeyAdvance
+	nativeHotkeyReverse
+)
+
+func registerNativeHotkey(id int, mods uint64, keycode uint16, withShift bool) bool {
+	shift := C.int(0)
+	if withShift {
+		shift = 1
+	}
+	return C.ot_hotkey_register(C.int(id), C.uint64_t(mods), C.uint16_t(keycode), shift) != 0
+}
+
+func unregisterNativeHotkey(id int) {
+	C.ot_hotkey_unregister(C.int(id))
+}
+
+func nativeHotkeyDecision(mods uint64, keycode uint16, active, open bool) (int, int) {
+	action, id, _ := nativeHotkeyPressDecision(mods, keycode, active, open)
+	return action, id
+}
+
+func nativeHotkeyPressDecision(mods uint64, keycode uint16, active, open bool) (int, int, uint64) {
+	activeFlag := C.int(0)
+	if active {
+		activeFlag = 1
+	}
+	openFlag := C.int(0)
+	if open {
+		openFlag = 1
+	}
+	var id C.int
+	var holdMask C.uint64_t
+	action := C.ot_hotkey_decide(
+		C.uint64_t(mods), C.uint16_t(keycode), activeFlag, openFlag, &id, &holdMask,
+	)
+	return int(action), int(id), uint64(holdMask)
+}
+
+func nativeHotkeyShouldRelease(mods, holdMask uint64) bool {
+	return C.ot_hotkey_should_release(C.uint64_t(mods), C.uint64_t(holdMask)) != 0
+}
+
+func setNativeHotkeyEligibility(enabled bool) {
+	flag := C.int(0)
+	if enabled {
+		flag = 1
+	}
+	C.ot_hotkey_set_eligible(flag)
 }
 
 // CoreGraphics modifier-flag masks (stable public CGEventFlags values), kept
@@ -584,6 +676,14 @@ func goHotkeyEvent(kind, id C.int) {
 		ev.Kind = HotkeyCancel
 	}
 	activeEngine.events.push(ev)
+}
+
+//export goHotkeyFrontAppChanged
+func goHotkeyFrontAppChanged(bundleID, appName *C.char) {
+	if activeEngine == nil {
+		return
+	}
+	activeEngine.setFrontApp(C.GoString(bundleID), C.GoString(appName))
 }
 
 //export goKeyEvent
