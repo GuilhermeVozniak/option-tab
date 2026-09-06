@@ -52,6 +52,7 @@ func (a *App) OpenPreferences() {
 	}
 	dlog("OpenPreferences: prefsOpen=%v", a.prefsOpen)
 	a.prefsOpen = true
+	a.syncDockSuspensionLocked()
 	// Preferences need keyboard focus: flip the accessory app to a regular,
 	// activated app (the switcher overlay itself never activates).
 	if act, ok := a.platform.(platform.AppActivator); ok {
@@ -105,6 +106,7 @@ func (a *App) ClosePreferences() {
 // opens over an open preferences window and on WindowClosing).
 func (a *App) closePreferencesWindow() {
 	a.prefsOpen = false
+	a.syncDockSuspensionLocked()
 	a.prefs.hide()
 	if h, ok := a.platform.(platform.DockHider); ok {
 		h.HideDockIcon()

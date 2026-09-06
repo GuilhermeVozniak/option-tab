@@ -58,9 +58,17 @@ func (a *App) reRegisterHotkeys() {
 }
 
 func (a *App) hotkeyLoop() {
-	for ev := range a.platform.Hotkeys().Events() {
-		dlog("hotkeyLoop: received event kind=%d shortcut=%d", ev.Kind, ev.ShortcutID)
-		a.controller.HandleHotkey(ev)
+	for {
+		select {
+		case <-a.captureStop:
+			return
+		case ev, ok := <-a.platform.Hotkeys().Events():
+			if !ok {
+				return
+			}
+			dlog("hotkeyLoop: received event kind=%d shortcut=%d", ev.Kind, ev.ShortcutID)
+			a.controller.HandleHotkey(ev)
+		}
 	}
 }
 
@@ -85,10 +93,24 @@ func (a *App) keyLoop() {
 	if keys == nil {
 		return // backend without key forwarding (stub/fake)
 	}
-	for ev := range keys {
-		if a.controller.IsOpen() {
-			a.emit("switcher:key", ev)
+	for {
+		select {
+		case <-a.captureStop:
+			return
+		case ev, ok := <-keys:
+			if !ok {
+				return
+			}
+			if session := a.controller.PresentationSession(); session != 0 && ev.Session == session {
+				a.emit("switcher:key", ev)
+			}
 		}
+	}
+}
+
+func (a *App) setKeySession(session uint64) {
+	if source, ok := a.platform.Hotkeys().(platform.KeySessionSetter); ok {
+		source.SetKeySession(session)
 	}
 }
 
@@ -102,12 +124,21 @@ func (a *App) keyLoop() {
 func (a *App) Show(st switcher.State) {
 	a.viewMu.Lock()
 	defer a.viewMu.Unlock()
+	if a.sessionInactive || (st.Session != 0 && a.controller.PresentationSession() != st.Session) {
+		return
+	}
 	select {
 	case <-a.captureStop:
 		return
 	default:
 	}
 	a.cancelDismissalLocked()
+	a.switcherVisible = true
+	a.visibleSwitcherSession = st.Session
+	a.syncDockSuspensionLocked()
+	// Wait out the prior owner's emissions before assigning a new frame token.
+	a.captures.Hide()
+	a.captureSwitcherSession.Store(st.Session)
 	a.fadeOnHide = st.Appearance.FadeOutAnimation
 	a.captureActive = true
 	dlog("Show: %d entries, selected=%d", len(st.Entries), st.Selected)
@@ -116,8 +147,11 @@ func (a *App) Show(st switcher.State) {
 	}
 	// Tell the native tap to consume and forward all keyboard input before the
 	// window appears, so a quick follow-up Tab never leaks to the previous app.
+	a.setKeySession(st.Session)
 	a.platform.Hotkeys().SetOpen(true)
 	a.enrichIcons(&st)
+	a.switcherRevision++
+	st.Revision = a.switcherRevision
 	a.emit("switcher:show", st)
 	a.lastSelected = st.Selected
 	// Size the transparent window to the screen the Placement setting chose
@@ -144,11 +178,16 @@ func (a *App) Show(st switcher.State) {
 func (a *App) Update(st switcher.State) {
 	a.viewMu.Lock()
 	defer a.viewMu.Unlock()
+	if a.sessionInactive || (st.Session != 0 && a.controller.PresentationSession() != st.Session) {
+		return
+	}
 	a.enrichIcons(&st)
+	a.switcherRevision++
+	st.Revision = a.switcherRevision
 	a.emit("switcher:update", st)
 	if st.Selected != a.lastSelected {
 		a.lastSelected = st.Selected
-		if h, ok := a.platform.(platform.HapticFeedback); ok && a.settingsSnapshot().Behavior.HapticFeedback {
+		if h, ok := a.platform.(platform.HapticFeedback); ok && a.settingsSnapshot().Preferences(st.Mode).Behavior.HapticFeedback {
 			h.HapticTick()
 		}
 	}
@@ -159,11 +198,37 @@ func (a *App) Update(st switcher.State) {
 func (a *App) Hide() {
 	a.viewMu.Lock()
 	defer a.viewMu.Unlock()
+	a.hideSwitcherLocked()
+}
+
+// HideSession retires only the presentation that requested dismissal. An old
+// controller callback must not hide an overlay that has since reopened.
+func (a *App) HideSession(session uint64) {
+	a.viewMu.Lock()
+	defer a.viewMu.Unlock()
+	if session != a.visibleSwitcherSession {
+		return
+	}
+	a.hideSwitcherLocked()
+}
+
+func (a *App) hideSwitcherLocked() {
+	select {
+	case <-a.captureStop:
+		return
+	default:
+	}
 	a.cancelDismissalLocked()
+	a.switcherVisible = false
+	retiredSession := a.visibleSwitcherSession
+	a.visibleSwitcherSession = 0
+	a.syncDockSuspensionLocked()
 	a.captureActive = false
 	a.captures.Hide() // invalidate callbacks before the overlay disappears
+	a.captureSwitcherSession.Store(0)
 	a.platform.Hotkeys().SetOpen(false)
-	a.emit("switcher:hide", nil)
+	a.setKeySession(0)
+	a.emitSwitcherHideLocked(retiredSession)
 	if a.fadeOnHide && a.overlay.alive() {
 		generation := a.viewGeneration
 		// Match Overlay's 180 ms CSS fade; input and capture stop immediately.
@@ -179,6 +244,11 @@ func (a *App) Hide() {
 		return
 	}
 	a.finishHideLocked()
+}
+
+func (a *App) emitSwitcherHideLocked(session uint64) {
+	a.switcherRevision++
+	a.emit("switcher:hide", dockSessionEvent{Session: session, Revision: a.switcherRevision})
 }
 
 // cancelDismissalLocked also invalidates callbacks already waiting on viewMu.
@@ -217,7 +287,7 @@ func (a *App) emitCachedThumbnails(st switcher.State) {
 		}
 	}
 	if len(out) > 0 {
-		a.emit("switcher:thumbnails", out)
+		a.emit("switcher:thumbnails", switcherFramePayload(st.Session, out))
 	}
 }
 
@@ -235,9 +305,10 @@ func (a *App) backgroundCaptureLoop() {
 		case <-ticker.C:
 		}
 		settings := a.settingsSnapshot()
-		if !settings.Behavior.CaptureInBackground || a.controller.IsOpen() || a.controller.Paused() {
+		if !a.backgroundCaptureAllowed() {
 			continue
 		}
+		epoch := a.backgroundCaptureEpoch()
 		src, ok := a.platform.(platform.ThumbnailSource)
 		if !ok {
 			continue
@@ -257,10 +328,10 @@ func (a *App) backgroundCaptureLoop() {
 				return
 			default:
 			}
-			if !a.settingsSnapshot().Behavior.CaptureInBackground {
+			if !a.backgroundCaptureAllowed() {
 				break
 			}
-			if i >= maxWindows || a.controller.IsOpen() {
+			if i >= maxWindows {
 				break
 			}
 			url := src.ThumbnailDataURL(w.ID, px)
@@ -269,9 +340,7 @@ func (a *App) backgroundCaptureLoop() {
 			}
 			next[w.ID] = url
 		}
-		a.thumbCacheMu.Lock()
-		a.thumbCache = next
-		a.thumbCacheMu.Unlock()
+		a.publishBackgroundCache(epoch, next)
 	}
 }
 
@@ -286,9 +355,11 @@ func (a *App) updateCapture(st switcher.State) {
 		return
 	default:
 	}
-	thumbs := st.Style == config.StyleThumbnails
+	thumbs := st.Style == config.StyleThumbnails || st.Mode == config.ModeApps
 	selected := domain.WindowID(0)
-	if st.Selected >= 0 && st.Selected < len(st.Entries) {
+	if st.Mode == config.ModeApps {
+		selected = st.SelectedWindowID
+	} else if st.Selected >= 0 && st.Selected < len(st.Entries) {
 		selected = st.Entries[st.Selected].WindowID
 	}
 	a.captureSelected.Store(uint64(selected))
@@ -338,15 +409,29 @@ func (a *App) enrichIcons(st *switcher.State) {
 		}
 		st.Entries[i].Icon = img
 	}
+	for i := range st.Apps {
+		pid := int(st.Apps[i].AppID)
+		img, cached := a.iconCache[pid]
+		if !cached {
+			img = src.AppIcon(pid, px)
+			a.iconCache[pid] = img
+		}
+		st.Apps[i].Icon = img
+	}
 }
 
 // ---- Bound controller actions (called from the frontend) ----
 
-func (a *App) Advance() { a.controller.Advance() }
-func (a *App) Reverse() { a.controller.Reverse() }
-func (a *App) Confirm() { a.controller.Confirm() }
+func (a *App) Advance()       { a.controller.Advance() }
+func (a *App) Reverse()       { a.controller.Reverse() }
+func (a *App) Confirm() error { return a.controller.Confirm() }
 
-func (a *App) ConfirmWindow(id uint64) { a.controller.ConfirmWindow(domain.WindowID(id)) }
+func (a *App) ConfirmWindow(id uint64) error { return a.controller.ConfirmWindow(domain.WindowID(id)) }
+
+func (a *App) SelectApp(id int)            { a.controller.SelectApp(domain.AppID(id)) }
+func (a *App) SelectAppWindow(id uint64)   { a.controller.SelectAppWindow(domain.WindowID(id)) }
+func (a *App) ConfirmApp(id int) error     { return a.controller.ConfirmApp(domain.AppID(id)) }
+func (a *App) ActionFailed(message string) { a.emit("switcher:error", message) }
 
 func (a *App) Cancel()             { a.controller.Cancel() }
 func (a *App) Select(index int)    { a.controller.Select(index) }

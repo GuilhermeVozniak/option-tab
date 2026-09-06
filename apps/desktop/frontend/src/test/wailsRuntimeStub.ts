@@ -40,6 +40,10 @@ export const CancellablePromise = Promise;
 // Generated model constructors build these converters at module scope.
 export const Create = {
   Any: <T>(source: T): T => source,
+  Nullable:
+    <T>(createFrom: (source: unknown) => T) =>
+    (source: unknown): T | null =>
+      source == null ? null : createFrom(source),
   Array:
     <T>(createFrom: (source: unknown) => T) =>
     (source: unknown[]) =>

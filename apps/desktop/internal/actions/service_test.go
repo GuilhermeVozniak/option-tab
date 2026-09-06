@@ -39,6 +39,24 @@ func TestBulkReportsIndividualFailure(t *testing.T) {
 	}
 }
 
+func TestBulkGuardStopsRemainingTargetsWhenPresentationRetires(t *testing.T) {
+	f := fake.New()
+	f.SetWindows([]domain.Window{{ID: 1, AppID: 10}, {ID: 2, AppID: 10}})
+	cancelled := errors.New("presentation retired")
+	r, err := New(f).PerformGuarded("closeAll", 0, 10, func() error {
+		if len(f.CloseCalls) > 0 {
+			return cancelled
+		}
+		return nil
+	})
+	if err != nil || r.Succeeded != 1 || len(r.Failures) != 1 || r.Failures[0].WindowID != 2 || r.Failures[0].Error != cancelled.Error() {
+		t.Fatalf("partial cancellation result=%+v err=%v", r, err)
+	}
+	if !reflect.DeepEqual(f.CloseCalls, []domain.WindowID{1}) {
+		t.Fatalf("dispatched retired target: %v", f.CloseCalls)
+	}
+}
+
 func TestWindowIdentityRejectsMismatchAndMissing(t *testing.T) {
 	for _, id := range []domain.WindowID{2, 99} {
 		f := fixture()

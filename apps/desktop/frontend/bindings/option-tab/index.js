@@ -6,3 +6,10 @@ import * as App from "./app.js";
 export {
     App
 };
+
+export {
+    DockBounds,
+    DockItemView,
+    DockPointer,
+    DockViewState
+} from "./models.js";

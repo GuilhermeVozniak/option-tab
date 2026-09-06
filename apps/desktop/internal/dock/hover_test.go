@@ -7,6 +7,23 @@ import (
 	"option-tab/internal/domain"
 )
 
+func TestShownIconMovementRepositionsWithoutNewHoverDelay(t *testing.T) {
+	h := NewHover(0, 250*time.Millisecond)
+	at := time.Unix(1, 0)
+	item := Item{Kind: "app", AppID: 10, Bounds: domain.Bounds{X: 100, Y: 700, W: 50, H: 50}, Edge: "bottom"}
+	if h.Step(at, &item, false).Show == nil {
+		t.Fatal("not shown")
+	}
+	item.Bounds.X = 180
+	change := h.Step(at.Add(time.Millisecond), &item, false)
+	if change.Move == nil || change.Show != nil || change.Move.Bounds.X != 180 {
+		t.Fatal("must reposition existing panel")
+	}
+	if h.Step(at.Add(2*time.Millisecond), &item, false).Move != nil {
+		t.Fatal("unchanged geometry should not keep moving panel")
+	}
+}
+
 func TestHoverDelayAndIconToPanelBridge(t *testing.T) {
 	h := NewHover(300*time.Millisecond, 200*time.Millisecond)
 	item := Item{AppID: 10, Path: "/Applications/Editor.app"}

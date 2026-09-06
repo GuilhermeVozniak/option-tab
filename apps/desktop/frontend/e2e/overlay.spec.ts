@@ -66,6 +66,111 @@ test.describe("overlay — interactive", () => {
     await expect(options.nth(0)).toHaveAttribute("aria-selected", "true");
   });
 
+  test("app mode keeps duplicate names and confirms the clicked preview exactly", async ({
+    page,
+  }) => {
+    await emitShow(
+      page,
+      showState({
+        mode: "apps",
+        apps: [
+          {
+            appId: 10,
+            appName: "Example",
+            bundleId: "a",
+            hidden: false,
+            windowCount: 2,
+            windowPresence: "present",
+          },
+          {
+            appId: 20,
+            appName: "Example",
+            bundleId: "b",
+            hidden: false,
+            windowCount: 0,
+            windowPresence: "none",
+          },
+        ],
+        selected: 0,
+        selectedWindowId: 1,
+        entries: [
+          { ...(showState() as any).entries[0], appId: 10, title: "Document A" },
+          { ...(showState() as any).entries[1], appId: 10, windowId: 102, title: "Document B" },
+        ],
+      }),
+    );
+    await expect(page.getByRole("option", { name: /Example/ })).toHaveCount(2);
+    await page.getByRole("button", { name: "Focus Document B" }).click();
+    await expect.poll(() => getCallRecords(page)).toContainEqual(["ConfirmWindow", 102]);
+  });
+
+  test("rejects reordered switcher state, frames, and closed-session resurrection", async ({
+    page,
+  }) => {
+    const base = showState() as any;
+    const state = (session: number, revision: number, title: string) => ({
+      ...base,
+      session,
+      revision,
+      entries: [{ ...base.entries[0], title }],
+    });
+    await emitShow(page, state(40, 2, "Initial"));
+    await page.evaluate(
+      ([newest, oldShow, oldSession]) => {
+        const w = window as any;
+        w._wails.dispatchWailsEvent({ name: "switcher:update", data: newest });
+        w._wails.dispatchWailsEvent({ name: "switcher:show", data: oldShow });
+        w._wails.dispatchWailsEvent({ name: "switcher:update", data: oldSession });
+        w._wails.dispatchWailsEvent({
+          name: "switcher:thumbnails",
+          data: { session: 39, frames: { "1": "data:old" } },
+        });
+        w._wails.dispatchWailsEvent({
+          name: "switcher:thumbnails",
+          data: { session: 40, frames: { "1": "data:current" } },
+        });
+      },
+      [state(40, 4, "Newest"), state(40, 3, "Old show"), state(39, 99, "Old session")],
+    );
+    await expect(page.getByText("Newest")).toBeVisible();
+    await expect(page.locator(".ot-thumb-img")).toHaveAttribute("src", "data:current");
+    await page.evaluate(
+      (late) => {
+        const w = window as any;
+        w._wails.dispatchWailsEvent({ name: "switcher:hide", data: { session: 40, revision: 5 } });
+        w._wails.dispatchWailsEvent({ name: "switcher:update", data: late });
+        w._wails.dispatchWailsEvent({ name: "switcher:show", data: { ...late, revision: 7 } });
+      },
+      state(40, 6, "Late"),
+    );
+    await expect(page.locator(".ot-overlay,.ot-app-switcher")).toHaveCount(0);
+  });
+
+  test("rejects native keys from an older presentation session", async ({ page }) => {
+    await emitShow(page, showState({ session: 50, revision: 1, selected: 0 }));
+    const options = page.getByRole("option");
+    const emitKey = (session: number) =>
+      page.evaluate((keySession) => {
+        const w = window as any;
+        w._wails.dispatchWailsEvent({
+          name: "switcher:key",
+          data: {
+            session: keySession,
+            key: "Tab",
+            code: "Tab",
+            shift: false,
+            ctrl: false,
+            alt: false,
+            meta: false,
+          },
+        });
+      }, session);
+    await emitKey(49);
+    await expect(options.nth(0)).toHaveAttribute("aria-selected", "true");
+    await emitKey(50);
+    await expect(options.nth(1)).toHaveAttribute("aria-selected", "true");
+  });
+
   test("labels additional actions and their target app for people", async ({ page }) => {
     await emitShow(page, showState({ selected: 0 }));
     await expect(page.getByText("New window — Editor", { exact: true })).toBeVisible();

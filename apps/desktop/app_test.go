@@ -308,7 +308,9 @@ func TestSetPaused_SyncsNativeEligibilityPolicy(t *testing.T) {
 func TestHotkeyLoop_ActivatesController(t *testing.T) {
 	p := &focusRecorderPlatform{Fake: fake.New()}
 	p.SetWindows(appTestWindows())
-	a := newApp(p, config.Default(), filepath.Join(t.TempDir(), "settings.json"))
+	s := config.Default()
+	s.Shortcuts[0].Mode = config.ModeWindows
+	a := newApp(p, s, filepath.Join(t.TempDir(), "settings.json"))
 	go a.hotkeyLoop()
 
 	p.EmitHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
@@ -323,7 +325,9 @@ func TestHotkeyLoop_ActivatesController(t *testing.T) {
 func TestFocusLoop_TouchesMRU(t *testing.T) {
 	p := fake.New()
 	p.SetWindows(appTestWindows())
-	a := newApp(p, config.Default(), filepath.Join(t.TempDir(), "settings.json"))
+	s := config.Default()
+	s.Shortcuts[0].Mode = config.ModeWindows
+	a := newApp(p, s, filepath.Join(t.TempDir(), "settings.json"))
 	go a.focusLoop()
 
 	// A real (outside-the-switcher) focus change must reach the MRU: the
@@ -479,7 +483,9 @@ func TestTrayMenuActions(t *testing.T) {
 	// exercise the same paths the menu items trigger.
 	f := fake.New()
 	f.SetWindows(appTestWindows())
-	a := newApp(f, config.Default(), "")
+	s := config.Default()
+	s.Shortcuts[0].Mode = config.ModeWindows
+	a := newApp(f, s, "")
 
 	// "Show Option Tab" activates the switcher as if the primary hotkey fired.
 	a.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})

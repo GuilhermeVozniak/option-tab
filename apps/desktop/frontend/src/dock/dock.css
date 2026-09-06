@@ -1,0 +1,229 @@
+.ot-dock-panel {
+  --ot-dock-bg: 13, 17, 31;
+  --ot-dock-text: #f5f7ff;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: 100vw;
+  max-height: 100vh;
+  overflow: auto;
+  padding: 10px;
+  color: var(--ot-dock-text);
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: var(--ot-dock-radius, 14px);
+  background: rgba(var(--ot-dock-bg), var(--ot-dock-opacity, 0.94));
+  font:
+    var(--ot-dock-font, 12px) -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.15);
+}
+.ot-dock-panel.ot-theme-light {
+  --ot-dock-bg: 244, 247, 255;
+  --ot-dock-text: #16213c;
+}
+@media (prefers-color-scheme: light) {
+  .ot-dock-panel.ot-theme-system {
+    --ot-dock-bg: 244, 247, 255;
+    --ot-dock-text: #16213c;
+  }
+}
+.ot-dock-blur {
+  backdrop-filter: blur(20px);
+}
+.ot-dock-content {
+  box-sizing: border-box;
+}
+.ot-dock-panel header {
+  padding: 1px 3px 8px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.ot-dock-list-viewport {
+  max-height: var(--ot-dock-list-height);
+  overflow: auto;
+}
+.ot-dock-list {
+  display: grid;
+  grid-template-columns: repeat(var(--ot-dock-columns), var(--ot-dock-cell));
+  grid-auto-rows: var(--ot-dock-card-height);
+  gap: 7px;
+}
+.ot-dock-list.ot-dock-vertical {
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--ot-dock-rows), var(--ot-dock-card-height));
+  grid-auto-columns: var(--ot-dock-cell);
+}
+.ot-dock-style-titles {
+  grid-template-columns: 1fr;
+}
+.ot-dock-list article {
+  box-sizing: border-box;
+  position: relative;
+  min-width: 0;
+  padding: 5px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+.ot-dock-list article.is-selected {
+  border-color: var(--ot-accent);
+  background: color-mix(in srgb, var(--ot-accent) 20%, transparent);
+}
+.ot-dock-preview {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: 7px;
+  padding: 0;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  color: inherit;
+  font: inherit;
+}
+.ot-dock-image {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 100%;
+  height: var(--ot-dock-image-height);
+  overflow: hidden;
+}
+.ot-dock-image > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.ot-dock-style-appIcons .ot-dock-image > img {
+  width: var(--ot-dock-icon);
+  height: var(--ot-dock-icon);
+}
+.ot-dock-image > img.ot-dock-badge {
+  position: absolute;
+  bottom: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+}
+.ot-dock-title {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 4px;
+}
+.ot-dock-style-titles .ot-dock-preview {
+  align-items: flex-start;
+  padding: 0 5px;
+  box-sizing: border-box;
+}
+.ot-dock-style-titles .ot-dock-title {
+  width: 100%;
+  padding-inline: 26px;
+}
+.ot-dock-status,
+.ot-dock-space {
+  position: absolute;
+  bottom: 3px;
+  font-size: 0.8em;
+  background: rgba(var(--ot-dock-bg), 0.85);
+  border-radius: 3px;
+  padding: 1px 3px;
+}
+.ot-dock-status {
+  right: 3px;
+}
+.ot-dock-space {
+  left: 3px;
+}
+.ot-dock-controls {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: flex;
+  gap: 3px;
+  opacity: 0;
+  pointer-events: none;
+}
+.ot-dock-list article:hover .ot-dock-controls,
+.ot-dock-list article.is-hovered .ot-dock-controls,
+.ot-dock-list article:focus-within .ot-dock-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+.ot-dock-controls button {
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: #252525;
+  background: #ffbd44;
+}
+.ot-dock-controls button:first-child {
+  background: #ff605c;
+}
+.ot-dock-controls button:last-child {
+  background: #00ca4e;
+}
+.ot-dock-error {
+  margin: 0 0 7px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: rgba(190, 40, 55, 0.2);
+  overflow-wrap: anywhere;
+}
+.ot-dock-empty {
+  margin: 14px 20px;
+  opacity: 0.75;
+}
+.ot-dock-selected-preview {
+  height: var(--ot-dock-preview-height, 300px);
+  margin-top: 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  overflow: hidden;
+}
+.ot-dock-selected-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.ot-dock-preview-fade img {
+  animation: ot-dock-preview-in 120ms ease-out;
+}
+@keyframes ot-dock-preview-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ot-dock-preview-fade img {
+    animation: none;
+  }
+}
+.ot-dock-app-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+.ot-dock-app-actions button {
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 7px;
+  padding: 4px 7px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: inherit;
+  font: inherit;
+}

@@ -309,6 +309,22 @@ export const SizePreset = {
 };
 
 /**
+ * SwitcherMode selects whether a shortcut cycles individual windows or one
+ * entry per running application. It is independent of the visual style.
+ * @readonly
+ * @enum {string}
+ */
+export const SwitcherMode = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    ModeWindows: "windows",
+    ModeApps: "apps",
+};
+
+/**
  * Theme selects the color scheme.
  * @readonly
  * @enum {string}

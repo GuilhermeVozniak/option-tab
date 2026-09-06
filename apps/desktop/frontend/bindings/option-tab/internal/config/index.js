@@ -9,6 +9,7 @@ export {
     Placement,
     PointerAction,
     SizePreset,
+    SwitcherMode,
     Theme,
     TruncationMode,
     VisualStyle

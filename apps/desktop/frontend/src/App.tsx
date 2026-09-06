@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AppSwitcher } from "./app-switcher/AppSwitcher";
+import { type DockPanelHandlers, DockPanelView } from "./dock/DockPanelView";
 import { useAbout, useCrash, usePermissions } from "./hooks/useBridge";
 import {
   hasBackend,
@@ -10,7 +12,9 @@ import {
   switcher,
 } from "./lib/bridge";
 import { demoStateFor } from "./lib/demo";
-import type { VisualStyle } from "./lib/types";
+import { type DockPointer, dock, onDockEvent } from "./lib/dock-bridge";
+import { makeT, resolveLang } from "./lib/i18n";
+import type { DockViewState, VisualStyle } from "./lib/types";
 import {
   defaultSettings,
   emptyState,
@@ -32,6 +36,23 @@ function isSettingsRoute(): boolean {
 
 function isDemoRoute(): boolean {
   return route().startsWith("demo");
+}
+function isDockRoute(): boolean {
+  return route() === "dock";
+}
+
+function useRuntimeTranslator() {
+  const [language, setLanguage] = useState("");
+  useEffect(() => {
+    let active = true;
+    void loadSettings().then((settings) => {
+      if (active && settings?.behavior) setLanguage(settings.behavior.language);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return useMemo(() => makeT(resolveLang(language)), [language]);
 }
 
 // demoStyle reads the style from a #demo route like "demo:appIcons" (default
@@ -118,6 +139,7 @@ function useSettingsModel() {
 // It holds no business logic.
 export default function App() {
   if (isSettingsRoute()) return <SettingsRoute />;
+  if (isDockRoute()) return <DockRoute />;
   if (isDemoRoute()) {
     return (
       <div className="ot-demo-backdrop">
@@ -129,11 +151,17 @@ export default function App() {
 }
 
 function OverlayRoute() {
+  const t = useRuntimeTranslator();
   const [state, setState] = useState<SwitcherState>(emptyState);
   const [actionError, setActionError] = useState<string | null>(null);
   const actionRevision = useRef(0);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [previews, setPreviews] = useState<Record<string, string>>({});
+  const currentSession = useRef(0);
+  const activeSession = useRef(0);
+  const retiredSession = useRef(0);
+  const latestRevision = useRef(0);
+  const scopedSeen = useRef(false);
   // The overlay window never becomes key (the app is not activated on show), so
   // in the real app keyboard input arrives as native-tap "switcher:key" events.
   // The DOM listener in Overlay is only a fallback for browser dev, enabled
@@ -150,22 +178,72 @@ function OverlayRoute() {
   }, []);
 
   useEffect(() => {
-    return onSwitcherEvent({
-      onShow: (s) => {
+    const acceptState = (next: SwitcherState) => {
+      const session = next.session ?? 0;
+      const revision = next.revision ?? 0;
+      if (session === 0) {
+        if (scopedSeen.current) return;
+      } else {
+        scopedSeen.current = true;
+        if (session < currentSession.current || session <= retiredSession.current) return;
+        if (session === currentSession.current && revision < latestRevision.current) return;
+      }
+      const changed = session !== activeSession.current;
+      if (session > currentSession.current) currentSession.current = session;
+      latestRevision.current = revision;
+      activeSession.current = session;
+      if (changed) {
         ++actionRevision.current;
         setActionError(null);
-        setThumbs({}); // new session: drop the previous capture's previews
+        setThumbs({});
         setPreviews({});
-        setState(s);
+      }
+      setState(next);
+    };
+    return onSwitcherEvent({
+      onShow: (next) => {
+        if ((next.session ?? 0) === 0 && !scopedSeen.current) {
+          ++actionRevision.current;
+          setActionError(null);
+          setThumbs({});
+          setPreviews({});
+        }
+        acceptState(next);
       },
-      onUpdate: setState,
-      onHide: () => {
+      onUpdate: acceptState,
+      onHide: (session, revision) => {
+        if (session === 0) {
+          if (scopedSeen.current) return;
+        } else {
+          scopedSeen.current = true;
+          if (session < currentSession.current) return;
+          if (session === currentSession.current && revision < latestRevision.current) return;
+          currentSession.current = session;
+          latestRevision.current = revision;
+          retiredSession.current = Math.max(retiredSession.current, session);
+        }
+        activeSession.current = 0;
         ++actionRevision.current;
         setActionError(null);
+        setThumbs({});
+        setPreviews({});
         setState((s) => ({ ...s, open: false }));
       },
-      onThumbnails: (t) => setThumbs((prev) => ({ ...prev, ...t })),
-      onPreview: (p) => setPreviews((prev) => ({ ...prev, ...p })),
+      onThumbnails: (session, next) => {
+        if (
+          (session === 0 && !scopedSeen.current) ||
+          (session > 0 && session === activeSession.current)
+        )
+          setThumbs((prev) => ({ ...prev, ...next }));
+      },
+      onPreview: (session, next) => {
+        if (
+          (session === 0 && !scopedSeen.current) ||
+          (session > 0 && session === activeSession.current)
+        )
+          setPreviews((prev) => ({ ...prev, ...next }));
+      },
+      onError: (message) => setActionError(message),
     });
   }, []);
 
@@ -209,13 +287,23 @@ function OverlayRoute() {
     },
     [state.entries, performAction],
   );
+  const performCommit = useCallback(async (commit: () => Promise<unknown>) => {
+    const revision = ++actionRevision.current;
+    setActionError(null);
+    try {
+      await commit();
+    } catch (error) {
+      if (revision === actionRevision.current)
+        setActionError(error instanceof Error ? error.message : String(error));
+    }
+  }, []);
 
   const handlers = useMemo<OverlayHandlers>(
     () => ({
       onAdvance: () => void switcher.advance(),
       onReverse: () => void switcher.reverse(),
-      onConfirm: () => void switcher.confirm(),
-      onConfirmWindow: (windowId) => void switcher.confirmWindow(windowId),
+      onConfirm: () => void performCommit(() => switcher.confirm()),
+      onConfirmWindow: (windowId) => void performCommit(() => switcher.confirmWindow(windowId)),
       onCancel: () => void switcher.cancel(),
       onSelect: (i) => void switcher.select(i),
       onSearchChange: (q) => void switcher.setSearch(q),
@@ -225,13 +313,20 @@ function OverlayRoute() {
       onQuit: (appId) => void performAction("quit", 0, appId),
       onHide: (appId) => void performAction("hide", 0, appId),
       onAction: (kind, windowId, appId) => void performAction(kind, windowId, appId),
+      onSelectApp: (appId) => void switcher.selectApp(appId),
+      onSelectAppWindow: (windowId) => void switcher.selectAppWindow(windowId),
+      onConfirmApp: (appId) => void performCommit(() => switcher.confirmApp(appId)),
     }),
-    [windowAction, performAction],
+    [windowAction, performAction, performCommit],
   );
 
   return (
     <>
-      <Overlay state={stateWithThumbs} handlers={handlers} nativeKeys={nativeKeys} />
+      {(stateWithThumbs.mode ?? "windows") === "apps" ? (
+        <AppSwitcher state={stateWithThumbs} handlers={handlers} nativeKeys={nativeKeys} t={t} />
+      ) : (
+        <Overlay state={stateWithThumbs} handlers={handlers} nativeKeys={nativeKeys} />
+      )}
       {state.open && actionError ? (
         <div className="ot-action-notice" role="alert">
           <span>{actionError}</span>
@@ -246,6 +341,189 @@ function OverlayRoute() {
       ) : null}
     </>
   );
+}
+
+function DockRoute() {
+  const t = useRuntimeTranslator();
+  const [state, setState] = useState<DockViewState | null>(null);
+  const [frames, setFrames] = useState<Record<string, string>>({});
+  const [nativePointer, setNativePointer] = useState<DockPointer | null>(null);
+  const currentSession = useRef(0);
+  const activeSession = useRef(0);
+  const retiredSession = useRef(0);
+  const latestRevision = useRef(0);
+  const actionRevision = useRef(0);
+  const pointerSequence = useRef(0);
+  const pendingPointer = useRef<DockPointer | null>(null);
+  const acceptShow = useCallback((next: DockViewState) => {
+    if (!next || next.session < currentSession.current || next.session <= retiredSession.current)
+      return;
+    const revision = next.revision ?? 0;
+    if (next.session === currentSession.current && revision < latestRevision.current) return;
+    if (next.session > currentSession.current) {
+      currentSession.current = next.session;
+      ++actionRevision.current;
+      setFrames({});
+      setNativePointer(null);
+      pointerSequence.current = 0;
+    }
+    latestRevision.current = revision;
+    activeSession.current = next.session;
+    setState(next);
+    const pointer =
+      pendingPointer.current?.session === next.session &&
+      (next.pointer?.sequence ?? 0) < pendingPointer.current.sequence
+        ? pendingPointer.current
+        : next.pointer;
+    if (pendingPointer.current?.session === next.session) pendingPointer.current = null;
+    if (pointer?.session === next.session && pointer.sequence > pointerSequence.current) {
+      pointerSequence.current = pointer.sequence;
+      setNativePointer(pointer);
+    }
+  }, []);
+  const acceptUpdate = useCallback((next: DockViewState) => {
+    const revision = next?.revision ?? 0;
+    if (next?.session === activeSession.current && revision >= latestRevision.current) {
+      latestRevision.current = revision;
+      setState(next);
+      const pointer =
+        pendingPointer.current?.session === next.session &&
+        (next.pointer?.sequence ?? 0) < pendingPointer.current.sequence
+          ? pendingPointer.current
+          : next.pointer;
+      if (pendingPointer.current?.session === next.session) pendingPointer.current = null;
+      if (pointer?.session === next.session && pointer.sequence > pointerSequence.current) {
+        pointerSequence.current = pointer.sequence;
+        setNativePointer(pointer);
+      }
+    }
+  }, []);
+  const retire = useCallback((session: number, revision: number) => {
+    if (session < currentSession.current) return;
+    if (session === currentSession.current && revision < latestRevision.current) return;
+    currentSession.current = session;
+    latestRevision.current = revision;
+    retiredSession.current = Math.max(retiredSession.current, session);
+    activeSession.current = 0;
+    ++actionRevision.current;
+    setState(null);
+    setFrames({});
+    setNativePointer(null);
+    pointerSequence.current = 0;
+    if ((pendingPointer.current?.session ?? 0) <= session) pendingPointer.current = null;
+  }, []);
+  useEffect(() => {
+    let active = true;
+    const off = onDockEvent({
+      show: acceptShow,
+      update: acceptUpdate,
+      hide: (session, revision) => {
+        retire(session, revision);
+      },
+      frames: (session, next) => {
+        if (session === activeSession.current) setFrames((old) => ({ ...old, ...next }));
+      },
+      error: (session, revision, message) => {
+        if (session === activeSession.current && revision >= latestRevision.current) {
+          latestRevision.current = revision;
+          setState((old) => (old ? { ...old, error: message } : old));
+        }
+      },
+      pointer: (pointer) => {
+        if (pointer.session !== activeSession.current) {
+          const pending = pendingPointer.current;
+          if (
+            pointer.session >= currentSession.current &&
+            pointer.session > retiredSession.current &&
+            (!pending ||
+              pointer.session > pending.session ||
+              (pointer.session === pending.session && pointer.sequence > pending.sequence))
+          )
+            pendingPointer.current = pointer;
+          return;
+        }
+        if (pointer.sequence <= pointerSequence.current) return;
+        pointerSequence.current = pointer.sequence;
+        setNativePointer(pointer);
+      },
+    });
+    void dock
+      .state()
+      .then((snapshot) => {
+        if (active && snapshot) {
+          if (snapshot.open === false) retire(snapshot.session, snapshot.revision ?? 0);
+          else acceptShow(snapshot);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      off();
+    };
+  }, [acceptShow, acceptUpdate, retire]);
+  const visible = useMemo(
+    () =>
+      state
+        ? {
+            ...state,
+            entries: state.entries.map((entry) => ({
+              ...entry,
+              thumbnail: frames[String(entry.windowId)] ?? entry.thumbnail,
+            })),
+          }
+        : null,
+    [state, frames],
+  );
+  const run = useCallback(
+    async (
+      session: number,
+      request: () => Promise<{ succeeded: number; failures: Array<{ error: string }> }>,
+    ) => {
+      const revision = ++actionRevision.current;
+      setState((old) => (old && old.session === session ? { ...old, error: undefined } : old));
+      try {
+        const result = await request();
+        if (session !== activeSession.current || revision !== actionRevision.current) return;
+        if (result.failures.length)
+          setState((old) =>
+            old && old.session === session
+              ? { ...old, error: result.failures.map((failure) => failure.error).join("; ") }
+              : old,
+          );
+      } catch (error) {
+        if (session === activeSession.current && revision === actionRevision.current)
+          setState((old) =>
+            old && old.session === session
+              ? { ...old, error: error instanceof Error ? error.message : String(error) }
+              : old,
+          );
+      }
+    },
+    [],
+  );
+  const handlers = useMemo<DockPanelHandlers>(
+    () => ({
+      onSelectWindow: (session, id) => {
+        if (session === activeSession.current) void dock.select(session, id);
+      },
+      onFocusWindow: (session, id, appId) => {
+        if (session === activeSession.current)
+          void run(session, () => dock.focus(session, id, appId));
+      },
+      onAction: (session, kind, id, appId) => {
+        if (session === activeSession.current)
+          void run(session, () => dock.action(session, kind, id, appId));
+      },
+      onSize: (session, width, height) => {
+        if (session === activeSession.current)
+          void dock.size(session, width, height).catch(() => {});
+      },
+    }),
+    [run],
+  );
+  return visible ? (
+    <DockPanelView state={visible} handlers={handlers} nativePointer={nativePointer} t={t} />
+  ) : null;
 }
 
 // SettingsRoute renders the preferences window's contents. The window is a

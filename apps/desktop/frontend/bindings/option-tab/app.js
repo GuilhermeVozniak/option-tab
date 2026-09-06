@@ -21,6 +21,18 @@ import * as actions$0 from "./internal/actions/models.js";
 // @ts-ignore: Unused imports
 import * as switcher$0 from "./internal/switcher/models.js";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
+/**
+ * @param {string} message
+ * @returns {$CancellablePromise<void>}
+ */
+export function ActionFailed(message) {
+    return $Call.ByID(2458319746, message);
+}
+
 /**
  * @returns {$CancellablePromise<void>}
  */
@@ -93,6 +105,14 @@ export function Confirm() {
  * @param {number} id
  * @returns {$CancellablePromise<void>}
  */
+export function ConfirmApp(id) {
+    return $Call.ByID(1759019970, id);
+}
+
+/**
+ * @param {number} id
+ * @returns {$CancellablePromise<void>}
+ */
 export function ConfirmWindow(id) {
     return $Call.ByID(3813603255, id);
 }
@@ -103,6 +123,18 @@ export function ConfirmWindow(id) {
  */
 export function DismissCrashReport() {
     return $Call.ByID(2108673700);
+}
+
+/**
+ * @param {number} session
+ * @param {number} windowID
+ * @param {number} appID
+ * @returns {$CancellablePromise<actions$0.Result>}
+ */
+export function FocusDockWindow(session, windowID, appID) {
+    return $Call.ByID(1587026944, session, windowID, appID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
 }
 
 /**
@@ -119,6 +151,17 @@ export function FullscreenSelected() {
  */
 export function GetCrashReport() {
     return $Call.ByID(2071961624);
+}
+
+/**
+ * GetDockState lets a newly loaded hidden webview catch up with a hover that
+ * arrived before its event subscriptions were installed.
+ * @returns {$CancellablePromise<$models.DockViewState | null>}
+ */
+export function GetDockState() {
+    return $Call.ByID(1033939333).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType2($result);
+    }));
 }
 
 /**
@@ -160,6 +203,16 @@ export function Hide() {
  */
 export function HideSelectedApp() {
     return $Call.ByID(3942268823);
+}
+
+/**
+ * HideSession retires only the presentation that requested dismissal. An old
+ * controller callback must not hide an overlay that has since reopened.
+ * @param {number} session
+ * @returns {$CancellablePromise<void>}
+ */
+export function HideSession(session) {
+    return $Call.ByID(3201711143, session);
 }
 
 /**
@@ -229,6 +282,19 @@ export function PerformAction(kind, windowID, appID) {
 }
 
 /**
+ * @param {number} session
+ * @param {string} kind
+ * @param {number} windowID
+ * @param {number} appID
+ * @returns {$CancellablePromise<actions$0.Result>}
+ */
+export function PerformDockAction(session, kind, windowID, appID) {
+    return $Call.ByID(1943493959, session, kind, windowID, appID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<void>}
  */
 export function QuitSelectedApp() {
@@ -287,6 +353,41 @@ export function Select(index) {
 }
 
 /**
+ * @param {number} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectApp(id) {
+    return $Call.ByID(523317996, id);
+}
+
+/**
+ * @param {number} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectAppWindow(id) {
+    return $Call.ByID(76282064, id);
+}
+
+/**
+ * @param {number} session
+ * @param {number} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectDockWindow(session, id) {
+    return $Call.ByID(1507952022, session, id);
+}
+
+/**
+ * @param {number} session
+ * @param {number} width
+ * @param {number} height
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetDockPanelSize(session, width, height) {
+    return $Call.ByID(1080314307, session, width, height);
+}
+
+/**
  * SetPaused suspends or resumes activation, persists the choice, and reflects it
  * in the menubar. While paused the global hotkey does not open the switcher.
  * @param {boolean} paused
@@ -336,3 +437,5 @@ export function Update(st) {
 
 // Private type creation functions
 const $$createType0 = actions$0.Result.createFrom;
+const $$createType1 = $models.DockViewState.createFrom;
+const $$createType2 = $Create.Nullable($$createType1);

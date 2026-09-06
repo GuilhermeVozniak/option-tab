@@ -27,15 +27,34 @@ test.describe("preferences (#settings route)", () => {
     const appearance = page.getByRole("tab", { name: "Appearance" });
     await appearance.click();
     await expect(appearance).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByLabel("Background blur")).toBeVisible();
+    await expect(page.getByLabel("Background blur", { exact: true })).toBeVisible();
   });
 
   test("toggles an appearance control", async ({ page }) => {
     await page.getByRole("tab", { name: "Appearance" }).click();
-    const blur = page.getByLabel("Background blur");
+    const blur = page.getByLabel("Background blur", { exact: true });
     const before = await blur.isChecked();
     await blur.click();
     expect(await blur.isChecked()).toBe(!before);
+  });
+
+  test("switches appearance and controls to app-specific settings", async ({ page }) => {
+    await page.getByRole("tab", { name: "Appearance" }).click();
+    const mode = page.getByLabel("Switcher settings mode");
+    await mode.selectOption("apps");
+    await expect(mode).toHaveValue("apps");
+    await expect(page.getByLabel("Layout direction", { exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Controls" }).click();
+    await expect(page.getByLabel("Arrow keys")).toBeVisible();
+  });
+
+  test("exposes Dock enablement, timing, scope, and appearance settings", async ({ page }) => {
+    await page.getByRole("tab", { name: "Dock" }).click();
+    await expect(page.getByLabel("Enable Dock previews")).toBeVisible();
+    await expect(page.getByLabel("Dock hover delay")).toBeVisible();
+    await expect(page.getByText("Dock window list")).toBeVisible();
+    await expect(page.getByLabel("Dock app scope")).toBeVisible();
+    await expect(page.getByLabel("Dock max columns")).toBeVisible();
   });
 
   test("adds a keyboard shortcut (lowest free id)", async ({ page }) => {
@@ -138,4 +157,35 @@ test.describe("preferences (#settings route)", () => {
     await expect(page.getByText("Version dev")).toBeVisible();
     await expect(page.getByLabel("Support this project")).toBeVisible();
   });
+});
+
+test("Dock appearance edits stay separate from window and app switcher preferences", async ({
+  page,
+}) => {
+  await page.goto("/#settings");
+  await page.getByRole("tab", { name: "Appearance" }).click();
+  const windowSize = await page.getByLabel("Thumbnail size", { exact: true }).inputValue();
+  await page.getByLabel("Switcher settings mode").selectOption("apps");
+  const appSize = await page.getByLabel("Thumbnail size", { exact: true }).inputValue();
+  await page.getByRole("tab", { name: "Dock" }).click();
+  const dock = page.getByRole("region", { name: "Dock", exact: true });
+  await dock.getByLabel("Dock thumbnail size", { exact: true }).fill("320");
+  await dock.getByLabel("Dock layout direction", { exact: true }).selectOption("vertical");
+  await dock.getByLabel("Dock theme light", { exact: true }).click();
+  await dock.getByLabel("Dock auto-size thumbnails", { exact: true }).uncheck();
+  await dock.getByLabel("Dock selected preview", { exact: true }).check();
+  await expect(dock.getByLabel("Dock background opacity")).toBeVisible();
+  await expect(dock.getByLabel("Dock background blur")).toBeVisible();
+  await expect(
+    dock.getByLabel(/Overlay placement|Fade out animation|Apparition delay/i),
+  ).toHaveCount(0);
+  await page.getByRole("tab", { name: "Appearance" }).click();
+  await expect(page.getByLabel("Thumbnail size", { exact: true })).toHaveValue(appSize);
+  await page.getByLabel("Switcher settings mode").selectOption("windows");
+  await expect(page.getByLabel("Thumbnail size", { exact: true })).toHaveValue(windowSize);
+  await page.getByRole("tab", { name: "Dock" }).click();
+  await expect(dock.getByLabel("Dock thumbnail size")).toHaveValue("320");
+  await expect(dock.getByLabel("Dock layout direction")).toHaveValue("vertical");
+  await expect(dock.getByLabel("Dock theme light")).toHaveAttribute("aria-pressed", "true");
+  await expect(dock.getByLabel("Dock auto-size thumbnails")).not.toBeChecked();
 });

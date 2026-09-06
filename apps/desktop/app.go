@@ -21,6 +21,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"option-tab/internal/config"
+	"option-tab/internal/dock"
 	"option-tab/internal/domain"
 	"option-tab/internal/mru"
 	"option-tab/internal/platform"
@@ -85,11 +86,26 @@ type App struct {
 	captureSelected          atomic.Uint64
 	capturePreviewEnabled    atomic.Bool
 	captureThumbnailsEnabled atomic.Bool
+	captureDockSession       atomic.Uint64
+	captureSwitcherSession   atomic.Uint64
+	switcherRevision         uint64
 	captureStop              chan struct{}
 	captureStopOnce          sync.Once
 
 	// prefsOpen tracks whether the preferences window is currently shown.
-	prefsOpen bool
+	prefsOpen              bool
+	switcherVisible        bool
+	visibleSwitcherSession uint64
+	sessionInactive        bool
+	sessionMu              sync.Mutex // serializes native and runtime session transitions; never nested by View
+	sessionGeneration      uint64
+	sessionObserveOnce     sync.Once
+	dockController         *dock.Controller
+	dockWindow             *dockWindow
+	dockState              dock.State
+	dockViewState          DockViewState
+	dockLastSession        uint64
+	dockRevision           uint64
 
 	// lastSelected is the previously shown selection index, used to fire the
 	// haptic tick only when the selection actually moves.
@@ -137,15 +153,7 @@ func newApp(p platform.Platform, settings config.Settings, settingsPath string) 
 		thumbCache:   map[domain.WindowID]string{},
 		captureStop:  make(chan struct{}),
 	}
-	a.captures = preview.New(p, func(id domain.WindowID, url string) {
-		payload := map[string]string{fmt.Sprint(id): url}
-		if url == "" || a.captureThumbnailsEnabled.Load() {
-			a.emit("switcher:thumbnails", payload)
-		}
-		if url == "" || (a.capturePreviewEnabled.Load() && a.captureSelected.Load() == uint64(id)) {
-			a.emit("switcher:preview", payload)
-		}
-	})
+	a.captures = preview.New(p, a.emitCaptureFrame)
 	deps := switcher.Deps{
 		Windows:      p,
 		Focuser:      p,
@@ -157,7 +165,11 @@ func newApp(p platform.Platform, settings config.Settings, settingsPath string) 
 	if cw, ok := p.(platform.CursorWarper); ok {
 		deps.Cursor = cw
 	}
+	deps.Apps, _ = p.(platform.ApplicationSource)
+	deps.AppActivator, _ = p.(platform.ApplicationActivator)
+	deps.AppWindows, _ = p.(platform.ApplicationWindowPresenceSource)
 	a.controller = switcher.New(deps, settings)
+	a.wireDockController()
 	return a
 }
 
@@ -182,6 +194,7 @@ func (a *App) setTray(tray *application.SystemTray, menu *application.Menu, paus
 // the tray, and starts the global hotkey listener and background loops. The
 // overlay window starts hidden (created with Hidden: true).
 func (a *App) startup() {
+	a.startSessionObservation()
 	dlog("startup: platform=%s accessibility=%v", a.platform.Name(), a.platform.Accessibility())
 	if !a.settingsSnapshot().Behavior.Onboarded {
 		// First launch: open preferences, where the onboarding wizard walks the
@@ -223,6 +236,7 @@ func (a *App) startup() {
 	go a.focusLoop()
 	go a.updateLoop()
 	go a.backgroundCaptureLoop()
+	a.startDock()
 }
 
 func (a *App) emit(name string, data any) {
@@ -238,11 +252,25 @@ func (a *App) emit(name string, data any) {
 // stopCapture is safe before startup and on repeated shutdown notifications.
 func (a *App) stopCapture() {
 	a.viewMu.Lock()
-	defer a.viewMu.Unlock()
 	a.cancelDismissalLocked()
+	a.dismissDockLocked()
+	if a.dockWindow != nil {
+		a.dockWindow.close()
+	}
 	a.captureActive = false
+	a.switcherVisible = false
+	a.visibleSwitcherSession = 0
 	a.captureStopOnce.Do(func() { close(a.captureStop) })
 	if a.captures != nil {
 		a.captures.Close()
+	}
+	a.captureSwitcherSession.Store(0)
+	a.platform.Hotkeys().SetOpen(false)
+	a.setKeySession(0)
+	a.viewMu.Unlock()
+	// Stopping can call the View again. The terminal channel closes admission
+	// first; never hold viewMu while retiring controller state.
+	if a.controller != nil {
+		a.controller.Stop()
 	}
 }

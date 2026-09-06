@@ -26,7 +26,13 @@ beforeEach(() => {
 });
 
 // pressKey simulates a native-tap key press (the production keyboard path).
-function pressKey(p: { key: string; code?: string; shift?: boolean; alt?: boolean }) {
+function pressKey(p: {
+  key: string;
+  code?: string;
+  shift?: boolean;
+  alt?: boolean;
+  session?: number;
+}) {
   act(() => {
     keyHandler?.({
       data: {
@@ -36,6 +42,7 @@ function pressKey(p: { key: string; code?: string; shift?: boolean; alt?: boolea
         ctrl: false,
         alt: !!p.alt,
         meta: false,
+        session: p.session,
       },
     });
   });
@@ -132,6 +139,14 @@ describe("Overlay", () => {
     expect(h.onCancel).toHaveBeenCalled();
     pressKey({ key: "Enter" });
     expect(h.onConfirm).toHaveBeenCalled();
+  });
+
+  it("ignores native keys from a different presentation session", () => {
+    const h = noopHandlers();
+    render(<Overlay state={stateWith({ session: 12 })} handlers={h} />);
+    pressKey({ key: "Tab", session: 11 });
+    pressKey({ key: "Tab", session: 12 });
+    expect(h.onAdvance).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to DOM keydown when nativeKeys is off (browser dev)", () => {

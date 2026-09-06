@@ -16,7 +16,9 @@ import (
 // v2: minimized/hidden/fullscreen filters became tristate WindowVisibility
 // (legacy bools still parse) and the blacklist became structured entries
 // (legacy plain strings still parse).
-const CurrentVersion = 2
+// v3: shortcuts gained an explicit window/app mode, plus independent app
+// switcher preferences and opt-in Dock preview settings.
+const CurrentVersion = 3
 
 // MaxShortcuts is the number of independent shortcuts AltTab supports; we match
 // it (all free).
@@ -415,6 +417,7 @@ type Shortcut struct {
 	// WhenReleased is what releasing the held modifier does: focus the selected
 	// window (default) or nothing, leaving the switcher open until Enter/Esc.
 	WhenReleased ReleaseAction `json:"whenReleased,omitempty"`
+	Mode         SwitcherMode  `json:"mode"`
 }
 
 // Behavior controls activation semantics and system integration.
@@ -454,18 +457,20 @@ type Behavior struct {
 
 // Settings is the full persisted configuration.
 type Settings struct {
-	Version    int        `json:"version"`
-	Shortcuts  []Shortcut `json:"shortcuts"`
-	Appearance Appearance `json:"appearance"`
-	Filters    Filters    `json:"filters"`
-	Order      OrderMode  `json:"order"`
-	Placement  Placement  `json:"placement"`
-	Behavior   Behavior   `json:"behavior"`
+	Version     int             `json:"version"`
+	Shortcuts   []Shortcut      `json:"shortcuts"`
+	Appearance  Appearance      `json:"appearance"`
+	Filters     Filters         `json:"filters"`
+	Order       OrderMode       `json:"order"`
+	Placement   Placement       `json:"placement"`
+	Behavior    Behavior        `json:"behavior"`
+	AppSwitcher ModePreferences `json:"appSwitcher"`
+	Dock        DockSettings    `json:"dock"`
 }
 
 // Default returns the AltTab-like default settings.
 func Default() Settings {
-	return Settings{
+	s := Settings{
 		Version: CurrentVersion,
 		Shortcuts: []Shortcut{
 			{
@@ -473,42 +478,17 @@ func Default() Settings {
 				Chord:   "command+tab",
 				Enabled: true,
 				Scope:   ShortcutScope{AppScope: AppScopeAll},
+				Mode:    ModeApps,
 			},
 			{
 				ID:      2,
 				Chord:   "option+tab",
 				Enabled: true,
 				Scope:   ShortcutScope{AppScope: AppScopeActiveApp},
+				Mode:    ModeWindows,
 			},
 		},
-		Appearance: Appearance{
-			Style:              StyleThumbnails,
-			Theme:              ThemeSystem,
-			SizePreset:         SizeMedium,
-			MaxRows:            4,
-			MaxColumns:         6,
-			ThumbnailMaxPx:     280,
-			IconSizePx:         32,
-			TitleMaxWidthPx:    240,
-			FontSizePx:         13,
-			AccentColor:        "#3b82f6",
-			BackgroundOpacity:  0.85,
-			Blur:               true,
-			CornerRadiusPx:     12,
-			ShowAppBadge:       true,
-			ShowTitle:          true,
-			ShowWindowControls: true,
-			AutoSize:           true,
-			ApparitionDelayMs:  0,
-			FadeOutAnimation:   true,
-			ShowStatusIcons:    true,
-			ShowSpaceNumbers:   true,
-			TitleTruncation:    TruncateEnd,
-			PreviewSelected:    false,
-			PreviewFade:        true,
-			CompactThreshold:   0,
-			LayoutDirection:    LayoutHorizontal,
-		},
+		Appearance: defaultAppearance(),
 		Filters: Filters{
 			Spaces:                  SpacesAll,
 			Screens:                 ScreensAll,
@@ -543,6 +523,23 @@ func Default() Settings {
 			SwipeDownAction:   PointerNone,
 		},
 	}
+	s.AppSwitcher = appPreferencesFrom(s.Appearance, s.Behavior, s.Order, s.Placement)
+	s.Dock = dockDefaults(s.Appearance)
+	return s
+}
+
+func defaultAppearance() Appearance {
+	return Appearance{
+		Style: StyleThumbnails, Theme: ThemeSystem, SizePreset: SizeMedium,
+		MaxRows: 4, MaxColumns: 6, ThumbnailMaxPx: 280, IconSizePx: 32,
+		TitleMaxWidthPx: 240, FontSizePx: 13, AccentColor: "#3b82f6",
+		BackgroundOpacity: 0.85, Blur: true, CornerRadiusPx: 12,
+		ShowAppBadge: true, ShowTitle: true, ShowWindowControls: true, AutoSize: true,
+		ApparitionDelayMs: 0, FadeOutAnimation: true, ShowStatusIcons: true,
+		ShowSpaceNumbers: true, TitleTruncation: TruncateEnd,
+		PreviewSelected: false, PreviewFade: true, CompactThreshold: 0,
+		LayoutDirection: LayoutHorizontal,
+	}
 }
 
 // Validate reports whether the settings are internally consistent. It is strict;
@@ -563,9 +560,15 @@ func (s Settings) Validate() error {
 		if sc.Chord == "" {
 			return fmt.Errorf("config: shortcut %d has empty chord", sc.ID)
 		}
+		if !sc.Mode.Valid() {
+			return fmt.Errorf("config: shortcut %d has invalid mode %q", sc.ID, sc.Mode)
+		}
 	}
 	if !s.Appearance.Style.Valid() {
 		return fmt.Errorf("config: invalid style %q", s.Appearance.Style)
+	}
+	if err := validateAppearance("window", s.Appearance); err != nil {
+		return err
 	}
 	if !s.Order.Valid() {
 		return fmt.Errorf("config: invalid order %q", s.Order)
@@ -592,6 +595,18 @@ func (s Settings) Validate() error {
 		if !action.Valid() {
 			return fmt.Errorf("config: invalid action binding %q", action)
 		}
+	}
+	if err := validateModePreferences("app", s.AppSwitcher); err != nil {
+		return err
+	}
+	if s.Dock.HoverDelayMs < 0 || s.Dock.HoverDelayMs > 2000 || s.Dock.DismissDelayMs < 0 || s.Dock.DismissDelayMs > 2000 || s.Dock.HoverSlopPx < 0 || s.Dock.HoverSlopPx > 32 || s.Dock.BridgePaddingPx < 0 || s.Dock.BridgePaddingPx > 48 {
+		return errors.New("config: dock value out of range")
+	}
+	if s.Dock.Scope.AppScope != AppScopeAll || (s.Dock.Scope.Spaces != "" && !s.Dock.Scope.Spaces.Valid()) || (s.Dock.Scope.Screens != "" && !s.Dock.Scope.Screens.Valid()) || (s.Dock.Scope.Order != "" && !s.Dock.Scope.Order.Valid()) {
+		return errors.New("config: invalid dock scope")
+	}
+	if err := validateAppearance("dock", s.Dock.Appearance); err != nil {
+		return err
 	}
 	return nil
 }
@@ -740,6 +755,9 @@ func (s Settings) Normalize() Settings {
 		if sc.WhenReleased != "" && !sc.WhenReleased.Valid() {
 			sc.WhenReleased = ""
 		}
+		if !sc.Mode.Valid() {
+			sc.Mode = ModeWindows
+		}
 		seen[sc.ID] = true
 		fixed = append(fixed, sc)
 	}
@@ -747,6 +765,32 @@ func (s Settings) Normalize() Settings {
 		fixed = d.Shortcuts
 	}
 	out.Shortcuts = fixed
+
+	out.AppSwitcher.Appearance = normalizeAppearance(out.AppSwitcher.Appearance, d.AppSwitcher.Appearance)
+	out.AppSwitcher.Behavior = normalizeSwitcherBehavior(out.AppSwitcher.Behavior, d.AppSwitcher.Behavior)
+	if !out.AppSwitcher.Order.Valid() {
+		out.AppSwitcher.Order = d.AppSwitcher.Order
+	}
+	if !out.AppSwitcher.Placement.Valid() {
+		out.AppSwitcher.Placement = d.AppSwitcher.Placement
+	}
+	out.Dock.HoverDelayMs = clampInt(out.Dock.HoverDelayMs, 0, 2000)
+	out.Dock.DismissDelayMs = clampInt(out.Dock.DismissDelayMs, 0, 2000)
+	out.Dock.HoverSlopPx = clampInt(out.Dock.HoverSlopPx, 0, 32)
+	out.Dock.BridgePaddingPx = clampInt(out.Dock.BridgePaddingPx, 0, 48)
+	if out.Dock.Scope.AppScope != AppScopeAll {
+		out.Dock.Scope.AppScope = AppScopeAll
+	}
+	if out.Dock.Scope.Spaces != "" && !out.Dock.Scope.Spaces.Valid() {
+		out.Dock.Scope.Spaces = ""
+	}
+	if out.Dock.Scope.Screens != "" && !out.Dock.Scope.Screens.Valid() {
+		out.Dock.Scope.Screens = ""
+	}
+	if out.Dock.Scope.Order != "" && !out.Dock.Scope.Order.Valid() {
+		out.Dock.Scope.Order = ""
+	}
+	out.Dock.Appearance = normalizeAppearance(out.Dock.Appearance, d.Dock.Appearance)
 
 	if out.Version == 0 {
 		out.Version = CurrentVersion
@@ -766,6 +810,14 @@ func migrate(s *Settings) {
 		// handled by the types' UnmarshalJSON, so nothing to do here.
 		s.Version = 2
 	}
+	if s.Version < 3 {
+		for i := range s.Shortcuts {
+			if !s.Shortcuts[i].Mode.Valid() {
+				s.Shortcuts[i].Mode = ModeWindows
+			}
+		}
+		s.Version = 3
+	}
 	s.Version = CurrentVersion
 }
 
@@ -778,15 +830,45 @@ func Load(r io.Reader) (Settings, error) {
 	}
 	s := Default()
 	var presence struct {
+		Version   int `json:"version"`
+		Shortcuts []struct {
+			Mode json.RawMessage `json:"mode"`
+		} `json:"shortcuts"`
 		Behavior struct {
 			ActionBindings json.RawMessage `json:"actionBindings"`
 		} `json:"behavior"`
+		AppSwitcher json.RawMessage `json:"appSwitcher"`
+		Dock        json.RawMessage `json:"dock"`
 	}
 	if err := json.Unmarshal(raw, &presence); err == nil && presence.Behavior.ActionBindings != nil {
 		s.Behavior.ActionBindings = map[string]ActionKind{}
 	}
+	if presence.AppSwitcher != nil {
+		var appPresence struct {
+			Behavior struct {
+				ActionBindings json.RawMessage `json:"actionBindings"`
+			} `json:"behavior"`
+		}
+		if err := json.Unmarshal(presence.AppSwitcher, &appPresence); err == nil && appPresence.Behavior.ActionBindings != nil {
+			s.AppSwitcher.Behavior.ActionBindings = map[string]ActionKind{}
+		}
+	}
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return Settings{}, fmt.Errorf("config: parse: %w", err)
+	}
+	s.Version = presence.Version
+	if s.Version < 3 {
+		for i := range s.Shortcuts {
+			if i >= len(presence.Shortcuts) || presence.Shortcuts[i].Mode == nil {
+				s.Shortcuts[i].Mode = ""
+			}
+		}
+	}
+	if presence.AppSwitcher == nil {
+		s.AppSwitcher = appPreferencesFrom(s.Appearance, s.Behavior, s.Order, s.Placement)
+	}
+	if presence.Dock == nil {
+		s.Dock = dockDefaults(s.Appearance)
 	}
 	migrate(&s)
 	return s.Normalize(), nil
@@ -794,6 +876,9 @@ func Load(r io.Reader) (Settings, error) {
 
 // Save writes settings as indented JSON.
 func Save(w io.Writer, s Settings) error {
+	if err := s.Validate(); err != nil {
+		return err
+	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(s); err != nil {

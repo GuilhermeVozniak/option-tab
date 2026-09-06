@@ -5,9 +5,12 @@
 package switcher
 
 import (
+	"errors"
 	"maps"
 	"sync"
+	"sync/atomic"
 
+	"option-tab/internal/appgroup"
 	"option-tab/internal/config"
 	"option-tab/internal/domain"
 	"option-tab/internal/filter"
@@ -43,6 +46,11 @@ type Entry struct {
 
 // State is the full switcher snapshot handed to the view.
 type State struct {
+	Session           uint64                       `json:"session"`
+	Revision          uint64                       `json:"revision"`
+	Mode              config.SwitcherMode          `json:"mode"`
+	Apps              []AppEntry                   `json:"apps"`
+	SelectedWindowID  domain.WindowID              `json:"selectedWindowId"`
 	ActionBindings    map[string]config.ActionKind `json:"actionBindings"`
 	MiddleClickAction config.PointerAction         `json:"middleClickAction"`
 	SwipeUpAction     config.PointerAction         `json:"swipeUpAction"`
@@ -104,6 +112,9 @@ func OrderSelectedFirst(entries []Entry, selected int) []Entry {
 // Deps are the controller's collaborators.
 type Deps struct {
 	Windows      platform.WindowSource
+	Apps         platform.ApplicationSource
+	AppActivator platform.ApplicationActivator
+	AppWindows   platform.ApplicationWindowPresenceSource
 	Focuser      platform.Focuser
 	Env          platform.Environment
 	View         View
@@ -122,14 +133,21 @@ type Controller struct {
 	deps     Deps
 	settings config.Settings
 
-	open            bool
-	shortcut        config.Shortcut
-	activeSpace     domain.SpaceID // captured at activate/refresh for the view's badges
-	placementScreen domain.ScreenID
-	baseList        []domain.Window // filtered + ordered, before search
-	list            []domain.Window // after search
-	selected        int
-	search          string
+	open                bool
+	suspended           bool
+	stopped             bool
+	presentationSession atomic.Uint64
+	shortcut            config.Shortcut
+	activeSpace         domain.SpaceID // captured at activate/refresh for the view's badges
+	placementScreen     domain.ScreenID
+	baseList            []domain.Window // filtered + ordered, before search
+	list                []domain.Window // after search
+	baseGroups          []appgroup.Group
+	groups              []appgroup.Group
+	selectedWindow      domain.WindowID
+	selected            int
+	search              string
+	session             uint64
 }
 
 // New creates a Controller with the given dependencies and initial settings.
@@ -178,7 +196,11 @@ func (c *Controller) HandleHotkey(ev platform.HotkeyEvent) {
 		// Per-shortcut "when released: do nothing" keeps the switcher open
 		// until Enter/Escape/click (AltTab parity).
 		if !c.releaseDoesNothing() {
-			c.Confirm()
+			if err := c.Confirm(); err != nil {
+				if reporter, ok := c.deps.View.(interface{ ActionFailed(string) }); ok {
+					reporter.ActionFailed(err.Error())
+				}
+			}
 		}
 	case platform.HotkeyCancel:
 		c.Cancel()
@@ -190,7 +212,8 @@ func (c *Controller) HandleHotkey(ev platform.HotkeyEvent) {
 func (c *Controller) releaseDoesNothing() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.open && (!c.settings.Behavior.HoldToCycle ||
+	prefs := c.settings.Preferences(c.shortcut.Mode)
+	return c.open && (!prefs.Behavior.HoldToCycle ||
 		c.shortcut.WhenReleased == config.ReleaseDoNothing)
 }
 
@@ -210,11 +233,59 @@ func (c *Controller) Paused() bool {
 	return c.settings.Behavior.Paused
 }
 
+// PresentationSession allows a view to reject delayed state without taking
+// the controller mutex while it holds its own view/native lifecycle lock.
+func (c *Controller) PresentationSession() uint64 { return c.presentationSession.Load() }
+
+// Suspend is a transient desktop-session guard. It cancels the current overlay
+// without changing the user's persisted pause setting.
+func (c *Controller) Suspend(suspended bool) {
+	c.mu.Lock()
+	c.suspended = suspended || c.stopped
+	hide := suspended && c.open
+	retiringSession := c.session
+	if c.suspended {
+		c.reset()
+	}
+	c.mu.Unlock()
+	if hide {
+		c.deliverHide(retiringSession)
+	}
+}
+
+// Stop permanently closes admission. A queued session resume can no longer
+// reactivate this controller. Native/UI retirement is delivered outside mu.
+func (c *Controller) Stop() {
+	c.mu.Lock()
+	if c.stopped {
+		c.mu.Unlock()
+		return
+	}
+	c.stopped = true
+	c.suspended = true
+	hide, retiringSession := c.open, c.session
+	c.reset()
+	c.mu.Unlock()
+	if hide {
+		c.deliverHide(retiringSession)
+	}
+}
+
+// deliverHide scopes delayed native/UI delivery to the presentation being
+// retired. Simple legacy views retain the original Hide fallback.
+func (c *Controller) deliverHide(session uint64) {
+	if view, ok := c.deps.View.(interface{ HideSession(uint64) }); ok {
+		view.HideSession(session)
+	} else if c.deps.View != nil {
+		c.deps.View.Hide()
+	}
+}
+
 // activate opens the switcher for the given shortcut id.
 func (c *Controller) activate(shortcutID int) {
 	c.mu.Lock()
 
-	if c.settings.Behavior.Paused {
+	if c.settings.Behavior.Paused || c.suspended || c.stopped {
 		c.mu.Unlock()
 		return
 	}
@@ -239,27 +310,51 @@ func (c *Controller) activate(shortcutID int) {
 		SelfBundleID:   c.deps.SelfBundleID,
 	}
 	c.activeSpace = ctx.ActiveSpaceID
+	prefs := c.settings.Preferences(sc.Mode)
 	c.placementScreen = resolvePlacementScreen(
-		c.settings.Placement, c.deps.Env.Screens(), ctx.ActiveScreenID, ctx.CursorScreenID,
+		prefs.Placement, c.deps.Env.Screens(), ctx.ActiveScreenID, ctx.CursorScreenID,
 	)
 	if filter.ShortcutIgnoredForApp(wins, ctx.ActiveAppID, c.settings.Filters.AppBlacklist) {
 		c.mu.Unlock()
 		return
 	}
-	ordered := c.composeLocked(wins, sc.Scope, ctx)
-	if len(ordered) == 0 {
+	ordered := c.composeLocked(wins, sc.Scope, ctx, prefs)
+	var groups []appgroup.Group
+	if sc.Mode == config.ModeApps {
+		if c.deps.Apps == nil || c.deps.AppActivator == nil {
+			c.mu.Unlock()
+			return
+		}
+		apps, appErr := c.deps.Apps.Apps()
+		if appErr != nil {
+			c.mu.Unlock()
+			return
+		}
+		groups = c.composeAppsLocked(apps, wins, ordered, sc.Scope, ctx)
+	}
+	if (sc.Mode == config.ModeApps && len(groups) == 0) || (sc.Mode != config.ModeApps && len(ordered) == 0) {
 		c.mu.Unlock()
 		return
 	}
 
 	c.open = true
+	c.session++
+	c.presentationSession.Store(c.session)
 	c.shortcut = sc
 	c.baseList = ordered
 	c.list = ordered
+	c.baseGroups = groups
+	c.groups = groups
 	c.search = ""
 	c.selected = 0
-	if c.settings.Behavior.HoldToCycle && len(ordered) > 1 {
+	c.syncSelectedWindowLocked()
+	count := len(ordered)
+	if sc.Mode == config.ModeApps {
+		count = len(groups)
+	}
+	if prefs.Behavior.HoldToCycle && count > 1 {
 		c.selected = 1 // start on the previous window for instant quick-switch
+		c.syncSelectedWindowLocked()
 	}
 	st := c.snapshot()
 	c.mu.Unlock()
@@ -278,12 +373,13 @@ func (c *Controller) Navigate(delta int) { c.move(delta) }
 
 func (c *Controller) move(delta int) {
 	c.mu.Lock()
-	if !c.open || len(c.list) == 0 {
+	if !c.open || c.selectionCountLocked() == 0 {
 		c.mu.Unlock()
 		return
 	}
-	n := len(c.list)
+	n := c.selectionCountLocked()
 	c.selected = ((c.selected+delta)%n + n) % n
+	c.syncSelectedWindowLocked()
 	st := c.snapshot()
 	c.mu.Unlock()
 	c.deps.View.Update(st)
@@ -293,11 +389,12 @@ func (c *Controller) move(delta int) {
 // indices are ignored.
 func (c *Controller) Select(index int) {
 	c.mu.Lock()
-	if !c.open || index < 0 || index >= len(c.list) {
+	if !c.open || index < 0 || index >= c.selectionCountLocked() {
 		c.mu.Unlock()
 		return
 	}
 	c.selected = index
+	c.syncSelectedWindowLocked()
 	st := c.snapshot()
 	c.mu.Unlock()
 	c.deps.View.Update(st)
@@ -312,6 +409,15 @@ func (c *Controller) SetSearch(query string) {
 		return
 	}
 	c.search = query
+	if c.shortcut.Mode == config.ModeApps {
+		c.groups = filterAppGroups(c.baseGroups, query)
+		c.selected = 0
+		c.syncSelectedWindowLocked()
+		st := c.snapshot()
+		c.mu.Unlock()
+		c.deps.View.Update(st)
+		return
+	}
 	if query == "" {
 		c.list = c.baseList
 	} else {
@@ -324,55 +430,61 @@ func (c *Controller) SetSearch(query string) {
 }
 
 // Confirm focuses the selected window and closes the overlay.
-func (c *Controller) Confirm() {
+func (c *Controller) Confirm() error {
 	c.mu.Lock()
 	if !c.open {
 		c.mu.Unlock()
-		return
+		return nil
 	}
-	var focusID domain.WindowID
-	if len(c.list) > 0 && c.selected < len(c.list) {
-		focusID = c.list[c.selected].ID
+	if c.shortcut.Mode == config.ModeApps {
+		if c.selected < 0 || c.selected >= len(c.groups) {
+			c.mu.Unlock()
+			return errors.New("selected application is no longer available")
+		}
+		appID := c.groups[c.selected].App.ID
+		c.mu.Unlock()
+		return c.ConfirmApp(appID)
 	}
-	c.confirmLocked(focusID)
+	if len(c.list) == 0 || c.selected >= len(c.list) {
+		c.mu.Unlock()
+		return errors.New("selected window is no longer available")
+	}
+	target := c.list[c.selected]
+	session := c.session
+	c.mu.Unlock()
+	return c.commitWindow(session, target)
 }
 
 // ConfirmWindow focuses the requested visible window and closes the overlay.
 // The ID is resolved while holding the controller lock so a click does not
 // depend on a separate, asynchronous selection update from the frontend.
-func (c *Controller) ConfirmWindow(id domain.WindowID) {
+func (c *Controller) ConfirmWindow(id domain.WindowID) error {
 	c.mu.Lock()
 	if !c.open {
 		c.mu.Unlock()
-		return
+		return nil
 	}
-	var focusID domain.WindowID
-	for _, window := range c.list {
+	visible := c.list
+	if c.shortcut.Mode == config.ModeApps {
+		visible = nil
+		if c.selected >= 0 && c.selected < len(c.groups) {
+			visible = c.groups[c.selected].Windows
+		}
+	}
+	var target domain.Window
+	for _, window := range visible {
 		if window.ID == id {
-			focusID = id
+			target = window
 			break
 		}
 	}
-	c.confirmLocked(focusID)
-}
-
-// confirmLocked commits focusID and closes the current switcher session.
-// Caller must hold c.mu; this method releases it before external side effects.
-func (c *Controller) confirmLocked(focusID domain.WindowID) {
-	follow := c.settings.Behavior.CursorFollowFocus
-	c.reset()
-	c.mu.Unlock()
-
-	if focusID != 0 {
-		// Focus navigates to the window's Space natively (SkyLight window
-		// fronting) so a window on another desktop comes forward there.
-		_ = c.deps.Focuser.Focus(focusID)
-		c.deps.MRU.Touch(focusID)
-		if follow && c.deps.Cursor != nil {
-			_ = c.deps.Cursor.WarpCursorToWindow(focusID)
-		}
+	if target.ID == 0 {
+		c.mu.Unlock()
+		return errors.New("requested window is not visible in this switcher session")
 	}
-	c.deps.View.Hide()
+	session := c.session
+	c.mu.Unlock()
+	return c.commitWindow(session, target)
 }
 
 // NoteFocus records a focus change that happened outside the switcher (a
@@ -395,47 +507,85 @@ func (c *Controller) Cancel() {
 		c.mu.Unlock()
 		return
 	}
+	retiringSession := c.session
 	c.reset()
 	c.mu.Unlock()
-	c.deps.View.Hide()
+	c.deliverHide(retiringSession)
 }
 
 // CloseSelected closes the selected window and refreshes the list.
 func (c *Controller) CloseSelected() {
-	c.act(func(w domain.Window) { _ = c.deps.Focuser.Close(w.ID) })
+	c.actWindow(func(w domain.Window) { _ = c.deps.Focuser.Close(w.ID) })
 }
 
 // MinimizeSelected minimizes the selected window and refreshes the list.
 func (c *Controller) MinimizeSelected() {
-	c.act(func(w domain.Window) { _ = c.deps.Focuser.Minimize(w.ID) })
+	c.actWindow(func(w domain.Window) { _ = c.deps.Focuser.Minimize(w.ID) })
 }
 
 // FullscreenSelected toggles fullscreen on the selected window and refreshes.
 func (c *Controller) FullscreenSelected() {
-	c.act(func(w domain.Window) { _ = c.deps.Focuser.Fullscreen(w.ID) })
+	c.actWindow(func(w domain.Window) { _ = c.deps.Focuser.Fullscreen(w.ID) })
 }
 
 // QuitSelectedApp quits the selected window's application and refreshes.
 func (c *Controller) QuitSelectedApp() {
-	c.act(func(w domain.Window) { _ = c.deps.Focuser.QuitApp(w.AppID) })
+	c.actApp(func(id domain.AppID) { _ = c.deps.Focuser.QuitApp(id) })
 }
 
 // HideSelectedApp hides the selected window's application and refreshes.
 func (c *Controller) HideSelectedApp() {
-	c.act(func(w domain.Window) { _ = c.deps.Focuser.HideApp(w.AppID) })
+	c.actApp(func(id domain.AppID) { _ = c.deps.Focuser.HideApp(id) })
 }
 
-// act runs fn on the selected window (if any) then refreshes the list.
-func (c *Controller) act(fn func(domain.Window)) {
+// actWindow runs fn on the selected real window (if any) then refreshes.
+func (c *Controller) actWindow(fn func(domain.Window)) {
 	c.mu.Lock()
-	if !c.open || len(c.list) == 0 || c.selected >= len(c.list) {
+	if !c.open {
 		c.mu.Unlock()
 		return
 	}
-	w := c.list[c.selected]
+	var w domain.Window
+	if c.shortcut.Mode == config.ModeApps {
+		if c.selected >= 0 && c.selected < len(c.groups) {
+			for _, candidate := range c.groups[c.selected].Windows {
+				if candidate.ID == c.selectedWindow {
+					w = candidate
+					break
+				}
+			}
+		}
+	} else if c.selected >= 0 && c.selected < len(c.list) {
+		w = c.list[c.selected]
+	}
+	if w.ID == 0 {
+		c.mu.Unlock()
+		return
+	}
 	c.mu.Unlock()
 
 	fn(w)
+	c.refresh()
+}
+
+func (c *Controller) actApp(fn func(domain.AppID)) {
+	c.mu.Lock()
+	if !c.open {
+		c.mu.Unlock()
+		return
+	}
+	var id domain.AppID
+	if c.shortcut.Mode == config.ModeApps {
+		id = c.selectedAppIDLocked()
+	} else if c.selected >= 0 && c.selected < len(c.list) {
+		id = c.list[c.selected].AppID
+	}
+	if id == 0 {
+		c.mu.Unlock()
+		return
+	}
+	c.mu.Unlock()
+	fn(id)
 	c.refresh()
 }
 
@@ -461,16 +611,40 @@ func (c *Controller) refresh() {
 		SelfBundleID:   c.deps.SelfBundleID,
 	}
 	c.activeSpace = ctx.ActiveSpaceID
-	c.baseList = c.composeLocked(wins, c.shortcut.Scope, ctx)
+	prefs := c.settings.Preferences(c.shortcut.Mode)
+	c.baseList = c.composeLocked(wins, c.shortcut.Scope, ctx, prefs)
+	if c.shortcut.Mode == config.ModeApps {
+		apps, appErr := c.deps.Apps.Apps()
+		if appErr != nil {
+			c.mu.Unlock()
+			return
+		}
+		oldApp, oldWindow := c.selectedAppIDLocked(), c.selectedWindow
+		c.baseGroups = c.composeAppsLocked(apps, wins, c.baseList, c.shortcut.Scope, ctx)
+		c.groups = filterAppGroups(c.baseGroups, c.search)
+		c.restoreAppSelectionLocked(oldApp, oldWindow)
+		if len(c.groups) == 0 {
+			retiringSession := c.session
+			c.reset()
+			c.mu.Unlock()
+			c.deliverHide(retiringSession)
+			return
+		}
+		st := c.snapshot()
+		c.mu.Unlock()
+		c.deps.View.Update(st)
+		return
+	}
 	if c.search == "" {
 		c.list = c.baseList
 	} else {
 		c.list = search.Filter(c.baseList, c.search)
 	}
 	if len(c.list) == 0 {
+		retiringSession := c.session
 		c.reset()
 		c.mu.Unlock()
-		c.deps.View.Hide()
+		c.deliverHide(retiringSession)
 		return
 	}
 	if c.selected >= len(c.list) {
@@ -483,8 +657,8 @@ func (c *Controller) refresh() {
 
 // composeLocked filters, orders (honoring a per-shortcut order override), and
 // applies the "show at the end" tristates. Caller must hold the lock.
-func (c *Controller) composeLocked(wins []domain.Window, scope config.ShortcutScope, ctx filter.Context) []domain.Window {
-	mode := c.settings.Order
+func (c *Controller) composeLocked(wins []domain.Window, scope config.ShortcutScope, ctx filter.Context, prefs config.ModePreferences) []domain.Window {
+	mode := prefs.Order
 	if scope.Order.Valid() {
 		mode = scope.Order
 	}
@@ -494,9 +668,13 @@ func (c *Controller) composeLocked(wins []domain.Window, scope config.ShortcutSc
 
 // reset clears the open state. Caller must hold the lock.
 func (c *Controller) reset() {
+	c.presentationSession.Store(0)
 	c.open = false
 	c.baseList = nil
 	c.list = nil
+	c.baseGroups = nil
+	c.groups = nil
+	c.selectedWindow = 0
 	c.selected = 0
 	c.search = ""
 }
@@ -513,12 +691,17 @@ func (c *Controller) findShortcut(id int) (config.Shortcut, bool) {
 
 // snapshot builds the view State. Caller must hold the lock.
 func (c *Controller) snapshot() State {
-	style := c.settings.Appearance.Style
+	prefs := c.settings.Preferences(c.shortcut.Mode)
+	style := prefs.Appearance.Style
 	if c.open && c.shortcut.StyleOverride != "" {
 		style = c.shortcut.StyleOverride
 	}
-	entries := make([]Entry, len(c.list))
-	for i, w := range c.list {
+	visible := c.list
+	if c.shortcut.Mode == config.ModeApps && c.selected >= 0 && c.selected < len(c.groups) {
+		visible = c.groups[c.selected].Windows
+	}
+	entries := make([]Entry, len(visible))
+	for i, w := range visible {
 		entries[i] = Entry{
 			WindowID:   w.ID,
 			AppID:      w.AppID,
@@ -532,21 +715,25 @@ func (c *Controller) snapshot() State {
 		}
 	}
 	return State{
-		ActionBindings:    maps.Clone(c.settings.Behavior.ActionBindings),
-		MiddleClickAction: c.settings.Behavior.MiddleClickAction,
-		SwipeUpAction:     c.settings.Behavior.SwipeUpAction,
-		SwipeDownAction:   c.settings.Behavior.SwipeDownAction,
+		Session:           c.session,
+		Mode:              c.shortcut.Mode,
+		Apps:              appEntries(c.groups),
+		SelectedWindowID:  c.selectedWindow,
+		ActionBindings:    maps.Clone(prefs.Behavior.ActionBindings),
+		MiddleClickAction: prefs.Behavior.MiddleClickAction,
+		SwipeUpAction:     prefs.Behavior.SwipeUpAction,
+		SwipeDownAction:   prefs.Behavior.SwipeDownAction,
 		Open:              c.open,
 		Style:             style,
-		Appearance:        c.settings.Appearance,
-		Placement:         c.settings.Placement,
+		Appearance:        prefs.Appearance,
+		Placement:         prefs.Placement,
 		Entries:           entries,
 		Selected:          c.selected,
 		Search:            c.search,
 		ShortcutID:        c.shortcut.ID,
-		VimKeys:           c.settings.Behavior.VimKeys,
-		ArrowKeys:         c.settings.Behavior.ArrowKeys,
-		MouseHover:        c.settings.Behavior.MouseHoverSelect,
+		VimKeys:           prefs.Behavior.VimKeys,
+		ArrowKeys:         prefs.Behavior.ArrowKeys,
+		MouseHover:        prefs.Behavior.MouseHoverSelect,
 		ActiveSpaceID:     c.activeSpace,
 		PlacementScreenID: c.placementScreen,
 	}

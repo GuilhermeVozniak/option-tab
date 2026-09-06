@@ -18,4 +18,7 @@ export interface OverlayHandlers {
     windowId: number,
     appId: number,
   ) => void;
+  onSelectApp?: (appId: number) => void;
+  onSelectAppWindow?: (windowId: number) => void;
+  onConfirmApp?: (appId: number) => void;
 }

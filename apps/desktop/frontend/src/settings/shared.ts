@@ -2,7 +2,15 @@
 // TabContext with the settings, the translator, and the patch helpers, so
 // each tab file stays focused on its own markup.
 import type { Translate } from "../lib/i18n";
-import type { Permissions, PermKey, Settings as SettingsModel } from "../lib/types";
+import type {
+  Appearance,
+  ModePreferences,
+  Permissions,
+  PermKey,
+  Settings as SettingsModel,
+  SwitcherBehavior,
+  SwitcherMode,
+} from "../lib/types";
 
 // PROJECT_URL is the public home of this free clone (About-tab links).
 export const PROJECT_URL = "https://github.com/GuilhermeVozniak/option-tab";
@@ -52,6 +60,13 @@ export interface TabContext {
   patchBehavior: (p: Partial<SettingsModel["behavior"]>) => void;
   patchFilters: (p: Partial<SettingsModel["filters"]>) => void;
   patchShortcut: (id: number, p: Partial<SettingsModel["shortcuts"][number]>) => void;
+  mode: SwitcherMode;
+  modeAppearance: Appearance;
+  modeBehavior: SwitcherBehavior;
+  modePlacement: SettingsModel["placement"];
+  patchModeAppearance: (p: Partial<Appearance>) => void;
+  patchModeBehavior: (p: Partial<SwitcherBehavior>) => void;
+  patchModePreferences: (p: Partial<ModePreferences>) => void;
 }
 
 // Shared row shells: a control on the right, its (translated) text on the left.

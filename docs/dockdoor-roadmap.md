@@ -25,6 +25,12 @@ The first batch adds explicit-target actions, configurable switcher interactions
 
 Bulk close/minimize and cache lifecycle are implemented with remaining native limitations: incomplete AX discovery is reported explicitly, and retained closed-window detection depends on the app supporting Accessibility destruction notifications. These broader roadmap items remain unchecked. See [validation and limitations](superpowers/reports/2026-09-06-dock-foundations.md).
 
+## App grouping and native Dock checkpoint
+
+App grouping, running windowless apps, independent mode settings, Dock hover previews, exact preview focus/actions, independent Dock appearance and scoped pointer/capture transport are implemented. Required lint, unit/race, production build and browser checks pass. Disposable native fixtures have proved real Dock hover, nonactivating Close against the exact second preview, windowless application activation, and bounded capture returning to idle.
+
+Acceptance remains partial for the broader native matrix: actual shortcut delivery, other-Space focus, all physical Dock/display configurations, restart, lock and permission transitions are not established by the combined harness. C04 still needs configurable spacing, and C06 retains a confirmed stale-entry limitation for deliberately retained closed NSWindows. See [the app/Dock validation report](superpowers/reports/2026-09-06-app-groups-and-dock-previews.md). Unchecked IDs continue to distinguish implementation from completed acceptance.
+
 ## A. Window actions
 
 - [x] A05 New Window for apps that expose a supported command; indicate unsupported apps.

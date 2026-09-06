@@ -492,7 +492,7 @@ char *ot_screens_json(void) {
       CGFloat mainH = CGDisplayBounds(CGMainDisplayID()).size.height;
       [out addObject:@{
         @"id": @(did),
-        @"main": @(did == CGMainDisplayID()),
+        @"main": did == CGMainDisplayID() ? @YES : @NO,
         @"x": @(full.origin.x), @"y": @(full.origin.y),
         @"w": @(full.size.width), @"h": @(full.size.height),
         // Convert visibleFrame to CG top-left origin for consistency.

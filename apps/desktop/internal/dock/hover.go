@@ -26,6 +26,7 @@ func (i Item) same(other *Item) bool {
 // Change describes only a transition; a zero value preserves the shown panel.
 type Change struct {
 	Show *Item
+	Move *Item
 	Hide bool
 }
 
@@ -63,7 +64,11 @@ func (h *Hover) Step(at time.Time, item *Item, overPanel bool) Change {
 		h.leaveAt = time.Time{}
 		if item.same(h.shown) {
 			h.pending = nil
+			moved := item.Bounds != h.shown.Bounds || item.ScreenID != h.shown.ScreenID || item.Edge != h.shown.Edge
 			h.shown = copyItem(item)
+			if moved {
+				return Change{Move: copyItem(item)}
+			}
 			return Change{}
 		}
 		if !item.same(h.pending) {

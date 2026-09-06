@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"option-tab/internal/config"
@@ -12,10 +14,85 @@ import (
 	"option-tab/internal/switcher"
 )
 
+func TestSwitcherPacketsKeepTheirPresentationIdentity(t *testing.T) {
+	type packet struct {
+		Session, Revision uint64
+		Frames            map[string]string
+	}
+	p := fake.New()
+	p.SetWindows([]domain.Window{{ID: 10, AppID: 20, Title: "Fixture"}})
+	s := config.Default()
+	s.Shortcuts[0].Mode = config.ModeWindows
+	a := newApp(p, s, "")
+	defer a.stopCapture()
+	events := map[string][]packet{}
+	a.eventSink = func(name string, data any) {
+		encoded, err := json.Marshal(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var value packet
+		if err := json.Unmarshal(encoded, &value); err != nil {
+			t.Fatal(err)
+		}
+		events[name] = append(events[name], value)
+	}
+	activate := platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1}
+	a.controller.HandleHotkey(activate)
+	a.emitCaptureFrame(10, "frame")
+	a.controller.Cancel()
+	a.controller.HandleHotkey(activate)
+	shows, hides, frames := events["switcher:show"], events["switcher:hide"], events["switcher:thumbnails"]
+	if len(shows) != 2 || len(hides) != 1 || len(frames) != 1 {
+		t.Fatalf("events=%+v", events)
+	}
+	if shows[0].Session == 0 || shows[0].Revision == 0 || shows[1].Session <= shows[0].Session || hides[0].Session != shows[0].Session || shows[0].Revision >= hides[0].Revision || hides[0].Revision >= shows[1].Revision {
+		t.Fatalf("reordered delivery cannot distinguish presentations: %+v", events)
+	}
+	if frames[0].Session != shows[0].Session || frames[0].Frames["10"] != "frame" {
+		t.Fatalf("unscoped frames: %+v", frames)
+	}
+}
+
 type unavailableStreamPlatform struct{ *fake.Fake }
 
 func (p *unavailableStreamPlatform) StreamWindow(context.Context, domain.WindowID, int, func(string)) error {
 	return platform.WindowUnavailableError{}
+}
+
+type delayedBackgroundPlatform struct {
+	*fake.Fake
+	entered, release chan struct{}
+}
+
+func (p *delayedBackgroundPlatform) ThumbnailDataURL(domain.WindowID, int) string {
+	close(p.entered)
+	<-p.release
+	return "old-background-frame"
+}
+
+func TestBackgroundCaptureDiscardsBatchAfterVisibleSessionChange(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := &delayedBackgroundPlatform{Fake: fake.New(), entered: make(chan struct{}), release: make(chan struct{})}
+		p.SetWindows([]domain.Window{{ID: 10, AppID: 20, Title: "Fixture"}})
+		s := config.Default()
+		s.Behavior.CaptureInBackground = true
+		a := newApp(p, s, "")
+		defer a.stopCapture()
+		go a.backgroundCaptureLoop()
+		time.Sleep(4 * time.Second)
+		synctest.Wait()
+		<-p.entered
+		a.Show(switcher.State{Style: config.StyleTitles, Appearance: s.Appearance})
+		a.Hide()
+		close(p.release)
+		synctest.Wait()
+		a.thumbCacheMu.Lock()
+		defer a.thumbCacheMu.Unlock()
+		if len(a.thumbCache) != 0 {
+			t.Fatalf("old background batch published after view changed: %v", a.thumbCache)
+		}
+	})
 }
 
 func TestClosedUnselectedWindowClearsBothImagePaths(t *testing.T) {

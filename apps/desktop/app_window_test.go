@@ -11,6 +11,8 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"option-tab/internal/config"
+	"option-tab/internal/domain"
+	"option-tab/internal/platform"
 	"option-tab/internal/platform/fake"
 	"option-tab/internal/switcher"
 )
@@ -72,6 +74,29 @@ func TestSwitcherWithoutFadeHidesImmediately(t *testing.T) {
 	a.Hide()
 	if !slices.Contains(overlay.calls, "hide") {
 		t.Fatal("disabled fade delayed native dismissal")
+	}
+}
+
+func TestOldSwitcherHideCannotDismissNewPresentation(t *testing.T) {
+	p := fake.New()
+	p.SetWindows([]domain.Window{{ID: 10, AppID: 20, Title: "Fixture"}})
+	s := config.Default()
+	s.Shortcuts[0].Mode = config.ModeWindows
+	a := newApp(p, s, "")
+	defer a.stopCapture()
+	hides := 0
+	a.eventSink = func(name string, _ any) {
+		if name == "switcher:hide" {
+			hides++
+		}
+	}
+	a.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	old := a.controller.State().Session
+	a.controller.Cancel()
+	a.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	a.HideSession(old)
+	if hides != 1 || !a.captureActive {
+		t.Fatal("old hide dismissed the current switcher")
 	}
 }
 

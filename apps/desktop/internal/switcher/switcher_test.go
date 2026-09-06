@@ -13,14 +13,16 @@ import (
 
 // recordView records the states pushed to the view.
 type recordView struct {
-	shows   []State
-	updates []State
-	hides   int
+	shows    []State
+	updates  []State
+	hides    int
+	failures []string
 }
 
-func (r *recordView) Show(s State)   { r.shows = append(r.shows, s) }
-func (r *recordView) Update(s State) { r.updates = append(r.updates, s) }
-func (r *recordView) Hide()          { r.hides++ }
+func (r *recordView) Show(s State)                { r.shows = append(r.shows, s) }
+func (r *recordView) Update(s State)              { r.updates = append(r.updates, s) }
+func (r *recordView) Hide()                       { r.hides++ }
+func (r *recordView) ActionFailed(message string) { r.failures = append(r.failures, message) }
 
 func (r *recordView) last() State {
 	if len(r.updates) > 0 {
@@ -38,6 +40,9 @@ func newController(t *testing.T, wins []domain.Window, mut func(*config.Settings
 	f.SetWindows(wins)
 	v := &recordView{}
 	s := config.Default()
+	for i := range s.Shortcuts {
+		s.Shortcuts[i].Mode = config.ModeWindows
+	}
 	if mut != nil {
 		mut(&s)
 	}
@@ -244,7 +249,9 @@ func TestRelease_DoNothingKeepsSwitcherOpen(t *testing.T) {
 		t.Errorf("release must not focus, got %v", f.FocusCalls)
 	}
 	// An explicit Confirm (Enter/click) still commits.
-	c.Confirm()
+	if err := c.Confirm(); err != nil {
+		t.Fatal(err)
+	}
 	if c.IsOpen() || len(f.FocusCalls) != 1 {
 		t.Errorf("explicit confirm should focus and close: open=%v focus=%v", c.IsOpen(), f.FocusCalls)
 	}
@@ -292,7 +299,9 @@ func TestConfirm_CursorFollowsFocusWhenEnabled(t *testing.T) {
 		s.Behavior.CursorFollowFocus = true
 	})
 	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
-	c.Confirm()
+	if err := c.Confirm(); err != nil {
+		t.Fatal(err)
+	}
 	if len(f.WarpCalls) != 1 || f.WarpCalls[0] != f.LastFocused {
 		t.Errorf("cursor should warp to the focused window, got %v (focused %d)", f.WarpCalls, f.LastFocused)
 	}
@@ -301,7 +310,9 @@ func TestConfirm_CursorFollowsFocusWhenEnabled(t *testing.T) {
 func TestConfirm_NoCursorWarpByDefault(t *testing.T) {
 	c, f, _ := newController(t, threeWins(), nil)
 	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
-	c.Confirm()
+	if err := c.Confirm(); err != nil {
+		t.Fatal(err)
+	}
 	if len(f.WarpCalls) != 0 {
 		t.Errorf("cursor must not warp when CursorFollowFocus is off, got %v", f.WarpCalls)
 	}
@@ -315,7 +326,9 @@ func TestConfirmWindow_FocusesRequestedWindowRegardlessOfSelection(t *testing.T)
 
 	// Activation selects window 2. A click on window 3 must carry its own ID
 	// instead of depending on a preceding asynchronous Select call.
-	c.ConfirmWindow(3)
+	if err := c.ConfirmWindow(3); err != nil {
+		t.Fatal(err)
+	}
 
 	if got := f.LastFocused; got != 3 {
 		t.Errorf("focused window = %d, want clicked window 3", got)
@@ -354,16 +367,16 @@ func TestConfirmWindow_MissingIDDoesNotFocusCurrentSelection(t *testing.T) {
 				tt.prepare(c)
 			}
 
-			c.ConfirmWindow(tt.id)
+			err := c.ConfirmWindow(tt.id)
 
 			if len(f.FocusCalls) != 0 {
 				t.Errorf("missing clicked id must not focus current selection, got %v", f.FocusCalls)
 			}
-			if c.IsOpen() {
-				t.Error("switcher should close after the click is consumed")
+			if err == nil || !c.IsOpen() {
+				t.Errorf("stale target must report failure and leave switcher open: err=%v open=%v", err, c.IsOpen())
 			}
-			if v.hides != 1 {
-				t.Errorf("expected 1 Hide, got %d", v.hides)
+			if v.hides != 0 {
+				t.Errorf("failed target must not hide, got %d hides", v.hides)
 			}
 		})
 	}
@@ -453,7 +466,9 @@ func TestConfirm_FocusesAndTracksMRU(t *testing.T) {
 	c, f, _ := newController(t, threeWins(), nil)
 	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
 	c.Select(2) // window 3
-	c.Confirm()
+	if err := c.Confirm(); err != nil {
+		t.Fatal(err)
+	}
 	if f.LastFocused != 3 {
 		t.Errorf("confirm should focus window 3, got %d", f.LastFocused)
 	}
@@ -635,7 +650,9 @@ func TestActivate_MRUOrderAfterConfirm(t *testing.T) {
 		t.Fatalf("window 3 missing from entries %+v", v.last().Entries)
 	}
 	c.Select(idx)
-	c.Confirm()
+	if err := c.Confirm(); err != nil {
+		t.Fatal(err)
+	}
 
 	// MRU (Touch on confirm + Stamp on activate) must beat the platform recency.
 	// v.last() prefers updates, so read the second activation's Show directly.
@@ -706,7 +723,9 @@ func TestNoteFocus_BeatsStaleConfirm(t *testing.T) {
 		t.Fatalf("window 3 missing from entries %+v", v.last().Entries)
 	}
 	c.Select(idx)
-	c.Confirm()
+	if err := c.Confirm(); err != nil {
+		t.Fatal(err)
+	}
 
 	// The user then clicks into 1, then 2, outside the switcher.
 	c.NoteFocus(1)

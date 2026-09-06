@@ -109,6 +109,9 @@ const METHOD = {
   SetSearch: 1454005219,
   Confirm: 3228319335,
   ConfirmWindow: 3813603255,
+  ConfirmApp: 1759019970,
+  SelectApp: 523317996,
+  SelectAppWindow: 76282064,
   Cancel: 2191755235,
   CloseSelected: 2868361114,
   MinimizeSelected: 1240045732,
@@ -118,6 +121,11 @@ const METHOD = {
   GetVersion: 1049863377,
   InstallUpdate: 2443992793,
   PerformAction: 280563800,
+  GetDockState: 1033939333,
+  SelectDockWindow: 1507952022,
+  FocusDockWindow: 1587026944,
+  PerformDockAction: 1943493959,
+  SetDockPanelSize: 1080314307,
 } as const;
 
 const METHOD_NAME = new Map<number, string>(Object.entries(METHOD).map(([name, id]) => [id, name]));
@@ -141,17 +149,20 @@ export async function installFakeWails(page: Page): Promise<void> {
       __state: Record<string, unknown> | null;
       __actionResult?: { succeeded: number; failures: { windowId: number; error: string }[] };
       __actionError?: string;
+      __dockState?: Record<string, unknown> | null;
       _wails?: { dispatchWailsEvent?: (ev: { name: string; data: unknown }) => void };
     };
     w.__calls = [];
     w.__state = null;
     w.__actionResult = undefined;
     w.__actionError = undefined;
+    w.__dockState = null;
     window.addEventListener("keydown", (e) => {
       if (!w.__state?.open) return; // the native tap only forwards while open
       w._wails?.dispatchWailsEvent?.({
         name: "switcher:key",
         data: {
+          session: (w.__state.session as number | undefined) ?? 0,
           key: e.key,
           code: e.code,
           shift: e.shiftKey,
@@ -179,6 +190,8 @@ export async function installFakeWails(page: Page): Promise<void> {
     switch (name) {
       case "GetVersion":
         return json("0.0.0-e2e");
+      case "GetDockState":
+        return json(await page.evaluate(() => (window as any).__dockState));
       case "InstallUpdate":
         // No real install in e2e: acknowledge and stay put.
         await evaluate((n) => {
@@ -195,10 +208,12 @@ export async function installFakeWails(page: Page): Promise<void> {
             const st = w.__state;
             if (!st) return;
             const clamp = (i: number, len: number) => ((i % len) + len) % len;
-            if (n === "Advance") st.selected = clamp(st.selected + 1, st.entries.length);
-            else if (n === "Reverse") st.selected = clamp(st.selected - 1, st.entries.length);
+            const count = st.mode === "apps" ? st.apps.length : st.entries.length;
+            if (n === "Advance") st.selected = clamp(st.selected + 1, count);
+            else if (n === "Reverse") st.selected = clamp(st.selected - 1, count);
             else if (n === "Select") st.selected = a;
             else st.search = a;
+            if ((st.session ?? 0) > 0) st.revision = (st.revision ?? 0) + 1;
             w.__state = { ...st };
             w._wails?.dispatchWailsEvent?.({ name: "switcher:update", data: w.__state });
           },
@@ -208,13 +223,19 @@ export async function installFakeWails(page: Page): Promise<void> {
       }
       case "Confirm":
       case "ConfirmWindow":
+      case "ConfirmApp":
       case "Cancel": {
         await evaluate(
           ([n, a]) => {
             const w = window as any;
             w.__calls.push(a === undefined ? [n] : [n, a]);
             w.__state = { ...w.__state, open: false };
-            w._wails?.dispatchWailsEvent?.({ name: "switcher:hide", data: null });
+            const session = w.__state?.session ?? 0;
+            const revision = session > 0 ? (w.__state?.revision ?? 0) + 1 : 0;
+            w._wails?.dispatchWailsEvent?.({
+              name: "switcher:hide",
+              data: session > 0 ? { session, revision } : null,
+            });
           },
           [name, args[0]],
         );
@@ -229,6 +250,27 @@ export async function installFakeWails(page: Page): Promise<void> {
           (window as any).__calls.push([n]);
         }, name);
         return json(null);
+      }
+      case "SelectApp":
+      case "SelectAppWindow":
+      case "SelectDockWindow":
+      case "SetDockPanelSize": {
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        return json(null);
+      }
+      case "FocusDockWindow":
+      case "PerformDockAction": {
+        const outcome = await page.evaluate(
+          ([n, a]) => {
+            const w = window as any;
+            w.__calls.push([n, ...a]);
+            if (w.__actionError)
+              return { succeeded: 0, failures: [{ windowId: a[2] ?? 0, error: w.__actionError }] };
+            return w.__actionResult ?? { succeeded: 1, failures: [] };
+          },
+          [name, args],
+        );
+        return json(outcome);
       }
       case "PerformAction": {
         const outcome = await page.evaluate(
@@ -270,7 +312,9 @@ export async function emitShow(page: Page, state: ShowState): Promise<void> {
       w._wails.dispatchWailsEvent({ name: "switcher:show", data: s });
     }, state);
     try {
-      await page.locator(".ot-overlay").waitFor({ state: "visible", timeout: 500 });
+      await page
+        .locator(".ot-overlay,.ot-app-switcher")
+        .waitFor({ state: "visible", timeout: 500 });
       return;
     } catch {
       // subscription not ready yet; dispatch again

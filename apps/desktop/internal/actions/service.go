@@ -45,10 +45,17 @@ type (
 func New(b Backend) *Service { return &Service{backend: b} }
 
 func (s *Service) Perform(kind string, id domain.WindowID, app domain.AppID) (Result, error) {
-	return s.perform(kind, id, app, false)
+	return s.perform(kind, id, app, false, nil)
 }
 
-func (s *Service) perform(kind string, id domain.WindowID, app domain.AppID, minimizeOnly bool) (Result, error) {
+// PerformGuarded rechecks admission after external lookup, immediately before
+// each native operation. A retired UI session can cancel pending lookup work;
+// an operation already dispatched to the native application cannot be recalled.
+func (s *Service) PerformGuarded(kind string, id domain.WindowID, app domain.AppID, guard func() error) (Result, error) {
+	return s.perform(kind, id, app, false, guard)
+}
+
+func (s *Service) perform(kind string, id domain.WindowID, app domain.AppID, minimizeOnly bool, guard func() error) (Result, error) {
 	r := Result{Failures: []Failure{}}
 	window := kind == "focus" || kind == "close" || kind == "minimize" || kind == "fullscreen"
 	bulk := kind == "closeAll" || kind == "minimizeAll"
@@ -81,7 +88,7 @@ func (s *Service) perform(kind string, id domain.WindowID, app domain.AppID, min
 				if w.AppID != app {
 					continue
 				}
-				_, err := s.perform(op, w.ID, app, kind == "minimizeAll")
+				_, err := s.perform(op, w.ID, app, kind == "minimizeAll", guard)
 				if err != nil {
 					r.Failures = append(r.Failures, Failure{w.ID, err.Error()})
 				} else {
@@ -107,6 +114,11 @@ func (s *Service) perform(kind string, id domain.WindowID, app domain.AppID, min
 			return r, nil
 		}
 		app = owner
+	}
+	if guard != nil {
+		if err := guard(); err != nil {
+			return r, err
+		}
 	}
 	var err error
 	if p, ok := s.backend.(TargetPerformer); ok {

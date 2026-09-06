@@ -25,6 +25,14 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   Reverse: vi.fn().mockResolvedValue(undefined),
   Confirm: vi.fn().mockResolvedValue(undefined),
   ConfirmWindow: vi.fn().mockResolvedValue(undefined),
+  SelectApp: vi.fn().mockResolvedValue(undefined),
+  SelectAppWindow: vi.fn().mockResolvedValue(undefined),
+  ConfirmApp: vi.fn().mockResolvedValue(undefined),
+  GetDockState: vi.fn().mockResolvedValue(null),
+  SelectDockWindow: vi.fn().mockResolvedValue(undefined),
+  FocusDockWindow: vi.fn().mockResolvedValue({ succeeded: 1, failures: [] }),
+  PerformDockAction: vi.fn().mockResolvedValue({ succeeded: 1, failures: [] }),
+  SetDockPanelSize: vi.fn().mockResolvedValue(undefined),
   Cancel: vi.fn().mockResolvedValue(undefined),
   Select: vi.fn().mockResolvedValue(undefined),
   SetSearch: vi.fn().mockResolvedValue(undefined),
@@ -82,6 +90,359 @@ describe("App", () => {
     window.location.hash = "#settings";
     render(<App />);
     expect(screen.getByText(/Preferences/)).toBeInTheDocument();
+  });
+
+  it("renders app mode and confirms an explicit app/window target", async () => {
+    render(<App />);
+    act(() =>
+      eventHandlers.get("switcher:show")?.({
+        data: openSwitcherState({
+          mode: "apps",
+          apps: [
+            {
+              appId: 10,
+              appName: "Editor",
+              bundleId: "a",
+              hidden: false,
+              windowCount: 1,
+              windowPresence: "present",
+            },
+          ],
+          entries: [{ ...appEntry(101, "Document"), appId: 10, bundleId: "a" }],
+          selectedWindowId: 101,
+        }),
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Focus Document" }));
+    await waitFor(() => expect((AppService as any).SelectAppWindow).toHaveBeenCalledWith(101));
+    expect(mocked.ConfirmWindow).toHaveBeenCalledWith(101);
+  });
+
+  it("admits only monotonic switcher state, current frames, and rejects closed-session resurrection", () => {
+    render(<App />);
+    const state = (session: number, revision: number, title: string) =>
+      openSwitcherState({
+        session,
+        revision,
+        entries: [appEntry(101, title)],
+      });
+    act(() => {
+      eventHandlers.get("switcher:update")?.({ data: state(7, 3, "Newest") });
+      eventHandlers.get("switcher:show")?.({ data: state(7, 2, "Old show") });
+      eventHandlers.get("switcher:update")?.({ data: state(6, 20, "Old session") });
+      eventHandlers.get("switcher:thumbnails")?.({
+        data: { session: 6, frames: { "101": "data:old" } },
+      });
+      eventHandlers.get("switcher:thumbnails")?.({
+        data: { session: 7, frames: { "101": "data:current" } },
+      });
+    });
+    expect(screen.getByText("Newest")).toBeInTheDocument();
+    expect(document.querySelector(".ot-thumb-img")).toHaveAttribute("src", "data:current");
+    act(() => {
+      eventHandlers.get("switcher:hide")?.({ data: { session: 6, revision: 21 } });
+    });
+    expect(screen.getByText("Newest")).toBeInTheDocument();
+    act(() => {
+      eventHandlers.get("switcher:hide")?.({ data: { session: 7, revision: 4 } });
+      eventHandlers.get("switcher:update")?.({ data: state(7, 5, "Late update") });
+      eventHandlers.get("switcher:show")?.({ data: state(7, 6, "Late show") });
+      eventHandlers.get("switcher:preview")?.({
+        data: { session: 7, frames: { "101": "data:late" } },
+      });
+    });
+    expect(screen.queryByText(/Late/)).toBeNull();
+    expect(screen.getByRole("dialog")).toHaveClass("ot-closing");
+  });
+
+  it("rejects unscoped legacy frames and hides after a real switcher session", () => {
+    render(<App />);
+    act(() =>
+      eventHandlers.get("switcher:show")?.({
+        data: openSwitcherState({ session: 8, revision: 1, entries: [appEntry(102, "Scoped")] }),
+      }),
+    );
+    act(() => {
+      eventHandlers.get("switcher:thumbnails")?.({ data: { "102": "data:legacy" } });
+      eventHandlers.get("switcher:hide")?.({ data: null });
+    });
+    expect(screen.getByText("Scoped")).toBeInTheDocument();
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+
+  it("treats a real hide as scoped before any show arrives", () => {
+    render(<App />);
+    act(() => {
+      eventHandlers.get("switcher:hide")?.({ data: { session: 11, revision: 2 } });
+      eventHandlers.get("switcher:show")?.({
+        data: openSwitcherState({ entries: [appEntry(1, "Legacy resurrection")] }),
+      });
+      eventHandlers.get("switcher:thumbnails")?.({ data: { "1": "data:legacy" } });
+    });
+    expect(screen.queryByText("Legacy resurrection")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("does not let an old native key control a newer app presentation", () => {
+    mocked.Advance.mockClear();
+    render(<App />);
+    act(() =>
+      eventHandlers.get("switcher:show")?.({
+        data: openSwitcherState({
+          session: 15,
+          revision: 1,
+          mode: "apps",
+          apps: [{ appId: 10, appName: "App", bundleId: "a", hidden: false, windowCount: 0 }],
+          entries: [],
+          selectedWindowId: 0,
+        }),
+      }),
+    );
+    act(() => {
+      eventHandlers.get("switcher:key")?.({
+        data: {
+          session: 14,
+          key: "Tab",
+          code: "Tab",
+          shift: false,
+          ctrl: false,
+          alt: false,
+          meta: false,
+        },
+      });
+      eventHandlers.get("switcher:key")?.({
+        data: {
+          session: 15,
+          key: "Tab",
+          code: "Tab",
+          shift: false,
+          ctrl: false,
+          alt: false,
+          meta: false,
+        },
+      });
+    });
+    expect(mocked.Advance).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects stale Dock snapshots, frames, hides, and errors", async () => {
+    let resolveSnapshot: (value: never) => void = () => {};
+    (AppService as any).GetDockState.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSnapshot = resolve;
+      }) as never,
+    );
+    window.location.hash = "#dock";
+    const appearance = { ...emptyState.appearance, showWindowControls: true };
+    render(<App />);
+    const dockState = (session: number, title: string, revision = 0) => ({
+      session,
+      revision,
+      item: {
+        appId: 10,
+        bundleId: "a",
+        path: "/A.app",
+        title: "A",
+        bounds: { x: 0, y: 0, w: 40, h: 40 },
+        screenId: 1,
+        edge: "bottom",
+        kind: "app",
+      },
+      entries: [{ ...appEntry(102, title), appId: 10 }],
+      selectedWindowId: 102,
+      appearance,
+      emptyReason: "",
+    });
+    act(() => eventHandlers.get("dock:show")?.({ data: dockState(5, "Current") }));
+    expect(screen.getByRole("button", { name: "Focus Current" })).toBeInTheDocument();
+    await act(async () => resolveSnapshot(dockState(3, "Old") as never));
+    act(() => {
+      eventHandlers.get("dock:frames")?.({ data: { session: 3, frames: { "102": "old-frame" } } });
+      eventHandlers.get("dock:error")?.({ data: { session: 3, message: "old error" } });
+      eventHandlers.get("dock:hide")?.({ data: { session: 3 } });
+    });
+    expect(screen.getByRole("button", { name: "Focus Current" })).toBeInTheDocument();
+    expect(screen.queryByText("old error")).toBeNull();
+    act(() => {
+      eventHandlers.get("dock:hide")?.({ data: { session: 5 } });
+      eventHandlers.get("dock:update")?.({ data: dockState(5, "Retired") });
+    });
+    expect(screen.queryByRole("button", { name: "Focus Retired" })).toBeNull();
+    act(() => {
+      eventHandlers.get("dock:show")?.({ data: dockState(5, "Late show", 4) });
+      eventHandlers.get("dock:update")?.({ data: dockState(5, "Late update", 4) });
+    });
+    expect(screen.queryByText(/Late/)).toBeNull();
+  });
+
+  it("rejects out-of-order revisions within the active Dock session", () => {
+    window.location.hash = "#dock";
+    render(<App />);
+    const base = {
+      session: 8,
+      item: {
+        appId: 10,
+        bundleId: "a",
+        path: "/A.app",
+        title: "New",
+        bounds: { x: 0, y: 0, w: 40, h: 40 },
+        screenId: 1,
+        edge: "bottom",
+        kind: "app",
+      },
+      entries: [],
+      selectedWindowId: 0,
+      appearance: emptyState.appearance,
+      emptyReason: "unavailable",
+    };
+    act(() => {
+      eventHandlers.get("dock:show")?.({ data: { ...base, revision: 2 } });
+      eventHandlers.get("dock:update")?.({
+        data: { ...base, revision: 1, item: { ...base.item, title: "Old" } },
+      });
+    });
+    expect(screen.getByText("New")).toBeInTheDocument();
+    expect(screen.queryByText("Old")).toBeNull();
+  });
+
+  it("admits only current-session monotonic Dock pointer packets and clears outside", () => {
+    window.location.hash = "#dock";
+    render(<App />);
+    const base = {
+      session: 18,
+      revision: 1,
+      item: {
+        appId: 10,
+        bundleId: "a",
+        path: "/A.app",
+        title: "A",
+        bounds: { x: 0, y: 0, w: 40, h: 40 },
+        screenId: 1,
+        edge: "bottom",
+        kind: "app",
+      },
+      entries: [
+        { ...appEntry(102, "First"), appId: 10 },
+        { ...appEntry(103, "Second"), appId: 10 },
+      ],
+      selectedWindowId: 102,
+      appearance: emptyState.appearance,
+      emptyReason: "",
+    };
+    let hit: Element | null = null;
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => hit ?? document.querySelector("article[data-window-id='103']"),
+    });
+    act(() => {
+      eventHandlers.get("dock:pointer")?.({
+        data: { session: 17, sequence: 99, x: 1, y: 1, inside: true },
+      });
+      eventHandlers.get("dock:pointer")?.({
+        data: { session: 18, sequence: 2, x: 10, y: 10, inside: true },
+      });
+    });
+    act(() => eventHandlers.get("dock:show")?.({ data: base }));
+    const first = document.querySelector("article[data-window-id='102']")!;
+    const second = document.querySelector("article[data-window-id='103']")!;
+    expect(second).toHaveClass("is-hovered");
+    expect(AppService.SelectDockWindow).toHaveBeenCalledWith(18, 103);
+    hit = first;
+    act(() => {
+      eventHandlers.get("dock:pointer")?.({
+        data: { session: 18, sequence: 1, x: 1, y: 1, inside: true },
+      });
+      eventHandlers.get("dock:pointer")?.({
+        data: { session: 17, sequence: 3, x: 1, y: 1, inside: true },
+      });
+      eventHandlers.get("dock:update")?.({
+        data: {
+          ...base,
+          revision: 2,
+          pointer: { session: 18, sequence: 1, x: 1, y: 1, inside: true },
+        },
+      });
+    });
+    expect(second).toHaveClass("is-hovered");
+    expect(first).not.toHaveClass("is-hovered");
+    hit = null;
+    act(() =>
+      eventHandlers.get("dock:pointer")?.({
+        data: { session: 18, sequence: 3, x: -1, y: -1, inside: false },
+      }),
+    );
+    expect(second).not.toHaveClass("is-hovered");
+    expect(AppService.FocusDockWindow).not.toHaveBeenCalled();
+    expect(AppService.PerformDockAction).not.toHaveBeenCalled();
+    Reflect.deleteProperty(document, "elementFromPoint");
+  });
+
+  it("uses a Dock error revision as a state high-water mark", () => {
+    window.location.hash = "#dock";
+    render(<App />);
+    const base = {
+      session: 9,
+      revision: 2,
+      item: {
+        appId: 10,
+        bundleId: "a",
+        path: "/A.app",
+        title: "Current",
+        bounds: { x: 0, y: 0, w: 40, h: 40 },
+        screenId: 1,
+        edge: "bottom",
+        kind: "app",
+      },
+      entries: [],
+      selectedWindowId: 0,
+      appearance: emptyState.appearance,
+      emptyReason: "unavailable",
+    };
+    act(() => {
+      eventHandlers.get("dock:show")?.({ data: base });
+      eventHandlers.get("dock:error")?.({
+        data: { session: 9, revision: 4, message: "Current refusal" },
+      });
+      eventHandlers.get("dock:update")?.({
+        data: { ...base, revision: 3, item: { ...base.item, title: "Stale" } },
+      });
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("Current refusal");
+    expect(screen.queryByText("Stale")).toBeNull();
+  });
+
+  it("uses a hidden catch-up snapshot as a same-session tombstone", async () => {
+    let resolveSnapshot: (value: never) => void = () => {};
+    (AppService as any).GetDockState.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSnapshot = resolve;
+      }),
+    );
+    window.location.hash = "#dock";
+    render(<App />);
+    const state = {
+      session: 12,
+      revision: 2,
+      open: true,
+      item: {
+        appId: 10,
+        bundleId: "a",
+        path: "/A.app",
+        title: "Shown",
+        bounds: { x: 0, y: 0, w: 40, h: 40 },
+        screenId: 1,
+        edge: "bottom",
+        kind: "app",
+      },
+      entries: [],
+      selectedWindowId: 0,
+      appearance: emptyState.appearance,
+      emptyReason: "unavailable",
+    };
+    act(() => eventHandlers.get("dock:show")?.({ data: state }));
+    await act(async () => resolveSnapshot({ ...state, revision: 3, open: false } as never));
+    act(() => eventHandlers.get("dock:show")?.({ data: state }));
+    expect(screen.queryByText("Shown")).toBeNull();
   });
 
   it("acts on the clicked window without changing selection", async () => {

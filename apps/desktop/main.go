@@ -98,6 +98,25 @@ func main() {
 	})
 	app.setRuntime(wailsApp, overlay, makePrefs(), makePrefs)
 
+	// The Dock owns a separate hidden webview. A true nonactivating NSPanel
+	// hosts its content; the Wails host itself is never shown or focused.
+	if host, ok := app.platform.(platform.DockPanelHost); ok {
+		makeDockHost := func() nativeWindow {
+			window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+				Name: "dock-preview", Title: "Option Tab Dock preview", Width: 320, Height: 200,
+				Hidden: true, Frameless: true, DisableResize: true, URL: "/#/dock",
+				Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
+			})
+			window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
+				if app.dockWindow != nil {
+					app.dockWindow.markHostClosedIf(window)
+				}
+			})
+			return window
+		}
+		app.dockWindow = newDockWindow(application.InvokeAsync, makeDockHost, host)
+	}
+
 	// --- Menubar tray ---
 	// Menu accelerators are display-only on macOS (a status-item menu is outside
 	// the key-equivalent responder chain); the CGEventTap in internal/platform

@@ -10,6 +10,7 @@ import type {
   ReleaseAction,
   ScreenScope,
   SpaceScope,
+  SwitcherMode,
   VisualStyle,
   WindowAction,
 } from "../../lib/types";
@@ -109,7 +110,7 @@ function ActionBindingRow({
 }
 
 export function ControlsTab({ ctx }: { ctx: TabContext }) {
-  const { settings, t, patch, patchBehavior, patchShortcut } = ctx;
+  const { settings, t, patch, patchModeBehavior: patchBehavior, modeBehavior, patchShortcut } = ctx;
 
   const addShortcut = () => {
     const used = new Set(settings.shortcuts.map((s) => s.id));
@@ -119,7 +120,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
     patch({
       shortcuts: [
         ...settings.shortcuts,
-        { id, chord: "", enabled: true, scope: { appScope: "all" } },
+        { id, chord: "", enabled: true, scope: { appScope: "all" }, mode: "windows" },
       ],
     });
   };
@@ -158,6 +159,14 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
                   placeholder={t("Press shortcut keys")}
                   onChordChange={(chord) => patchShortcut(s.id, { chord })}
                 />
+                <Select
+                  aria-label={`Shortcut ${s.id} mode`}
+                  value={s.mode ?? "windows"}
+                  onChange={(e) => patchShortcut(s.id, { mode: e.target.value as SwitcherMode })}
+                >
+                  <option value="windows">{t("Window switcher")}</option>
+                  <option value="apps">{t("App switcher")}</option>
+                </Select>
                 <Select
                   aria-label={`Shortcut ${s.id} scope`}
                   value={s.scope.appScope}
@@ -278,7 +287,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Middle click")}</span>
             <Select
               aria-label="Middle click action"
-              value={settings.behavior.middleClickAction}
+              value={modeBehavior.middleClickAction}
               onChange={(e) =>
                 patchBehavior({ middleClickAction: e.target.value as PointerAction })
               }
@@ -293,7 +302,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
               <span>{t(field === "swipeUpAction" ? "Swipe up" : "Swipe down")}</span>
               <Select
                 aria-label={field === "swipeUpAction" ? "Swipe up action" : "Swipe down action"}
-                value={settings.behavior[field]}
+                value={modeBehavior[field]}
                 onChange={(e) => patchBehavior({ [field]: e.target.value as PointerAction })}
               >
                 {(["none", "close", "minimize", "fullscreen", "hide", "quit"] as const).map((v) => (
@@ -304,12 +313,12 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
               </Select>
             </label>
           ))}
-          {Object.entries(settings.behavior.actionBindings).map(([code, action]) => (
+          {Object.entries(modeBehavior.actionBindings).map(([code, action]) => (
             <ActionBindingRow
               key={code}
               code={code}
               action={action}
-              bindings={settings.behavior.actionBindings}
+              bindings={modeBehavior.actionBindings}
               patchBehavior={patchBehavior}
               t={t}
             />
@@ -318,15 +327,15 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             type="button"
             aria-label="Add action binding"
             variant="dashed"
-            disabled={Object.keys(settings.behavior.actionBindings).length >= 26}
+            disabled={Object.keys(modeBehavior.actionBindings).length >= 26}
             onClick={() => {
               const code = Array.from(
                 { length: 26 },
                 (_, i) => `Key${String.fromCharCode(65 + i)}`,
-              ).find((candidate) => !(candidate in settings.behavior.actionBindings));
+              ).find((candidate) => !(candidate in modeBehavior.actionBindings));
               if (code)
                 patchBehavior({
-                  actionBindings: { ...settings.behavior.actionBindings, [code]: "close" },
+                  actionBindings: { ...modeBehavior.actionBindings, [code]: "close" },
                 });
             }}
           >
@@ -347,7 +356,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Hold modifier to cycle (release to select)")}</span>
             <Checkbox
               aria-label="Hold modifier to cycle"
-              checked={settings.behavior.holdToCycle}
+              checked={modeBehavior.holdToCycle}
               onChange={(e) => patchBehavior({ holdToCycle: e.target.checked })}
             />
           </label>
@@ -355,7 +364,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Navigate with arrow keys")}</span>
             <Checkbox
               aria-label="Arrow keys"
-              checked={settings.behavior.arrowKeys}
+              checked={modeBehavior.arrowKeys}
               onChange={(e) => patchBehavior({ arrowKeys: e.target.checked })}
             />
           </label>
@@ -363,7 +372,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Navigate with vim keys (h / j / k / l)")}</span>
             <Checkbox
               aria-label="Vim keys"
-              checked={settings.behavior.vimKeys}
+              checked={modeBehavior.vimKeys}
               onChange={(e) => patchBehavior({ vimKeys: e.target.checked })}
             />
           </label>
@@ -371,7 +380,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Trackpad haptic feedback when the selection changes")}</span>
             <Checkbox
               aria-label="Haptic feedback"
-              checked={settings.behavior.hapticFeedback}
+              checked={modeBehavior.hapticFeedback}
               onChange={(e) => patchBehavior({ hapticFeedback: e.target.checked })}
             />
           </label>
@@ -387,7 +396,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Mouse hover")}</span>
             <Checkbox
               aria-label="Select windows on mouse hover"
-              checked={settings.behavior.mouseHoverSelect}
+              checked={modeBehavior.mouseHoverSelect}
               onChange={(e) => patchBehavior({ mouseHoverSelect: e.target.checked })}
             />
           </label>
@@ -395,7 +404,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Cursor follows focus (warp the mouse to the focused window)")}</span>
             <Checkbox
               aria-label="Cursor follows focus"
-              checked={settings.behavior.cursorFollowFocus}
+              checked={modeBehavior.cursorFollowFocus}
               onChange={(e) => patchBehavior({ cursorFollowFocus: e.target.checked })}
             />
           </label>

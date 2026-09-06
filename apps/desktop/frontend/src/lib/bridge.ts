@@ -57,8 +57,11 @@ export const switcher = {
     AppService.PerformAction(kind, windowId, appId),
   advance: () => call(AppService.Advance()),
   reverse: () => call(AppService.Reverse()),
-  confirm: () => call(AppService.Confirm()),
-  confirmWindow: (windowId: number) => call(AppService.ConfirmWindow(windowId)),
+  confirm: () => AppService.Confirm(),
+  confirmWindow: (windowId: number) => AppService.ConfirmWindow(windowId),
+  selectApp: (appId: number) => call(AppService.SelectApp(appId)),
+  selectAppWindow: (windowId: number) => call(AppService.SelectAppWindow(windowId)),
+  confirmApp: (appId: number) => AppService.ConfirmApp(appId),
   cancel: () => call(AppService.Cancel()),
   select: (index: number) => call(AppService.Select(index)),
   setSearch: (query: string) => call(AppService.SetSearch(query)),
@@ -120,6 +123,7 @@ export async function loadVersion(): Promise<string | null> {
 // is its only keyboard source). Fields match the DOM KeyboardEvent shape the
 // keymap consumes.
 export interface KeyPayload {
+  session?: number;
   key: string;
   code: string;
   shift: boolean;
@@ -131,9 +135,10 @@ export interface KeyPayload {
 export interface SwitcherEventHandlers {
   onShow: (state: SwitcherState) => void;
   onUpdate: (state: SwitcherState) => void;
-  onHide: () => void;
-  onThumbnails?: (thumbs: Record<string, string>) => void;
-  onPreview?: (previews: Record<string, string>) => void;
+  onHide: (session: number, revision: number) => void;
+  onThumbnails?: (session: number, thumbs: Record<string, string>) => void;
+  onPreview?: (session: number, previews: Record<string, string>) => void;
+  onError?: (message: string) => void;
 }
 
 // onSwitcherEvent subscribes to the Go controller's events and returns an
@@ -143,19 +148,32 @@ export function onSwitcherEvent(handlers: SwitcherEventHandlers): () => void {
   const offUpdate = Events.On("switcher:update", (ev) =>
     handlers.onUpdate(ev.data as SwitcherState),
   );
-  const offHide = Events.On("switcher:hide", () => handlers.onHide());
-  const offThumbs = Events.On("switcher:thumbnails", (ev) =>
-    handlers.onThumbnails?.(ev.data as Record<string, string>),
-  );
-  const offPreview = Events.On("switcher:preview", (ev) =>
-    handlers.onPreview?.(ev.data as Record<string, string>),
-  );
+  const offHide = Events.On("switcher:hide", (ev) => {
+    const data = ev.data as { session?: number; revision?: number } | null;
+    handlers.onHide(data?.session ?? 0, data?.revision ?? 0);
+  });
+  const framePayload = (data: unknown): [number, Record<string, string>] => {
+    const scoped = data as { session?: number; frames?: Record<string, string> } | null;
+    return scoped?.frames
+      ? [scoped.session ?? 0, scoped.frames]
+      : [0, (data ?? {}) as Record<string, string>];
+  };
+  const offThumbs = Events.On("switcher:thumbnails", (ev) => {
+    const [session, frames] = framePayload(ev.data);
+    handlers.onThumbnails?.(session, frames);
+  });
+  const offPreview = Events.On("switcher:preview", (ev) => {
+    const [session, frames] = framePayload(ev.data);
+    handlers.onPreview?.(session, frames);
+  });
+  const offError = Events.On("switcher:error", (ev) => handlers.onError?.(ev.data as string));
   return () => {
     offShow();
     offUpdate();
     offHide();
     offThumbs();
     offPreview();
+    offError();
   };
 }
 

@@ -18,6 +18,7 @@ export type WindowAction =
   | "closeAll"
   | "minimizeAll";
 export type PointerAction = "none" | "close" | "minimize" | "fullscreen" | "hide" | "quit";
+export type SwitcherMode = "windows" | "apps";
 
 // PermState mirrors platform.PermState; "unknown" covers the not-yet-determined
 // state. PermKey names the permissions the switcher needs.
@@ -76,6 +77,8 @@ export interface Entry {
 }
 
 export interface SwitcherState {
+  session?: number;
+  revision?: number;
   open: boolean;
   style: VisualStyle;
   appearance: Appearance;
@@ -92,6 +95,55 @@ export interface SwitcherState {
   middleClickAction: PointerAction;
   swipeUpAction: PointerAction;
   swipeDownAction: PointerAction;
+  mode?: SwitcherMode;
+  apps?: AppEntry[];
+  selectedWindowId?: number;
+}
+
+export interface AppEntry {
+  appId: number;
+  appName: string;
+  bundleId: string;
+  hidden: boolean;
+  windowCount: number;
+  windowPresence?: "present" | "none" | "unknown";
+  icon?: string;
+}
+
+export interface Bounds {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+export interface DockItem {
+  appId: number;
+  bundleId: string;
+  path: string;
+  title: string;
+  bounds: Bounds;
+  screenId: number;
+  edge: string;
+  kind: string;
+}
+export interface DockViewState {
+  session: number;
+  revision?: number;
+  open?: boolean;
+  item: DockItem;
+  entries: Entry[];
+  selectedWindowId: number;
+  appearance: Appearance;
+  emptyReason: string;
+  error?: string;
+  pointer?: DockPointer;
+}
+export interface DockPointer {
+  session: number;
+  sequence: number;
+  x: number;
+  y: number;
+  inside: boolean;
 }
 
 export const emptyState: SwitcherState = {
@@ -144,6 +196,9 @@ export const emptyState: SwitcherState = {
   middleClickAction: "close",
   swipeUpAction: "none",
   swipeDownAction: "none",
+  mode: "windows",
+  apps: [],
+  selectedWindowId: 0,
 };
 
 // ---- Settings (mirror of internal/config.Settings) ----
@@ -179,6 +234,7 @@ export interface Shortcut {
   scope: ShortcutScope;
   styleOverride?: VisualStyle;
   whenReleased?: ReleaseAction;
+  mode?: SwitcherMode;
 }
 
 export interface Filters {
@@ -213,6 +269,36 @@ export interface Behavior {
   swipeDownAction: PointerAction;
 }
 
+export interface SwitcherBehavior {
+  holdToCycle: boolean;
+  vimKeys: boolean;
+  arrowKeys: boolean;
+  mouseHoverSelect: boolean;
+  cursorFollowFocus: boolean;
+  hapticFeedback: boolean;
+  actionBindings: Record<string, WindowAction>;
+  middleClickAction: PointerAction;
+  swipeUpAction: PointerAction;
+  swipeDownAction: PointerAction;
+}
+
+export interface ModePreferences {
+  appearance: Appearance;
+  behavior: SwitcherBehavior;
+  order: OrderMode;
+  placement: Placement;
+}
+
+export interface DockSettings {
+  enabled: boolean;
+  hoverDelayMs: number;
+  dismissDelayMs: number;
+  hoverSlopPx: number;
+  bridgePaddingPx: number;
+  scope: ShortcutScope;
+  appearance: Appearance;
+}
+
 export interface Settings {
   version: number;
   shortcuts: Shortcut[];
@@ -221,13 +307,29 @@ export interface Settings {
   order: OrderMode;
   placement: Placement;
   behavior: Behavior;
+  appSwitcher: ModePreferences;
+  dock: DockSettings;
 }
 
+const DEFAULT_ACTION_BINDINGS: Record<string, WindowAction> = {
+  KeyW: "close",
+  KeyM: "minimize",
+  KeyQ: "quit",
+  KeyH: "hide",
+  KeyF: "fullscreen",
+};
+
 export const defaultSettings: Settings = {
-  version: 2,
+  version: 3,
   shortcuts: [
-    { id: 1, chord: "command+tab", enabled: true, scope: { appScope: "all" } },
-    { id: 2, chord: "option+tab", enabled: true, scope: { appScope: "activeApp" } },
+    { id: 1, chord: "command+tab", enabled: true, scope: { appScope: "all" }, mode: "apps" },
+    {
+      id: 2,
+      chord: "option+tab",
+      enabled: true,
+      scope: { appScope: "activeApp" },
+      mode: "windows",
+    },
   ],
   appearance: { ...emptyState.appearance },
   filters: {
@@ -257,15 +359,44 @@ export const defaultSettings: Settings = {
     hapticFeedback: true,
     captureInBackground: false,
     onboarded: false,
-    actionBindings: {
-      KeyW: "close",
-      KeyM: "minimize",
-      KeyQ: "quit",
-      KeyH: "hide",
-      KeyF: "fullscreen",
-    },
+    actionBindings: { ...DEFAULT_ACTION_BINDINGS },
     middleClickAction: "close",
     swipeUpAction: "none",
     swipeDownAction: "none",
+  },
+  appSwitcher: {
+    appearance: { ...emptyState.appearance, style: "appIcons", previewSelected: true },
+    behavior: {
+      holdToCycle: true,
+      vimKeys: false,
+      arrowKeys: true,
+      mouseHoverSelect: true,
+      cursorFollowFocus: false,
+      hapticFeedback: true,
+      actionBindings: { ...DEFAULT_ACTION_BINDINGS },
+      middleClickAction: "close",
+      swipeUpAction: "none",
+      swipeDownAction: "none",
+    },
+    order: "recent",
+    placement: "cursorScreen",
+  },
+  dock: {
+    enabled: false,
+    hoverDelayMs: 300,
+    dismissDelayMs: 250,
+    hoverSlopPx: 8,
+    bridgePaddingPx: 12,
+    scope: { appScope: "all" },
+    appearance: {
+      ...emptyState.appearance,
+      style: "thumbnails",
+      thumbnailMaxPx: 240,
+      maxRows: 2,
+      maxColumns: 5,
+      previewSelected: false,
+      showWindowControls: true,
+      fadeOutAnimation: false,
+    },
   },
 };

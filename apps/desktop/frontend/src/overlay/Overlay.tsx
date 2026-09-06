@@ -148,14 +148,16 @@ export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
     if (nativeKeys) {
       // Real app: keys come from the native event tap (the window is not key).
       return onSwitcherKey((p: KeyPayload) =>
-        handleKey({
-          key: p.key,
-          code: p.code,
-          shiftKey: p.shift,
-          ctrlKey: p.ctrl,
-          metaKey: p.meta,
-          altKey: p.alt,
-        }),
+        (state.session ?? 0) > 0 && p.session !== state.session
+          ? undefined
+          : handleKey({
+              key: p.key,
+              code: p.code,
+              shiftKey: p.shift,
+              ctrlKey: p.ctrl,
+              metaKey: p.meta,
+              altKey: p.alt,
+            }),
       );
     }
     // Browser dev fallback: plain DOM keyboard.
@@ -177,6 +179,7 @@ export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
     appearance.layoutDirection,
     style,
     nativeKeys,
+    state.session,
   ]);
 
   if (open ? !shown : !closing) return null;
