@@ -251,6 +251,81 @@ describe("Settings", () => {
     );
   });
 
+  it("configures compact layout and switcher interactions", () => {
+    const onChange = vi.fn();
+    render(<Settings settings={defaultSettings} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText("Compact threshold"), { target: { value: "8" } });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ appearance: expect.objectContaining({ compactThreshold: 8 }) }),
+    );
+    fireEvent.change(screen.getByLabelText("Layout direction"), { target: { value: "vertical" } });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appearance: expect.objectContaining({ layoutDirection: "vertical" }),
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Middle click action"), {
+      target: { value: "minimize" },
+    });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        behavior: expect.objectContaining({ middleClickAction: "minimize" }),
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Action for KeyW"), { target: { value: "minimize" } });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        behavior: expect.objectContaining({
+          actionBindings: expect.objectContaining({ KeyW: "minimize" }),
+        }),
+      }),
+    );
+  });
+
+  it("adds, edits, and removes arbitrary physical key bindings", () => {
+    const onChange = vi.fn();
+    const first = render(<Settings settings={defaultSettings} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add action binding" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        behavior: expect.objectContaining({
+          actionBindings: expect.objectContaining({ KeyA: "close" }),
+        }),
+      }),
+    );
+    first.unmount();
+    onChange.mockClear();
+
+    const custom = {
+      ...defaultSettings,
+      behavior: {
+        ...defaultSettings.behavior,
+        actionBindings: { KeyW: "close" as const, KeyA: "minimize" as const },
+      },
+    };
+    const { rerender } = render(<Settings settings={custom} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    fireEvent.change(screen.getByLabelText("Physical key KeyA"), { target: { value: "KeyB" } });
+    fireEvent.blur(screen.getByLabelText("Physical key KeyA"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        behavior: expect.objectContaining({ actionBindings: { KeyW: "close", KeyB: "minimize" } }),
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Physical key KeyA"), { target: { value: "Tab" } });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText("Physical key KeyA"), { target: { value: "KeyW" } });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Remove action binding KeyA" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        behavior: expect.objectContaining({ actionBindings: { KeyW: "close" } }),
+      }),
+    );
+    rerender(<></>);
+  });
+
   it("renders translated copy when a language is selected", () => {
     const custom = {
       ...defaultSettings,

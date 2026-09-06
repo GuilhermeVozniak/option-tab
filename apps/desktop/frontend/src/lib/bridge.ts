@@ -45,8 +45,16 @@ async function call(fn: Promise<unknown>): Promise<void> {
   }
 }
 
+export interface WindowActionResult {
+  succeeded: number;
+  failures: Array<{ windowId: number; error: string }>;
+}
+
 // switcher exposes the controller actions the overlay invokes.
 export const switcher = {
+  // Action errors are deliberately returned to the caller for visible feedback.
+  performAction: (kind: string, windowId: number, appId: number): Promise<WindowActionResult> =>
+    AppService.PerformAction(kind, windowId, appId),
   advance: () => call(AppService.Advance()),
   reverse: () => call(AppService.Reverse()),
   confirm: () => call(AppService.Confirm()),

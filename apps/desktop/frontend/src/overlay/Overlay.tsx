@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type KeyPayload, onSwitcherKey } from "../lib/bridge";
 import { type KeyEventLike, keyToAction } from "../lib/keymap";
-import { computeLayout } from "../lib/layout";
+import { computeLayout, effectiveStyle } from "../lib/layout";
 import type { SwitcherState } from "../lib/types";
 import { EntryItem } from "./EntryItem";
 import type { OverlayHandlers } from "./types";
@@ -18,11 +18,19 @@ interface OverlayProps {
   nativeKeys?: boolean;
 }
 
+const BULK_ACTION_LABEL = {
+  newWindow: (app: string) => `New window — ${app}`,
+  forceQuit: (app: string) => `Force quit — ${app}`,
+  closeAll: (app: string) => `Close all windows — ${app}`,
+  minimizeAll: (app: string) => `Minimize all windows — ${app}`,
+} as const;
+
 // Overlay renders the window switcher in the configured visual style and wires
 // global keyboard handling. It is a controlled component: all state comes from
 // props (pushed by the Go controller) and all input flows out through handlers.
 export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
   const { open, entries, selected, search, appearance } = state;
+  const style = effectiveStyle(state.style, entries.length, appearance.compactThreshold);
 
   // Apparition delay: postpone the first paint so quick switches don't flash
   // the overlay (AltTab parity). 0 renders immediately.
@@ -87,7 +95,12 @@ export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
   useEffect(() => {
     if (!open) return;
     function handleKey(e: KeyEventLike) {
-      const action = keyToAction(e, { vimKeys: state.vimKeys, arrowKeys: state.arrowKeys });
+      const action = keyToAction(e, {
+        vimKeys: state.vimKeys,
+        arrowKeys: state.arrowKeys,
+        actionBindings: state.actionBindings,
+        layoutDirection: style === "titles" ? "vertical" : appearance.layoutDirection,
+      });
       if (action.kind === "none") return;
       const sel = entries[selected];
       switch (action.kind) {
@@ -118,6 +131,12 @@ export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
         case "hide":
           if (sel) handlers.onHide(sel.appId);
           break;
+        case "newWindow":
+        case "forceQuit":
+        case "closeAll":
+        case "minimizeAll":
+          if (sel) handlers.onAction?.(action.kind, sel.windowId, sel.appId);
+          break;
         case "searchAppend":
           handlers.onSearchChange(search + action.char);
           break;
@@ -146,7 +165,19 @@ export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, search, handlers, entries, selected, state.vimKeys, state.arrowKeys, nativeKeys]);
+  }, [
+    open,
+    search,
+    handlers,
+    entries,
+    selected,
+    state.vimKeys,
+    state.arrowKeys,
+    state.actionBindings,
+    appearance.layoutDirection,
+    style,
+    nativeKeys,
+  ]);
 
   if (open ? !shown : !closing) return null;
 
@@ -160,9 +191,9 @@ export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
     viewportH: viewport.h,
     showTitle: appearance.showTitle,
     previewEnabled: appearance.previewSelected,
+    layoutDirection: appearance.layoutDirection,
   });
 
-  const style = state.style;
   const accent = appearance.accentColor;
 
   const selectedEntry = entries[selected];
@@ -188,6 +219,23 @@ export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
       }
     >
       <div className="ot-panel">
+        {appearance.showWindowControls && handlers.onAction && selectedEntry ? (
+          <div className="ot-bulk-actions" aria-label="Switcher actions">
+            {(["newWindow", "forceQuit", "closeAll", "minimizeAll"] as const).map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                aria-label={kind}
+                title={BULK_ACTION_LABEL[kind](selectedEntry.appName)}
+                onClick={() =>
+                  handlers.onAction?.(kind, selectedEntry.windowId, selectedEntry.appId)
+                }
+              >
+                {BULK_ACTION_LABEL[kind](selectedEntry.appName)}
+              </button>
+            ))}
+          </div>
+        ) : null}
         {search ? <div className="ot-search">{`🔍 ${search}`}</div> : null}
         <ul
           className="ot-list"
@@ -196,9 +244,14 @@ export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
           style={
             style === "titles"
               ? undefined
-              : ({
-                  gridTemplateColumns: `repeat(${layout.columns}, max-content)`,
-                } as React.CSSProperties)
+              : appearance.layoutDirection === "vertical"
+                ? ({
+                    gridTemplateRows: `repeat(${layout.rows}, max-content)`,
+                    gridAutoFlow: "column",
+                  } as React.CSSProperties)
+                : ({
+                    gridTemplateColumns: `repeat(${layout.columns}, max-content)`,
+                  } as React.CSSProperties)
           }
         >
           {entries.map((entry, index) => (
@@ -212,6 +265,7 @@ export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
               iconSizePx={appearance.iconSizePx}
               titleMaxWidthPx={appearance.titleMaxWidthPx}
               showTitle={appearance.showTitle}
+              showAppBadge={appearance.showAppBadge}
               showControls={appearance.showWindowControls}
               showStatusIcons={appearance.showStatusIcons}
               spaceNumber={
@@ -223,6 +277,9 @@ export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
               mouseHover={state.mouseHover}
               activeSpaceId={state.activeSpaceId}
               handlers={handlers}
+              middleClickAction={state.middleClickAction}
+              swipeUpAction={state.swipeUpAction}
+              swipeDownAction={state.swipeDownAction}
             />
           ))}
         </ul>
@@ -234,7 +291,7 @@ export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
             <img
               // Keyed by source so switching windows remounts the image and
               // replays the fade-in.
-              key={selectedEntry.preview ?? selectedEntry.thumbnail}
+              key={selectedEntry.windowId}
               className="ot-preview-img"
               src={selectedEntry.preview ?? selectedEntry.thumbnail}
               alt=""

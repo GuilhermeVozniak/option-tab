@@ -16,6 +16,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as actions$0 from "./internal/actions/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as switcher$0 from "./internal/switcher/models.js";
 
 /**
@@ -213,6 +216,19 @@ export function OpenURL(url) {
 }
 
 /**
+ * PerformAction acts on the supplied identity without changing the selection.
+ * @param {string} kind
+ * @param {number} windowID
+ * @param {number} appID
+ * @returns {$CancellablePromise<actions$0.Result>}
+ */
+export function PerformAction(kind, windowID, appID) {
+    return $Call.ByID(280563800, kind, windowID, appID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<void>}
  */
 export function QuitSelectedApp() {
@@ -317,3 +333,6 @@ export function TogglePause() {
 export function Update(st) {
     return $Call.ByID(4141298428, st);
 }
+
+// Private type creation functions
+const $$createType0 = actions$0.Result.createFrom;

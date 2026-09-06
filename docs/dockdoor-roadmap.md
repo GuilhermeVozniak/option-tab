@@ -1,9 +1,9 @@
 # Option Tab Dock enhancement scope
 
 Baseline: v0.4.8. Branch: `feat/dockdoor-parity`.
-Status: proposed scope for review; unchecked items are not implemented.
+Status: approved narrowed scope; implementation in progress. Unchecked items have not passed all acceptance checks.
 
-This scope was narrowed after reviewing the other projects in `~/Dev/pessoal`. It adds complementary Option Tab features rather than duplicating products we already maintain. Existing Option Tab features are retained. Native Dock enhancements come first; Pro-style replacement remains separately scoped and unapproved.
+This scope was narrowed after reviewing the other projects in `~/Dev/pessoal`. It adds complementary Option Tab features rather than duplicating products we already maintain. Existing Option Tab features are retained. Native Dock enhancements come first. The subsequent instruction to work on all retained features includes the optional Dock replacement, delivered as a separate mode after the core enhancements.
 
 ## Removed overlaps and product ownership
 
@@ -19,10 +19,16 @@ Removed IDs stay retired so existing references remain meaningful. These feature
 
 Option Tab-specific interfaces remain: dragging a *window preview* is different from Tiles Spliter's desktop edge snapping; Folder Pop is different from DragZone's saved folder action; window automation is different from DragZone's file/action commands. Do not build another generic CLI/script-action platform. Native panel styling, localization and release compatibility remain requirements for Option Tab even when another project has similar infrastructure.
 
+## First implementation checkpoint
+
+The first batch adds explicit-target actions, configurable switcher interactions and live ScreenCaptureKit previews. Completed IDs below have code, focused checks and relevant native/browser evidence. App grouping, Dock surfaces and later stages remain in progress.
+
+Bulk close/minimize and cache lifecycle are implemented with remaining native limitations: incomplete AX discovery is reported explicitly, and retained closed-window detection depends on the app supporting Accessibility destruction notifications. These broader roadmap items remain unchecked. See [validation and limitations](superpowers/reports/2026-09-06-dock-foundations.md).
+
 ## A. Window actions
 
-- [ ] A05 New Window for apps that expose a supported command; indicate unsupported apps.
-- [ ] A06 Force quit an app through an explicit action.
+- [x] A05 New Window for apps that expose a supported command; indicate unsupported apps.
+- [x] A06 Force quit an app through an explicit action.
 - [ ] A07 Close all windows belonging to an app, preserving native save dialogs.
 - [ ] A08 Minimize all windows belonging to an app.
 - [ ] A09 Expose existing focus, close, minimize/restore, hide, quit, and fullscreen actions consistently across every new surface.
@@ -33,17 +39,17 @@ Option Tab-specific interfaces remain: dragging a *window preview* is different 
 - [ ] B01 App-grouped Command+Tab mode: one icon per app and the selected app's window preview.
 - [ ] B02 Include running apps without windows in app mode.
 - [ ] B03 Separate app-switcher and window-switcher appearance/behavior settings.
-- [ ] B04 Configurable physical-key window-action bindings with conflict validation.
-- [ ] B05 Configurable middle-click actions, defaulting to close where enabled.
-- [ ] B06 Automatic compact-list mode at a configurable window-count threshold, plus always-list mode.
-- [ ] B07 Horizontal/vertical layout direction and corresponding navigation.
-- [ ] B08 Configurable two-finger swipe actions inside the switcher.
-- [ ] B09 Complete the exposed app-badge and dismissal-animation settings.
+- [x] B04 Configurable physical-key window-action bindings with conflict validation.
+- [x] B05 Configurable middle-click actions, defaulting to close where enabled.
+- [x] B06 Automatic compact-list mode at a configurable window-count threshold, plus always-list mode.
+- [x] B07 Horizontal/vertical layout direction and corresponding navigation.
+- [x] B08 Configurable two-finger swipe actions inside the switcher.
+- [x] B09 Complete the exposed app-badge and dismissal-animation settings.
 - [ ] B10 Native translucent material background where supported, with a solid fallback.
 
 ## C. Previews
 
-- [ ] C01 Continuously refreshed previews while visible, with bounded resource use.
+- [x] C01 Continuously refreshed previews while visible, with bounded resource use.
 - [ ] C02 Larger selected/hovered-window previews across switcher and Dock surfaces.
 - [ ] C03 Preserve aspect ratio and offer dynamic preview sizing.
 - [ ] C04 Separate spacing, arrangement, sizing and appearance for Dock previews.
@@ -95,7 +101,7 @@ Option Tab-specific interfaces remain: dragging a *window preview* is different 
 - [ ] G05 Document local data handling and any update/media-provider network activity.
 - [ ] G06 Extend existing English, Brazilian Portuguese and Spanish strings to all new controls.
 
-## H. Separate Pro-style Dock replacement — scope decision pending
+## H. Optional Dock replacement — later delivery stage
 
 - [ ] H01 Optional replacement Dock with safe restoration of native Dock access.
 - [ ] H02 Per-display Docks, edges, layouts and profiles.

@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -23,6 +24,7 @@ import (
 	"option-tab/internal/domain"
 	"option-tab/internal/mru"
 	"option-tab/internal/platform"
+	"option-tab/internal/preview"
 	"option-tab/internal/switcher"
 	"option-tab/internal/update"
 )
@@ -47,6 +49,8 @@ type App struct {
 	// setRuntime/setTray after the Wails app and windows are created. The
 	// setters are unexported so they don't become frontend bindings.
 	wailsApp *application.App
+	// eventSink is the event transport used by integration tests without Wails.
+	eventSink func(string, any)
 	// overlay and prefs are liveness-tracked: a window macOS destroyed must
 	// never be messaged again (see liveWindow).
 	overlay *liveWindow
@@ -71,9 +75,18 @@ type App struct {
 	iconMu    sync.Mutex
 	iconCache map[int]string // pid -> base64 PNG data URL
 
-	// thumbGen invalidates in-flight thumbnail captures: each Show/Hide bumps
-	// it, and a capture goroutine stops emitting once its generation is stale.
-	thumbGen int64
+	// viewMu serializes visible sessions, capture and pending dismissal.
+	viewMu                   sync.Mutex // serializes Show/Update/Hide and terminal capture shutdown
+	viewGeneration           uint64
+	dismissal                *time.Timer
+	fadeOnHide               bool
+	captureActive            bool // only Show admits a visible capture session
+	captures                 *preview.Manager
+	captureSelected          atomic.Uint64
+	capturePreviewEnabled    atomic.Bool
+	captureThumbnailsEnabled atomic.Bool
+	captureStop              chan struct{}
+	captureStopOnce          sync.Once
 
 	// prefsOpen tracks whether the preferences window is currently shown.
 	prefsOpen bool
@@ -122,7 +135,17 @@ func newApp(p platform.Platform, settings config.Settings, settingsPath string) 
 		settings:     settings,
 		settingsPath: settingsPath,
 		thumbCache:   map[domain.WindowID]string{},
+		captureStop:  make(chan struct{}),
 	}
+	a.captures = preview.New(p, func(id domain.WindowID, url string) {
+		payload := map[string]string{fmt.Sprint(id): url}
+		if url == "" || a.captureThumbnailsEnabled.Load() {
+			a.emit("switcher:thumbnails", payload)
+		}
+		if url == "" || (a.capturePreviewEnabled.Load() && a.captureSelected.Load() == uint64(id)) {
+			a.emit("switcher:preview", payload)
+		}
+	})
 	deps := switcher.Deps{
 		Windows:      p,
 		Focuser:      p,
@@ -203,7 +226,23 @@ func (a *App) startup() {
 }
 
 func (a *App) emit(name string, data any) {
+	if a.eventSink != nil {
+		a.eventSink(name, data)
+		return
+	}
 	if a.wailsApp != nil {
 		a.wailsApp.Event.Emit(name, data)
+	}
+}
+
+// stopCapture is safe before startup and on repeated shutdown notifications.
+func (a *App) stopCapture() {
+	a.viewMu.Lock()
+	defer a.viewMu.Unlock()
+	a.cancelDismissalLocked()
+	a.captureActive = false
+	a.captureStopOnce.Do(func() { close(a.captureStop) })
+	if a.captures != nil {
+		a.captures.Close()
 	}
 }

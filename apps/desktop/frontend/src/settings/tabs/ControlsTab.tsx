@@ -1,16 +1,112 @@
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type {
   OrderMode,
+  PointerAction,
   ReleaseAction,
   ScreenScope,
   SpaceScope,
   VisualStyle,
+  WindowAction,
 } from "../../lib/types";
 import { ShortcutRecorder } from "../ShortcutRecorder";
 import { CHECK_LABEL, HINT, ROW, type TabContext } from "../shared";
+
+const ACTION_LABEL: Record<WindowAction, string> = {
+  close: "Close",
+  minimize: "Minimize",
+  fullscreen: "Fullscreen",
+  hide: "Hide app",
+  quit: "Quit app",
+  newWindow: "New window",
+  forceQuit: "Force quit",
+  closeAll: "Close all windows",
+  minimizeAll: "Minimize all windows",
+};
+
+function ActionBindingRow({
+  code,
+  action,
+  bindings,
+  patchBehavior,
+  t,
+}: {
+  code: string;
+  action: WindowAction;
+  bindings: Record<string, WindowAction>;
+  patchBehavior: TabContext["patchBehavior"];
+  t: TabContext["t"];
+}) {
+  const [draft, setDraft] = useState(code);
+  useEffect(() => setDraft(code), [code]);
+  const valid = /^Key[A-Z]$/.test(draft) && (draft === code || !(draft in bindings));
+  const commit = () => {
+    if (!valid) {
+      setDraft(code);
+      return;
+    }
+    if (draft === code) return;
+    const next = { ...bindings };
+    delete next[code];
+    next[draft] = action;
+    patchBehavior({ actionBindings: next });
+  };
+  return (
+    <div className="flex items-center gap-2 py-1">
+      <Input
+        className="w-24"
+        aria-label={`Physical key ${code}`}
+        aria-invalid={!valid}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+        }}
+      />
+      <Select
+        aria-label={`Action for ${code}`}
+        value={action}
+        onChange={(e) =>
+          patchBehavior({ actionBindings: { ...bindings, [code]: e.target.value as WindowAction } })
+        }
+      >
+        {[
+          "close",
+          "minimize",
+          "fullscreen",
+          "hide",
+          "quit",
+          "newWindow",
+          "forceQuit",
+          "closeAll",
+          "minimizeAll",
+        ].map((v) => (
+          <option key={v} value={v}>
+            {t(ACTION_LABEL[v as WindowAction])}
+          </option>
+        ))}
+      </Select>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label={`Remove action binding ${code}`}
+        onClick={() => {
+          const next = { ...bindings };
+          delete next[code];
+          patchBehavior({ actionBindings: next });
+        }}
+      >
+        ✕
+      </Button>
+    </div>
+  );
+}
 
 export function ControlsTab({ ctx }: { ctx: TabContext }) {
   const { settings, t, patch, patchBehavior, patchShortcut } = ctx;
@@ -169,6 +265,75 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
           ))}
           <Button variant="dashed" disabled={settings.shortcuts.length >= 9} onClick={addShortcut}>
             {t("+ Add shortcut")}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Switcher interactions")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          <label className={ROW}>
+            <span>{t("Middle click")}</span>
+            <Select
+              aria-label="Middle click action"
+              value={settings.behavior.middleClickAction}
+              onChange={(e) =>
+                patchBehavior({ middleClickAction: e.target.value as PointerAction })
+              }
+            >
+              <option value="none">{t("None")}</option>
+              <option value="close">{t("Close")}</option>
+              <option value="minimize">{t("Minimize")}</option>
+            </Select>
+          </label>
+          {(["swipeUpAction", "swipeDownAction"] as const).map((field) => (
+            <label className={ROW} key={field}>
+              <span>{t(field === "swipeUpAction" ? "Swipe up" : "Swipe down")}</span>
+              <Select
+                aria-label={field === "swipeUpAction" ? "Swipe up action" : "Swipe down action"}
+                value={settings.behavior[field]}
+                onChange={(e) => patchBehavior({ [field]: e.target.value as PointerAction })}
+              >
+                {(["none", "close", "minimize", "fullscreen", "hide", "quit"] as const).map((v) => (
+                  <option key={v} value={v}>
+                    {t(v === "none" ? "None" : ACTION_LABEL[v])}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          ))}
+          {Object.entries(settings.behavior.actionBindings).map(([code, action]) => (
+            <ActionBindingRow
+              key={code}
+              code={code}
+              action={action}
+              bindings={settings.behavior.actionBindings}
+              patchBehavior={patchBehavior}
+              t={t}
+            />
+          ))}
+          <Button
+            type="button"
+            aria-label="Add action binding"
+            variant="dashed"
+            disabled={Object.keys(settings.behavior.actionBindings).length >= 26}
+            onClick={() => {
+              const code = Array.from(
+                { length: 26 },
+                (_, i) => `Key${String.fromCharCode(65 + i)}`,
+              ).find((candidate) => !(candidate in settings.behavior.actionBindings));
+              if (code)
+                patchBehavior({
+                  actionBindings: { ...settings.behavior.actionBindings, [code]: "close" },
+                });
+            }}
+          >
+            {t("+ Add action binding")}
+          </Button>
+          <Button variant="ghost" onClick={() => patchBehavior({ actionBindings: {} })}>
+            {t("Disable action keys")}
           </Button>
         </CardContent>
       </Card>

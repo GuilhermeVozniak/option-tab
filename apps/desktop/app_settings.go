@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -20,13 +21,14 @@ func (a *App) GetSettings() string {
 	return string(b)
 }
 
-// settingsSnapshot copies the slice-backed fields so callers cannot mutate
+// settingsSnapshot copies mutable fields so callers cannot mutate
 // shared settings after the read lock has been released.
 func (a *App) settingsSnapshot() config.Settings {
 	a.settingsMu.RLock()
 	defer a.settingsMu.RUnlock()
 	s := a.settings
 	s.Shortcuts = slices.Clone(s.Shortcuts)
+	s.Behavior.ActionBindings = maps.Clone(s.Behavior.ActionBindings)
 	s.Filters.AppBlacklist = slices.Clone(s.Filters.AppBlacklist)
 	return s
 }

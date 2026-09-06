@@ -35,6 +35,23 @@ func TestValidate_Errors(t *testing.T) {
 	}
 }
 
+func TestValidate_RejectsInvalidAndReservedActionBindings(t *testing.T) {
+	for name, bindings := range map[string]map[string]ActionKind{
+		"invalid action":  {"KeyW": "explode"},
+		"reserved key":    {"Tab": ActionClose},
+		"invalid code":    {"w": ActionClose},
+		"non-letter code": {"Key1": ActionClose},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := Default()
+			s.Behavior.ActionBindings = bindings
+			if err := s.Validate(); err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}
+
 func TestEnums_ValidRejectsUnknown(t *testing.T) {
 	if VisualStyle("x").Valid() || Theme("x").Valid() || OrderMode("x").Valid() ||
 		Placement("x").Valid() || SpaceScope("x").Valid() || ScreenScope("x").Valid() ||

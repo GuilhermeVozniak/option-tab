@@ -6,7 +6,14 @@ import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { SIZE_PRESET_PX } from "../../lib/layout";
-import type { Placement, SizePreset, Theme, TruncationMode, VisualStyle } from "../../lib/types";
+import type {
+  LayoutDirection,
+  Placement,
+  SizePreset,
+  Theme,
+  TruncationMode,
+  VisualStyle,
+} from "../../lib/types";
 import { ROW, type TabContext } from "../shared";
 
 // Mini previews for the three visual styles, mirroring AltTab's style picker.
@@ -52,6 +59,31 @@ export function AppearanceTab({ ctx }: { ctx: TabContext }) {
           <CardTitle>{t("Appearance")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
+          <label className={ROW}>
+            <span>{t("Layout direction")}</span>
+            <Select
+              aria-label="Layout direction"
+              value={a.layoutDirection}
+              onChange={(e) =>
+                patchAppearance({ layoutDirection: e.target.value as LayoutDirection })
+              }
+            >
+              <option value="horizontal">{t("Horizontal")}</option>
+              <option value="vertical">{t("Vertical")}</option>
+            </Select>
+          </label>
+          <label className={ROW}>
+            <span>{t("Use titles at window count (0 disables)")}</span>
+            <Input
+              aria-label="Compact threshold"
+              type="number"
+              className="w-24"
+              min={0}
+              max={1000}
+              value={a.compactThreshold}
+              onChange={(e) => patchAppearance({ compactThreshold: Number(e.target.value) })}
+            />
+          </label>
           <div className="mb-3 flex gap-3">
             {STYLES.map((style) => (
               <button

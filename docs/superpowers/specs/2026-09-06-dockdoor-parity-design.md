@@ -1,11 +1,11 @@
 # Option Tab Dock enhancement design proposal
 
-Status: proposed for review; no parity features are implemented by this document.
+Status: approved narrowed scope; implementation is tracked in the roadmap and milestone plans.
 Baseline: Option Tab v0.4.8, with all reliability fixes from PRs #23–#26.
 
 ## Product direction
 
-Keep Option Tab's existing keyboard switcher and settings. Add complementary Dock enhancements on `feat/dockdoor-parity`. The user explicitly removed workflows already owned by sibling products: tiling/centering/maximize-restore (Tiles Spliter), calendar and weather (Calendium), and file staging/AirDrop/saved commands (DragZone). Full competitor parity is no longer the objective. The optional Pro-style replacement remains a later scope decision. Nothing in this proposal changes v0.4.8.
+Keep Option Tab's existing keyboard switcher and settings. Add complementary Dock enhancements on `feat/dockdoor-parity`. The user explicitly removed workflows already owned by sibling products: tiling/centering/maximize-restore (Tiles Spliter), calendar and weather (Calendium), and file staging/AirDrop/saved commands (DragZone). Full competitor parity is no longer the objective. The instruction to implement all retained features includes the optional Dock replacement as a later delivery stage. Nothing in this proposal changes v0.4.8.
 
 The authoritative checklist is [the narrowed roadmap](../../dockdoor-roadmap.md). Do not reintroduce retired IDs through gestures, automation, widgets or context menus. Do not add sibling-app dependencies or automatic integrations. Option Tab-specific preview dragging, Folder Pop and window automation remain because the audit found no matching implementation in those products. Native presentation, localization and distribution remain prerequisites for this app.
 
@@ -97,7 +97,7 @@ Acceptance: inspect actual packaged architecture and signature, verify installed
 
 ## Later milestone: optional Pro-style Dock replacement
 
-This is a separate product mode, not a requirement for enhancing the native Dock. If included, add a dedicated Dock host with per-display layouts and profiles, focus-driven profile switching, pinned apps/files/folders/links, grouping, custom icons, separators, drag ordering, spring magnification, materials, auto-hide and overlap avoidance.
+This is an optional product mode within the approved scope, delivered after the native Dock enhancements. Add a dedicated Dock host with per-display layouts and profiles, focus-driven profile switching, pinned apps/files/folders/links, grouping, custom icons, separators, drag ordering, spring magnification, materials, auto-hide and overlap avoidance.
 
 Add folder fan-out, app context menus including relaunch, audio-output switching, media scrubbing, widget stacks (clock/battery/network/audio), a documented community widget format and installation flow, letter navigation, pinch/swipe gestures, notification badges, and backup/restore of profiles and settings. Exclude file staging, AirDrop, saved commands, weather and calendar. Dock-overlap avoidance must remain scoped to keeping the Dock accessible, not become a tiling feature.
 

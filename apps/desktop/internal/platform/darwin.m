@@ -1199,3 +1199,96 @@ void ot_hotkey_stop(void) {
   if (gTap) CGEventTapEnable(gTap, false);
   if (gRunLoop) CFRunLoopStop(gRunLoop);
 }
+
+// Shared non-activating lookup for explicit actions and bulk eligibility.
+// Resolving a remote root never fronts the app or switches Spaces.
+static AXUIElementRef copyActionWindowRoot(uint32_t wid, int pid) {
+  AXUIElementRef window = copyAXWindow(wid, pid);
+  if (!window) window = copyAXWindowByBruteForce(wid, pid);
+  if (!window) return NULL;
+  CFTypeRef role = NULL;
+  AXError result = AXUIElementCopyAttributeValue(window, kAXRoleAttribute, &role);
+  BOOL root = result == kAXErrorSuccess && role && CFGetTypeID(role) == CFStringGetTypeID() && CFEqual(role, kAXWindowRole);
+  if (role) CFRelease(role);
+  if (!root) { CFRelease(window); return NULL; }
+  return window;
+}
+
+// Explicit-target actions share the proven cross-Space lookup, but separately
+// acknowledge the AX operation rather than treating PID lookup as success.
+void ot_action_prepare_focus(uint32_t wid, int pid) {
+  @autoreleasepool {
+    ProcessSerialNumber psn;
+    if (GetProcessForPID(pid, &psn) == noErr) {
+      _SLPSSetFrontProcessWithOptions(&psn, wid, 0x200);
+      otMakeKeyWindow(psn, wid);
+    }
+  }
+}
+int ot_action_raise_window(uint32_t wid, int pid) {
+  @autoreleasepool {
+    AXUIElementRef window = copyActionWindowRoot(wid, pid);
+    if (!window) return 0;
+    AXError raised = AXUIElementPerformAction(window, kAXRaiseAction);
+    if (raised == kAXErrorSuccess) AXUIElementSetAttributeValue(window, kAXMainAttribute, kCFBooleanTrue);
+    CFRelease(window);
+    return raised == kAXErrorSuccess;
+  }
+}
+// Unlike the single-window toggle, a bulk minimize always writes true, even
+// when enumeration was stale or omitted the window's minimized state.
+int ot_action_set_minimized(uint32_t wid, int pid) {
+  @autoreleasepool {
+    AXUIElementRef window = copyActionWindowRoot(wid, pid);
+    if (!window) return 0;
+    AXError result = AXUIElementSetAttributeValue(window, kAXMinimizedAttribute, kCFBooleanTrue);
+    CFRelease(window);
+    return result == kAXErrorSuccess;
+  }
+}
+
+// Guard enumeration failures separately from non-window CG surfaces. A denied
+// AX application must not produce an apparently successful empty bulk action.
+int ot_action_windows_available(int pid) {
+  @autoreleasepool {
+    AXUIElementRef app = AXUIElementCreateApplication(pid);
+    AXUIElementSetMessagingTimeout(app, 1.0);
+    CFTypeRef windows = NULL;
+    AXError result = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute, &windows);
+    int available = result == kAXErrorSuccess && windows && CFGetTypeID(windows) == CFArrayGetTypeID();
+    if (windows) CFRelease(windows);
+    CFRelease(app);
+    return available;
+  }
+}
+// 1: confirmed AXWindow; 0: confirmed different role; negative: unknown.
+// Missing remote roots and AX errors must not be mistaken for CG-only surfaces.
+int ot_action_window_is_root(uint32_t wid, int pid) {
+  @autoreleasepool {
+    AXUIElementRef window = copyAXWindow(wid, pid);
+    if (!window) window = copyAXWindowByBruteForce(wid, pid);
+    if (!window) return -1;
+    CFTypeRef role = NULL;
+    AXError result = AXUIElementCopyAttributeValue(window, kAXRoleAttribute, &role);
+    int classification = -2;
+    if (result == kAXErrorSuccess && role && CFGetTypeID(role) == CFStringGetTypeID()) {
+      classification = CFEqual(role, kAXWindowRole) ? 1 : 0;
+    }
+    if (role) CFRelease(role);
+    CFRelease(window);
+    return classification;
+  }
+}
+int ot_action_close_window(uint32_t wid, int pid) {
+  @autoreleasepool {
+    AXUIElementRef window = copyActionWindowRoot(wid, pid);
+    if (!window) return 0;
+    CFTypeRef button = NULL;
+    AXError result = AXUIElementCopyAttributeValue(window, kAXCloseButtonAttribute, &button);
+    BOOL closed = result == kAXErrorSuccess && button && CFGetTypeID(button) == AXUIElementGetTypeID() &&
+      AXUIElementPerformAction((AXUIElementRef)button, kAXPressAction) == kAXErrorSuccess;
+    if (button) CFRelease(button);
+    CFRelease(window);
+    return closed;
+  }
+}

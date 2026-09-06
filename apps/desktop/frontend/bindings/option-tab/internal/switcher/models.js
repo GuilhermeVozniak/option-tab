@@ -118,6 +118,34 @@ export class State {
      * @param {Partial<State>} [$$source = {}] - The source object to create the State.
      */
     constructor($$source = {}) {
+        if (!("actionBindings" in $$source)) {
+            /**
+             * @member
+             * @type {{ [_ in string]?: config$0.ActionKind }}
+             */
+            this["actionBindings"] = {};
+        }
+        if (!("middleClickAction" in $$source)) {
+            /**
+             * @member
+             * @type {config$0.PointerAction}
+             */
+            this["middleClickAction"] = config$0.PointerAction.$zero;
+        }
+        if (!("swipeUpAction" in $$source)) {
+            /**
+             * @member
+             * @type {config$0.PointerAction}
+             */
+            this["swipeUpAction"] = config$0.PointerAction.$zero;
+        }
+        if (!("swipeDownAction" in $$source)) {
+            /**
+             * @member
+             * @type {config$0.PointerAction}
+             */
+            this["swipeDownAction"] = config$0.PointerAction.$zero;
+        }
         if (!("open" in $$source)) {
             /**
              * @member
@@ -220,20 +248,25 @@ export class State {
      * @returns {State}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType0;
-        const $$createField4_0 = $$createType2;
+        const $$createField0_0 = $$createType0;
+        const $$createField6_0 = $$createType1;
+        const $$createField8_0 = $$createType3;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("actionBindings" in $$parsedSource) {
+            $$parsedSource["actionBindings"] = $$createField0_0($$parsedSource["actionBindings"]);
+        }
         if ("appearance" in $$parsedSource) {
-            $$parsedSource["appearance"] = $$createField2_0($$parsedSource["appearance"]);
+            $$parsedSource["appearance"] = $$createField6_0($$parsedSource["appearance"]);
         }
         if ("entries" in $$parsedSource) {
-            $$parsedSource["entries"] = $$createField4_0($$parsedSource["entries"]);
+            $$parsedSource["entries"] = $$createField8_0($$parsedSource["entries"]);
         }
         return new State(/** @type {Partial<State>} */($$parsedSource));
     }
 }
 
 // Private type creation functions
-const $$createType0 = config$0.Appearance.createFrom;
-const $$createType1 = Entry.createFrom;
-const $$createType2 = $Create.Array($$createType1);
+const $$createType0 = $Create.Map($Create.Any, $Create.Any);
+const $$createType1 = config$0.Appearance.createFrom;
+const $$createType2 = Entry.createFrom;
+const $$createType3 = $Create.Array($$createType2);

@@ -6,6 +6,18 @@ export type Theme = "system" | "light" | "dark";
 export type SizePreset = "small" | "medium" | "large";
 export type Placement = "activeScreen" | "cursorScreen" | "focusedWindowScreen";
 export type TruncationMode = "end" | "middle" | "start";
+export type LayoutDirection = "horizontal" | "vertical";
+export type WindowAction =
+  | "close"
+  | "minimize"
+  | "fullscreen"
+  | "hide"
+  | "quit"
+  | "newWindow"
+  | "forceQuit"
+  | "closeAll"
+  | "minimizeAll";
+export type PointerAction = "none" | "close" | "minimize" | "fullscreen" | "hide" | "quit";
 
 // PermState mirrors platform.PermState; "unknown" covers the not-yet-determined
 // state. PermKey names the permissions the switcher needs.
@@ -42,6 +54,8 @@ export interface Appearance {
   titleTruncation: TruncationMode;
   previewSelected: boolean;
   previewFade: boolean;
+  compactThreshold: number;
+  layoutDirection: LayoutDirection;
 }
 
 export interface Entry {
@@ -74,6 +88,10 @@ export interface SwitcherState {
   arrowKeys: boolean;
   mouseHover: boolean;
   activeSpaceId: number;
+  actionBindings: Record<string, WindowAction>;
+  middleClickAction: PointerAction;
+  swipeUpAction: PointerAction;
+  swipeDownAction: PointerAction;
 }
 
 export const emptyState: SwitcherState = {
@@ -104,6 +122,8 @@ export const emptyState: SwitcherState = {
     titleTruncation: "end",
     previewSelected: false,
     previewFade: true,
+    compactThreshold: 0,
+    layoutDirection: "horizontal",
   },
   placement: "cursorScreen",
   entries: [],
@@ -114,6 +134,16 @@ export const emptyState: SwitcherState = {
   arrowKeys: true,
   mouseHover: true,
   activeSpaceId: 0,
+  actionBindings: {
+    KeyW: "close",
+    KeyM: "minimize",
+    KeyQ: "quit",
+    KeyH: "hide",
+    KeyF: "fullscreen",
+  },
+  middleClickAction: "close",
+  swipeUpAction: "none",
+  swipeDownAction: "none",
 };
 
 // ---- Settings (mirror of internal/config.Settings) ----
@@ -177,6 +207,10 @@ export interface Behavior {
   hapticFeedback: boolean;
   captureInBackground: boolean;
   onboarded: boolean;
+  actionBindings: Record<string, WindowAction>;
+  middleClickAction: PointerAction;
+  swipeUpAction: PointerAction;
+  swipeDownAction: PointerAction;
 }
 
 export interface Settings {
@@ -223,5 +257,15 @@ export const defaultSettings: Settings = {
     hapticFeedback: true,
     captureInBackground: false,
     onboarded: false,
+    actionBindings: {
+      KeyW: "close",
+      KeyM: "minimize",
+      KeyQ: "quit",
+      KeyH: "hide",
+      KeyF: "fullscreen",
+    },
+    middleClickAction: "close",
+    swipeUpAction: "none",
+    swipeDownAction: "none",
   },
 };

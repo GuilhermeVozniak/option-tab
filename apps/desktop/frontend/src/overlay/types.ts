@@ -13,4 +13,9 @@ export interface OverlayHandlers {
   onFullscreen: (windowId: number) => void;
   onQuit: (appId: number) => void;
   onHide: (appId: number) => void;
+  onAction?: (
+    kind: "newWindow" | "forceQuit" | "closeAll" | "minimizeAll",
+    windowId: number,
+    appId: number,
+  ) => void;
 }

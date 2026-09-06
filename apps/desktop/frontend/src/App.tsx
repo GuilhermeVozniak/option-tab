@@ -19,6 +19,7 @@ import {
 } from "./lib/types";
 import type { OverlayHandlers } from "./overlay/Overlay";
 import { Overlay } from "./overlay/Overlay";
+import "./action-notice.css";
 import { Settings } from "./settings/Settings";
 
 function route(): string {
@@ -129,6 +130,8 @@ export default function App() {
 
 function OverlayRoute() {
   const [state, setState] = useState<SwitcherState>(emptyState);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const actionRevision = useRef(0);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [previews, setPreviews] = useState<Record<string, string>>({});
   // The overlay window never becomes key (the app is not activated on show), so
@@ -149,12 +152,18 @@ function OverlayRoute() {
   useEffect(() => {
     return onSwitcherEvent({
       onShow: (s) => {
+        ++actionRevision.current;
+        setActionError(null);
         setThumbs({}); // new session: drop the previous capture's previews
         setPreviews({});
         setState(s);
       },
       onUpdate: setState,
-      onHide: () => setState((s) => ({ ...s, open: false })),
+      onHide: () => {
+        ++actionRevision.current;
+        setActionError(null);
+        setState((s) => ({ ...s, open: false }));
+      },
       onThumbnails: (t) => setThumbs((prev) => ({ ...prev, ...t })),
       onPreview: (p) => setPreviews((prev) => ({ ...prev, ...p })),
     });
@@ -175,13 +184,30 @@ function OverlayRoute() {
     [state, thumbs, previews],
   );
 
-  const indexOfWindow = useCallback(
-    (windowId: number) => state.entries.findIndex((e) => e.windowId === windowId),
-    [state.entries],
-  );
-  const indexOfApp = useCallback(
-    (appId: number) => state.entries.findIndex((e) => e.appId === appId),
-    [state.entries],
+  const performAction = useCallback(async (kind: string, windowId: number, appId: number) => {
+    const revision = ++actionRevision.current;
+    setActionError(null);
+    try {
+      const result = await switcher.performAction(kind, windowId, appId);
+      if (revision === actionRevision.current && result.failures.length > 0) {
+        const accepted =
+          result.succeeded > 0
+            ? `${result.succeeded} action request${result.succeeded === 1 ? "" : "s"} accepted. `
+            : "";
+        setActionError(accepted + result.failures.map((failure) => failure.error).join("; "));
+      }
+    } catch (error) {
+      if (revision === actionRevision.current) {
+        setActionError(error instanceof Error ? error.message : String(error));
+      }
+    }
+  }, []);
+  const windowAction = useCallback(
+    (kind: string, windowId: number) => {
+      const entry = state.entries.find((e) => e.windowId === windowId);
+      if (entry) void performAction(kind, windowId, entry.appId);
+    },
+    [state.entries, performAction],
   );
 
   const handlers = useMemo<OverlayHandlers>(
@@ -193,21 +219,33 @@ function OverlayRoute() {
       onCancel: () => void switcher.cancel(),
       onSelect: (i) => void switcher.select(i),
       onSearchChange: (q) => void switcher.setSearch(q),
-      onClose: (windowId) =>
-        void switcher.select(indexOfWindow(windowId)).then(() => switcher.closeSelected()),
-      onMinimize: (windowId) =>
-        void switcher.select(indexOfWindow(windowId)).then(() => switcher.minimizeSelected()),
-      onFullscreen: (windowId) =>
-        void switcher.select(indexOfWindow(windowId)).then(() => switcher.fullscreenSelected()),
-      onQuit: (appId) =>
-        void switcher.select(indexOfApp(appId)).then(() => switcher.quitSelectedApp()),
-      onHide: (appId) =>
-        void switcher.select(indexOfApp(appId)).then(() => switcher.hideSelectedApp()),
+      onClose: (windowId) => windowAction("close", windowId),
+      onMinimize: (windowId) => windowAction("minimize", windowId),
+      onFullscreen: (windowId) => windowAction("fullscreen", windowId),
+      onQuit: (appId) => void performAction("quit", 0, appId),
+      onHide: (appId) => void performAction("hide", 0, appId),
+      onAction: (kind, windowId, appId) => void performAction(kind, windowId, appId),
     }),
-    [indexOfWindow, indexOfApp],
+    [windowAction, performAction],
   );
 
-  return <Overlay state={stateWithThumbs} handlers={handlers} nativeKeys={nativeKeys} />;
+  return (
+    <>
+      <Overlay state={stateWithThumbs} handlers={handlers} nativeKeys={nativeKeys} />
+      {state.open && actionError ? (
+        <div className="ot-action-notice" role="alert">
+          <span>{actionError}</span>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            aria-label="Dismiss action error"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 // SettingsRoute renders the preferences window's contents. The window is a

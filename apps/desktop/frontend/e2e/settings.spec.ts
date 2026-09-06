@@ -45,6 +45,31 @@ test.describe("preferences (#settings route)", () => {
     await expect(page.getByLabel("Remove shortcut 3")).toBeVisible();
   });
 
+  test("shows readable switcher action names", async ({ page }) => {
+    await page.getByRole("tab", { name: "Controls" }).click();
+    const action = page.getByLabel("Action for KeyW");
+    await expect(action.locator('option[value="close"]')).toHaveText("Close");
+    await expect(action.locator('option[value="fullscreen"]')).toHaveText("Fullscreen");
+    await expect(action.locator('option[value="newWindow"]')).toHaveText("New window");
+    await expect(action.locator('option[value="forceQuit"]')).toHaveText("Force quit");
+    await expect(action.locator('option[value="closeAll"]')).toHaveText("Close all windows");
+    await expect(action.locator('option[value="minimizeAll"]')).toHaveText("Minimize all windows");
+    await expect(page.getByLabel("Middle click action").locator('option[value="none"]')).toHaveText(
+      "None",
+    );
+  });
+
+  test("replaces a physical action binding through ordinary typing", async ({ page }) => {
+    await page.getByRole("tab", { name: "Controls" }).click();
+    const input = page.getByLabel("Physical key KeyW");
+    await input.focus();
+    await input.press("ControlOrMeta+A");
+    await input.pressSequentially("KeyX");
+    await input.blur();
+    await expect(page.getByLabel("Physical key KeyX")).toHaveValue("KeyX");
+    await expect(page.getByLabel("Physical key KeyW")).toHaveCount(0);
+  });
+
   test("adds, edits and removes a blacklist entry", async ({ page }) => {
     await page.getByRole("tab", { name: "Blacklists" }).click();
     await page.getByRole("button", { name: "+ Add app" }).click();

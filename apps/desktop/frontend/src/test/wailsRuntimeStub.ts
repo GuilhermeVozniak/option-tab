@@ -37,8 +37,17 @@ export const Call = {
 // Referenced only in the generated bindings' JSDoc types.
 export const CancellablePromise = Promise;
 
-// Generated models call $Create.Array(createFrom) at module scope; the result
-// is only used to deserialize Call responses, which never arrive in tests.
+// Generated model constructors build these converters at module scope.
 export const Create = {
-  Array: <T>(createFrom: T): T => createFrom,
+  Any: <T>(source: T): T => source,
+  Array:
+    <T>(createFrom: (source: unknown) => T) =>
+    (source: unknown[]) =>
+      source.map(createFrom),
+  Map:
+    <T>(keyFrom: (source: string) => string, valueFrom: (source: unknown) => T) =>
+    (source: Record<string, unknown>) =>
+      Object.fromEntries(
+        Object.entries(source).map(([key, value]) => [keyFrom(key), valueFrom(value)]),
+      ),
 };

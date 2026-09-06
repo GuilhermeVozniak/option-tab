@@ -2,8 +2,6 @@ package main
 
 import (
 	"strconv"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"option-tab/internal/config"
@@ -102,6 +100,16 @@ func (a *App) keyLoop() {
 // previously active app keeps focus, so the active-app scope filter keeps
 // seeing the real frontmost app — activating here was the v2 switching bug.
 func (a *App) Show(st switcher.State) {
+	a.viewMu.Lock()
+	defer a.viewMu.Unlock()
+	select {
+	case <-a.captureStop:
+		return
+	default:
+	}
+	a.cancelDismissalLocked()
+	a.fadeOnHide = st.Appearance.FadeOutAnimation
+	a.captureActive = true
 	dlog("Show: %d entries, selected=%d", len(st.Entries), st.Selected)
 	if a.prefsOpen {
 		a.closePreferencesWindow()
@@ -129,12 +137,13 @@ func (a *App) Show(st switcher.State) {
 		a.overlay.show()
 	}
 	a.emitCachedThumbnails(st)
-	a.captureThumbnails(st)
-	a.capturePreview(st)
+	a.updateCapture(st)
 }
 
 // Update pushes a new state to the visible overlay.
 func (a *App) Update(st switcher.State) {
+	a.viewMu.Lock()
+	defer a.viewMu.Unlock()
 	a.enrichIcons(&st)
 	a.emit("switcher:update", st)
 	if st.Selected != a.lastSelected {
@@ -143,18 +152,49 @@ func (a *App) Update(st switcher.State) {
 			h.HapticTick()
 		}
 	}
-	a.capturePreview(st)
+	a.updateCapture(st)
 }
 
 // Hide pushes the hide event and hides the overlay window.
 func (a *App) Hide() {
-	atomic.AddInt64(&a.thumbGen, 1) // invalidate any in-flight thumbnail capture
+	a.viewMu.Lock()
+	defer a.viewMu.Unlock()
+	a.cancelDismissalLocked()
+	a.captureActive = false
+	a.captures.Hide() // invalidate callbacks before the overlay disappears
 	a.platform.Hotkeys().SetOpen(false)
 	a.emit("switcher:hide", nil)
+	if a.fadeOnHide && a.overlay.alive() {
+		generation := a.viewGeneration
+		// Match Overlay's 180 ms CSS fade; input and capture stop immediately.
+		a.dismissal = time.AfterFunc(180*time.Millisecond, func() {
+			a.viewMu.Lock()
+			defer a.viewMu.Unlock()
+			if generation != a.viewGeneration {
+				return
+			}
+			a.dismissal = nil
+			a.finishHideLocked()
+		})
+		return
+	}
+	a.finishHideLocked()
+}
+
+// cancelDismissalLocked also invalidates callbacks already waiting on viewMu.
+func (a *App) cancelDismissalLocked() {
+	a.viewGeneration++
+	if a.dismissal != nil {
+		a.dismissal.Stop()
+		a.dismissal = nil
+	}
+}
+
+func (a *App) finishHideLocked() {
 	a.overlay.hide()
 	// Clicking the overlay activates the app (a plain NSWindow can't avoid it);
 	// drop that activation so focus returns to the previously active app.
-	if act, ok := a.platform.(platform.AppActivator); ok {
+	if act, ok := a.platform.(platform.AppActivator); ok && !a.prefsOpen {
 		act.HideAppIfActive()
 	}
 }
@@ -188,7 +228,12 @@ func (a *App) backgroundCaptureLoop() {
 	const maxWindows = 30
 	ticker := time.NewTicker(4 * time.Second)
 	defer ticker.Stop()
-	for range ticker.C {
+	for {
+		select {
+		case <-a.captureStop:
+			return
+		case <-ticker.C:
+		}
 		settings := a.settingsSnapshot()
 		if !settings.Behavior.CaptureInBackground || a.controller.IsOpen() || a.controller.Paused() {
 			continue
@@ -205,7 +250,16 @@ func (a *App) backgroundCaptureLoop() {
 		if px <= 0 {
 			px = 256
 		}
+		next := map[domain.WindowID]string{}
 		for i, w := range wins {
+			select {
+			case <-a.captureStop:
+				return
+			default:
+			}
+			if !a.settingsSnapshot().Behavior.CaptureInBackground {
+				break
+			}
 			if i >= maxWindows || a.controller.IsOpen() {
 				break
 			}
@@ -213,82 +267,49 @@ func (a *App) backgroundCaptureLoop() {
 			if url == "" {
 				continue
 			}
-			a.thumbCacheMu.Lock()
-			a.thumbCache[w.ID] = url
-			a.thumbCacheMu.Unlock()
+			next[w.ID] = url
 		}
+		a.thumbCacheMu.Lock()
+		a.thumbCache = next
+		a.thumbCacheMu.Unlock()
 	}
 }
 
-// captureThumbnails snapshots each window off the hotkey path and streams the
-// results to the overlay via "switcher:thumbnails" events, so the switcher
-// appears instantly (with icons) and previews fill in as they are captured.
-// Each Show/Hide bumps thumbGen; a stale goroutine stops emitting.
-func (a *App) captureThumbnails(st switcher.State) {
-	if st.Style != config.StyleThumbnails {
+// updateCapture shares one selected-window stream between thumbnail and preview.
+// Caller holds viewMu, making active admission atomic with Hide and shutdown.
+func (a *App) updateCapture(st switcher.State) {
+	if !a.captureActive {
 		return
 	}
-	src, ok := a.platform.(platform.ThumbnailSource)
-	if !ok {
+	select {
+	case <-a.captureStop:
 		return
+	default:
+	}
+	thumbs := st.Style == config.StyleThumbnails
+	selected := domain.WindowID(0)
+	if st.Selected >= 0 && st.Selected < len(st.Entries) {
+		selected = st.Entries[st.Selected].WindowID
+	}
+	a.captureSelected.Store(uint64(selected))
+	a.capturePreviewEnabled.Store(st.Appearance.PreviewSelected)
+	a.captureThumbnailsEnabled.Store(thumbs)
+	ids := []domain.WindowID{}
+	if thumbs {
+		for _, entry := range st.Entries {
+			ids = append(ids, entry.WindowID)
+		}
+	} else if st.Appearance.PreviewSelected && selected != 0 {
+		ids = append(ids, selected)
 	}
 	px := st.Appearance.ThumbnailMaxPx
 	if px <= 0 {
 		px = 256
 	}
-	gen := atomic.AddInt64(&a.thumbGen, 1)
-	// Capture the selected window first, and capture in parallel (bounded) so
-	// all previews appear together quickly instead of streaming in one by one.
-	// Concurrency is modest: each capture is a full ScreenCaptureKit enumeration,
-	// so too many at once contend on the window server and risk timing out.
-	entries := switcher.OrderSelectedFirst(st.Entries, st.Selected)
-	const maxConcurrent = 4
-	go func() {
-		sem := make(chan struct{}, maxConcurrent)
-		var wg sync.WaitGroup
-		for _, e := range entries {
-			if atomic.LoadInt64(&a.thumbGen) != gen {
-				break
-			}
-			sem <- struct{}{}
-			wg.Add(1)
-			go func(e switcher.Entry) {
-				defer wg.Done()
-				defer func() { <-sem }()
-				if atomic.LoadInt64(&a.thumbGen) != gen {
-					return
-				}
-				url := src.ThumbnailDataURL(e.WindowID, px)
-				if url == "" || atomic.LoadInt64(&a.thumbGen) != gen {
-					return
-				}
-				a.emit("switcher:thumbnails", map[string]string{strconv.Itoa(int(e.WindowID)): url})
-			}(e)
-		}
-		wg.Wait()
-	}()
-}
-
-// capturePreview captures a high-resolution snapshot of the selected window
-// when "preview selected window" is enabled, streamed via "switcher:preview".
-// Stale captures are dropped via the same generation counter as thumbnails.
-func (a *App) capturePreview(st switcher.State) {
-	if !st.Appearance.PreviewSelected || st.Selected < 0 || st.Selected >= len(st.Entries) {
-		return
+	if st.Appearance.PreviewSelected {
+		px = 1024
 	}
-	src, ok := a.platform.(platform.ThumbnailSource)
-	if !ok {
-		return
-	}
-	id := st.Entries[st.Selected].WindowID
-	gen := atomic.LoadInt64(&a.thumbGen)
-	go func() {
-		dataURL := src.ThumbnailDataURL(id, 1024)
-		if dataURL == "" || atomic.LoadInt64(&a.thumbGen) != gen {
-			return
-		}
-		a.emit("switcher:preview", map[string]string{strconv.Itoa(int(id)): dataURL})
-	}()
+	a.captures.Update(ids, selected, px)
 }
 
 // enrichIcons fills each entry's Icon with the owning app's icon (a base64 PNG

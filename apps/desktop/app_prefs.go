@@ -44,6 +44,12 @@ func (a *App) IsPaused() bool { return a.controller.Paused() }
 // startup; recreated defensively if macOS destroyed it). Invoked by the menubar
 // "Settings…" item and on first launch (onboarding).
 func (a *App) OpenPreferences() {
+	a.viewMu.Lock()
+	defer a.viewMu.Unlock()
+	if a.dismissal != nil {
+		a.cancelDismissalLocked()
+		a.overlay.hide()
+	}
 	dlog("OpenPreferences: prefsOpen=%v", a.prefsOpen)
 	a.prefsOpen = true
 	// Preferences need keyboard focus: flip the accessory app to a regular,
@@ -90,6 +96,8 @@ func tryShowWindow(w nativeWindow) (ok bool) {
 // ClosePreferences hides the preferences window and returns the app to the
 // accessory policy (no Dock icon).
 func (a *App) ClosePreferences() {
+	a.viewMu.Lock()
+	defer a.viewMu.Unlock()
 	a.closePreferencesWindow()
 }
 

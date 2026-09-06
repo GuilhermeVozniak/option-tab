@@ -117,6 +117,7 @@ const METHOD = {
   HideSelectedApp: 3942268823,
   GetVersion: 1049863377,
   InstallUpdate: 2443992793,
+  PerformAction: 280563800,
 } as const;
 
 const METHOD_NAME = new Map<number, string>(Object.entries(METHOD).map(([name, id]) => [id, name]));
@@ -138,10 +139,14 @@ export async function installFakeWails(page: Page): Promise<void> {
     const w = window as unknown as {
       __calls: unknown[][];
       __state: Record<string, unknown> | null;
+      __actionResult?: { succeeded: number; failures: { windowId: number; error: string }[] };
+      __actionError?: string;
       _wails?: { dispatchWailsEvent?: (ev: { name: string; data: unknown }) => void };
     };
     w.__calls = [];
     w.__state = null;
+    w.__actionResult = undefined;
+    w.__actionError = undefined;
     window.addEventListener("keydown", (e) => {
       if (!w.__state?.open) return; // the native tap only forwards while open
       w._wails?.dispatchWailsEvent?.({
@@ -224,6 +229,23 @@ export async function installFakeWails(page: Page): Promise<void> {
           (window as any).__calls.push([n]);
         }, name);
         return json(null);
+      }
+      case "PerformAction": {
+        const outcome = await page.evaluate(
+          ([n, actionArgs]) => {
+            const w = window as any;
+            w.__calls.push([n, ...actionArgs]);
+            if (w.__actionError) {
+              return {
+                succeeded: 0,
+                failures: [{ windowId: actionArgs[1] ?? 0, error: w.__actionError }],
+              };
+            }
+            return w.__actionResult ?? { succeeded: 1, failures: [] };
+          },
+          [name, args],
+        );
+        return json(outcome);
       }
       default:
         // Anything unmapped behaves as "no backend": the bridge degrades to its

@@ -2,13 +2,17 @@ package main
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
+	"testing/synctest"
+	"time"
 	"unsafe"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"option-tab/internal/config"
 	"option-tab/internal/platform/fake"
+	"option-tab/internal/switcher"
 )
 
 // fakeWindow records the window operations the app performs, standing in for
@@ -18,6 +22,81 @@ type fakeWindow struct {
 	calls  []string
 	onTop  bool
 	native unsafe.Pointer
+}
+
+func TestSwitcherFadeDelaysNativeHide(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		a, overlay, _, _ := newWindowTestApp(t)
+		defer a.stopCapture()
+		a.Show(switcher.State{Appearance: config.Default().Appearance})
+		overlay.calls = nil
+		a.Hide()
+		a.viewMu.Lock()
+		if slices.Contains(overlay.calls, "hide") {
+			t.Fatal("native window hid before the frontend dismissal animation")
+		}
+		a.viewMu.Unlock()
+		time.Sleep(200 * time.Millisecond)
+		synctest.Wait()
+		if !slices.Contains(overlay.calls, "hide") {
+			t.Fatal("native window remained visible after fade")
+		}
+	})
+}
+
+func TestSwitcherReopenInvalidatesPendingHide(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		a, overlay, _, _ := newWindowTestApp(t)
+		defer a.stopCapture()
+		st := switcher.State{Appearance: config.Default().Appearance}
+		a.Show(st)
+		a.Hide()
+		time.Sleep(90 * time.Millisecond)
+		a.Show(st)
+		overlay.calls = nil
+		time.Sleep(200 * time.Millisecond)
+		synctest.Wait()
+		if slices.Contains(overlay.calls, "hide") {
+			t.Fatal("an old dismissal hid the reopened switcher")
+		}
+	})
+}
+
+func TestSwitcherWithoutFadeHidesImmediately(t *testing.T) {
+	a, overlay, _, _ := newWindowTestApp(t)
+	defer a.stopCapture()
+	appearance := config.Default().Appearance
+	appearance.FadeOutAnimation = false
+	a.Show(switcher.State{Appearance: appearance})
+	overlay.calls = nil
+	a.Hide()
+	if !slices.Contains(overlay.calls, "hide") {
+		t.Fatal("disabled fade delayed native dismissal")
+	}
+}
+
+func TestSwitcherPendingFadeIsCancelledForPreferencesAndShutdown(t *testing.T) {
+	for _, next := range []string{"preferences", "shutdown"} {
+		t.Run(next, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				a, overlay, _, _ := newWindowTestApp(t)
+				defer a.stopCapture()
+				a.Show(switcher.State{Appearance: config.Default().Appearance})
+				a.Hide()
+				if next == "preferences" {
+					a.OpenPreferences()
+				} else {
+					a.stopCapture()
+				}
+				overlay.calls = nil
+				time.Sleep(200 * time.Millisecond)
+				synctest.Wait()
+				if len(overlay.calls) != 0 {
+					t.Fatalf("pending dismissal touched the overlay after %s: %v", next, overlay.calls)
+				}
+			})
+		})
+	}
 }
 
 func (f *fakeWindow) Show() application.Window {

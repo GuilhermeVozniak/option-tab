@@ -20,6 +20,7 @@ vi.mock("@wailsio/runtime", async (importOriginal) => {
 });
 
 vi.mock("../bindings/option-tab/app.js", () => ({
+  PerformAction: vi.fn().mockResolvedValue({ succeeded: 1, failures: [] }),
   Advance: vi.fn().mockResolvedValue(undefined),
   Reverse: vi.fn().mockResolvedValue(undefined),
   Confirm: vi.fn().mockResolvedValue(undefined),
@@ -83,21 +84,8 @@ describe("App", () => {
     expect(screen.getByText(/Preferences/)).toBeInTheDocument();
   });
 
-  it("selects the clicked entry's index before closing its window", async () => {
-    const calls: string[] = [];
-    let resolveSelect: () => void = () => {};
-    mocked.Select.mockImplementation((i: number) => {
-      calls.push(`Select(${i})`);
-      return new Promise<void>((resolve) => {
-        resolveSelect = resolve;
-      }) as never;
-    });
-    mocked.CloseSelected.mockImplementation(() => {
-      calls.push("CloseSelected");
-      return Promise.resolve() as never;
-    });
+  it("acts on the clicked window without changing selection", async () => {
     render(<App />);
-
     act(() => {
       eventHandlers.get("switcher:show")?.({
         data: openSwitcherState({
@@ -105,16 +93,71 @@ describe("App", () => {
         }),
       });
     });
-
-    // Close the NON-selected third entry (windowId 33 -> index 2).
     fireEvent.click(screen.getAllByLabelText("Close window")[2]);
-    expect(calls).toEqual(["Select(2)"]);
+    act(() => {
+      eventHandlers.get("switcher:update")?.({
+        data: openSwitcherState({
+          selected: 1,
+          entries: [appEntry(11, "Editor"), appEntry(22, "Browser"), appEntry(33, "Terminal")],
+        }),
+      });
+    });
+    await waitFor(() => expect(mocked.PerformAction).toHaveBeenCalledWith("close", 33, 33));
+    expect(mocked.Select).not.toHaveBeenCalled();
+    expect(mocked.CloseSelected).not.toHaveBeenCalled();
+  });
 
-    // CloseSelected must wait for Select to resolve (select-then-act).
-    await Promise.resolve();
-    expect(calls).toEqual(["Select(2)"]);
-    resolveSelect();
-    await waitFor(() => expect(calls).toEqual(["Select(2)", "CloseSelected"]));
+  it("shows a failed native action instead of silently discarding it", async () => {
+    mocked.PerformAction.mockRejectedValueOnce(new Error("Window no longer exists"));
+    render(<App />);
+    act(() => {
+      eventHandlers.get("switcher:show")?.({
+        data: openSwitcherState({
+          entries: [appEntry(11, "Editor")],
+        }),
+      });
+    });
+    fireEvent.click(screen.getByLabelText("Close window"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Window no longer exists");
+  });
+
+  it("shows partial bulk-action failures", async () => {
+    mocked.PerformAction.mockResolvedValueOnce({
+      succeeded: 2,
+      failures: [{ windowId: 11, error: "Window refused to close" }],
+    } as never);
+    render(<App />);
+    act(() => {
+      eventHandlers.get("switcher:show")?.({
+        data: openSwitcherState({ entries: [appEntry(11, "Editor")] }),
+      });
+    });
+    fireEvent.click(screen.getByLabelText("Close window"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Window refused to close");
+    expect(screen.getByRole("alert")).toHaveTextContent("2 action requests accepted");
+  });
+
+  it("does not show a late action failure in a reopened switcher", async () => {
+    let rejectAction: (error: Error) => void = () => {};
+    mocked.PerformAction.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectAction = reject;
+      }) as never,
+    );
+    render(<App />);
+    const state = openSwitcherState({ entries: [appEntry(11, "Editor")] });
+    act(() => {
+      eventHandlers.get("switcher:show")?.({ data: state });
+    });
+    fireEvent.click(screen.getByLabelText("Close window"));
+    act(() => {
+      eventHandlers.get("switcher:hide")?.({ data: null });
+      eventHandlers.get("switcher:show")?.({ data: state });
+    });
+    await act(async () => {
+      rejectAction(new Error("Old session failure"));
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("confirms a clicked entry atomically by window id", async () => {

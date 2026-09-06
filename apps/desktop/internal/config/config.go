@@ -196,6 +196,56 @@ func (t TruncationMode) Valid() bool {
 	return t == TruncateEnd || t == TruncateMiddle || t == TruncateStart
 }
 
+type LayoutDirection string
+
+const (
+	LayoutHorizontal LayoutDirection = "horizontal"
+	LayoutVertical   LayoutDirection = "vertical"
+)
+
+func (d LayoutDirection) Valid() bool { return d == LayoutHorizontal || d == LayoutVertical }
+
+type ActionKind string
+
+const (
+	ActionClose       ActionKind = "close"
+	ActionMinimize    ActionKind = "minimize"
+	ActionFullscreen  ActionKind = "fullscreen"
+	ActionHide        ActionKind = "hide"
+	ActionQuit        ActionKind = "quit"
+	ActionNewWindow   ActionKind = "newWindow"
+	ActionForceQuit   ActionKind = "forceQuit"
+	ActionCloseAll    ActionKind = "closeAll"
+	ActionMinimizeAll ActionKind = "minimizeAll"
+)
+
+func (a ActionKind) Valid() bool {
+	switch a {
+	case ActionClose, ActionMinimize, ActionFullscreen, ActionHide, ActionQuit, ActionNewWindow, ActionForceQuit, ActionCloseAll, ActionMinimizeAll:
+		return true
+	}
+	return false
+}
+
+type PointerAction string
+
+const (
+	PointerNone       PointerAction = "none"
+	PointerClose      PointerAction = "close"
+	PointerMinimize   PointerAction = "minimize"
+	PointerFullscreen PointerAction = "fullscreen"
+	PointerHide       PointerAction = "hide"
+	PointerQuit       PointerAction = "quit"
+)
+
+func (a PointerAction) ValidMiddleClick() bool {
+	return a == PointerNone || a == PointerClose || a == PointerMinimize
+}
+
+func (a PointerAction) ValidSwipe() bool {
+	return a == PointerNone || a == PointerClose || a == PointerMinimize || a == PointerFullscreen || a == PointerHide || a == PointerQuit
+}
+
 // ReleaseAction is what happens when the shortcut's modifier is released.
 type ReleaseAction string
 
@@ -339,7 +389,9 @@ type Appearance struct {
 	// PreviewSelected shows a large preview of the selected window.
 	PreviewSelected bool `json:"previewSelected"`
 	// PreviewFade fades the selected-window preview in when it changes.
-	PreviewFade bool `json:"previewFade"`
+	PreviewFade      bool            `json:"previewFade"`
+	CompactThreshold int             `json:"compactThreshold"`
+	LayoutDirection  LayoutDirection `json:"layoutDirection"`
 }
 
 // ShortcutScope narrows the windows a given shortcut shows. Empty SpaceScope/
@@ -393,7 +445,11 @@ type Behavior struct {
 	CaptureInBackground bool `json:"captureInBackground"`
 	// Onboarded records that the first-run permissions wizard was completed,
 	// so it is only shown once.
-	Onboarded bool `json:"onboarded"`
+	Onboarded         bool                  `json:"onboarded"`
+	ActionBindings    map[string]ActionKind `json:"actionBindings"`
+	MiddleClickAction PointerAction         `json:"middleClickAction"`
+	SwipeUpAction     PointerAction         `json:"swipeUpAction"`
+	SwipeDownAction   PointerAction         `json:"swipeDownAction"`
 }
 
 // Settings is the full persisted configuration.
@@ -450,6 +506,8 @@ func Default() Settings {
 			TitleTruncation:    TruncateEnd,
 			PreviewSelected:    false,
 			PreviewFade:        true,
+			CompactThreshold:   0,
+			LayoutDirection:    LayoutHorizontal,
 		},
 		Filters: Filters{
 			Spaces:                  SpacesAll,
@@ -476,6 +534,13 @@ func Default() Settings {
 			CursorFollowFocus:   false,
 			HapticFeedback:      true,
 			CaptureInBackground: false,
+			ActionBindings: map[string]ActionKind{
+				"KeyW": ActionClose, "KeyM": ActionMinimize, "KeyQ": ActionQuit,
+				"KeyH": ActionHide, "KeyF": ActionFullscreen,
+			},
+			MiddleClickAction: PointerClose,
+			SwipeUpAction:     PointerNone,
+			SwipeDownAction:   PointerNone,
 		},
 	}
 }
@@ -508,7 +573,31 @@ func (s Settings) Validate() error {
 	if !s.Placement.Valid() {
 		return fmt.Errorf("config: invalid placement %q", s.Placement)
 	}
+	if !s.Appearance.LayoutDirection.Valid() {
+		return fmt.Errorf("config: invalid layout direction %q", s.Appearance.LayoutDirection)
+	}
+	if s.Appearance.CompactThreshold < 0 {
+		return errors.New("config: compact threshold must be non-negative")
+	}
+	if !s.Behavior.MiddleClickAction.ValidMiddleClick() {
+		return fmt.Errorf("config: invalid middle-click action %q", s.Behavior.MiddleClickAction)
+	}
+	if !s.Behavior.SwipeUpAction.ValidSwipe() || !s.Behavior.SwipeDownAction.ValidSwipe() {
+		return errors.New("config: invalid swipe action")
+	}
+	for code, action := range s.Behavior.ActionBindings {
+		if !validActionCode(code) {
+			return fmt.Errorf("config: invalid or reserved action binding code %q", code)
+		}
+		if !action.Valid() {
+			return fmt.Errorf("config: invalid action binding %q", action)
+		}
+	}
 	return nil
+}
+
+func validActionCode(code string) bool {
+	return len(code) == 4 && code[:3] == "Key" && code[3] >= 'A' && code[3] <= 'Z'
 }
 
 func clampInt(v, lo, hi int) int {
@@ -571,6 +660,18 @@ func (s Settings) Normalize() Settings {
 	if !out.Appearance.TitleTruncation.Valid() {
 		out.Appearance.TitleTruncation = d.Appearance.TitleTruncation
 	}
+	if !out.Appearance.LayoutDirection.Valid() {
+		out.Appearance.LayoutDirection = d.Appearance.LayoutDirection
+	}
+	if !out.Behavior.MiddleClickAction.ValidMiddleClick() {
+		out.Behavior.MiddleClickAction = d.Behavior.MiddleClickAction
+	}
+	if !out.Behavior.SwipeUpAction.ValidSwipe() {
+		out.Behavior.SwipeUpAction = d.Behavior.SwipeUpAction
+	}
+	if !out.Behavior.SwipeDownAction.ValidSwipe() {
+		out.Behavior.SwipeDownAction = d.Behavior.SwipeDownAction
+	}
 	if !out.Behavior.MenubarIconStyle.Valid() {
 		out.Behavior.MenubarIconStyle = d.Behavior.MenubarIconStyle
 	}
@@ -591,6 +692,20 @@ func (s Settings) Normalize() Settings {
 	out.Appearance.CornerRadiusPx = clampInt(out.Appearance.CornerRadiusPx, 0, 64)
 	out.Appearance.BackgroundOpacity = clampFloat(out.Appearance.BackgroundOpacity, 0, 1)
 	out.Appearance.ApparitionDelayMs = clampInt(out.Appearance.ApparitionDelayMs, 0, 2000)
+	out.Appearance.CompactThreshold = clampInt(out.Appearance.CompactThreshold, 0, 1000)
+	if out.Behavior.ActionBindings == nil {
+		out.Behavior.ActionBindings = d.Behavior.ActionBindings
+	}
+	bindings := make(map[string]ActionKind, len(out.Behavior.ActionBindings))
+	for code, action := range out.Behavior.ActionBindings {
+		bindings[code] = action
+	}
+	out.Behavior.ActionBindings = bindings
+	for code, action := range out.Behavior.ActionBindings {
+		if !validActionCode(code) || !action.Valid() {
+			delete(out.Behavior.ActionBindings, code)
+		}
+	}
 
 	// Blacklist: drop empty matchers and default the hide mode. Keep the slice
 	// non-nil so it marshals as [] (the preferences UI maps over it).
@@ -662,6 +777,14 @@ func Load(r io.Reader) (Settings, error) {
 		return Settings{}, fmt.Errorf("config: read: %w", err)
 	}
 	s := Default()
+	var presence struct {
+		Behavior struct {
+			ActionBindings json.RawMessage `json:"actionBindings"`
+		} `json:"behavior"`
+	}
+	if err := json.Unmarshal(raw, &presence); err == nil && presence.Behavior.ActionBindings != nil {
+		s.Behavior.ActionBindings = map[string]ActionKind{}
+	}
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return Settings{}, fmt.Errorf("config: parse: %w", err)
 	}

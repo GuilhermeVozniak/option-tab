@@ -7,6 +7,27 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
+ * @readonly
+ * @enum {string}
+ */
+export const ActionKind = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    ActionClose: "close",
+    ActionMinimize: "minimize",
+    ActionFullscreen: "fullscreen",
+    ActionHide: "hide",
+    ActionQuit: "quit",
+    ActionNewWindow: "newWindow",
+    ActionForceQuit: "forceQuit",
+    ActionCloseAll: "closeAll",
+    ActionMinimizeAll: "minimizeAll",
+};
+
+/**
  * Appearance controls the look of the overlay.
  */
 export class Appearance {
@@ -193,6 +214,20 @@ export class Appearance {
              */
             this["previewFade"] = false;
         }
+        if (!("compactThreshold" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["compactThreshold"] = 0;
+        }
+        if (!("layoutDirection" in $$source)) {
+            /**
+             * @member
+             * @type {LayoutDirection}
+             */
+            this["layoutDirection"] = LayoutDirection.$zero;
+        }
 
         Object.assign(this, $$source);
     }
@@ -209,6 +244,20 @@ export class Appearance {
 }
 
 /**
+ * @readonly
+ * @enum {string}
+ */
+export const LayoutDirection = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    LayoutHorizontal: "horizontal",
+    LayoutVertical: "vertical",
+};
+
+/**
  * Placement is where the overlay appears.
  * @readonly
  * @enum {string}
@@ -222,6 +271,24 @@ export const Placement = {
     PlaceActiveScreen: "activeScreen",
     PlaceCursorScreen: "cursorScreen",
     PlaceFocusedWindowScreen: "focusedWindowScreen",
+};
+
+/**
+ * @readonly
+ * @enum {string}
+ */
+export const PointerAction = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    PointerNone: "none",
+    PointerClose: "close",
+    PointerMinimize: "minimize",
+    PointerFullscreen: "fullscreen",
+    PointerHide: "hide",
+    PointerQuit: "quit",
 };
 
 /**

@@ -5,6 +5,7 @@
 package switcher
 
 import (
+	"maps"
 	"sync"
 
 	"option-tab/internal/config"
@@ -42,18 +43,22 @@ type Entry struct {
 
 // State is the full switcher snapshot handed to the view.
 type State struct {
-	Open          bool               `json:"open"`
-	Style         config.VisualStyle `json:"style"`
-	Appearance    config.Appearance  `json:"appearance"`
-	Placement     config.Placement   `json:"placement"`
-	Entries       []Entry            `json:"entries"`
-	Selected      int                `json:"selected"`
-	Search        string             `json:"search"`
-	ShortcutID    int                `json:"shortcutId"`
-	VimKeys       bool               `json:"vimKeys"`
-	ArrowKeys     bool               `json:"arrowKeys"`
-	MouseHover    bool               `json:"mouseHover"`
-	ActiveSpaceID domain.SpaceID     `json:"activeSpaceId"`
+	ActionBindings    map[string]config.ActionKind `json:"actionBindings"`
+	MiddleClickAction config.PointerAction         `json:"middleClickAction"`
+	SwipeUpAction     config.PointerAction         `json:"swipeUpAction"`
+	SwipeDownAction   config.PointerAction         `json:"swipeDownAction"`
+	Open              bool                         `json:"open"`
+	Style             config.VisualStyle           `json:"style"`
+	Appearance        config.Appearance            `json:"appearance"`
+	Placement         config.Placement             `json:"placement"`
+	Entries           []Entry                      `json:"entries"`
+	Selected          int                          `json:"selected"`
+	Search            string                       `json:"search"`
+	ShortcutID        int                          `json:"shortcutId"`
+	VimKeys           bool                         `json:"vimKeys"`
+	ArrowKeys         bool                         `json:"arrowKeys"`
+	MouseHover        bool                         `json:"mouseHover"`
+	ActiveSpaceID     domain.SpaceID               `json:"activeSpaceId"`
 	// PlacementScreenID is the display the overlay window is sized to appear on.
 	PlacementScreenID domain.ScreenID `json:"placementScreenId"`
 }
@@ -527,6 +532,10 @@ func (c *Controller) snapshot() State {
 		}
 	}
 	return State{
+		ActionBindings:    maps.Clone(c.settings.Behavior.ActionBindings),
+		MiddleClickAction: c.settings.Behavior.MiddleClickAction,
+		SwipeUpAction:     c.settings.Behavior.SwipeUpAction,
+		SwipeDownAction:   c.settings.Behavior.SwipeDownAction,
 		Open:              c.open,
 		Style:             style,
 		Appearance:        c.settings.Appearance,

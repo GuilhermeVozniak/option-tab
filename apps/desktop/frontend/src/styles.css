@@ -139,6 +139,24 @@ body,
   justify-content: center;
 }
 
+.ot-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.ot-bulk-actions button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 3px 7px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-size: 11px;
+}
+
 .ot-overlay[data-style="titles"] .ot-list {
   display: flex;
   flex-direction: column;

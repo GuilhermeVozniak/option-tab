@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeLayout } from "./layout";
+import { computeLayout, effectiveStyle } from "./layout";
 
 describe("computeLayout", () => {
   it("uses up to maxColumns columns", () => {
@@ -23,6 +23,19 @@ describe("computeLayout", () => {
     });
     expect(l.columns).toBe(3);
     expect(l.rows).toBe(3); // ceil(7/3)
+  });
+
+  it("fills down rows first for a vertical arrangement", () => {
+    expect(
+      computeLayout({
+        count: 7,
+        maxColumns: 6,
+        maxRows: 3,
+        thumbnailMaxPx: 256,
+        autoSize: false,
+        layoutDirection: "vertical",
+      }),
+    ).toMatchObject({ rows: 3, columns: 3 });
   });
 
   it("handles zero windows without dividing by zero", () => {
@@ -135,5 +148,15 @@ describe("computeLayout", () => {
     expect(few.thumbnailPx).toBe(256);
     expect(many.thumbnailPx).toBeLessThan(256);
     expect(many.thumbnailPx).toBeGreaterThanOrEqual(96); // floor
+  });
+});
+
+describe("effectiveStyle", () => {
+  it("switches to titles at the exact compact threshold", () => {
+    expect(effectiveStyle("thumbnails", 5, 5)).toBe("titles");
+    expect(effectiveStyle("thumbnails", 4, 5)).toBe("thumbnails");
+  });
+  it("disables compact switching when threshold is zero", () => {
+    expect(effectiveStyle("appIcons", 50, 0)).toBe("appIcons");
   });
 });

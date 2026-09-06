@@ -1,0 +1,27 @@
+.ot-action-notice {
+  position: fixed;
+  z-index: 100;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  max-width: min(640px, 90vw);
+  padding: 12px 16px;
+  border: 1px solid #fb7185;
+  border-radius: 10px;
+  background: #27151e;
+  color: #ffe4e6;
+  font:
+    13px / 1.5 system-ui,
+    sans-serif;
+  box-shadow: 0 8px 32px #0004;
+}
+.ot-action-notice button {
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font-size: 20px;
+  cursor: pointer;
+}

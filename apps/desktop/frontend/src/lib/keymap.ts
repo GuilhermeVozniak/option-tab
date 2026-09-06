@@ -11,6 +11,10 @@ export type ActionKind =
   | "quit"
   | "hide"
   | "fullscreen"
+  | "newWindow"
+  | "forceQuit"
+  | "closeAll"
+  | "minimizeAll"
   | "searchBackspace";
 
 export type Action =
@@ -32,6 +36,8 @@ export interface KeymapOptions {
   vimKeys?: boolean;
   // arrowKeys enables arrow-key navigation (on by default).
   arrowKeys?: boolean;
+  actionBindings?: Record<string, ActionKind>;
+  layoutDirection?: "horizontal" | "vertical";
 }
 
 // ACTION_BY_CODE maps a physical key to a window action. Matched on e.code (not
@@ -52,11 +58,21 @@ export function keyToAction(e: KeyEventLike, opts: KeymapOptions = {}): Action {
     case "Tab":
       return e.shiftKey ? { kind: "reverse" } : { kind: "advance" };
     case "ArrowRight":
+      return opts.arrowKeys === false || opts.layoutDirection === "vertical"
+        ? { kind: "none" }
+        : { kind: "advance" };
     case "ArrowDown":
-      return opts.arrowKeys === false ? { kind: "none" } : { kind: "advance" };
+      return opts.arrowKeys === false || opts.layoutDirection === "horizontal"
+        ? { kind: "none" }
+        : { kind: "advance" };
     case "ArrowLeft":
+      return opts.arrowKeys === false || opts.layoutDirection === "vertical"
+        ? { kind: "none" }
+        : { kind: "reverse" };
     case "ArrowUp":
-      return opts.arrowKeys === false ? { kind: "none" } : { kind: "reverse" };
+      return opts.arrowKeys === false || opts.layoutDirection === "horizontal"
+        ? { kind: "none" }
+        : { kind: "reverse" };
     case "Escape":
       return { kind: "cancel" };
     case "Enter":
@@ -70,7 +86,7 @@ export function keyToAction(e: KeyEventLike, opts: KeymapOptions = {}): Action {
   // Window actions: a held modifier + a mapped physical key. Requiring a
   // modifier keeps bare letters free for type-to-search.
   if (hasMod) {
-    const action = ACTION_BY_CODE[e.code];
+    const action = (opts.actionBindings ?? ACTION_BY_CODE)[e.code];
     if (action) return { kind: action };
   }
 

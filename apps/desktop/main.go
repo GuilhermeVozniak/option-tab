@@ -35,6 +35,8 @@ func main() {
 		},
 	})
 
+	wailsApp.OnShutdown(app.stopCapture)
+
 	// --- Switcher overlay window ---
 	// Frameless, transparent, always-on-top, and created hidden; shown on the
 	// global hotkey. Show() never activates the app (Wails v3's windowShow is a
@@ -77,9 +79,12 @@ func main() {
 				Appearance: application.NSAppearanceNameDarkAqua,
 			},
 		})
-		prefs.OnWindowEvent(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		// Hooks run before Wails' default destroy listener. A regular event
+		// listener races that listener and cannot reliably cancel destruction.
+		prefs.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 			e.Cancel()
-			app.closePreferencesWindow()
+			// Native hooks must return without waiting for viewMu/AppKit calls.
+			go app.ClosePreferences()
 		})
 		// If macOS destroys the window anyway, retire it: messaging a destroyed
 		// window aborts the process, so the next open builds a fresh one.

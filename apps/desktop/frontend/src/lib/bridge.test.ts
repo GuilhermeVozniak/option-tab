@@ -22,6 +22,7 @@ vi.mock("@wailsio/runtime", async (importOriginal) => {
 });
 
 vi.mock("../../bindings/option-tab/app.js", () => ({
+  PerformAction: vi.fn().mockResolvedValue({ succeeded: 1, failures: [] }),
   Advance: vi.fn().mockResolvedValue(undefined),
   Reverse: vi.fn().mockResolvedValue(undefined),
   Confirm: vi.fn().mockResolvedValue(undefined),
@@ -379,5 +380,17 @@ describe("settings failures and imports", () => {
     mocked.SaveSettings.mockRejectedValueOnce(new Error("read only"));
     await expect(importSettings("{}")).rejects.toThrow("read only");
     expect(mocked.GetSettings).not.toHaveBeenCalled();
+  });
+});
+
+describe("explicit window actions", () => {
+  it("preserves native action errors for the UI", async () => {
+    mocked.PerformAction.mockRejectedValueOnce(new Error("Access denied"));
+    await expect(switcher.performAction("close", 42, 7)).rejects.toThrow("Access denied");
+  });
+  it("returns per-window bulk results", async () => {
+    const result = { succeeded: 1, failures: [{ windowId: 9, error: "closed" }] };
+    mocked.PerformAction.mockResolvedValueOnce(result as never);
+    await expect(switcher.performAction("closeAll", 0, 7)).resolves.toEqual(result);
   });
 });
