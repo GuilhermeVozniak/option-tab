@@ -46,6 +46,7 @@ type recordingHotkeyEngine struct {
 	mu         sync.Mutex
 	registered map[int]hotkey.Chord
 	ch         chan platform.HotkeyEvent
+	policies   []platform.HotkeyPolicy
 }
 
 func newRecordingHotkeyEngine() *recordingHotkeyEngine {
@@ -73,6 +74,22 @@ func (e *recordingHotkeyEngine) Events() <-chan platform.HotkeyEvent { return e.
 func (e *recordingHotkeyEngine) Keys() <-chan platform.KeyEvent      { return nil }
 func (e *recordingHotkeyEngine) SetOpen(bool)                        {}
 func (e *recordingHotkeyEngine) Close() error                        { return nil }
+
+func (e *recordingHotkeyEngine) SetHotkeyPolicy(policy platform.HotkeyPolicy) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	policy.IgnoredApps = append([]string(nil), policy.IgnoredApps...)
+	e.policies = append(e.policies, policy)
+}
+
+func (e *recordingHotkeyEngine) lastPolicy() platform.HotkeyPolicy {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if len(e.policies) == 0 {
+		return platform.HotkeyPolicy{}
+	}
+	return e.policies[len(e.policies)-1]
+}
 
 func (e *recordingHotkeyEngine) registeredIDs() map[int]bool {
 	e.mu.Lock()
@@ -242,6 +259,49 @@ func TestRegisterHotkeys_SkipsDisabledAndInvalidChords(t *testing.T) {
 	a.reRegisterHotkeys()
 	if got := eng.registeredIDs(); len(got) != 1 || !got[1] {
 		t.Fatalf("reRegisterHotkeys registered %v, want only shortcut 1", got)
+	}
+}
+
+func TestRegisterHotkeys_SyncsNativeEligibilityPolicy(t *testing.T) {
+	eng := newRecordingHotkeyEngine()
+	p := &recordingHotkeyPlatform{Fake: fake.New(), eng: eng}
+	s := config.Default()
+	s.Behavior.Paused = true
+	s.Filters.AppBlacklist = []config.BlacklistEntry{
+		{Match: "com.game", IgnoreShortcuts: true},
+		{Match: "hidden.only", IgnoreShortcuts: false},
+		{Match: "Virtual Machine", IgnoreShortcuts: true},
+	}
+	a := newApp(p, s, "")
+
+	a.registerHotkeys()
+	got := eng.lastPolicy()
+	if got.Enabled {
+		t.Fatal("paused settings must disable native shortcut consumption")
+	}
+	want := []string{"com.game", "Virtual Machine"}
+	if len(got.IgnoredApps) != len(want) {
+		t.Fatalf("ignored apps = %v, want %v", got.IgnoredApps, want)
+	}
+	for i := range want {
+		if got.IgnoredApps[i] != want[i] {
+			t.Fatalf("ignored apps = %v, want %v", got.IgnoredApps, want)
+		}
+	}
+}
+
+func TestSetPaused_SyncsNativeEligibilityPolicy(t *testing.T) {
+	eng := newRecordingHotkeyEngine()
+	p := &recordingHotkeyPlatform{Fake: fake.New(), eng: eng}
+	a := newApp(p, config.Default(), "")
+
+	a.SetPaused(true)
+	if got := eng.lastPolicy(); got.Enabled {
+		t.Fatal("SetPaused(true) must disable native shortcut consumption")
+	}
+	a.SetPaused(false)
+	if got := eng.lastPolicy(); !got.Enabled {
+		t.Fatal("SetPaused(false) must re-enable native shortcut consumption")
 	}
 }
 
