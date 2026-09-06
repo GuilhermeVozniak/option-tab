@@ -71,6 +71,21 @@ export function DockTab({
               "Accessibility identifies Dock icons and window controls. Screen Recording provides thumbnails.",
             )}
           </p>
+          <label className={ROW}>
+            <span>{t("Enable Folder Pop")}</span>
+            <Checkbox
+              aria-label="Enable Folder Pop"
+              checked={d.folderPop?.enabled ?? false}
+              onChange={(event) => {
+                patchDock({ folderPop: { enabled: event.target.checked } });
+                if (event.target.checked && permissions?.state.accessibility !== "granted")
+                  permissions?.onRequest("accessibility");
+              }}
+            />
+          </label>
+          <p className={HINT}>
+            {t("Show a folder’s contents when the pointer rests on its Dock icon.")}
+          </p>
           {inputError ? (
             <p role="alert" className="text-sm text-red-600 dark:text-red-400">
               {t("Dock input unavailable")}: {inputError}

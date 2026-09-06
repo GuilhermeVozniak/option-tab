@@ -140,6 +140,37 @@ export interface DockViewState {
   previewDragEnabled?: boolean;
   dragGestureFloor?: number;
   pointer?: DockPointer;
+  contentKind?: "windows" | "folder";
+  folder?: DockFolderState;
+}
+export interface DockFolderEntry {
+  id: string;
+  name: string;
+  kind: string;
+  size: number;
+  modifiedAtMs: number;
+  hidden: boolean;
+}
+export interface DockFolderSort {
+  field: "name" | "modified" | "size" | "kind";
+  direction: "asc" | "desc";
+  foldersFirst: boolean;
+}
+export interface DockFolderState {
+  status:
+    | "loading"
+    | "ready"
+    | "permissionRequired"
+    | "missing"
+    | "revoked"
+    | "partial"
+    | "unavailable";
+  reason: string;
+  folderIdentity: string;
+  entries: DockFolderEntry[];
+  sort: DockFolderSort;
+  partial: boolean;
+  revision: number;
 }
 export interface DockPointer {
   session: number;
@@ -302,6 +333,7 @@ export interface DockSettings {
   scope: ShortcutScope;
   appearance: Appearance;
   input: DockInputSettings;
+  folderPop: { enabled: boolean };
 }
 export interface DockInputSettings {
   clickToHide: boolean;
@@ -426,5 +458,6 @@ export const defaultSettings: Settings = {
       previewDrag: false,
       aeroShakeAction: "none",
     },
+    folderPop: { enabled: false },
   },
 };

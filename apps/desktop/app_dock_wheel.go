@@ -22,7 +22,7 @@ func (a *App) setDockPreviewRegions(session, frontendRevision uint64, regions []
 		return errors.New("invalid dock preview region revision")
 	}
 	a.viewMu.Lock()
-	if session == 0 || session != a.dockState.Session || !a.dockAllowedLocked() {
+	if session == 0 || session != a.dockState.Session || !a.dockItemAllowedLocked(a.dockState.Item) || a.dockState.Item.Kind == "folder" {
 		a.viewMu.Unlock()
 		return errStaleDockSession
 	}
@@ -94,7 +94,7 @@ func (a *App) setDockPreviewRegions(session, frontendRevision uint64, regions []
 func (a *App) currentDockWheelPresentation(session, admission uint64) bool {
 	a.viewMu.Lock()
 	defer a.viewMu.Unlock()
-	if session == 0 || session != a.dockState.Session || !a.dockAllowedLocked() || admission != a.dockState.AdmissionEpoch {
+	if session == 0 || session != a.dockState.Session || !a.dockItemAllowedLocked(a.dockState.Item) || a.dockState.Item.Kind == "folder" || admission != a.dockState.AdmissionEpoch {
 		return false
 	}
 	return a.dockController == nil || admission == a.dockController.AdmissionEpoch()

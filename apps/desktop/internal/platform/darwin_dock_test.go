@@ -18,18 +18,72 @@ func dockRawFixture() dockRaw {
 func TestDockMappingUsesURLAndGlobalPoints(t *testing.T) {
 	raw := dockRawFixture()
 	o := mapDockObservation(raw, 1, 5)
-	if o.Item == nil || o.Item.AppID != 10 || o.Item.ScreenID != 2 || o.Item.Edge != "left" || o.Item.Bounds.X != -1000 || o.Item.Bounds.W != 60 {
+	if o.Item == nil || o.Item.Kind != "app" || o.Item.AppID != 10 || o.Item.ScreenID != 2 || o.Item.Edge != "left" || o.Item.Bounds.X != -1000 || o.Item.Bounds.W != 60 {
 		t.Fatalf("wrong identity/point geometry: %+v", o)
 	}
 }
 
+func TestDockFolderMappingUsesExactURLInsteadOfTitle(t *testing.T) {
+	r := dockRawFixture()
+	r.Item.Subrole = "AXFolderDockItem"
+	r.Item.URL = "file:///tmp/Actual%20Folder"
+	r.Item.Path = "/tmp/Actual Folder"
+	r.Item.Title = "/tmp/Invented From Title"
+	r.Item.BundleID = ""
+	r.Item.Apps = nil
+	directory := true
+	r.Item.Directory = &directory
+	o := mapDockObservation(r, 1, 5)
+	if o.Item == nil || o.Item.Kind != "folder" || o.Item.Path != "/tmp/Actual Folder" || o.Item.AppID != 0 || o.Item.BundleID != "" {
+		t.Fatalf("wrong folder identity: %+v", o.Item)
+	}
+}
+
+func TestDockFolderMappingRejectsUnsafeIdentity(t *testing.T) {
+	for name, mutate := range map[string]func(*dockRawItem){
+		"malformed URL":     func(i *dockRawItem) { i.URL = "file:///%zz" },
+		"non-file URL":      func(i *dockRawItem) { i.URL = "https://example.com/folder" },
+		"URL path mismatch": func(i *dockRawItem) { i.URL = "file:///tmp/Other" },
+		"confirmed non-directory": func(i *dockRawItem) {
+			no := false
+			i.Directory = &no
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := dockRawFixture()
+			r.Item.Subrole = "AXFolderDockItem"
+			r.Item.URL = "file:///tmp/Folder"
+			r.Item.Path = "/tmp/Folder"
+			r.Item.BundleID = ""
+			r.Item.Apps = nil
+			mutate(r.Item)
+			if got := mapDockObservation(r, 1, 5).Item; got != nil {
+				t.Fatalf("unsafe folder accepted: %+v", got)
+			}
+		})
+	}
+}
+
+func TestDockFolderMappingRetainsUnknownDirectoryForExplicitAccess(t *testing.T) {
+	r := dockRawFixture()
+	r.Item.Subrole = "AXFolderDockItem"
+	r.Item.URL = "file:///Users/test/Protected"
+	r.Item.Path = "/Users/test/Protected"
+	r.Item.BundleID = ""
+	r.Item.Apps = nil
+	r.Item.Directory = nil
+	if got := mapDockObservation(r, 1, 5).Item; got == nil || got.Kind != "folder" {
+		t.Fatalf("inaccessible exact folder identity was lost: %+v", got)
+	}
+}
+
 func TestDockMappingRejectsNonAppsAmbiguityAndStaleDockPID(t *testing.T) {
-	for _, kind := range []string{"nonapp", "ambiguousPath", "ambiguousBundle", "stalePID"} {
+	for _, kind := range []string{"unsupported", "ambiguousPath", "ambiguousBundle", "stalePID"} {
 		t.Run(kind, func(t *testing.T) {
 			r := dockRawFixture()
 			switch kind {
-			case "nonapp":
-				r.Item.Subrole = "AXFolderDockItem"
+			case "unsupported":
+				r.Item.Subrole = "AXDocumentDockItem"
 			case "ambiguousPath":
 				r.Item.Apps = append(r.Item.Apps, dockApp{PID: 12, Path: r.Item.Path, BundleID: r.Item.BundleID})
 			case "ambiguousBundle":

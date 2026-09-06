@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -101,6 +102,8 @@ type App struct {
 	sessionGeneration         uint64
 	sessionObserveOnce        sync.Once
 	dockController            *dock.Controller
+	dockFolders               platform.FolderSource
+	dockFolderGrant           *dockFolderGrantOwner
 	dockInput                 *dock.InputController
 	dockShake                 *dock.ShakeController
 	dockInputError            string
@@ -151,7 +154,7 @@ func NewApp() *App {
 	p, _ := platform.New()
 	path, _ := config.DefaultPath()
 	settings := loadStartupSettings(path)
-	return newApp(p, settings, path)
+	return newApp(p, settings, path, platform.NewFolderSource(filepath.Join(filepath.Dir(path), "folder-bookmarks.json")))
 }
 
 // loadStartupSettings keeps the app usable when the persisted file cannot be
@@ -166,7 +169,7 @@ func loadStartupSettings(path string) config.Settings {
 }
 
 // newApp builds an App from explicit dependencies (used by tests).
-func newApp(p platform.Platform, settings config.Settings, settingsPath string) *App {
+func newApp(p platform.Platform, settings config.Settings, settingsPath string, folders ...platform.FolderSource) *App {
 	a := &App{
 		platform:     p,
 		settings:     settings,
@@ -175,6 +178,10 @@ func newApp(p platform.Platform, settings config.Settings, settingsPath string) 
 		captureStop:  make(chan struct{}),
 	}
 	a.captures = preview.New(p, a.emitCaptureFrame)
+	a.dockFolders, _ = p.(platform.FolderSource)
+	if len(folders) > 0 {
+		a.dockFolders = folders[0]
+	}
 	deps := switcher.Deps{
 		Windows:      p,
 		Focuser:      p,
@@ -285,6 +292,7 @@ func (a *App) stopCapture() {
 	a.switcherVisible = false
 	a.visibleSwitcherSession = 0
 	a.captureStopOnce.Do(func() { close(a.captureStop) })
+	a.syncDockFolderGrantLocked()
 	if a.captures != nil {
 		a.captures.Close()
 	}

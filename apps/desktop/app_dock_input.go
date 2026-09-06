@@ -71,12 +71,19 @@ func (a *App) setDockInputTarget(epoch uint64, target platform.DockInputTarget) 
 	if a.dockInput == nil || a.dockController == nil || epoch == 0 || epoch != a.dockController.AdmissionEpoch() || (target.Generation != 0 && !a.dockAllowedLocked()) {
 		return
 	}
+	if !a.settingsSnapshot().Dock.Enabled || (target.Item != nil && target.Item.Kind != "" && target.Item.Kind != "app") {
+		target = platform.DockInputTarget{}
+	}
 	a.dockInput.Target(target)
 }
 
 func (a *App) executeDockInput(action dock.InputAction, nativeGuard func() error) error {
+	if action.Item.Kind != "" && action.Item.Kind != "app" {
+		return dock.ErrInputRetired
+	}
 	a.viewMu.Lock()
 	controller := a.dockController
+	policy := dockInputPolicy(a.settingsSnapshot())
 	var admission uint64
 	if controller != nil {
 		admission = controller.AdmissionEpoch()
@@ -88,7 +95,8 @@ func (a *App) executeDockInput(action dock.InputAction, nativeGuard func() error
 		}
 		a.viewMu.Lock()
 		defer a.viewMu.Unlock()
-		if !a.dockAllowedLocked() || a.dockController != controller || (controller != nil && controller.AdmissionEpoch() != admission) {
+		s := a.settingsSnapshot()
+		if !dockInputEnabled(s) || dockInputPolicy(s) != policy || !a.dockAllowedLocked() || a.dockController != controller || (controller != nil && controller.AdmissionEpoch() != admission) {
 			return dock.ErrInputRetired
 		}
 		return nil
@@ -191,7 +199,7 @@ func (a *App) setDockFeatureErrorLocked(source dockErrorSource, err error) {
 		Revision uint64 `json:"revision"`
 		Message  string `json:"message"`
 	}{a.dockRevision, message})
-	if a.dockState.Session == 0 {
+	if a.dockState.Session == 0 || a.dockState.Item.Kind == "folder" {
 		return
 	}
 	a.dockViewState.Error = message

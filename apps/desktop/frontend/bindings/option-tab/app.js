@@ -64,6 +64,15 @@ export function Cancel() {
 
 /**
  * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function CancelDockFolderAccess(session, revision) {
+    return $Call.ByID(3062959714, session, revision);
+}
+
+/**
+ * @param {number} session
  * @param {number} gesture
  * @returns {$CancellablePromise<void>}
  */
@@ -264,6 +273,16 @@ export function MinimizeSelected() {
 }
 
 /**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} itemID
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenDockFolderEntry(session, revision, itemID) {
+    return $Call.ByID(1164782910, session, revision, itemID);
+}
+
+/**
  * OpenPermissionSettings opens the System Settings privacy pane for a permission,
  * guiding the user when a prior denial means the prompt no longer appears.
  * @param {string} kind
@@ -344,6 +363,15 @@ export function RequestAccessibility() {
 }
 
 /**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function RequestDockFolderAccess(session, revision) {
+    return $Call.ByID(1355609963, session, revision);
+}
+
+/**
  * RequestScreenRecording triggers the OS Screen Recording permission prompt
  * (needed for live window thumbnails).
  * @returns {$CancellablePromise<void>}
@@ -399,6 +427,18 @@ export function SelectAppWindow(id) {
  */
 export function SelectDockWindow(session, id) {
     return $Call.ByID(1507952022, session, id);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} field
+ * @param {string} direction
+ * @param {boolean} foldersFirst
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetDockFolderSort(session, revision, field, direction, foldersFirst) {
+    return $Call.ByID(3148788948, session, revision, field, direction, foldersFirst);
 }
 
 /**

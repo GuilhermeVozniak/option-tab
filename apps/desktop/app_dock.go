@@ -34,6 +34,8 @@ type DockItemView struct {
 }
 
 type DockViewState struct {
+	ContentKind        string            `json:"contentKind"`
+	Folder             *dock.FolderState `json:"folder,omitempty"`
 	Open               bool              `json:"open"`
 	Revision           uint64            `json:"revision"`
 	Session            uint64            `json:"session"`
@@ -127,7 +129,22 @@ func (a *App) dockAllowedLocked() bool {
 	default:
 	}
 	s := a.settingsSnapshot()
-	return s.Dock.Enabled && !s.Behavior.Paused && !a.switcherVisible && !a.prefsOpen && !a.sessionInactive
+	return (s.Dock.Enabled || s.Dock.FolderPop.Enabled) && !s.Behavior.Paused && !a.switcherVisible && !a.prefsOpen && !a.sessionInactive
+}
+
+func (a *App) dockItemAllowedLocked(item dock.Item) bool {
+	if !a.dockAllowedLocked() {
+		return false
+	}
+	s := a.settingsSnapshot()
+	switch item.Kind {
+	case "folder":
+		return s.Dock.FolderPop.Enabled
+	case "", "app":
+		return s.Dock.Enabled
+	default:
+		return false
+	}
 }
 
 func (a *App) showDock(st dock.State, first bool) {
@@ -136,7 +153,7 @@ func (a *App) showDock(st dock.State, first bool) {
 	if st.AdmissionEpoch != 0 && a.dockController != nil && st.AdmissionEpoch != a.dockController.AdmissionEpoch() {
 		return
 	}
-	if st.Session == 0 || !a.dockAllowedLocked() || (!first && st.Session != a.dockState.Session) || (st.Session <= a.dockLastSession && st.Session != a.dockState.Session) {
+	if st.Session == 0 || !a.dockItemAllowedLocked(st.Item) || (!first && st.Session != a.dockState.Session) || (st.Session <= a.dockLastSession && st.Session != a.dockState.Session) {
 		if a.dockController != nil {
 			a.dockController.Dismiss(st.Session)
 		}
@@ -150,6 +167,14 @@ func (a *App) showDock(st dock.State, first bool) {
 		a.captureDockSession.Store(st.Session)
 	}
 	st.Windows = slices.Clone(st.Windows)
+	st.Folder = cloneDockFolder(st.Folder)
+	if st.Item.Kind == "folder" {
+		st.ContentKind = "folder"
+		st.Windows = nil
+		st.SelectedWindowID = 0
+		a.captures.Hide()
+		a.captureDockSession.Store(0)
+	}
 	a.dockState = st
 	a.dockLastSession = st.Session
 	a.dockRevision++
@@ -158,7 +183,13 @@ func (a *App) showDock(st dock.State, first bool) {
 	dto.Revision = a.dockRevision
 	dto.Pointer = a.dockViewState.Pointer
 	dto.Error = a.dockInputError
-	dto.PreviewDragEnabled = a.settingsSnapshot().Dock.Input.PreviewDrag
+	if st.Item.Kind == "folder" {
+		dto.Error = ""
+		if previous := a.dockViewState.Folder; previous != nil && st.Folder != nil && previous.Revision == st.Folder.Revision && previous.FolderIdentity == st.Folder.FolderIdentity {
+			dto.Error = a.dockViewState.Error
+		}
+	}
+	dto.PreviewDragEnabled = st.Item.Kind != "folder" && a.settingsSnapshot().Dock.Input.PreviewDrag
 	dto.DragGestureFloor = a.dockDragFloor(st.Session)
 	icons := switcher.State{Entries: dto.Entries, Appearance: st.Appearance}
 	a.enrichIcons(&icons)
@@ -171,6 +202,9 @@ func (a *App) showDock(st dock.State, first bool) {
 	a.emit(name, dto)
 	if a.dockWindow != nil {
 		a.dockWindow.show(st.Bounds)
+	}
+	if st.Item.Kind == "folder" {
+		return
 	}
 	ids := make([]domain.WindowID, 0, len(st.Windows))
 	for _, window := range st.Windows {
@@ -190,11 +224,16 @@ func (a *App) showDock(st dock.State, first bool) {
 
 func dockStateView(st dock.State) DockViewState {
 	item := st.Item
+	contentKind := "windows"
+	if item.Kind == "folder" {
+		contentKind = "folder"
+		item.Path = ""
+	}
 	entries := make([]switcher.Entry, 0, len(st.Windows))
 	for _, w := range st.Windows {
 		entries = append(entries, switcher.Entry{WindowID: w.ID, AppID: w.AppID, Title: w.Title, AppName: w.AppName, BundleID: w.BundleID, SpaceID: w.SpaceID, Minimized: w.Minimized, Hidden: w.Hidden, Fullscreen: w.Fullscreen})
 	}
-	return DockViewState{Session: st.Session, Item: DockItemView{Kind: item.Kind, AppID: item.AppID, BundleID: item.BundleID, Path: item.Path, Title: item.Title, Bounds: DockBounds{X: item.Bounds.X, Y: item.Bounds.Y, W: item.Bounds.W, H: item.Bounds.H}, ScreenID: item.ScreenID, Edge: item.Edge}, Entries: entries, SelectedWindowID: st.SelectedWindowID, Appearance: st.Appearance, CardSpacingPx: st.CardSpacingPx, EmptyReason: st.EmptyReason}
+	return DockViewState{ContentKind: contentKind, Folder: cloneDockFolder(st.Folder), Session: st.Session, Item: DockItemView{Kind: item.Kind, AppID: item.AppID, BundleID: item.BundleID, Path: item.Path, Title: item.Title, Bounds: DockBounds{X: item.Bounds.X, Y: item.Bounds.Y, W: item.Bounds.W, H: item.Bounds.H}, ScreenID: item.ScreenID, Edge: item.Edge}, Entries: entries, SelectedWindowID: st.SelectedWindowID, Appearance: st.Appearance, CardSpacingPx: st.CardSpacingPx, EmptyReason: st.EmptyReason}
 }
 
 // GetDockState lets a newly loaded hidden webview catch up with a hover that
@@ -207,6 +246,7 @@ func (a *App) GetDockState() *DockViewState {
 		state = DockViewState{Session: a.dockLastSession, Revision: a.dockRevision, Entries: []switcher.Entry{}, Error: a.dockInputError}
 	}
 	state.Entries = slices.Clone(state.Entries)
+	state.Folder = cloneDockFolder(state.Folder)
 	state.DragGestureFloor = a.dockDragFloor(state.Session)
 	if state.Pointer != nil {
 		pointer := *state.Pointer
@@ -250,11 +290,12 @@ func (a *App) syncDockSuspensionLocked() {
 	if a.dockController != nil {
 		a.dockController.Suspend(a.switcherVisible || a.prefsOpen || a.sessionInactive)
 	}
-	if !a.dockAllowedLocked() {
+	if !a.dockItemAllowedLocked(a.dockState.Item) {
 		a.dismissDockLocked()
 	}
 	a.syncDockInputLocked()
 	a.syncDockShakeLocked()
+	a.syncDockFolderGrantLocked()
 }
 
 func (a *App) setSessionInactive(inactive bool) {
@@ -310,7 +351,7 @@ var errStaleDockSession = errors.New("dock preview session is no longer active")
 func (a *App) validateDockTarget(session uint64, windowID domain.WindowID, appID domain.AppID, windowRequired bool) error {
 	a.viewMu.Lock()
 	defer a.viewMu.Unlock()
-	if session == 0 || session != a.dockState.Session || !a.dockAllowedLocked() {
+	if session == 0 || session != a.dockState.Session || !a.dockItemAllowedLocked(a.dockState.Item) || a.dockState.Item.Kind == "folder" {
 		return errStaleDockSession
 	}
 	if epoch := a.dockState.AdmissionEpoch; epoch != 0 && a.dockController != nil && epoch != a.dockController.AdmissionEpoch() {
@@ -419,7 +460,7 @@ func (a *App) wireDockController() {
 	if !ok {
 		return
 	}
-	deps := dock.Deps{Observations: observer, Windows: a.platform, Env: a.platform, View: appDockView{a}, SelfBundleID: selfBundleID}
+	deps := dock.Deps{Observations: observer, Windows: a.platform, Env: a.platform, Folders: a.dockFolders, View: appDockView{a}, SelfBundleID: selfBundleID}
 	deps.Apps, _ = a.platform.(platform.ApplicationSource)
 	deps.AppWindows, _ = a.platform.(platform.ApplicationWindowPresenceSource)
 	a.dockController = dock.NewController(deps, a.settingsSnapshot())

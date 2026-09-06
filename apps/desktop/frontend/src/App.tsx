@@ -426,7 +426,7 @@ function DockRoute() {
       error: (session, revision, message) => {
         if (session === activeSession.current && revision >= latestRevision.current) {
           latestRevision.current = revision;
-          setState((old) => (old ? { ...old, error: message } : old));
+          setState((old) => (old ? { ...old, revision, error: message } : old));
         }
       },
       pointer: (pointer) => {
@@ -536,6 +536,19 @@ function DockRoute() {
           );
       },
       onCancelDrag: (session, gesture) => dock.cancelDrag(session, gesture),
+      onFolderSort: (session, revision, field, direction, foldersFirst) => {
+        if (session === activeSession.current && revision === latestRevision.current)
+          return dock.folderSort(session, revision, field, direction, foldersFirst);
+      },
+      onRequestFolderAccess: (session, revision) => {
+        if (session === activeSession.current && revision === latestRevision.current)
+          return dock.requestFolderAccess(session, revision);
+      },
+      onCancelFolderAccess: (session, revision) => dock.cancelFolderAccess(session, revision),
+      onOpenFolderEntry: (session, revision, itemID) => {
+        if (session === activeSession.current && revision === latestRevision.current)
+          return dock.openFolderEntry(session, revision, itemID);
+      },
     }),
     [run],
   );

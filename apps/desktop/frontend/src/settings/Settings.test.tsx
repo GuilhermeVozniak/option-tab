@@ -58,6 +58,18 @@ describe("Settings", () => {
       expect.objectContaining({ dock: expect.objectContaining({ hoverDelayMs: 450 }) }),
     );
   });
+
+  it("enables Folder Pop independently from app previews", () => {
+    const onChange = vi.fn();
+    render(<Settings settings={defaultSettings} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    fireEvent.click(screen.getByLabelText("Enable Folder Pop"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        dock: expect.objectContaining({ enabled: false, folderPop: { enabled: true } }),
+      }),
+    );
+  });
   it("renders current values", () => {
     render(<Settings settings={defaultSettings} onChange={vi.fn()} />);
     expect(screen.getByLabelText("Visual style thumbnails")).toHaveAttribute(

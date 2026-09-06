@@ -3,6 +3,7 @@ import type { DockPointer } from "../lib/dock-bridge";
 import { computeLayout, effectiveStyle } from "../lib/layout";
 import { truncateTitle } from "../lib/text";
 import type { DockViewState, WindowAction } from "../lib/types";
+import { FolderPanel, type FolderPanelHandlers } from "./FolderPanel";
 import "./dock.css";
 
 let dockDragGesture = 0;
@@ -28,6 +29,10 @@ export interface DockPanelHandlers {
   onRegions?: (session: number, revision: number, regions: PreviewRegion[]) => void;
   onBeginDrag?: (request: PreviewDragRequest) => Promise<void> | void;
   onCancelDrag?: (session: number, gesture: number) => Promise<void> | void;
+  onFolderSort?: FolderPanelHandlers["onSort"];
+  onRequestFolderAccess?: FolderPanelHandlers["onRequestAccess"];
+  onCancelFolderAccess?: FolderPanelHandlers["onCancelAccess"];
+  onOpenFolderEntry?: FolderPanelHandlers["onOpen"];
 }
 export interface PreviewDragRequest {
   session: number;
@@ -123,7 +128,10 @@ export function DockPanelView({
   const selected = state.entries.find((e) => e.windowId === state.selectedWindowId);
   const preview = a.previewSelected ? selected?.preview || selected?.thumbnail : undefined;
   const cardSpacingPx = Math.max(0, Math.min(24, state.cardSpacingPx ?? 7));
-  const contentWidth = Math.max(280, columns * (cellWidth + 12) + (columns - 1) * cardSpacingPx);
+  const contentWidth =
+    state.contentKind === "folder"
+      ? 420
+      : Math.max(280, columns * (cellWidth + 12) + (columns - 1) * cardSpacingPx);
   const ref = useRef<HTMLDivElement>(null);
   const lastSize = useRef("");
   const regionState = useRef({ session: 0, revision: 0, signature: "" });
@@ -134,7 +142,11 @@ export function DockPanelView({
   const entryIdentity = state.entries.map((entry) => entry.windowId).join(",");
   useEffect(() => {
     const resolve = () => {
-      if (!nativePointer || nativePointer.session !== state.session) {
+      if (
+        state.contentKind === "folder" ||
+        !nativePointer ||
+        nativePointer.session !== state.session
+      ) {
         setHoveredWindowId(0);
         lastPointerTarget.current = 0;
         return;
@@ -163,9 +175,10 @@ export function DockPanelView({
     cardSpacingPx,
     cardHeight,
     visibleRows,
+    state.contentKind,
   ]);
   useLayoutEffect(() => {
-    if (!handlers.onRegions) return;
+    if (!handlers.onRegions || state.contentKind === "folder") return;
     const panel = ref.current?.closest<HTMLElement>(".ot-dock-panel");
     const viewport = ref.current?.querySelector<HTMLElement>(".ot-dock-list-viewport");
     if (!panel) return;
@@ -228,6 +241,7 @@ export function DockPanelView({
     cardSpacingPx,
     cardHeight,
     visibleRows,
+    state.contentKind,
   ]);
   useEffect(
     () => () => {
@@ -295,234 +309,256 @@ export function DockPanelView({
     >
       <div ref={ref} className="ot-dock-content" style={{ width: contentWidth }}>
         <header>{state.item.title}</header>
-        {state.previewDragEnabled ? (
-          <span className="ot-dock-drag-hint">{t("Drag a preview to move its window")}</span>
-        ) : null}
-        {state.error ? (
-          <p role="alert" className="ot-dock-error">
-            {state.error}
-          </p>
-        ) : null}
-        {count ? (
-          <div className="ot-dock-list-viewport">
-            <div
-              className={`ot-dock-list ot-dock-style-${style}${vertical && style !== "titles" ? " ot-dock-vertical" : ""}`}
-            >
-              {state.entries.map((e) => {
-                const title = truncateTitle(e.title || e.appName, a.titleTruncation);
-                const image = style === "appIcons" ? e.icon : e.thumbnail;
-                return (
-                  <article
-                    key={e.windowId}
-                    data-window-id={e.windowId}
-                    className={`${e.windowId === state.selectedWindowId ? "is-selected" : ""}${e.windowId === hoveredWindowId ? " is-hovered" : ""}`}
-                    onMouseEnter={() => handlers.onSelectWindow(state.session, e.windowId)}
-                  >
-                    <button
-                      type="button"
-                      className={`ot-dock-preview${drag.current?.windowId === e.windowId && drag.current.dragging ? " is-dragging" : ""}`}
-                      aria-label={`Focus ${e.title || e.appName}`}
-                      draggable={false}
-                      onPointerDown={(event) => {
-                        if (
-                          !state.previewDragEnabled ||
-                          event.button !== 0 ||
-                          event.isPrimary === false
-                        )
-                          return;
-                        drag.current = {
-                          pointerId: event.pointerId,
-                          startX: event.clientX,
-                          startY: event.clientY,
-                          rect: event.currentTarget.getBoundingClientRect(),
-                          windowId: e.windowId,
-                          appId: e.appId,
-                          gesture: 0,
-                          suppress: false,
-                          terminal: false,
-                          dragging: false,
-                        };
-                        try {
-                          event.currentTarget.setPointerCapture(event.pointerId);
-                        } catch {
-                          /* optional in WebKit */
-                        }
-                      }}
-                      onPointerMove={(event) => {
-                        const current = drag.current;
-                        if (
-                          !current ||
-                          current.pointerId !== event.pointerId ||
-                          current.gesture ||
-                          current.terminal ||
-                          Math.hypot(
-                            event.clientX - current.startX,
-                            event.clientY - current.startY,
-                          ) < 6
-                        )
-                          return;
-                        current.gesture = nextDockDragGesture();
-                        current.suppress = true;
-                        current.dragging = true;
-                        redrawDrag((n) => n + 1);
-                        const gesture = current.gesture;
-                        void Promise.resolve(
-                          handlers.onBeginDrag?.({
-                            session: state.session,
-                            gesture,
-                            windowId: current.windowId,
-                            appId: current.appId,
-                            pointerX: event.screenX,
-                            pointerY: event.screenY,
-                            grabX: clamp01(
-                              (current.startX - current.rect.left) / current.rect.width,
-                            ),
-                            grabY: clamp01(
-                              (current.startY - current.rect.top) / current.rect.height,
-                            ),
-                          }),
-                        )
-                          .catch(() => {})
-                          .finally(() => {
-                            if (drag.current?.gesture === gesture) {
-                              drag.current.terminal = true;
-                              drag.current.dragging = false;
-                              drag.current.suppress = true;
-                              redrawDrag((n) => n + 1);
-                            }
-                          });
-                      }}
-                      onPointerUp={(event) => finishDrag(event.pointerId)}
-                      onPointerCancel={(event) => {
-                        const target = event.currentTarget;
-                        const current = drag.current;
-                        finishDrag(event.pointerId, false);
-                        if (current?.gesture)
-                          window.setTimeout(() => {
-                            if (target.isConnected && drag.current === current)
-                              void handlers.onCancelDrag?.(state.session, current.gesture);
-                          }, 0);
-                      }}
-                      onClick={(event) => {
-                        if (drag.current?.suppress) {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          drag.current = null;
-                          redrawDrag((n) => n + 1);
-                          return;
-                        }
-                        drag.current = null;
-                        handlers.onFocusWindow(state.session, e.windowId, e.appId);
-                      }}
-                    >
-                      {style !== "titles" ? (
-                        <span className="ot-dock-image">
-                          {image ? (
-                            <img src={image} alt="" />
-                          ) : (
-                            <span aria-hidden="true">{e.appName.trim()[0] || "?"}</span>
-                          )}
-                          {style === "thumbnails" && a.showAppBadge && e.icon ? (
-                            <img className="ot-dock-badge" src={e.icon} alt="" />
-                          ) : null}
-                        </span>
-                      ) : null}
-                      {a.showTitle || style === "titles" ? (
-                        <span className="ot-dock-title" title={e.title || e.appName}>
-                          {title}
-                        </span>
-                      ) : null}
-                      {a.showStatusIcons && (e.minimized || e.hidden || e.fullscreen) ? (
-                        <span
-                          className="ot-dock-status"
-                          aria-label={[
-                            e.minimized && "Minimized",
-                            e.hidden && "Hidden",
-                            e.fullscreen && "Fullscreen",
-                          ]
-                            .filter(Boolean)
-                            .join(", ")}
-                        >
-                          {e.minimized ? "−" : ""}
-                          {e.hidden ? "◌" : ""}
-                          {e.fullscreen ? "↗" : ""}
-                        </span>
-                      ) : null}
-                      {a.showSpaceNumbers && e.spaceId ? (
-                        <span className="ot-dock-space" aria-label={`Space ${e.spaceId}`}>
-                          {e.spaceId}
-                        </span>
-                      ) : null}
-                    </button>
-                    {a.showWindowControls ? (
-                      <div className="ot-dock-controls">
-                        <button
-                          aria-label={t("Close window")}
-                          onClick={() =>
-                            handlers.onAction(state.session, "close", e.windowId, e.appId)
-                          }
-                        >
-                          ×
-                        </button>
-                        <button
-                          aria-label={t("Minimize window")}
-                          onClick={() =>
-                            handlers.onAction(state.session, "minimize", e.windowId, e.appId)
-                          }
-                        >
-                          −
-                        </button>
-                        <button
-                          aria-label={t("Fullscreen window")}
-                          onClick={() =>
-                            handlers.onAction(state.session, "fullscreen", e.windowId, e.appId)
-                          }
-                        >
-                          ↗
-                        </button>
-                      </div>
-                    ) : null}
-                  </article>
-                );
-              })}
-            </div>
-          </div>
+        {state.contentKind === "folder" && state.folder ? (
+          <FolderPanel
+            key={`${state.session}:${state.folder.folderIdentity}`}
+            session={state.session}
+            revision={state.revision ?? 0}
+            folder={state.folder}
+            t={t}
+            handlers={{
+              onSort: handlers.onFolderSort ?? (() => {}),
+              onRequestAccess: handlers.onRequestFolderAccess ?? (() => {}),
+              onCancelAccess: handlers.onCancelFolderAccess ?? (() => {}),
+              onOpen: handlers.onOpenFolderEntry ?? (() => {}),
+            }}
+          />
         ) : (
-          <p className="ot-dock-empty">
-            {t(
-              state.emptyReason === "filtered"
-                ? "No windows match these filters"
-                : state.emptyReason === "notRunning"
-                  ? "App is not running"
-                  : state.emptyReason === "unavailable"
-                    ? "Windows unavailable"
-                    : "No open windows",
+          <>
+            {state.previewDragEnabled ? (
+              <span className="ot-dock-drag-hint">{t("Drag a preview to move its window")}</span>
+            ) : null}
+            {state.error ? (
+              <p role="alert" className="ot-dock-error">
+                {state.error}
+              </p>
+            ) : null}
+            {count ? (
+              <div className="ot-dock-list-viewport">
+                <div
+                  className={`ot-dock-list ot-dock-style-${style}${vertical && style !== "titles" ? " ot-dock-vertical" : ""}`}
+                >
+                  {state.entries.map((e) => {
+                    const title = truncateTitle(e.title || e.appName, a.titleTruncation);
+                    const image = style === "appIcons" ? e.icon : e.thumbnail;
+                    return (
+                      <article
+                        key={e.windowId}
+                        data-window-id={e.windowId}
+                        className={`${e.windowId === state.selectedWindowId ? "is-selected" : ""}${e.windowId === hoveredWindowId ? " is-hovered" : ""}`}
+                        onMouseEnter={() => handlers.onSelectWindow(state.session, e.windowId)}
+                      >
+                        <button
+                          type="button"
+                          className={`ot-dock-preview${drag.current?.windowId === e.windowId && drag.current.dragging ? " is-dragging" : ""}`}
+                          aria-label={`Focus ${e.title || e.appName}`}
+                          draggable={false}
+                          onPointerDown={(event) => {
+                            if (
+                              !state.previewDragEnabled ||
+                              event.button !== 0 ||
+                              event.isPrimary === false
+                            )
+                              return;
+                            drag.current = {
+                              pointerId: event.pointerId,
+                              startX: event.clientX,
+                              startY: event.clientY,
+                              rect: event.currentTarget.getBoundingClientRect(),
+                              windowId: e.windowId,
+                              appId: e.appId,
+                              gesture: 0,
+                              suppress: false,
+                              terminal: false,
+                              dragging: false,
+                            };
+                            try {
+                              event.currentTarget.setPointerCapture(event.pointerId);
+                            } catch {
+                              /* optional in WebKit */
+                            }
+                          }}
+                          onPointerMove={(event) => {
+                            const current = drag.current;
+                            if (
+                              !current ||
+                              current.pointerId !== event.pointerId ||
+                              current.gesture ||
+                              current.terminal ||
+                              Math.hypot(
+                                event.clientX - current.startX,
+                                event.clientY - current.startY,
+                              ) < 6
+                            )
+                              return;
+                            current.gesture = nextDockDragGesture();
+                            current.suppress = true;
+                            current.dragging = true;
+                            redrawDrag((n) => n + 1);
+                            const gesture = current.gesture;
+                            void Promise.resolve(
+                              handlers.onBeginDrag?.({
+                                session: state.session,
+                                gesture,
+                                windowId: current.windowId,
+                                appId: current.appId,
+                                pointerX: event.screenX,
+                                pointerY: event.screenY,
+                                grabX: clamp01(
+                                  (current.startX - current.rect.left) / current.rect.width,
+                                ),
+                                grabY: clamp01(
+                                  (current.startY - current.rect.top) / current.rect.height,
+                                ),
+                              }),
+                            )
+                              .catch(() => {})
+                              .finally(() => {
+                                if (drag.current?.gesture === gesture) {
+                                  drag.current.terminal = true;
+                                  drag.current.dragging = false;
+                                  drag.current.suppress = true;
+                                  redrawDrag((n) => n + 1);
+                                }
+                              });
+                          }}
+                          onPointerUp={(event) => finishDrag(event.pointerId)}
+                          onPointerCancel={(event) => {
+                            const target = event.currentTarget;
+                            const current = drag.current;
+                            finishDrag(event.pointerId, false);
+                            if (current?.gesture)
+                              window.setTimeout(() => {
+                                if (target.isConnected && drag.current === current)
+                                  void handlers.onCancelDrag?.(state.session, current.gesture);
+                              }, 0);
+                          }}
+                          onClick={(event) => {
+                            if (drag.current?.suppress) {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              drag.current = null;
+                              redrawDrag((n) => n + 1);
+                              return;
+                            }
+                            drag.current = null;
+                            handlers.onFocusWindow(state.session, e.windowId, e.appId);
+                          }}
+                        >
+                          {style !== "titles" ? (
+                            <span className="ot-dock-image">
+                              {image ? (
+                                <img src={image} alt="" />
+                              ) : (
+                                <span aria-hidden="true">{e.appName.trim()[0] || "?"}</span>
+                              )}
+                              {style === "thumbnails" && a.showAppBadge && e.icon ? (
+                                <img className="ot-dock-badge" src={e.icon} alt="" />
+                              ) : null}
+                            </span>
+                          ) : null}
+                          {a.showTitle || style === "titles" ? (
+                            <span className="ot-dock-title" title={e.title || e.appName}>
+                              {title}
+                            </span>
+                          ) : null}
+                          {a.showStatusIcons && (e.minimized || e.hidden || e.fullscreen) ? (
+                            <span
+                              className="ot-dock-status"
+                              aria-label={[
+                                e.minimized && "Minimized",
+                                e.hidden && "Hidden",
+                                e.fullscreen && "Fullscreen",
+                              ]
+                                .filter(Boolean)
+                                .join(", ")}
+                            >
+                              {e.minimized ? "−" : ""}
+                              {e.hidden ? "◌" : ""}
+                              {e.fullscreen ? "↗" : ""}
+                            </span>
+                          ) : null}
+                          {a.showSpaceNumbers && e.spaceId ? (
+                            <span className="ot-dock-space" aria-label={`Space ${e.spaceId}`}>
+                              {e.spaceId}
+                            </span>
+                          ) : null}
+                        </button>
+                        {a.showWindowControls ? (
+                          <div className="ot-dock-controls">
+                            <button
+                              aria-label={t("Close window")}
+                              onClick={() =>
+                                handlers.onAction(state.session, "close", e.windowId, e.appId)
+                              }
+                            >
+                              ×
+                            </button>
+                            <button
+                              aria-label={t("Minimize window")}
+                              onClick={() =>
+                                handlers.onAction(state.session, "minimize", e.windowId, e.appId)
+                              }
+                            >
+                              −
+                            </button>
+                            <button
+                              aria-label={t("Fullscreen window")}
+                              onClick={() =>
+                                handlers.onAction(state.session, "fullscreen", e.windowId, e.appId)
+                              }
+                            >
+                              ↗
+                            </button>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="ot-dock-empty">
+                {t(
+                  state.emptyReason === "filtered"
+                    ? "No windows match these filters"
+                    : state.emptyReason === "notRunning"
+                      ? "App is not running"
+                      : state.emptyReason === "unavailable"
+                        ? "Windows unavailable"
+                        : "No open windows",
+                )}
+              </p>
             )}
-          </p>
+            {preview ? (
+              <div
+                className={`ot-dock-selected-preview${a.previewFade ? " ot-dock-preview-fade" : ""}`}
+                aria-label="Selected window preview"
+              >
+                <img key={selected?.windowId} src={preview} alt="" />
+              </div>
+            ) : null}
+            {state.item.appId > 0 && state.emptyReason !== "notRunning" ? (
+              <div className="ot-dock-app-actions">
+                <button
+                  onClick={() => handlers.onAction(state.session, "newWindow", 0, state.item.appId)}
+                >
+                  {t("New window")}
+                </button>
+                <button
+                  onClick={() => handlers.onAction(state.session, "hide", 0, state.item.appId)}
+                >
+                  {t("Hide app")}
+                </button>
+                <button
+                  onClick={() => handlers.onAction(state.session, "quit", 0, state.item.appId)}
+                >
+                  {t("Quit app")}
+                </button>
+              </div>
+            ) : null}
+          </>
         )}
-        {preview ? (
-          <div
-            className={`ot-dock-selected-preview${a.previewFade ? " ot-dock-preview-fade" : ""}`}
-            aria-label="Selected window preview"
-          >
-            <img key={selected?.windowId} src={preview} alt="" />
-          </div>
-        ) : null}
-        {state.item.appId > 0 && state.emptyReason !== "notRunning" ? (
-          <div className="ot-dock-app-actions">
-            <button
-              onClick={() => handlers.onAction(state.session, "newWindow", 0, state.item.appId)}
-            >
-              {t("New window")}
-            </button>
-            <button onClick={() => handlers.onAction(state.session, "hide", 0, state.item.appId)}>
-              {t("Hide app")}
-            </button>
-            <button onClick={() => handlers.onAction(state.session, "quit", 0, state.item.appId)}>
-              {t("Quit app")}
-            </button>
-          </div>
-        ) : null}
       </div>
     </div>
   );

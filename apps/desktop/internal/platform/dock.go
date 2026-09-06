@@ -19,6 +19,7 @@ type DockObservation struct {
 }
 
 type DockItem struct {
+	Kind                  string
 	AppID                 domain.AppID
 	BundleID, Path, Title string
 	Bounds                domain.Bounds

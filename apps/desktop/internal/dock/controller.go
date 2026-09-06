@@ -18,12 +18,14 @@ import (
 )
 
 type command struct {
-	kind      string
-	session   uint64
-	settings  config.Settings
-	suspended bool
-	bounds    domain.Bounds
-	window    domain.WindowID
+	folderRevision uint64
+	folderSort     platform.FolderSort
+	kind           string
+	session        uint64
+	settings       config.Settings
+	suspended      bool
+	bounds         domain.Bounds
+	window         domain.WindowID
 }
 
 type observation struct {
@@ -44,20 +46,22 @@ type windowResult struct {
 // environment queries run separately; at most one query can be in flight even
 // while the hovered app changes. Results never outlive their visible session.
 type Controller struct {
-	admission    atomic.Uint64
-	deps         Deps
-	initial      config.Settings
-	commands     []command
-	commandMu    sync.Mutex
-	commandReady chan struct{}
-	observations chan observation
-	results      chan windowResult
-	done         chan struct{}
-	once         sync.Once
+	admission     atomic.Uint64
+	deps          Deps
+	initial       config.Settings
+	commands      []command
+	commandMu     sync.Mutex
+	commandReady  chan struct{}
+	observations  chan observation
+	results       chan windowResult
+	folderResults chan folderResult
+	folderWork    sync.WaitGroup
+	done          chan struct{}
+	once          sync.Once
 }
 
 func NewController(deps Deps, settings config.Settings) *Controller {
-	c := &Controller{deps: deps, initial: settings.Normalize(), commandReady: make(chan struct{}, 1), observations: make(chan observation, 1), results: make(chan windowResult, 1), done: make(chan struct{})}
+	c := &Controller{deps: deps, initial: settings.Normalize(), commandReady: make(chan struct{}, 1), observations: make(chan observation, 1), results: make(chan windowResult, 1), folderResults: make(chan folderResult, 1), done: make(chan struct{})}
 	c.admission.Store(1)
 	return c
 }
@@ -102,7 +106,7 @@ func (c *Controller) send(cmd command) {
 		if queued.kind != cmd.kind {
 			continue
 		}
-		if queued.session > cmd.session {
+		if queued.session > cmd.session || (queued.session == cmd.session && queued.folderRevision > cmd.folderRevision) {
 			return
 		}
 		c.commands = append(c.commands[:i], c.commands[i+1:]...)
@@ -157,6 +161,9 @@ type controllerLoop struct {
 	measured                             domain.Bounds
 	pointer                              PointerState
 	pointerBounds                        domain.Bounds
+	folderCancel                         context.CancelFunc
+	folderPending                        *folderJob
+	folderQuerying                       bool
 }
 
 func (l *controllerLoop) run() {
@@ -168,6 +175,7 @@ func (l *controllerLoop) run() {
 		if l.observerDone != nil {
 			<-l.observerDone
 		}
+		l.controller.folderWork.Wait()
 	}()
 	tick := time.NewTicker(50 * time.Millisecond)
 	defer tick.Stop()
@@ -187,6 +195,10 @@ func (l *controllerLoop) run() {
 			for _, cmd := range l.controller.takeCommands() {
 				l.command(cmd)
 			}
+		case result := <-l.controller.folderResults:
+			l.folderQuerying = false
+			l.acceptFolder(result)
+			l.queryFolder()
 		case result := <-l.controller.results:
 			l.querying = false
 			l.accept(result)
@@ -194,7 +206,7 @@ func (l *controllerLoop) run() {
 		case at := <-tick.C:
 			l.step(at)
 		case <-refresh.C:
-			if l.shown {
+			if l.shown && l.state.ContentKind != "folder" {
 				l.request()
 			}
 		}
@@ -202,7 +214,7 @@ func (l *controllerLoop) run() {
 }
 
 func (l *controllerLoop) enabled() bool {
-	return l.settings.Dock.Enabled && !l.settings.Behavior.Paused && !l.suspended
+	return (l.settings.Dock.Enabled || l.settings.Dock.FolderPop.Enabled) && !l.settings.Behavior.Paused && !l.suspended
 }
 
 func (l *controllerLoop) stop() {
@@ -278,6 +290,7 @@ func cloneDockItem(item *platform.DockItem) *platform.DockItem {
 }
 
 func (l *controllerLoop) reset() {
+	l.cancelFolder()
 	if l.shown && l.controller.deps.View != nil {
 		l.controller.deps.View.Hide(l.state.Session)
 	}
@@ -320,6 +333,9 @@ func (l *controllerLoop) observe(event observation) {
 		l.generation = value.Generation
 	}
 	target := platform.DockInputTarget{Generation: value.Generation, DockPID: value.DockPID, ObservedAt: value.ObservedAt, Item: cloneDockItem(value.Item)}
+	if value.Item != nil && (value.Item.Kind == "folder" || !l.settings.Dock.Enabled) {
+		target = platform.DockInputTarget{}
+	}
 	l.publishInputTarget(target)
 	l.last = &value
 	l.step(time.Now())
@@ -338,8 +354,12 @@ func (l *controllerLoop) step(at time.Time) {
 	}
 	observed := l.last
 	var item *Item
-	if native := observed.Item; native != nil {
-		item = &Item{Kind: "app", AppID: native.AppID, BundleID: native.BundleID, Path: native.Path, Title: native.Title, Bounds: native.Bounds, ScreenID: native.ScreenID, Edge: native.Edge}
+	if native := observed.Item; native != nil && ((native.Kind == "folder" && l.settings.Dock.FolderPop.Enabled) || ((native.Kind == "" || native.Kind == "app") && l.settings.Dock.Enabled)) {
+		kind := native.Kind
+		if kind == "" {
+			kind = "app"
+		}
+		item = &Item{Kind: kind, AppID: native.AppID, BundleID: native.BundleID, Path: native.Path, Title: native.Title, Bounds: native.Bounds, ScreenID: native.ScreenID, Edge: native.Edge}
 	}
 	if l.blocked != nil {
 		if item != nil && item.same(l.blocked) {
@@ -358,6 +378,7 @@ func (l *controllerLoop) step(at time.Time) {
 		return
 	}
 	if change.Show != nil {
+		l.cancelFolder()
 		if l.shown && l.controller.deps.View != nil {
 			l.controller.deps.View.Hide(l.state.Session)
 		}
@@ -370,6 +391,7 @@ func (l *controllerLoop) step(at time.Time) {
 	}
 	if change.Move != nil {
 		if l.candidate != nil && l.candidate.ScreenID != change.Move.ScreenID {
+			l.cancelFolder()
 			// Old queries carry old display bounds. Give the migrated preview a
 			// fresh session and hide until its own display has been resolved.
 			if l.shown && l.controller.deps.View != nil {
@@ -386,7 +408,9 @@ func (l *controllerLoop) step(at time.Time) {
 			l.place()
 			l.publish(false)
 		}
-		l.request()
+		if !l.shown || l.state.ContentKind != "folder" {
+			l.request()
+		}
 	}
 }
 
@@ -411,8 +435,19 @@ func (l *controllerLoop) command(cmd command) {
 		blocked := copyItem(&l.state.Item)
 		l.reset()
 		l.blocked = blocked
+	case "folderSort", "folderRefresh":
+		if l.state.Folder == nil || cmd.folderRevision != l.state.Folder.Revision {
+			return
+		}
+		sort := l.state.Folder.Sort
+		if cmd.kind == "folderSort" {
+			sort = cmd.folderSort
+		}
+		l.requestFolder(sort)
 	case "refresh":
-		l.request()
+		if l.state.ContentKind != "folder" {
+			l.request()
+		}
 	case "select":
 		for _, window := range l.state.Windows {
 			if window.ID == cmd.window && window.ID != l.state.SelectedWindowID {
@@ -435,10 +470,17 @@ func (l *controllerLoop) command(cmd command) {
 	}
 }
 
-func (l *controllerLoop) request() { l.dirty = true; l.query() }
+func (l *controllerLoop) request() {
+	if l.candidate != nil && l.candidate.Kind == "folder" {
+		l.beginFolder()
+		return
+	}
+	l.dirty = true
+	l.query()
+}
 
 func (l *controllerLoop) query() {
-	if l.querying || !l.dirty || l.candidate == nil || !l.enabled() {
+	if l.querying || !l.dirty || l.candidate == nil || l.candidate.Kind == "folder" || !l.settings.Dock.Enabled || !l.enabled() {
 		return
 	}
 	l.querying = true
@@ -559,7 +601,7 @@ func excludedPinnedApp(item Item, filters config.Filters, self string) bool {
 }
 
 func (l *controllerLoop) accept(result windowResult) {
-	if !l.enabled() || l.admission != l.controller.AdmissionEpoch() || l.candidate == nil || result.session != l.session || result.generation != l.generation {
+	if !l.enabled() || !l.settings.Dock.Enabled || l.admission != l.controller.AdmissionEpoch() || l.candidate == nil || l.candidate.Kind == "folder" || result.session != l.session || result.generation != l.generation {
 		return
 	}
 	if result.err != nil || result.excluded {
@@ -576,7 +618,7 @@ func (l *controllerLoop) accept(result windowResult) {
 		}
 	}
 	l.screen = result.screen
-	l.state = State{AdmissionEpoch: l.admission, Session: l.session, Item: *l.candidate, Windows: result.windows, SelectedWindowID: selected, Appearance: l.settings.Dock.Appearance, CardSpacingPx: l.settings.Dock.CardSpacingPx, EmptyReason: result.emptyReason}
+	l.state = State{ContentKind: "windows", AdmissionEpoch: l.admission, Session: l.session, Item: *l.candidate, Windows: result.windows, SelectedWindowID: selected, Appearance: l.settings.Dock.Appearance, CardSpacingPx: l.settings.Dock.CardSpacingPx, EmptyReason: result.emptyReason}
 	l.place()
 	first := !l.shown
 	l.shown = true
@@ -585,6 +627,12 @@ func (l *controllerLoop) accept(result windowResult) {
 
 func (l *controllerLoop) place() {
 	w, h := panelSize(len(l.state.Windows), l.settings.Dock.Appearance, l.settings.Dock.CardSpacingPx)
+	if l.state.ContentKind == "folder" {
+		w, h = 360, 180
+		if l.state.Folder != nil {
+			h = 112 + float64(min(10, max(2, len(l.state.Folder.Entries))))*32
+		}
+	}
 	if validSize(l.measured.W, l.measured.H) {
 		w, h = l.measured.W, l.measured.H
 	}
@@ -598,6 +646,7 @@ func (l *controllerLoop) publish(first bool) {
 	if view := l.controller.deps.View; view != nil {
 		state := l.state
 		state.Windows = slices.Clone(state.Windows)
+		state.Folder = copyFolderState(state.Folder)
 		if first {
 			view.Show(state)
 		} else {

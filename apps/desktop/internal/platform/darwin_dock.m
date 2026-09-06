@@ -148,7 +148,7 @@ static void DockAXChanged(AXObserverRef observer,AXUIElementRef element,CFString
   return NO;
 }
 - (NSDictionary *)hitItem:(CGPoint)point {
-  CFAbsoluteTime deadline=CFAbsoluteTimeGetCurrent()+0.15;BOOL invalid=NO;self.diagnostic=@"AX classification yielded no application icon";
+  CFAbsoluteTime deadline=CFAbsoluteTimeGetCurrent()+0.15;BOOL invalid=NO;self.diagnostic=@"AX classification yielded no supported Dock item";
   AXUIElementRef node=NULL;
   AXUIElementSetMessagingTimeout(systemAX,0.05);
   AXError hit=AXUIElementCopyElementAtPosition(systemAX,point.x,point.y,&node);
@@ -159,7 +159,9 @@ static void DockAXChanged(AXObserverRef observer,AXUIElementRef element,CFString
     NSString *role=DockStringAttribute(node,kAXRoleAttribute,deadline,&invalid);
     NSString *subrole=DockStringAttribute(node,kAXSubroleAttribute,deadline,&invalid);
     if([role isEqualToString:(__bridge NSString *)kAXDockItemRole]) {
-      if(![subrole isEqualToString:(__bridge NSString *)kAXApplicationDockItemSubrole]){self.diagnostic=@"Dock item is not an application subrole";break;}
+      BOOL application=[subrole isEqualToString:(__bridge NSString *)kAXApplicationDockItemSubrole];
+      BOOL folder=[subrole isEqualToString:(__bridge NSString *)kAXFolderDockItemSubrole];
+      if(!application&&!folder){self.diagnostic=@"Dock item subrole is unsupported";break;}
       CFTypeRef rawURL=DockCopyAttribute(node,kAXURLAttribute,deadline,&invalid);
       NSURL *url=rawURL&&CFGetTypeID(rawURL)==CFURLGetTypeID()?[(__bridge NSURL *)rawURL copy]:nil;
       if(rawURL)CFRelease(rawURL);
@@ -169,9 +171,20 @@ static void DockAXChanged(AXObserverRef observer,AXUIElementRef element,CFString
       CGRect container=CGRectZero;
       if(parent&&CFGetTypeID(parent)==AXUIElementGetTypeID())container=DockElementBounds((AXUIElementRef)parent,deadline,&invalid);
       if(parent)CFRelease(parent);
-      if(!url.isFileURL||!DockValidRect(bounds)||invalid||CFAbsoluteTimeGetCurrent()>=deadline){self.diagnostic=[NSString stringWithFormat:@"AX app attributes rejected: url=%d bounds=%d invalid=%d deadline=%d",url.isFileURL,DockValidRect(bounds),invalid,CFAbsoluteTimeGetCurrent()>=deadline];break;}
+      if(!url.isFileURL||!DockValidRect(bounds)||invalid||CFAbsoluteTimeGetCurrent()>=deadline){self.diagnostic=[NSString stringWithFormat:@"AX Dock item attributes rejected: url=%d bounds=%d invalid=%d deadline=%d",url.isFileURL,DockValidRect(bounds),invalid,CFAbsoluteTimeGetCurrent()>=deadline];break;}
       NSString *path=DockCanonicalPath(url);
-      if(!path||![path.pathExtension.lowercaseString isEqualToString:@"app"]){self.diagnostic=@"Dock URL is not an app bundle";break;}
+      if(!path){self.diagnostic=@"Dock URL has no canonical local path";break;}
+      if(folder) {
+        NSError *resourceError=nil;NSNumber *isDirectory=nil;
+        BOOL resolved=[url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:&resourceError];
+        if(resolved&&![isDirectory boolValue]){self.diagnostic=@"Dock folder URL is not a directory";break;}
+        if(DockValidRect(container))knownBounds=container;
+        NSMutableDictionary *folderResult=[@{@"pid":@(dockPID),@"role":role,@"subrole":subrole,@"url":[NSURL fileURLWithPath:path].absoluteString,@"path":path,@"bundleId":@"",@"title":title,@"bounds":DockRect(bounds),@"container":DockRect(container),@"apps":@[]} mutableCopy];
+        if(resolved&&isDirectory)folderResult[@"directory"]=isDirectory;
+        self.diagnostic=resolved?@"folder icon classified":@"folder icon classified; directory access unavailable";
+        result=folderResult;break;
+      }
+      if(![path.pathExtension.lowercaseString isEqualToString:@"app"]){self.diagnostic=@"Dock URL is not an app bundle";break;}
       NSString *bundle=nil;
       for(NSDictionary *app in self.apps)if([app[@"path"] isEqualToString:path]){bundle=app[@"bundleId"];break;}
       if(!bundle.length) {

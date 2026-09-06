@@ -44,6 +44,19 @@ export const dock = {
     ),
   cancelDrag: (session: number, gesture: number) =>
     AppService.CancelDockPreviewDrag(session, gesture),
+  folderSort: (
+    session: number,
+    revision: number,
+    field: string,
+    direction: string,
+    foldersFirst: boolean,
+  ) => AppService.SetDockFolderSort(session, revision, field, direction, foldersFirst),
+  requestFolderAccess: (session: number, revision: number) =>
+    AppService.RequestDockFolderAccess(session, revision),
+  cancelFolderAccess: (session: number, revision: number) =>
+    AppService.CancelDockFolderAccess(session, revision),
+  openFolderEntry: (session: number, revision: number, itemID: string) =>
+    AppService.OpenDockFolderEntry(session, revision, itemID),
 };
 export interface DockEvents {
   show: (state: DockViewState) => void;

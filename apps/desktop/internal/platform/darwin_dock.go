@@ -45,6 +45,7 @@ type (
 		Path      string        `json:"path"`
 		BundleID  string        `json:"bundleId"`
 		Title     string        `json:"title"`
+		Directory *bool         `json:"directory"`
 		Bounds    domain.Bounds `json:"bounds"`
 		Container domain.Bounds `json:"container"`
 		Apps      []dockApp     `json:"apps"`
@@ -206,11 +207,26 @@ func mapDockObservation(raw dockRaw, sequence, epoch uint64) DockObservation {
 		return out
 	}
 	item := raw.Item
-	if raw.DockPID <= 0 || item.PID != raw.DockPID || item.Role != "AXDockItem" || item.Subrole != "AXApplicationDockItem" || !validDockBounds(item.Bounds) {
+	if raw.DockPID <= 0 || item.PID != raw.DockPID || item.Role != "AXDockItem" || !validDockBounds(item.Bounds) {
 		return out
 	}
 	u, err := url.Parse(item.URL)
-	if err != nil || u.Scheme != "file" || (u.Host != "" && u.Host != "localhost") || !filepath.IsAbs(item.Path) || !strings.HasSuffix(strings.ToLower(strings.TrimRight(item.Path, "/")), ".app") {
+	if err != nil || u.Scheme != "file" || (u.Host != "" && u.Host != "localhost") || !filepath.IsAbs(item.Path) || filepath.Clean(item.Path) != item.Path {
+		return out
+	}
+	screen, ok := dockItemScreen(item.Bounds, raw.Screens)
+	if !ok {
+		return out
+	}
+	if item.Subrole == "AXFolderDockItem" {
+		identity, identityErr := FolderIdentity(item.Path)
+		if identityErr != nil || identity != item.URL || (item.Directory != nil && !*item.Directory) {
+			return out
+		}
+		out.Item = &DockItem{Kind: "folder", Path: item.Path, Title: item.Title, Bounds: item.Bounds, ScreenID: screen.ID, Edge: dockItemEdge(item.Bounds, item.Container, screen.Bounds, raw.Orientation)}
+		return out
+	}
+	if item.Subrole != "AXApplicationDockItem" || !strings.HasSuffix(strings.ToLower(strings.TrimRight(item.Path, "/")), ".app") {
 		return out
 	}
 	matches := dockMatchingApps(item)
@@ -221,11 +237,7 @@ func mapDockObservation(raw dockRaw, sequence, epoch uint64) DockObservation {
 	if len(matches) == 1 {
 		pid = domain.AppID(matches[0].PID)
 	}
-	screen, ok := dockItemScreen(item.Bounds, raw.Screens)
-	if !ok {
-		return out
-	}
-	out.Item = &DockItem{AppID: pid, BundleID: item.BundleID, Path: item.Path, Title: item.Title, Bounds: item.Bounds, ScreenID: screen.ID, Edge: dockItemEdge(item.Bounds, item.Container, screen.Bounds, raw.Orientation)}
+	out.Item = &DockItem{Kind: "app", AppID: pid, BundleID: item.BundleID, Path: item.Path, Title: item.Title, Bounds: item.Bounds, ScreenID: screen.ID, Edge: dockItemEdge(item.Bounds, item.Container, screen.Bounds, raw.Orientation)}
 	return out
 }
 

@@ -45,6 +45,40 @@ func TestDockInputDefaultsAndMissingSchema3Object(t *testing.T) {
 	}
 }
 
+func TestDockFolderPopDefaultsOffAndRemainsIndependent(t *testing.T) {
+	for name, s := range map[string]Settings{
+		"default": Default(),
+		"loaded missing field": func() Settings {
+			got, err := Load(strings.NewReader(`{"version":3,"dock":{"enabled":true}}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return got
+		}(),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if s.Dock.FolderPop.Enabled {
+				t.Fatal("Folder Pop must default off")
+			}
+		})
+	}
+
+	s := Default()
+	s.Dock.Enabled = false
+	s.Dock.FolderPop.Enabled = true
+	var buf bytes.Buffer
+	if err := Save(&buf, s); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Dock.Enabled || !got.Dock.FolderPop.Enabled {
+		t.Fatalf("independent settings changed: %+v", got.Dock)
+	}
+}
+
 func TestDockInputValidationNormalizationAndCopy(t *testing.T) {
 	s := Default()
 	s.Dock.Input.SwipeTowardDock = "invalid"

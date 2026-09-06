@@ -129,6 +129,10 @@ const METHOD = {
   SetDockPreviewRegions: 3579515437,
   BeginDockPreviewDrag: 3337788529,
   CancelDockPreviewDrag: 418174098,
+  SetDockFolderSort: 3148788948,
+  RequestDockFolderAccess: 1355609963,
+  CancelDockFolderAccess: 3062959714,
+  OpenDockFolderEntry: 1164782910,
 } as const;
 
 const METHOD_NAME = new Map<number, string>(Object.entries(METHOD).map(([name, id]) => [id, name]));
@@ -260,7 +264,11 @@ export async function installFakeWails(page: Page): Promise<void> {
       case "SetDockPanelSize":
       case "SetDockPreviewRegions":
       case "BeginDockPreviewDrag":
-      case "CancelDockPreviewDrag": {
+      case "CancelDockPreviewDrag":
+      case "SetDockFolderSort":
+      case "RequestDockFolderAccess":
+      case "CancelDockFolderAccess":
+      case "OpenDockFolderEntry": {
         await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
         return json(null);
       }

@@ -244,3 +244,86 @@
   color: inherit;
   font: inherit;
 }
+.ot-folder-panel {
+  min-width: 320px;
+}
+.ot-folder-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+}
+.ot-folder-toolbar > label:first-child {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.ot-folder-toolbar select,
+.ot-folder-toolbar button,
+.ot-folder-guidance button {
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 7px;
+  padding: 4px 7px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: inherit;
+  font: inherit;
+}
+.ot-folder-first {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.ot-folder-list {
+  max-height: min(420px, 70vh);
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ot-folder-entry {
+  display: grid;
+  grid-template-columns: 18px minmax(120px, 1fr) 66px 58px;
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.ot-folder-entry:hover,
+.ot-folder-entry:focus-visible {
+  outline: 1px solid var(--ot-accent);
+  background: color-mix(in srgb, var(--ot-accent) 16%, transparent);
+}
+.ot-folder-entry.is-hidden {
+  opacity: 0.62;
+}
+.ot-folder-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ot-folder-kind,
+.ot-folder-size {
+  opacity: 0.65;
+  text-align: right;
+}
+.ot-folder-guidance {
+  padding: 16px 12px;
+  text-align: center;
+}
+.ot-folder-guidance p,
+.ot-folder-notice {
+  margin: 0 0 7px;
+}
+.ot-folder-reason {
+  opacity: 0.7;
+  overflow-wrap: anywhere;
+}

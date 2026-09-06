@@ -6,6 +6,114 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+export class FolderEntry {
+    /**
+     * Creates a new FolderEntry instance.
+     * @param {Partial<FolderEntry>} [$$source = {}] - The source object to create the FolderEntry.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("kind" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["kind"] = "";
+        }
+        if (!("size" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["size"] = 0;
+        }
+        if (!("modifiedAtMs" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["modifiedAtMs"] = 0;
+        }
+        if (!("hidden" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hidden"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new FolderEntry instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {FolderEntry}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new FolderEntry(/** @type {Partial<FolderEntry>} */($$parsedSource));
+    }
+}
+
+/**
+ * FolderRef is captured from a canonical Dock file URL, never a frontend path.
+ */
+export class FolderSort {
+    /**
+     * Creates a new FolderSort instance.
+     * @param {Partial<FolderSort>} [$$source = {}] - The source object to create the FolderSort.
+     */
+    constructor($$source = {}) {
+        if (!("field" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["field"] = "";
+        }
+        if (!("direction" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["direction"] = "";
+        }
+        if (!("foldersFirst" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["foldersFirst"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new FolderSort instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {FolderSort}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new FolderSort(/** @type {Partial<FolderSort>} */($$parsedSource));
+    }
+}
+
 /**
  * WindowPresence separates a positively empty inventory from unavailable AX
  * metadata. Unknown apps can still be activated, but do not acquire invented

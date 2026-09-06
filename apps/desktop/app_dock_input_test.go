@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"option-tab/internal/config"
@@ -93,9 +94,17 @@ func TestDockInputInitializesOnlyWithCompleteSourceCapabilities(t *testing.T) {
 	}
 }
 
+func enabledDockActionSettings() config.Settings {
+	s := dockEnabledSettings()
+	s.Dock.Input.ClickToHide = true
+	s.Dock.Input.ScrollShowHide = true
+	s.Dock.Input.ModifiedRightClick = true
+	return s
+}
+
 func TestDockInputWindowlessShowActivatesExactFreshApp(t *testing.T) {
 	p := &appInputPlatform{Fake: fake.New(), apps: []domain.App{{ID: 10, BundleID: "fixture.app"}}}
-	a := newApp(p, dockEnabledSettings(), "")
+	a := newApp(p, enabledDockActionSettings(), "")
 	defer a.stopCapture()
 	if err := a.executeDockInput(inputAction("show"), func() error { return nil }); err != nil {
 		t.Fatal(err)
@@ -107,7 +116,7 @@ func TestDockInputWindowlessShowActivatesExactFreshApp(t *testing.T) {
 
 func TestDockInputBlockedLookupThenSuspensionPreventsNativeAction(t *testing.T) {
 	p := &appInputPlatform{Fake: fake.New(), apps: []domain.App{{ID: 10, BundleID: "fixture.app"}}, appsEntered: make(chan struct{}, 1), appsRelease: make(chan struct{})}
-	a := newApp(p, dockEnabledSettings(), "")
+	a := newApp(p, enabledDockActionSettings(), "")
 	defer a.stopCapture()
 	done := make(chan error, 1)
 	go func() { done <- a.executeDockInput(inputAction("hide"), func() error { return nil }) }()
@@ -127,7 +136,7 @@ func TestDockInputBlockedLookupThenSuspensionPreventsNativeAction(t *testing.T) 
 
 func TestDockInputRespectsAppBlacklistAndRetainsVisibleError(t *testing.T) {
 	p := &appInputPlatform{Fake: fake.New(), apps: []domain.App{{ID: 10, BundleID: "fixture.app"}}}
-	s := dockEnabledSettings()
+	s := enabledDockActionSettings()
 	s.Filters.AppBlacklist = []config.BlacklistEntry{{Match: "fixture.app", Hide: config.HideAlways}}
 	a := newApp(p, s, "")
 	defer a.stopCapture()
@@ -156,9 +165,9 @@ func TestDockInputRespectsAppBlacklistAndRetainsVisibleError(t *testing.T) {
 
 func TestDockInputSettingsChangeAfterEligibilityRetiresAction(t *testing.T) {
 	p := &appInputPlatform{Fake: fake.New(), apps: []domain.App{{ID: 10, BundleID: "fixture.app"}}}
-	a := newApp(p, dockEnabledSettings(), "")
+	a := newApp(p, enabledDockActionSettings(), "")
 	defer a.stopCapture()
-	a.dockController = dock.NewController(dock.Deps{}, dockEnabledSettings())
+	a.dockController = dock.NewController(dock.Deps{}, enabledDockActionSettings())
 	calls := 0
 	err := a.executeDockInput(inputAction("hide"), func() error {
 		calls++
@@ -174,5 +183,65 @@ func TestDockInputSettingsChangeAfterEligibilityRetiresAction(t *testing.T) {
 	})
 	if !errors.Is(err, dock.ErrInputRetired) || len(p.HideCalls) != 0 {
 		t.Fatalf("settings-invalidated action reached native: error=%v calls=%v", err, p.HideCalls)
+	}
+}
+
+func TestDockInputCannotActInWindowPreviewDisablePublicationGap(t *testing.T) {
+	p := &appInputPlatform{Fake: fake.New(), apps: []domain.App{{ID: 10, BundleID: "fixture.app"}}}
+	a := newApp(p, enabledDockActionSettings(), "")
+	defer a.stopCapture()
+	calls := 0
+	err := a.executeDockInput(inputAction("hide"), func() error {
+		calls++
+		if calls == 2 {
+			s := folderEnabledSettings()
+			a.settingsMu.Lock()
+			a.settings = s
+			a.settingsMu.Unlock()
+		}
+		return nil
+	})
+	if !errors.Is(err, dock.ErrInputRetired) || len(p.HideCalls) != 0 {
+		t.Fatalf("app action survived window-preview disable: %v calls=%v", err, p.HideCalls)
+	}
+}
+
+func TestDockInputRejectsChangedPolicyBeforeConfigurationDelivery(t *testing.T) {
+	for _, allOff := range []bool{true, false} {
+		t.Run(fmt.Sprint(allOff), func(t *testing.T) {
+			p := &appInputPlatform{Fake: fake.New(), apps: []domain.App{{ID: 10, BundleID: "fixture.app"}}}
+			a := newApp(p, enabledDockActionSettings(), "")
+			defer a.stopCapture()
+			calls := 0
+			err := a.executeDockInput(inputAction("hide"), func() error {
+				calls++
+				if calls == 2 {
+					s := enabledDockActionSettings()
+					s.Dock.Input.ClickToHide = false
+					if allOff {
+						s.Dock.Input.ScrollShowHide = false
+						s.Dock.Input.ModifiedRightClick = false
+					}
+					a.settingsMu.Lock()
+					a.settings = s
+					a.settingsMu.Unlock()
+				}
+				return nil
+			})
+			if !errors.Is(err, dock.ErrInputRetired) || len(p.HideCalls) != 0 {
+				t.Fatalf("policy change reached native action: %v calls=%v", err, p.HideCalls)
+			}
+		})
+	}
+}
+
+func TestDockInputRejectsNonAppCapturedItem(t *testing.T) {
+	p := &appInputPlatform{Fake: fake.New(), apps: []domain.App{{ID: 10, BundleID: "fixture.app"}}}
+	a := newApp(p, enabledDockActionSettings(), "")
+	defer a.stopCapture()
+	action := inputAction("hide")
+	action.Item.Kind = "folder"
+	if err := a.executeDockInput(action, func() error { return nil }); err == nil || len(p.HideCalls) != 0 {
+		t.Fatalf("folder item reached native app action: %v calls=%v", err, p.HideCalls)
 	}
 }

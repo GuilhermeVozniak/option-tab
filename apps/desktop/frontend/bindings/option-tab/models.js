@@ -11,6 +11,9 @@ import { Create as $Create } from "@wailsio/runtime";
 import * as config$0 from "./internal/config/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as dock$0 from "./internal/dock/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as domain$0 from "./internal/domain/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -254,6 +257,20 @@ export class DockViewState {
      * @param {Partial<DockViewState>} [$$source = {}] - The source object to create the DockViewState.
      */
     constructor($$source = {}) {
+        if (!("contentKind" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["contentKind"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {dock$0.FolderState | null | undefined}
+             */
+            this["folder"] = undefined;
+        }
         if (!("open" in $$source)) {
             /**
              * @member
@@ -355,22 +372,26 @@ export class DockViewState {
      * @returns {DockViewState}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType1;
-        const $$createField4_0 = $$createType3;
-        const $$createField6_0 = $$createType4;
-        const $$createField9_0 = $$createType6;
+        const $$createField1_0 = $$createType2;
+        const $$createField5_0 = $$createType3;
+        const $$createField6_0 = $$createType5;
+        const $$createField8_0 = $$createType6;
+        const $$createField11_0 = $$createType8;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("folder" in $$parsedSource) {
+            $$parsedSource["folder"] = $$createField1_0($$parsedSource["folder"]);
+        }
         if ("item" in $$parsedSource) {
-            $$parsedSource["item"] = $$createField3_0($$parsedSource["item"]);
+            $$parsedSource["item"] = $$createField5_0($$parsedSource["item"]);
         }
         if ("entries" in $$parsedSource) {
-            $$parsedSource["entries"] = $$createField4_0($$parsedSource["entries"]);
+            $$parsedSource["entries"] = $$createField6_0($$parsedSource["entries"]);
         }
         if ("appearance" in $$parsedSource) {
-            $$parsedSource["appearance"] = $$createField6_0($$parsedSource["appearance"]);
+            $$parsedSource["appearance"] = $$createField8_0($$parsedSource["appearance"]);
         }
         if ("pointer" in $$parsedSource) {
-            $$parsedSource["pointer"] = $$createField9_0($$parsedSource["pointer"]);
+            $$parsedSource["pointer"] = $$createField11_0($$parsedSource["pointer"]);
         }
         return new DockViewState(/** @type {Partial<DockViewState>} */($$parsedSource));
     }
@@ -378,9 +399,11 @@ export class DockViewState {
 
 // Private type creation functions
 const $$createType0 = DockBounds.createFrom;
-const $$createType1 = DockItemView.createFrom;
-const $$createType2 = switcher$0.Entry.createFrom;
-const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = config$0.Appearance.createFrom;
-const $$createType5 = DockPointer.createFrom;
-const $$createType6 = $Create.Nullable($$createType5);
+const $$createType1 = dock$0.FolderState.createFrom;
+const $$createType2 = $Create.Nullable($$createType1);
+const $$createType3 = DockItemView.createFrom;
+const $$createType4 = switcher$0.Entry.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = config$0.Appearance.createFrom;
+const $$createType7 = DockPointer.createFrom;
+const $$createType8 = $Create.Nullable($$createType7);

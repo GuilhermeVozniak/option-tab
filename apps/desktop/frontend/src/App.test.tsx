@@ -36,6 +36,10 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   SetDockPreviewRegions: vi.fn().mockResolvedValue(undefined),
   BeginDockPreviewDrag: vi.fn().mockResolvedValue(undefined),
   CancelDockPreviewDrag: vi.fn().mockResolvedValue(undefined),
+  SetDockFolderSort: vi.fn().mockResolvedValue(undefined),
+  RequestDockFolderAccess: vi.fn().mockResolvedValue(undefined),
+  CancelDockFolderAccess: vi.fn().mockResolvedValue(undefined),
+  OpenDockFolderEntry: vi.fn().mockResolvedValue(undefined),
   Cancel: vi.fn().mockResolvedValue(undefined),
   Select: vi.fn().mockResolvedValue(undefined),
   SetSearch: vi.fn().mockResolvedValue(undefined),
@@ -306,6 +310,117 @@ describe("App", () => {
     });
     expect(screen.getByText("New")).toBeInTheDocument();
     expect(screen.queryByText("Old")).toBeNull();
+  });
+
+  it("renders folder content with outer scope and no window-region traffic", async () => {
+    mocked.SetDockPreviewRegions.mockClear();
+    window.location.hash = "#dock";
+    render(<App />);
+    act(() =>
+      eventHandlers.get("dock:show")?.({
+        data: {
+          session: 21,
+          revision: 8,
+          open: true,
+          contentKind: "folder",
+          item: {
+            appId: 0,
+            bundleId: "",
+            path: "/tmp/Folder",
+            title: "Folder",
+            bounds: { x: 0, y: 0, w: 48, h: 48 },
+            screenId: 1,
+            edge: "bottom",
+            kind: "folder",
+          },
+          entries: [],
+          selectedWindowId: 0,
+          appearance: emptyState.appearance,
+          emptyReason: "",
+          folder: {
+            status: "ready",
+            reason: "",
+            folderIdentity: "file:///tmp/Folder",
+            entries: [
+              {
+                id: "opaque-7",
+                name: "Notes.txt",
+                kind: "file",
+                size: 12,
+                modifiedAtMs: 1,
+                hidden: false,
+              },
+            ],
+            sort: { field: "name", direction: "asc", foldersFirst: true },
+            partial: false,
+            revision: 99,
+          },
+        },
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open Notes.txt" }));
+    fireEvent.change(screen.getByLabelText("Sort folder contents by"), {
+      target: { value: "size" },
+    });
+    await waitFor(() =>
+      expect((AppService as any).OpenDockFolderEntry).toHaveBeenCalledWith(21, 8, "opaque-7"),
+    );
+    expect((AppService as any).SetDockFolderSort).toHaveBeenCalledWith(21, 8, "size", "asc", true);
+    expect(mocked.SetDockPreviewRegions).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Close window")).toBeNull();
+  });
+
+  it("uses an admitted Dock error revision for the next folder retry", async () => {
+    window.location.hash = "#dock";
+    render(<App />);
+    act(() =>
+      eventHandlers.get("dock:show")?.({
+        data: {
+          session: 22,
+          revision: 1,
+          open: true,
+          contentKind: "folder",
+          item: {
+            appId: 0,
+            bundleId: "",
+            path: "/tmp/Folder",
+            title: "Folder",
+            bounds: { x: 0, y: 0, w: 48, h: 48 },
+            screenId: 1,
+            edge: "bottom",
+            kind: "folder",
+          },
+          entries: [],
+          selectedWindowId: 0,
+          appearance: emptyState.appearance,
+          emptyReason: "",
+          folder: {
+            status: "unavailable",
+            reason: "",
+            folderIdentity: "file:///tmp/Folder",
+            entries: [],
+            sort: { field: "name", direction: "asc", foldersFirst: true },
+            partial: false,
+            revision: 1,
+          },
+        },
+      }),
+    );
+    act(() =>
+      eventHandlers.get("dock:error")?.({
+        data: { session: 22, revision: 2, message: "Temporary failure" },
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() =>
+      expect((AppService as any).SetDockFolderSort).toHaveBeenCalledWith(
+        22,
+        2,
+        "name",
+        "asc",
+        true,
+      ),
+    );
   });
 
   it("admits only current-session monotonic Dock pointer packets and clears outside", () => {

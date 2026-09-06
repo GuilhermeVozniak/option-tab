@@ -6,7 +6,19 @@ import (
 	"option-tab/internal/platform"
 )
 
+type FolderState struct {
+	Revision       uint64                 `json:"revision"`
+	Status         string                 `json:"status"`
+	Reason         string                 `json:"reason"`
+	FolderIdentity string                 `json:"folderIdentity"`
+	Entries        []platform.FolderEntry `json:"entries"`
+	Sort           platform.FolderSort    `json:"sort"`
+	Partial        bool                   `json:"partial"`
+}
+
 type State struct {
+	ContentKind      string
+	Folder           *FolderState
 	AdmissionEpoch   uint64
 	Session          uint64
 	Item             Item
@@ -25,6 +37,7 @@ type View interface {
 }
 
 type Deps struct {
+	Folders      platform.FolderSource
 	Observations platform.DockObservationSource
 	Windows      platform.WindowSource
 	Apps         platform.ApplicationSource

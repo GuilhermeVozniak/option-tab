@@ -143,3 +143,8 @@ The removed-feature table takes precedence over the competitor inventory: full D
 Architecture and milestone acceptance criteria: [design proposal](superpowers/specs/2026-09-06-dockdoor-parity-design.md).
 
 Sources: supplied 2:09 screen recording; [DockDoor Free](https://dockdoor.net/); [automation documentation](https://dockdoor.net/docs.html); [DockDoor Pro](https://pro.dockdoor.net/). New Window and the app-icon switcher presentation are visible in the recording at approximately 01:24 and 01:42. Platform-dependent integrations need native validation before promising universal app support.
+
+
+## Current Folder Pop checkpoint
+
+E01–E03 implementation is available on the feature branch: exact Dock-folder previews, sorting, on-demand access and guarded opening. Automated and disposable native fixtures pass. Visible chooser approval, real default-app opening and distributed-app permission behavior remain acceptance checks; E01–E03 stay unchecked until that evidence is complete. See the [Folder Pop checkpoint report](superpowers/reports/2026-09-06-folder-pop.md). Media, automation, distribution and the optional replacement Dock remain retained work.

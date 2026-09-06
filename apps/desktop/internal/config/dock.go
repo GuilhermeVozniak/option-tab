@@ -12,6 +12,11 @@ type DockSettings struct {
 	Scope           ShortcutScope     `json:"scope"`
 	Appearance      Appearance        `json:"appearance"`
 	Input           DockInputSettings `json:"input"`
+	FolderPop       FolderPopSettings `json:"folderPop"`
+}
+
+type FolderPopSettings struct {
+	Enabled bool `json:"enabled"`
 }
 
 type DockInputSettings struct {
@@ -53,6 +58,7 @@ func dockDefaults(window Appearance) DockSettings {
 		HoverSlopPx: 8, BridgePaddingPx: 12,
 		CardSpacingPx: 7,
 		Scope:         ShortcutScope{AppScope: AppScopeAll}, Appearance: a,
-		Input: defaultDockInput(),
+		Input:     defaultDockInput(),
+		FolderPop: FolderPopSettings{Enabled: false},
 	}
 }
