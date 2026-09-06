@@ -19,6 +19,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as actions$0 from "./internal/actions/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as platform$0 from "./internal/platform/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as switcher$0 from "./internal/switcher/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -60,6 +63,13 @@ export function BeginDockPreviewDrag(session, gesture, windowID, appID, pointerX
  */
 export function Cancel() {
     return $Call.ByID(2191755235);
+}
+
+/**
+ * @returns {$CancellablePromise<void>}
+ */
+export function CancelDockPlacement() {
+    return $Call.ByID(2631637315);
 }
 
 /**
@@ -178,13 +188,32 @@ export function GetCrashReport() {
 }
 
 /**
+ * Display discovery is read-only and does not enable native input filtering.
+ * @returns {$CancellablePromise<platform$0.DockLockDisplay[]>}
+ */
+export function GetDockMonitorLockDisplays() {
+    return $Call.ByID(961307694).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType2($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<platform$0.DockMonitorLockState>}
+ */
+export function GetDockMonitorLockState() {
+    return $Call.ByID(3014544674).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
  * GetDockState lets a newly loaded hidden webview catch up with a hover that
  * arrived before its event subscriptions were installed.
  * @returns {$CancellablePromise<$models.DockViewState | null>}
  */
 export function GetDockState() {
     return $Call.ByID(1033939333).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType5($result);
     }));
 }
 
@@ -315,6 +344,20 @@ export function PerformAction(kind, windowID, appID) {
 export function PerformDockAction(session, kind, windowID, appID) {
     return $Call.ByID(1943493959, session, kind, windowID, appID).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType0($result);
+    }));
+}
+
+/**
+ * This explicit UI action may briefly move the pointer. Native code owns the
+ * bounded attempt and must relinquish cursor restoration on physical takeover.
+ * @param {number} session
+ * @param {number} revision
+ * @param {number} generation
+ * @returns {$CancellablePromise<platform$0.DockPlacementResult>}
+ */
+export function PlaceDockOnSelectedMonitor(session, revision, generation) {
+    return $Call.ByID(1589667255, session, revision, generation).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
     }));
 }
 
@@ -473,5 +516,9 @@ export function Update(st) {
 
 // Private type creation functions
 const $$createType0 = actions$0.Result.createFrom;
-const $$createType1 = $models.DockViewState.createFrom;
-const $$createType2 = $Create.Nullable($$createType1);
+const $$createType1 = platform$0.DockLockDisplay.createFrom;
+const $$createType2 = $Create.Array($$createType1);
+const $$createType3 = platform$0.DockMonitorLockState.createFrom;
+const $$createType4 = $models.DockViewState.createFrom;
+const $$createType5 = $Create.Nullable($$createType4);
+const $$createType6 = platform$0.DockPlacementResult.createFrom;

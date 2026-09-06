@@ -2,7 +2,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import type { AppScopeMode, DockInputSettings, PointerAction } from "../../lib/types";
+import type {
+  AppScopeMode,
+  DockInputSettings,
+  DockLockDisplay,
+  DockMonitorLockState,
+  PointerAction,
+} from "../../lib/types";
+import { DockMonitorLock } from "../DockMonitorLock";
 import { HINT, type PermissionsControl, ROW, type TabContext } from "../shared";
 import { AppearanceTab } from "./AppearanceTab";
 
@@ -10,10 +17,20 @@ export function DockTab({
   ctx,
   permissions,
   inputError,
+  monitorLock,
 }: {
   ctx: TabContext;
   permissions?: PermissionsControl;
   inputError?: string;
+  monitorLock?: {
+    state?: DockMonitorLockState;
+    displays: DockLockDisplay[];
+    error?: string;
+    pending?: boolean;
+    onEnable: () => void;
+    onPlace: (session: number, revision: number, generation: number) => void;
+    onCancel: () => void;
+  };
 }) {
   const { settings, t, patch } = ctx;
   const d = settings.dock;
@@ -75,6 +92,32 @@ export function DockTab({
             <p role="alert" className="text-sm text-red-600 dark:text-red-400">
               {t("Dock input unavailable")}: {inputError}
             </p>
+          ) : null}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Dock monitor lock")}</CardTitle>
+          <CardDescription>
+            {t(
+              "Keep the system Dock on the selected monitor without changing persistent Dock preferences.",
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {monitorLock ? (
+            <DockMonitorLock
+              value={d.monitorLock}
+              state={monitorLock.state}
+              displays={monitorLock.displays}
+              error={monitorLock.error}
+              pending={monitorLock.pending}
+              t={t}
+              onChange={(value) => patchDock({ monitorLock: value })}
+              onEnable={monitorLock.onEnable}
+              onPlace={monitorLock.onPlace}
+              onCancel={monitorLock.onCancel}
+            />
           ) : null}
         </CardContent>
       </Card>

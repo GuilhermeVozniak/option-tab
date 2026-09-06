@@ -302,6 +302,36 @@ export interface DockSettings {
   scope: ShortcutScope;
   appearance: Appearance;
   input: DockInputSettings;
+  monitorLock: DockMonitorLockSettings;
+}
+export interface DockMonitorLockSettings {
+  enabled: boolean;
+  target: "main" | "display";
+  displayUUID: string;
+  bypassModifier: "option" | "control" | "command" | "shift";
+}
+export interface DockLockDisplay {
+  uuid: string;
+  id: number;
+  name: string;
+  bounds: Bounds;
+  scale: number;
+  main: boolean;
+  mirrored: boolean;
+}
+export interface DockMonitorLockState {
+  session: number;
+  revision: number;
+  generation: number;
+  sequence: number;
+  observedAtMs: number;
+  status: string;
+  reason: string;
+  targetUUID: string;
+  actualUUID: string;
+  edge: string;
+  displays: DockLockDisplay[];
+  placementAvailable?: boolean;
 }
 export interface DockInputSettings {
   clickToHide: boolean;
@@ -426,5 +456,6 @@ export const defaultSettings: Settings = {
       previewDrag: false,
       aeroShakeAction: "none",
     },
+    monitorLock: { enabled: false, target: "main", displayUUID: "", bypassModifier: "option" },
   },
 };

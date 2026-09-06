@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 )
 
 // CurrentVersion is the settings schema version. Bump when the shape changes
@@ -617,6 +618,20 @@ func (s Settings) Validate() error {
 	if !validAeroShakeAction(s.Dock.Input.AeroShakeAction) {
 		return fmt.Errorf("config: invalid dock Aero Shake action %q", s.Dock.Input.AeroShakeAction)
 	}
+	if s.Dock.MonitorLock.Target != "main" && s.Dock.MonitorLock.Target != "display" {
+		return fmt.Errorf("config: invalid Dock monitor target %q", s.Dock.MonitorLock.Target)
+	}
+	if s.Dock.MonitorLock.DisplayUUID != "" && !validDisplayUUID(s.Dock.MonitorLock.DisplayUUID) {
+		return fmt.Errorf("config: invalid Dock monitor display UUID")
+	}
+	if s.Dock.MonitorLock.Target == "display" && strings.TrimSpace(s.Dock.MonitorLock.DisplayUUID) == "" {
+		return fmt.Errorf("config: Dock monitor display UUID is required")
+	}
+	switch s.Dock.MonitorLock.BypassModifier {
+	case "option", "control", "command", "shift":
+	default:
+		return fmt.Errorf("config: invalid Dock monitor bypass modifier %q", s.Dock.MonitorLock.BypassModifier)
+	}
 	return nil
 }
 
@@ -815,6 +830,16 @@ func (s Settings) Normalize() Settings {
 	}
 	if !validAeroShakeAction(out.Dock.Input.AeroShakeAction) {
 		out.Dock.Input.AeroShakeAction = "none"
+	}
+	if out.Dock.MonitorLock.Target != "main" && out.Dock.MonitorLock.Target != "display" {
+		out.Dock.MonitorLock.Target = "main"
+	}
+	if out.Dock.MonitorLock.DisplayUUID != "" && !validDisplayUUID(out.Dock.MonitorLock.DisplayUUID) {
+		out.Dock.MonitorLock.DisplayUUID = ""
+		out.Dock.MonitorLock.Target = "main"
+	}
+	if out.Dock.MonitorLock.BypassModifier != "option" && out.Dock.MonitorLock.BypassModifier != "control" && out.Dock.MonitorLock.BypassModifier != "command" && out.Dock.MonitorLock.BypassModifier != "shift" {
+		out.Dock.MonitorLock.BypassModifier = "option"
 	}
 
 	if out.Version == 0 {

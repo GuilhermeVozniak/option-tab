@@ -36,6 +36,12 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   SetDockPreviewRegions: vi.fn().mockResolvedValue(undefined),
   BeginDockPreviewDrag: vi.fn().mockResolvedValue(undefined),
   CancelDockPreviewDrag: vi.fn().mockResolvedValue(undefined),
+  GetDockMonitorLockState: vi
+    .fn()
+    .mockResolvedValue({ session: 0, revision: 0, sequence: 0, status: "disabled", displays: [] }),
+  GetDockMonitorLockDisplays: vi.fn().mockResolvedValue([]),
+  PlaceDockOnSelectedMonitor: vi.fn().mockResolvedValue({ status: "success", reason: "" }),
+  CancelDockPlacement: vi.fn().mockResolvedValue(undefined),
   Cancel: vi.fn().mockResolvedValue(undefined),
   Select: vi.fn().mockResolvedValue(undefined),
   SetSearch: vi.fn().mockResolvedValue(undefined),
@@ -55,7 +61,7 @@ import * as AppService from "../bindings/option-tab/app.js";
 import App from "./App";
 import { resetBackendProbeForTests } from "./lib/bridge";
 import type { Entry, SwitcherState } from "./lib/types";
-import { emptyState } from "./lib/types";
+import { defaultSettings, emptyState } from "./lib/types";
 
 const mocked = vi.mocked(AppService);
 
@@ -660,5 +666,53 @@ describe("App", () => {
       "aria-selected",
       "true",
     );
+  });
+
+  it("ignores delayed monitor-lock snapshot failures after runtime recovery", async () => {
+    window.location.hash = "#settings";
+    let rejectState!: (error: Error) => void;
+    let rejectDisplays!: (error: Error) => void;
+    (AppService as any).GetDockMonitorLockState.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectState = reject;
+      }),
+    );
+    (AppService as any).GetDockMonitorLockDisplays.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectDisplays = reject;
+      }),
+    );
+    mocked.GetSettings.mockResolvedValueOnce(
+      JSON.stringify({
+        ...defaultSettings,
+        behavior: { ...defaultSettings.behavior, onboarded: true },
+      }),
+    );
+    render(<App />);
+    act(() =>
+      eventHandlers.get("dock:monitor-lock")?.({
+        data: {
+          session: 1,
+          revision: 1,
+          generation: 2,
+          sequence: 1,
+          observedAtMs: 0,
+          status: "protected",
+          reason: "",
+          targetUUID: "",
+          actualUUID: "main",
+          edge: "bottom",
+          displays: [],
+        },
+      }),
+    );
+    await act(async () => {
+      rejectState(new Error("late state failure"));
+      rejectDisplays(new Error("late inventory failure"));
+      await Promise.resolve();
+    });
+    fireEvent.click(await screen.findByRole("tab", { name: "Dock" }));
+    expect(screen.getByText(/Status:/)).toHaveTextContent("Protected");
+    expect(screen.queryByText(/late .* failure/)).toBeNull();
   });
 });

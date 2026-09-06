@@ -3,7 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { makeT, resolveLang } from "../lib/i18n";
-import type { Settings as SettingsModel, SwitcherMode } from "../lib/types";
+import type {
+  DockLockDisplay,
+  DockMonitorLockState,
+  Settings as SettingsModel,
+  SwitcherMode,
+} from "../lib/types";
 import { Onboarding } from "./Onboarding";
 import {
   type AboutControl,
@@ -38,6 +43,15 @@ interface SettingsProps {
    */
   requestedTab?: string | null;
   dockInputError?: string;
+  monitorLock?: {
+    state?: DockMonitorLockState;
+    displays: DockLockDisplay[];
+    error?: string;
+    pending?: boolean;
+    onEnable: () => void;
+    onPlace: (session: number, revision: number, generation: number) => void;
+    onCancel: () => void;
+  };
 }
 
 const TABS = [
@@ -67,6 +81,7 @@ export function Settings({
   crash,
   requestedTab,
   dockInputError,
+  monitorLock,
 }: SettingsProps) {
   const [tab, setTab] = useState<Tab>("General");
   const [mode, setMode] = useState<SwitcherMode>("windows");
@@ -280,7 +295,12 @@ export function Settings({
           <BlacklistsTab ctx={ctx} />
         </section>
         <section hidden={tab !== "Dock"} aria-label="Dock" className="space-y-4">
-          <DockTab ctx={ctx} permissions={permissions} inputError={dockInputError} />
+          <DockTab
+            ctx={ctx}
+            permissions={permissions}
+            inputError={dockInputError}
+            monitorLock={monitorLock}
+          />
         </section>
         <section hidden={tab !== "About"} aria-label="About" className="space-y-4">
           <AboutTab ctx={ctx} about={about} openURL={openURL} checkUpdates={checkUpdates} />

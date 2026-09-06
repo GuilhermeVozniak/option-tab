@@ -130,6 +130,10 @@ Acceptance remains partial for the broader native matrix: actual shortcut delive
 
 D09–D14 implementation and C04 card spacing are available on the feature branch. Automated suites and disposable native role/action fixtures pass; physical gesture and off-panel drag acceptance remain open. See the [input/drag checkpoint report](superpowers/reports/2026-09-06-dock-input-and-preview-drag.md) for behavior, evidence and exact limitations. The roadmap's unchecked items are not promises of universal AX or device support.
 
+## Current monitor checkpoint
+
+Monitor protection (D15) is implemented with manual placement, independent settings and verified-position admission. Automatic placement remains disabled after a native outbound test succeeded but its return cancelled on input evidence. Broader physical protection acceptance remains open. See the [monitor-lock checkpoint report](superpowers/reports/2026-09-06-dock-monitor-lock.md).
+
 ## Existing features retained
 
 Nine activation shortcuts; window-based switching; fuzzy search; Vim/arrow navigation; MRU and other sorting; app/Space/monitor filters; appearance settings; large selected preview; cursor following and haptics; menu-bar controls; login launch; permission onboarding; settings import/export/reset; updater; and three UI languages.

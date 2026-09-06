@@ -103,6 +103,7 @@ type App struct {
 	dockController            *dock.Controller
 	dockInput                 *dock.InputController
 	dockShake                 *dock.ShakeController
+	dockMonitorLock           *dock.MonitorLockController
 	dockInputError            string
 	dockFeatureErrors         [4]string
 	dockWheelMu               sync.Mutex
@@ -193,6 +194,7 @@ func newApp(p platform.Platform, settings config.Settings, settingsPath string) 
 	a.wireDockController()
 	a.wireDockInput()
 	a.wireDockShake()
+	a.wireDockMonitorLock()
 	return a
 }
 
@@ -285,6 +287,7 @@ func (a *App) stopCapture() {
 	a.switcherVisible = false
 	a.visibleSwitcherSession = 0
 	a.captureStopOnce.Do(func() { close(a.captureStop) })
+	a.syncDockMonitorLockLocked()
 	if a.captures != nil {
 		a.captures.Close()
 	}

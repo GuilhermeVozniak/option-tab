@@ -6,6 +6,256 @@
 // @ts-ignore: Unused imports
 import { Create as $Create } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as domain$0 from "../domain/models.js";
+
+export class DockLockDisplay {
+    /**
+     * Creates a new DockLockDisplay instance.
+     * @param {Partial<DockLockDisplay>} [$$source = {}] - The source object to create the DockLockDisplay.
+     */
+    constructor($$source = {}) {
+        if (!("uuid" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["uuid"] = "";
+        }
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {domain$0.ScreenID}
+             */
+            this["id"] = 0;
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("bounds" in $$source)) {
+            /**
+             * @member
+             * @type {domain$0.Bounds}
+             */
+            this["bounds"] = (new domain$0.Bounds());
+        }
+        if (!("scale" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["scale"] = 0;
+        }
+        if (!("main" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["main"] = false;
+        }
+        if (!("mirrored" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["mirrored"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DockLockDisplay instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {DockLockDisplay}
+     */
+    static createFrom($$source = {}) {
+        const $$createField3_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("bounds" in $$parsedSource) {
+            $$parsedSource["bounds"] = $$createField3_0($$parsedSource["bounds"]);
+        }
+        return new DockLockDisplay(/** @type {Partial<DockLockDisplay>} */($$parsedSource));
+    }
+}
+
+export class DockMonitorLockState {
+    /**
+     * Creates a new DockMonitorLockState instance.
+     * @param {Partial<DockMonitorLockState>} [$$source = {}] - The source object to create the DockMonitorLockState.
+     */
+    constructor($$source = {}) {
+        if (!("session" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["session"] = 0;
+        }
+        if (!("revision" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["revision"] = 0;
+        }
+        if (!("generation" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["generation"] = 0;
+        }
+        if (!("sequence" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["sequence"] = 0;
+        }
+        if (!("observedAtMs" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["observedAtMs"] = 0;
+        }
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["reason"] = "";
+        }
+        if (!("targetUUID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["targetUUID"] = "";
+        }
+        if (!("actualUUID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["actualUUID"] = "";
+        }
+        if (!("edge" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["edge"] = "";
+        }
+        if (!("displays" in $$source)) {
+            /**
+             * @member
+             * @type {DockLockDisplay[]}
+             */
+            this["displays"] = [];
+        }
+        if (!("placementAvailable" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["placementAvailable"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DockMonitorLockState instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {DockMonitorLockState}
+     */
+    static createFrom($$source = {}) {
+        const $$createField10_0 = $$createType2;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("displays" in $$parsedSource) {
+            $$parsedSource["displays"] = $$createField10_0($$parsedSource["displays"]);
+        }
+        return new DockMonitorLockState(/** @type {Partial<DockMonitorLockState>} */($$parsedSource));
+    }
+}
+
+export class DockPlacementResult {
+    /**
+     * Creates a new DockPlacementResult instance.
+     * @param {Partial<DockPlacementResult>} [$$source = {}] - The source object to create the DockPlacementResult.
+     */
+    constructor($$source = {}) {
+        if (!("requestId" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["requestId"] = 0;
+        }
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["reason"] = "";
+        }
+        if (!("actualUUID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["actualUUID"] = "";
+        }
+        if (!("verified" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["verified"] = false;
+        }
+        if (!("cursorRestored" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["cursorRestored"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DockPlacementResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {DockPlacementResult}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DockPlacementResult(/** @type {Partial<DockPlacementResult>} */($$parsedSource));
+    }
+}
+
 /**
  * WindowPresence separates a positively empty inventory from unavailable AX
  * metadata. Unknown apps can still be activated, but do not acquire invented
@@ -23,3 +273,8 @@ export const WindowPresence = {
     WindowsNone: "none",
     WindowsUnknown: "unknown",
 };
+
+// Private type creation functions
+const $$createType0 = domain$0.Bounds.createFrom;
+const $$createType1 = DockLockDisplay.createFrom;
+const $$createType2 = $Create.Array($$createType1);
