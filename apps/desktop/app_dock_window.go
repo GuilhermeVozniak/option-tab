@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"unsafe"
@@ -13,6 +14,7 @@ import (
 // callbacks: Wails InvokeAsync itself runs inline when invoked on the main thread.
 // At most one UI closure is outstanding. Requests coalesce to the latest revision.
 type dockWindow struct {
+	materialDelivery        *dockMaterialDelivery
 	mu                      sync.Mutex
 	dispatch                func(func())
 	factory                 func() nativeWindow
@@ -23,12 +25,17 @@ type dockWindow struct {
 	bounds                  domain.Bounds
 	current                 *dockWindowResources
 	onFailure               func()
+	material                *dockMaterialRequest
+	materialCancel          context.CancelFunc
+	materialRetire          platform.MaterialScope
 }
 type dockWindowResources struct {
 	incarnation, mediaSequence uint64
 	nativeHost                 unsafe.Pointer
 	window                     *liveWindow
 	panel                      platform.DockPanel
+	material                   platform.MaterialSurface
+	materialApplied            platform.MaterialScope
 }
 
 func newDockWindow(dispatch func(func()), factory func() nativeWindow, host platform.DockPanelHost) *dockWindow {
@@ -57,6 +64,7 @@ func (d *dockWindow) hide() {
 		return
 	}
 	d.visible = false
+	d.clearMaterialLocked()
 	d.visibility++
 	d.retireMediaEventsLocked()
 	d.revision++
@@ -70,7 +78,11 @@ func (d *dockWindow) close() {
 		return
 	}
 	d.closed = true
+	if d.materialDelivery != nil {
+		d.materialDelivery.close()
+	}
 	d.visible = false
+	d.clearMaterialLocked()
 	d.visibility++
 	d.retireMediaEventsLocked()
 	d.revision++
@@ -94,6 +106,7 @@ func (d *dockWindow) markHostClosedIf(w nativeWindow) bool {
 		return false
 	}
 	d.current.window.markClosed()
+	d.refreshMaterialLocked()
 	d.revision++
 	d.scheduleLocked()
 	return true
@@ -126,6 +139,7 @@ func (d *dockWindow) reconcile() {
 	}
 	if !visible {
 		if r != nil {
+			d.reconcileMaterial(r, false, revision)
 			if err := r.panel.Hide(); err != nil {
 				d.failed(r, err)
 			}
@@ -176,7 +190,9 @@ func (d *dockWindow) reconcile() {
 	}
 	if err := r.panel.Show(b); err != nil {
 		d.failed(r, err)
+		return
 	}
+	d.reconcileMaterial(r, true, revision)
 }
 
 func (d *dockWindow) failed(r *dockWindowResources, err error) {
@@ -191,6 +207,10 @@ func (d *dockWindow) failed(r *dockWindowResources, err error) {
 }
 
 func (d *dockWindow) dispose(r *dockWindowResources) {
+	if r.material != nil {
+		_ = r.material.Close()
+		r.material = nil
+	}
 	// Panel Close restores the Wails content view before the host is destroyed.
 	// Keep the wrapper published during native callbacks so host loss is recorded.
 	if r.panel != nil {

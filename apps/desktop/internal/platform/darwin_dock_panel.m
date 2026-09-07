@@ -3,6 +3,7 @@
 #import "darwin_dock_panel.h"
 #import "darwin_launcher.h"
 #import "darwin_media_panel.h"
+#import "darwin_material_effect.h"
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
 
@@ -43,6 +44,7 @@ static BOOL handlePanelWheel(OTDockPanel *, NSEvent *);
 @property BOOL wheelEnabled, wheelVisible, wheelEnded, wheelBypass;
 @property double wheelLastTime;
 @property NSString *launcherDisplay;
+@property BOOL materialExcluded;
 @property NSView *launcherRoot;
 @property NSVisualEffectView *launcherEffect;
 @property uint64_t launcherSpace;
@@ -545,13 +547,22 @@ void ot_dock_panel_wheel_complete(uint64_t token, uint64_t session,
   });
 }
 
-uint64_t ot_media_panel_create(void *host,uint64_t session) {
-  if (!session) return 0;
-  uint64_t token=ot_dock_panel_create(host);
-  if (!token) return 0;
-  __block BOOL attached=NO;
-  panelMain(^{OTDockPanelRecord *r=panelRecords()[@(token)];if(r){OTMediaAttach(token,session,r.panel);attached=YES;}});
-  return attached?token:0;
+uint64_t ot_media_panel_create(void *host, uint64_t session) {
+  if (!session)
+    return 0;
+  uint64_t token = ot_dock_panel_create(host);
+  if (!token)
+    return 0;
+  __block BOOL attached = NO;
+  panelMain(^{
+    OTDockPanelRecord *r = panelRecords()[@(token)];
+    if (r) {
+      r.materialExcluded = YES;
+      OTMediaAttach(token, session, r.panel);
+      attached = YES;
+    }
+  });
+  return attached ? token : 0;
 }
 
 int ot_launcher_panel_style(uint64_t token, const char *material,
@@ -593,9 +604,7 @@ int ot_launcher_panel_style(uint64_t token, const char *material,
         NSVisualEffectView *effect =
             [[NSVisualEffectView alloc] initWithFrame:r.launcherRoot.bounds];
         effect.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-        effect.material = NSVisualEffectMaterialHUDWindow;
-        effect.blendingMode = NSVisualEffectBlendingModeBehindWindow;
-        effect.state = NSVisualEffectStateActive;
+        OTConfigureMaterialEffect(effect);
         [r.launcherRoot addSubview:effect
                         positioned:NSWindowBelow
                         relativeTo:r.content];
@@ -608,4 +617,40 @@ int ot_launcher_panel_style(uint64_t token, const char *material,
     ok = 1;
   });
   return ok;
+}
+
+// Borrowed outputs are used only within the caller's serial AppKit operation.
+int ot_preview_material_target(uint64_t token, void **window, void **content,
+                               void **host) {
+  __block int ok = 0;
+  panelMain(^{
+    OTDockPanelRecord *r = panelRecords()[@(token)];
+    if (!r || r.launcherDisplay || r.materialExcluded || !r.panel ||
+        !r.content || r.panel.contentView != r.content)
+      return;
+    *window = (__bridge void *)r.panel;
+    *content = (__bridge void *)r.content;
+    *host = (__bridge void *)r.host;
+    ok = 1;
+  });
+  return ok;
+}
+int ot_panel_material_host_owned(void *pointer) {
+  __block int owned = 0;
+  panelMain(^{
+    for (OTDockPanelRecord *r in panelRecords().allValues) {
+      if ((__bridge void *)r.host == pointer ||
+          (__bridge void *)r.panel == pointer) {
+        owned = 1;
+        return;
+      }
+    }
+    for (NSWindow *host in retiredPanelHosts()) {
+      if ((__bridge void *)host == pointer) {
+        owned = 1;
+        return;
+      }
+    }
+  });
+  return owned;
 }

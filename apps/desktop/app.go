@@ -56,8 +56,11 @@ type App struct {
 	eventSink func(string, any)
 	// overlay and prefs are liveness-tracked: a window macOS destroyed must
 	// never be messaged again (see liveWindow).
-	overlay *liveWindow
-	prefs   *liveWindow
+	overlay          *liveWindow
+	switcherMaterial *appSwitcherMaterial
+	dockMaterial     *appDockMaterial
+	materialRevision uint64
+	prefs            *liveWindow
 	// prefsFactory recreates the preferences window if macOS ever destroys it
 	// under us (the Wails v3 alpha has no destroyed-window probe).
 	prefsFactory func() nativeWindow
@@ -318,6 +321,7 @@ func (a *App) stopCapture() {
 	if a.dockWindow != nil {
 		a.dockWindow.close()
 	}
+	a.stopMaterialsLocked()
 	a.captureActive = false
 	a.switcherVisible = false
 	a.visibleSwitcherSession = 0

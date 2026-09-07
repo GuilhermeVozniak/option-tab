@@ -119,9 +119,12 @@ const METHOD = {
   QuitSelectedApp: 3876391122,
   HideSelectedApp: 3942268823,
   GetVersion: 1049863377,
+  GetSwitcherMaterialStatus: 3075636663,
+  SetSwitcherMaterialRect: 724815411,
   InstallUpdate: 2443992793,
   PerformAction: 280563800,
   GetDockState: 1033939333,
+  GetDockMaterialStatus: 167017963,
   SelectDockWindow: 1507952022,
   SelectDockContent: 2963493651,
   FocusDockWindow: 1587026944,
@@ -201,6 +204,8 @@ export async function installFakeWails(page: Page): Promise<void> {
       __actionResult?: { succeeded: number; failures: { windowId: number; error: string }[] };
       __actionError?: string;
       __dockState?: Record<string, unknown> | null;
+      __dockMaterialStatus?: Record<string, unknown>;
+      __switcherMaterialStatus?: Record<string, unknown>;
       __dockContentError?: string;
       __dockLockState?: Record<string, unknown>;
       __dockLockDisplays?: unknown[];
@@ -229,6 +234,8 @@ export async function installFakeWails(page: Page): Promise<void> {
     w.__actionResult = undefined;
     w.__actionError = undefined;
     w.__dockState = null;
+    w.__dockMaterialStatus = { session: 0, revision: 0, state: "unavailable" };
+    w.__switcherMaterialStatus = { session: 0, revision: 0, state: "unavailable" };
     w.__mediaState = null;
     w.__mediaPermissions = {};
     w.__automationPreviewState = null;
@@ -346,6 +353,10 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json("0.0.0-e2e");
       case "GetDockState":
         return json(await page.evaluate(() => (window as any).__dockState));
+      case "GetDockMaterialStatus":
+        return json(await page.evaluate(() => (window as any).__dockMaterialStatus));
+      case "GetSwitcherMaterialStatus":
+        return json(await page.evaluate(() => (window as any).__switcherMaterialStatus));
       case "GetDockMonitorLockState":
         return json(await page.evaluate(() => (window as any).__dockLockState));
       case "GetDockMonitorLockDisplays":
@@ -480,6 +491,7 @@ export async function installFakeWails(page: Page): Promise<void> {
         }, name);
         return json(null);
       }
+      case "SetSwitcherMaterialRect":
       case "SelectApp":
       case "SelectAppWindow":
       case "SelectDockWindow":

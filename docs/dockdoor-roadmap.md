@@ -42,6 +42,8 @@ Acceptance remains partial for the broader native matrix: actual shortcut delive
 
 ## B. Switcher improvements
 
+B10 now has native material, guarded interior geometry and solid-fallback implementation on the feature branch. Combined automated gates pass; actual Wails compositing and visual acceptance remain pending. See the [native materials checkpoint](superpowers/reports/2026-09-07-native-switcher-materials.md).
+
 - [ ] B01 App-grouped Command+Tab mode: one icon per app and the selected app's window preview.
 - [x] B02 Include running apps without windows in app mode.
 - [ ] B03 Separate app-switcher and window-switcher appearance/behavior settings.
@@ -113,7 +115,7 @@ The feature branch implements the same-hover Windows/Media selector, the future 
 
 ## H. Optional Dock replacement — later delivery stage
 
-The feature branch now contains the replacement-Dock host/recovery foundation, per-display profiles and appearance, focused-app profile rules, and the shared widget runtime with local package installation. See the [foundation](superpowers/reports/2026-09-07-replacement-dock-foundation.md), [profiles](superpowers/reports/2026-09-07-replacement-dock-profiles.md), [focused-app profiles](superpowers/reports/2026-09-07-focused-launcher-profiles.md), and [widget checkpoint](superpowers/reports/2026-09-07-widget-runtime.md). Native acceptance remains incomplete; the unchecked items distinguish that from delivered implementation. B10 for existing switcher/preview surfaces remains separate from replacement-Dock materials.
+The feature branch now contains the replacement-Dock host/recovery foundation, per-display profiles and appearance, focused-app profile rules, and the shared widget runtime with local package installation. See the [foundation](superpowers/reports/2026-09-07-replacement-dock-foundation.md), [profiles](superpowers/reports/2026-09-07-replacement-dock-profiles.md), [focused-app profiles](superpowers/reports/2026-09-07-focused-launcher-profiles.md), and [widget checkpoint](superpowers/reports/2026-09-07-widget-runtime.md). Native acceptance remains incomplete; the unchecked items distinguish that from delivered implementation. B10 for existing switcher/preview surfaces is implemented at its separate materials checkpoint.
 
 - [ ] H01 Optional replacement Dock with safe restoration of native Dock access.
 - [ ] H02 Per-display Docks, edges, layouts and profiles.

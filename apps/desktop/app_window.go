@@ -28,9 +28,11 @@ type nativeWindow interface {
 // mac:WindowWillClose, which flips this wrapper closed so nothing is ever
 // sent to it again; callers ask for a fresh window instead.
 type liveWindow struct {
-	mu     sync.Mutex
-	win    nativeWindow
-	closed bool
+	mu            sync.Mutex
+	win           nativeWindow
+	closed        bool
+	material      *appMaterialOwner
+	materialEpoch uint64
 }
 
 func newLiveWindow(w nativeWindow) *liveWindow {
@@ -53,8 +55,13 @@ func (l *liveWindow) markClosed() {
 		return
 	}
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	l.closed = true
+	l.materialEpoch++
+	owner := l.material
+	l.mu.Unlock()
+	if owner != nil {
+		owner.close()
+	}
 }
 
 // wraps reports whether this wrapper holds w, so a close notification from a
@@ -128,4 +135,49 @@ func (a *App) markPrefsClosedIf(w nativeWindow) {
 		dlog("preferences window closed by the system; retiring it")
 		a.prefs.markClosed()
 	}
+}
+
+func (l *liveWindow) bindMaterial(owner *appMaterialOwner) uint64 {
+	if l == nil {
+		return 0
+	}
+	l.mu.Lock()
+	old := l.material
+	l.material = owner
+	closed := l.closed
+	epoch := l.materialEpoch
+	l.mu.Unlock()
+	if old != nil && old != owner {
+		old.close()
+	}
+	if closed {
+		owner.close()
+	}
+	return epoch
+}
+
+func (l *liveWindow) materialVersion() uint64 {
+	if l == nil {
+		return 0
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.materialEpoch
+}
+
+// Native resize callbacks retire in-flight context admission without acquiring
+// App.viewMu (FitOverlayToScreen can synchronously deliver this callback).
+func (l *liveWindow) materialResized() uint64 {
+	if l == nil {
+		return 0
+	}
+	l.mu.Lock()
+	l.materialEpoch++
+	epoch := l.materialEpoch
+	owner := l.material
+	l.mu.Unlock()
+	if owner != nil {
+		owner.invalidate()
+	}
+	return epoch
 }

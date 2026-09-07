@@ -1,6 +1,7 @@
 import { Events } from "@wailsio/runtime";
 import * as AppService from "../../bindings/option-tab/app.js";
 import type { WindowActionResult } from "./bridge";
+import type { MaterialStatus } from "./material";
 import type { DockPointer, DockViewState, WindowAction } from "./types";
 
 export type { DockPointer } from "./types";
@@ -59,6 +60,8 @@ export const dock = {
     AppService.CancelDockFolderAccess(session, revision),
   openFolderEntry: (session: number, revision: number, itemID: string) =>
     AppService.OpenDockFolderEntry(session, revision, itemID),
+  materialStatus: (session: number) =>
+    AppService.GetDockMaterialStatus(session) as Promise<MaterialStatus>,
 };
 export interface DockEvents {
   show: (state: DockViewState) => void;
@@ -95,4 +98,8 @@ export function onDockInputStatus(handler: (revision: number, message: string) =
     const data = event.data as { revision?: number; message?: string };
     handler(Number(data.revision ?? 0), String(data.message ?? ""));
   });
+}
+
+export function onDockMaterial(handler: (status: MaterialStatus) => void) {
+  return Events.On("dock:material", (event) => handler(event.data as MaterialStatus));
 }

@@ -28,7 +28,14 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   SelectApp: vi.fn().mockResolvedValue(undefined),
   SelectAppWindow: vi.fn().mockResolvedValue(undefined),
   ConfirmApp: vi.fn().mockResolvedValue(undefined),
+  GetSwitcherMaterialStatus: vi
+    .fn()
+    .mockResolvedValue({ session: 0, revision: 0, state: "unavailable" }),
+  SetSwitcherMaterialRect: vi.fn().mockResolvedValue(undefined),
   GetDockState: vi.fn().mockResolvedValue(null),
+  GetDockMaterialStatus: vi
+    .fn()
+    .mockResolvedValue({ session: 0, revision: 0, state: "unavailable" }),
   SelectDockWindow: vi.fn().mockResolvedValue(undefined),
   SelectDockContent: vi.fn().mockResolvedValue(undefined),
   FocusDockWindow: vi.fn().mockResolvedValue({ succeeded: 1, failures: [] }),
@@ -1225,5 +1232,77 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Dock" }));
     expect(screen.getByText(/Status:/)).toHaveTextContent("Protected");
     expect(screen.queryByText(/late .* failure/)).toBeNull();
+  });
+
+  it("admits only current monotonic switcher material status", async () => {
+    window.location.hash = "";
+    mocked.GetSwitcherMaterialStatus.mockResolvedValueOnce({
+      session: 21,
+      revision: 1,
+      state: "solid",
+      reason: "missingReporter",
+    });
+    const { container } = render(<App />);
+    act(() =>
+      eventHandlers.get("switcher:show")?.({
+        data: openSwitcherState({ session: 21, revision: 7 }),
+      }),
+    );
+    expect(container.querySelector(".ot-panel")).toHaveClass("ot-solid-material");
+    act(() => {
+      eventHandlers.get("switcher:material")?.({
+        data: { session: 21, revision: 4, state: "system" },
+      });
+      eventHandlers.get("switcher:material")?.({
+        data: { session: 21, revision: 3, state: "solid" },
+      });
+      eventHandlers.get("switcher:material")?.({
+        data: { session: 20, revision: 99, state: "solid" },
+      });
+    });
+    expect(container.querySelector(".ot-panel")).toHaveClass("ot-native-material");
+    act(() =>
+      eventHandlers.get("switcher:show")?.({
+        data: openSwitcherState({ session: 22, revision: 1 }),
+      }),
+    );
+    expect(container.querySelector(".ot-panel")).toHaveClass("ot-solid-material");
+  });
+
+  it("keeps Dock material status scoped to a live windows presentation", () => {
+    window.location.hash = "#dock";
+    const { container } = render(<App />);
+    const state = {
+      session: 30,
+      revision: 2,
+      open: true,
+      contentKind: "windows",
+      item: {
+        appId: 4,
+        bundleId: "app",
+        path: "/App.app",
+        title: "App",
+        bounds: { x: 0, y: 0, w: 40, h: 40 },
+        screenId: 1,
+        edge: "bottom",
+        kind: "app",
+      },
+      entries: [{ ...appEntry(8, "Window"), appId: 4 }],
+      selectedWindowId: 8,
+      appearance: { ...emptyState.appearance, blur: true },
+      emptyReason: "",
+    };
+    act(() => eventHandlers.get("dock:show")?.({ data: state }));
+    act(() =>
+      eventHandlers.get("dock:material")?.({
+        data: { session: 30, revision: 2, state: "system" },
+      }),
+    );
+    expect(container.querySelector(".ot-dock-panel")).toHaveClass("ot-native-material");
+    act(() => eventHandlers.get("dock:update")?.({ data: { ...state, contentKind: "folder" } }));
+    expect(container.querySelector(".ot-dock-panel")).toHaveClass("ot-solid-material");
+    act(() => eventHandlers.get("dock:hide")?.({ data: { session: 30, revision: 3 } }));
+    act(() => eventHandlers.get("dock:show")?.({ data: { ...state, session: 31, revision: 1 } }));
+    expect(container.querySelector(".ot-dock-panel")).toHaveClass("ot-solid-material");
   });
 });

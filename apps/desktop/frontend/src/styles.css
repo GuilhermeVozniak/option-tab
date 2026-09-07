@@ -111,6 +111,12 @@ body,
     0 28px 80px rgba(8, 12, 24, 0.35);
   color: #16213c;
 }
+.ot-panel.ot-native-material {
+  background: rgba(13, 17, 31, calc(var(--ot-bg-opacity, 0.85) * 0.22));
+}
+.ot-theme-light .ot-panel.ot-native-material {
+  background: rgba(244, 247, 255, calc(var(--ot-bg-opacity, 0.85) * 0.22));
+}
 
 .ot-search {
   margin: 0 4px 12px;

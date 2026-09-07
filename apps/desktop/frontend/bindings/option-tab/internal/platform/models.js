@@ -392,6 +392,56 @@ export class FolderSort {
     }
 }
 
+export class MaterialStatus {
+    /**
+     * Creates a new MaterialStatus instance.
+     * @param {Partial<MaterialStatus>} [$$source = {}] - The source object to create the MaterialStatus.
+     */
+    constructor($$source = {}) {
+        if (!("session" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["session"] = 0;
+        }
+        if (!("revision" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["revision"] = 0;
+        }
+        if (!("state" in $$source)) {
+            /**
+             * system|solid|unavailable
+             * @member
+             * @type {string}
+             */
+            this["state"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["reason"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MaterialStatus instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MaterialStatus}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MaterialStatus(/** @type {Partial<MaterialStatus>} */($$parsedSource));
+    }
+}
+
 export class MediaCapabilities {
     /**
      * Creates a new MediaCapabilities instance.

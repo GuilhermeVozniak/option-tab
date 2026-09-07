@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { DockPointer } from "../lib/dock-bridge";
 import { computeLayout, effectiveStyle } from "../lib/layout";
+import { type MaterialStatus, materialClass } from "../lib/material";
 import { truncateTitle } from "../lib/text";
 import type { DockItem, DockViewState, WindowAction } from "../lib/types";
 import { FolderPanel, type FolderPanelHandlers } from "./FolderPanel";
@@ -62,6 +63,7 @@ export function DockPanelView({
   item = state.item,
   onClose,
   nativeHeader = false,
+  materialStatus,
 }: {
   state: DockPanelState;
   handlers: DockPanelHandlers;
@@ -71,6 +73,7 @@ export function DockPanelView({
   item?: DockItem | null;
   onClose?: () => void;
   nativeHeader?: boolean;
+  materialStatus?: MaterialStatus | null;
 }) {
   dockDragGesture = Math.max(dockDragGesture, state.dragGestureFloor ?? 0);
   const drag = useRef<DragState | null>(null);
@@ -304,7 +307,7 @@ export function DockPanelView({
   ]);
   return (
     <div
-      className={`ot-dock-panel ot-theme-${a.theme}${a.blur ? " ot-dock-blur" : ""}${state.previewDragEnabled ? " ot-dock-drag-enabled" : ""}${nativeHeader ? " ot-dock-native-header" : ""}`}
+      className={`ot-dock-panel ot-theme-${a.theme} ${materialClass(a.blur && (!state.contentKind || state.contentKind === "windows"), materialStatus, state.session)}${state.previewDragEnabled ? " ot-dock-drag-enabled" : ""}${nativeHeader ? " ot-dock-native-header" : ""}`}
       style={
         {
           "--ot-accent": a.accentColor,

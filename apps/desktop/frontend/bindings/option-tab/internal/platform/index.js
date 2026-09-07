@@ -9,6 +9,7 @@ export {
     DockPlacementResult,
     FolderEntry,
     FolderSort,
+    MaterialStatus,
     MediaCapabilities,
     MediaPermission,
     MediaProcess,

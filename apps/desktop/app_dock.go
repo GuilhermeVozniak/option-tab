@@ -221,6 +221,7 @@ func (a *App) showDock(st dock.State, first bool) {
 		name = "dock:show"
 	}
 	a.emit(name, dto)
+	a.syncDockMaterialLocked(st)
 	if a.dockWindow != nil {
 		a.dockWindow.show(st.Bounds)
 	}
@@ -308,6 +309,7 @@ func (a *App) dismissDockLocked() {
 	a.captures.Hide()
 	a.retireMediaHoverLocked()
 	a.captureDockSession.Store(0)
+	a.dockMaterial = nil
 	a.dockState = dock.State{}
 	a.retireDockWheelState()
 	a.dockViewState = DockViewState{}

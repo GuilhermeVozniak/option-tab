@@ -33,6 +33,19 @@ const state: DockViewState = {
   emptyReason: "",
   error: "refused",
 };
+it("keeps a solid fallback until the preview host reports native material", () => {
+  const h = { onSelectWindow: vi.fn(), onFocusWindow: vi.fn(), onAction: vi.fn(), onSize: vi.fn() };
+  const { container, rerender } = render(<DockPanelView state={state} handlers={h} />);
+  expect(container.querySelector(".ot-dock-panel")).toHaveClass("ot-solid-material");
+  rerender(
+    <DockPanelView
+      state={state}
+      handlers={h}
+      materialStatus={{ session: 7, revision: 2, state: "system" }}
+    />,
+  );
+  expect(container.querySelector(".ot-dock-panel")).toHaveClass("ot-native-material");
+});
 it("sends session and explicit target and displays native errors", () => {
   const h = { onSelectWindow: vi.fn(), onFocusWindow: vi.fn(), onAction: vi.fn(), onSize: vi.fn() };
   render(<DockPanelView state={state} handlers={h} />);

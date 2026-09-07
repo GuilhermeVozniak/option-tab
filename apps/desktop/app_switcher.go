@@ -170,6 +170,7 @@ func (a *App) Show(st switcher.State) {
 		a.overlay.setAlwaysOnTop(true)
 		a.overlay.show()
 	}
+	a.syncSwitcherMaterialLocked(st)
 	a.emitCachedThumbnails(st)
 	a.updateCapture(st)
 }
@@ -185,6 +186,7 @@ func (a *App) Update(st switcher.State) {
 	a.switcherRevision++
 	st.Revision = a.switcherRevision
 	a.emit("switcher:update", st)
+	a.syncSwitcherMaterialLocked(st)
 	if st.Selected != a.lastSelected {
 		a.lastSelected = st.Selected
 		if h, ok := a.platform.(platform.HapticFeedback); ok && a.settingsSnapshot().Preferences(st.Mode).Behavior.HapticFeedback {
@@ -219,6 +221,11 @@ func (a *App) hideSwitcherLocked() {
 	default:
 	}
 	a.cancelDismissalLocked()
+	fade := 0
+	if a.fadeOnHide {
+		fade = 180
+	}
+	a.retireSwitcherMaterialLocked(fade)
 	a.switcherVisible = false
 	retiredSession := a.visibleSwitcherSession
 	a.visibleSwitcherSession = 0

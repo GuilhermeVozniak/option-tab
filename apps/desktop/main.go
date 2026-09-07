@@ -100,10 +100,16 @@ func main() {
 		})
 		return prefs
 	}
-	overlay.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
-		app.markOverlayClosed()
-	})
 	app.setRuntime(wailsApp, overlay, makePrefs(), makePrefs)
+	liveOverlay := app.overlay
+	overlay.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
+		liveOverlay.markClosed()
+		go app.materialHostClosed(liveOverlay)
+	})
+	overlay.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) {
+		epoch := liveOverlay.materialResized()
+		go app.materialHostResized(liveOverlay, epoch)
+	})
 
 	// The Dock owns a separate hidden webview. A true nonactivating NSPanel
 	// hosts its content; the Wails host itself is never shown or focused.

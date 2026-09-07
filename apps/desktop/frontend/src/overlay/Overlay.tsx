@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { type KeyPayload, onSwitcherKey } from "../lib/bridge";
 import { type KeyEventLike, keyToAction } from "../lib/keymap";
 import { computeLayout, effectiveStyle } from "../lib/layout";
+import {
+  type MaterialRect,
+  type MaterialStatus,
+  materialClass,
+  useMaterialReporter,
+} from "../lib/material";
 import type { SwitcherState } from "../lib/types";
 import { EntryItem } from "./EntryItem";
 import type { OverlayHandlers } from "./types";
@@ -16,6 +22,7 @@ interface OverlayProps {
   // app, so DOM keydown never fires there. False in browser dev, where the
   // DOM keydown fallback keeps the UI drivable.
   nativeKeys?: boolean;
+  material?: { status?: MaterialStatus | null; onRect?: (rect: MaterialRect) => void };
 }
 
 const BULK_ACTION_LABEL = {
@@ -28,7 +35,7 @@ const BULK_ACTION_LABEL = {
 // Overlay renders the window switcher in the configured visual style and wires
 // global keyboard handling. It is a controlled component: all state comes from
 // props (pushed by the Go controller) and all input flows out through handlers.
-export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
+export function Overlay({ state, handlers, nativeKeys = true, material }: OverlayProps) {
   const { open, entries, selected, search, appearance } = state;
   const style = effectiveStyle(state.style, entries.length, appearance.compactThreshold);
 
@@ -36,6 +43,12 @@ export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
   // the overlay (AltTab parity). 0 renders immediately.
   const delay = appearance.apparitionDelayMs;
   const [shown, setShown] = useState(delay <= 0);
+  const panelRef = useMaterialReporter(
+    state.session ?? 0,
+    state.revision ?? 0,
+    material?.onRect,
+    shown || (!open && shown),
+  );
 
   // The Go side resizes the overlay window to the target screen on show. Track
   // the real viewport with a ResizeObserver on the root element: it fires
@@ -221,7 +234,10 @@ export function Overlay({ state, handlers, nativeKeys = true }: OverlayProps) {
         } as React.CSSProperties
       }
     >
-      <div className="ot-panel">
+      <div
+        ref={panelRef}
+        className={`ot-panel ${materialClass(appearance.blur, material?.status, state.session)}`}
+      >
         {appearance.showWindowControls && handlers.onAction && selectedEntry ? (
           <div className="ot-bulk-actions" aria-label="Switcher actions">
             {(["newWindow", "forceQuit", "closeAll", "minimizeAll"] as const).map((kind) => (

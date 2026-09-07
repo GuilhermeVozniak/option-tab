@@ -7,6 +7,7 @@
 
 import { Events } from "@wailsio/runtime";
 import * as AppService from "../../bindings/option-tab/app.js";
+import type { MaterialRect, MaterialStatus } from "./material";
 import type { Permissions, PermKey, Settings, SwitcherState } from "./types";
 
 // hasBackend resolves to true when a real Wails backend answers a cheap call.
@@ -70,7 +71,23 @@ export const switcher = {
   fullscreenSelected: () => call(AppService.FullscreenSelected()),
   quitSelectedApp: () => call(AppService.QuitSelectedApp()),
   hideSelectedApp: () => call(AppService.HideSelectedApp()),
+  materialStatus: (session: number) =>
+    AppService.GetSwitcherMaterialStatus(session) as Promise<MaterialStatus>,
+  materialRect: (rect: MaterialRect) =>
+    AppService.SetSwitcherMaterialRect(
+      rect.session,
+      rect.stateRevision,
+      rect.sequence,
+      rect.x,
+      rect.y,
+      rect.width,
+      rect.height,
+    ),
 };
+
+export function onSwitcherMaterial(handler: (status: MaterialStatus) => void): () => void {
+  return Events.On("switcher:material", (event) => handler(event.data as MaterialStatus));
+}
 
 // system exposes app-level (non-switcher) actions: the menubar pause toggle and
 // opening/closing the preferences window.

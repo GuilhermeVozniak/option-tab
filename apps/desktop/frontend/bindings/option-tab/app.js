@@ -289,12 +289,22 @@ export function GetDiagnosticsReview() {
 }
 
 /**
+ * @param {number} session
+ * @returns {$CancellablePromise<platform$0.MaterialStatus>}
+ */
+export function GetDockMaterialStatus(session) {
+    return $Call.ByID(167017963, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType5($result);
+    }));
+}
+
+/**
  * Display discovery is read-only and does not enable native input filtering.
  * @returns {$CancellablePromise<platform$0.DockLockDisplay[]>}
  */
 export function GetDockMonitorLockDisplays() {
     return $Call.ByID(961307694).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType7($result);
     }));
 }
 
@@ -303,7 +313,7 @@ export function GetDockMonitorLockDisplays() {
  */
 export function GetDockMonitorLockState() {
     return $Call.ByID(3014544674).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType8($result);
     }));
 }
 
@@ -314,7 +324,7 @@ export function GetDockMonitorLockState() {
  */
 export function GetDockState() {
     return $Call.ByID(1033939333).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType10($result);
     }));
 }
 
@@ -325,7 +335,7 @@ export function GetDockState() {
  */
 export function GetLauncherAppChoices() {
     return $Call.ByID(1561877478).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType11($result);
+        return $$createType12($result);
     }));
 }
 
@@ -335,7 +345,7 @@ export function GetLauncherAppChoices() {
  */
 export function GetLauncherState(session) {
     return $Call.ByID(1942731528, session).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType13($result);
     }));
 }
 
@@ -344,7 +354,7 @@ export function GetLauncherState(session) {
  */
 export function GetLauncherStatus() {
     return $Call.ByID(3297738801).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType13($result);
+        return $$createType14($result);
     }));
 }
 
@@ -354,7 +364,7 @@ export function GetLauncherStatus() {
  */
 export function GetLauncherWidgets(session) {
     return $Call.ByID(1662395444, session).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType14($result);
+        return $$createType15($result);
     }));
 }
 
@@ -363,7 +373,7 @@ export function GetLauncherWidgets(session) {
  */
 export function GetMediaPermissions() {
     return $Call.ByID(3673411287).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType15($result);
+        return $$createType16($result);
     }));
 }
 
@@ -373,7 +383,7 @@ export function GetMediaPermissions() {
  */
 export function GetMediaState(session) {
     return $Call.ByID(3763583330, session).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType17($result);
+        return $$createType18($result);
     }));
 }
 
@@ -396,6 +406,16 @@ export function GetSettings() {
 }
 
 /**
+ * @param {number} session
+ * @returns {$CancellablePromise<platform$0.MaterialStatus>}
+ */
+export function GetSwitcherMaterialStatus(session) {
+    return $Call.ByID(3075636663, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType5($result);
+    }));
+}
+
+/**
  * GetVersion returns the app version for the About tab.
  * @returns {$CancellablePromise<string>}
  */
@@ -410,7 +430,7 @@ export function GetVersion() {
  */
 export function GetWidgetActionOptions(lease, actionToken) {
     return $Call.ByID(1913639053, lease, actionToken).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType18($result);
+        return $$createType19($result);
     }));
 }
 
@@ -428,7 +448,7 @@ export function GetWidgetAsset(lease, assetToken) {
  */
 export function GetWidgetCatalog() {
     return $Call.ByID(1508342138).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType20($result);
+        return $$createType21($result);
     }));
 }
 
@@ -437,7 +457,7 @@ export function GetWidgetCatalog() {
  */
 export function GetWidgetPackageStatus() {
     return $Call.ByID(2166434855).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType21($result);
+        return $$createType22($result);
     }));
 }
 
@@ -481,7 +501,7 @@ export function ImportMediaLyrics(session, revision) {
  */
 export function InstallReviewedWidget(token) {
     return $Call.ByID(4223715965, token).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType19($result);
+        return $$createType20($result);
     }));
 }
 
@@ -632,7 +652,7 @@ export function PinMediaPanel(session, revision) {
  */
 export function PlaceDockOnSelectedMonitor(session, revision, generation) {
     return $Call.ByID(1589667255, session, revision, generation).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType22($result);
+        return $$createType23($result);
     }));
 }
 
@@ -717,7 +737,7 @@ export function Reverse() {
  */
 export function ReviewLocalWidgetPackage() {
     return $Call.ByID(460648480).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType23($result);
+        return $$createType24($result);
     }));
 }
 
@@ -727,7 +747,7 @@ export function ReviewLocalWidgetPackage() {
  */
 export function SaveDiagnosticsReport(token) {
     return $Call.ByID(1276106854, token).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType24($result);
+        return $$createType25($result);
     }));
 }
 
@@ -891,6 +911,20 @@ export function SetSearch(q) {
 }
 
 /**
+ * @param {number} session
+ * @param {number} stateRevision
+ * @param {number} sequence
+ * @param {number} x
+ * @param {number} y
+ * @param {number} width
+ * @param {number} height
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetSwitcherMaterialRect(session, stateRevision, sequence, x, y, width, height) {
+    return $Call.ByID(724815411, session, stateRevision, sequence, x, y, width, height);
+}
+
+/**
  * Show reveals the overlay window and pushes the initial state. If the
  * preferences window is open it is dismissed first. The overlay is shown
  * WITHOUT activating the app (v3 Show is a bare makeKeyAndOrderFront): the
@@ -949,23 +983,24 @@ const $$createType1 = actions$0.Result.createFrom;
 const $$createType2 = $models.AutomationPreviewViewState.createFrom;
 const $$createType3 = $Create.Nullable($$createType2);
 const $$createType4 = $models.DiagnosticsReview.createFrom;
-const $$createType5 = platform$0.DockLockDisplay.createFrom;
-const $$createType6 = $Create.Array($$createType5);
-const $$createType7 = platform$0.DockMonitorLockState.createFrom;
-const $$createType8 = $models.DockViewState.createFrom;
-const $$createType9 = $Create.Nullable($$createType8);
-const $$createType10 = $models.LauncherAppChoice.createFrom;
-const $$createType11 = $Create.Array($$createType10);
-const $$createType12 = launcher$0.Presentation.createFrom;
-const $$createType13 = $models.LauncherStatus.createFrom;
-const $$createType14 = $models.LauncherWidgetState.createFrom;
-const $$createType15 = $Create.Map($Create.Any, $$createType0);
-const $$createType16 = $models.MediaViewState.createFrom;
-const $$createType17 = $Create.Nullable($$createType16);
-const $$createType18 = widgets$0.ActionOptions.createFrom;
-const $$createType19 = $models.WidgetCatalogItem.createFrom;
-const $$createType20 = $Create.Array($$createType19);
-const $$createType21 = $models.WidgetPackageStatus.createFrom;
-const $$createType22 = platform$0.DockPlacementResult.createFrom;
-const $$createType23 = $models.WidgetPackageReview.createFrom;
-const $$createType24 = platform$0.DiagnosticExportResult.createFrom;
+const $$createType5 = platform$0.MaterialStatus.createFrom;
+const $$createType6 = platform$0.DockLockDisplay.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = platform$0.DockMonitorLockState.createFrom;
+const $$createType9 = $models.DockViewState.createFrom;
+const $$createType10 = $Create.Nullable($$createType9);
+const $$createType11 = $models.LauncherAppChoice.createFrom;
+const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = launcher$0.Presentation.createFrom;
+const $$createType14 = $models.LauncherStatus.createFrom;
+const $$createType15 = $models.LauncherWidgetState.createFrom;
+const $$createType16 = $Create.Map($Create.Any, $$createType0);
+const $$createType17 = $models.MediaViewState.createFrom;
+const $$createType18 = $Create.Nullable($$createType17);
+const $$createType19 = widgets$0.ActionOptions.createFrom;
+const $$createType20 = $models.WidgetCatalogItem.createFrom;
+const $$createType21 = $Create.Array($$createType20);
+const $$createType22 = $models.WidgetPackageStatus.createFrom;
+const $$createType23 = platform$0.DockPlacementResult.createFrom;
+const $$createType24 = $models.WidgetPackageReview.createFrom;
+const $$createType25 = platform$0.DiagnosticExportResult.createFrom;

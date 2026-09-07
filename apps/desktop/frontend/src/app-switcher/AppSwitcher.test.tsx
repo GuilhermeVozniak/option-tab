@@ -23,6 +23,25 @@ const handlers = () => ({
 });
 
 describe("AppSwitcher", () => {
+  it("uses native material only after a truthful matching status", () => {
+    const { container, rerender } = render(
+      <AppSwitcher
+        nativeKeys={false}
+        handlers={handlers()}
+        state={{ ...emptyState, session: 4, revision: 2, open: true, mode: "apps", apps: [] }}
+      />,
+    );
+    expect(container.querySelector(".ot-app-panel")).toHaveClass("ot-solid-material");
+    rerender(
+      <AppSwitcher
+        nativeKeys={false}
+        handlers={handlers()}
+        state={{ ...emptyState, session: 4, revision: 2, open: true, mode: "apps", apps: [] }}
+        material={{ status: { session: 4, revision: 1, state: "system" } }}
+      />,
+    );
+    expect(container.querySelector(".ot-app-panel")).toHaveClass("ot-native-material");
+  });
   it("keeps duplicate names as distinct PIDs and commits explicit preview targets", () => {
     const h = handlers();
     render(

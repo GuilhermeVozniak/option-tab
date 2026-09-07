@@ -29,7 +29,10 @@
   }
 }
 .ot-dock-blur {
-  backdrop-filter: blur(20px);
+  backdrop-filter: none;
+}
+.ot-dock-panel.ot-native-material {
+  background: rgba(var(--ot-dock-bg), calc(var(--ot-dock-opacity, 0.94) * 0.22));
 }
 .ot-dock-native-header {
   position: relative;

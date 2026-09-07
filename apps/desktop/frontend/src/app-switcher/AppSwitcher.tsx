@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { type KeyPayload, onSwitcherKey } from "../lib/bridge";
 import { keyToAction } from "../lib/keymap";
 import { computeLayout, effectiveStyle } from "../lib/layout";
+import {
+  type MaterialRect,
+  type MaterialStatus,
+  materialClass,
+  useMaterialReporter,
+} from "../lib/material";
 import { truncateTitle } from "../lib/text";
 import type { Entry, PointerAction, SwitcherState } from "../lib/types";
 import { StatusIcons } from "../overlay/StatusIcons";
@@ -13,6 +19,7 @@ export interface AppSwitcherProps {
   handlers: OverlayHandlers;
   nativeKeys?: boolean;
   t?: (text: string) => string;
+  material?: { status?: MaterialStatus | null; onRect?: (rect: MaterialRect) => void };
 }
 
 function runPointerAction(action: PointerAction, entry: Entry, handlers: OverlayHandlers) {
@@ -205,6 +212,7 @@ export function AppSwitcher({
   handlers,
   nativeKeys = true,
   t = (text) => text,
+  material,
 }: AppSwitcherProps) {
   const apps = state.apps ?? [],
     selected = Math.max(0, Math.min(state.selected, apps.length - 1));
@@ -224,6 +232,12 @@ export function AppSwitcher({
     layoutDirection: appearance.layoutDirection,
   });
   const [shown, setShown] = useState(appearance.apparitionDelayMs <= 0);
+  const panelRef = useMaterialReporter(
+    state.session ?? 0,
+    state.revision ?? 0,
+    material?.onRect,
+    shown,
+  );
   const [closing, setClosing] = useState(false);
   const wasOpen = useRef(false);
   useEffect(() => {
@@ -368,7 +382,10 @@ export function AppSwitcher({
       role="dialog"
       aria-label="Application switcher"
     >
-      <section className="ot-app-panel">
+      <section
+        ref={panelRef}
+        className={`ot-app-panel ${materialClass(appearance.blur, material?.status, state.session)}`}
+      >
         {state.search ? <div className="ot-app-search">{state.search}</div> : null}
         <div className="ot-app-rail" role="listbox" aria-label="Applications">
           {apps.map((item, index) => (

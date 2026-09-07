@@ -11,11 +11,18 @@ import {
   loadSettings,
   onPrefsTab,
   onSwitcherEvent,
+  onSwitcherMaterial,
   saveSettings,
   switcher,
 } from "./lib/bridge";
 import { demoStateFor } from "./lib/demo";
-import { type DockPointer, dock, onDockEvent, onDockInputStatus } from "./lib/dock-bridge";
+import {
+  type DockPointer,
+  dock,
+  onDockEvent,
+  onDockInputStatus,
+  onDockMaterial,
+} from "./lib/dock-bridge";
 import { dockLock } from "./lib/dock-lock-bridge";
 import { makeT, resolveLang } from "./lib/i18n";
 import {
@@ -25,6 +32,7 @@ import {
   onLauncherWidgets,
   onWidgetPackageStatus,
 } from "./lib/launcher-bridge";
+import { admitMaterialStatus, type MaterialStatus } from "./lib/material";
 import { media, onMediaEvents } from "./lib/media-bridge";
 import type {
   DockLockDisplay,
@@ -248,6 +256,8 @@ function OverlayRoute() {
   // The DOM listener in Overlay is only a fallback for browser dev, enabled
   // until the backend probe answers.
   const [nativeKeys, setNativeKeys] = useState(true);
+  const [materialStatus, setMaterialStatus] = useState<MaterialStatus | null>(null);
+  const materialSession = useRef(0);
   useEffect(() => {
     let active = true;
     hasBackend().then((ok) => {
@@ -278,6 +288,17 @@ function OverlayRoute() {
         setActionError(null);
         setThumbs({});
         setPreviews({});
+        materialSession.current = session;
+        setMaterialStatus(null);
+        if (session > 0) {
+          void switcher
+            .materialStatus(session)
+            .then((next) => {
+              if (materialSession.current === session)
+                setMaterialStatus((old) => admitMaterialStatus(old, next, session));
+            })
+            .catch(() => {});
+        }
       }
       setState(next);
     };
@@ -308,6 +329,8 @@ function OverlayRoute() {
         setActionError(null);
         setThumbs({});
         setPreviews({});
+        materialSession.current = 0;
+        setMaterialStatus(null);
         setState((s) => ({ ...s, open: false }));
       },
       onThumbnails: (session, next) => {
@@ -327,6 +350,15 @@ function OverlayRoute() {
       onError: (message) => setActionError(message),
     });
   }, []);
+
+  useEffect(
+    () =>
+      onSwitcherMaterial((next) => {
+        const session = materialSession.current;
+        if (session > 0) setMaterialStatus((old) => admitMaterialStatus(old, next, session));
+      }),
+    [],
+  );
 
   const stateWithThumbs = useMemo<SwitcherState>(
     () => ({
@@ -404,9 +436,26 @@ function OverlayRoute() {
   return (
     <>
       {(stateWithThumbs.mode ?? "windows") === "apps" ? (
-        <AppSwitcher state={stateWithThumbs} handlers={handlers} nativeKeys={nativeKeys} t={t} />
+        <AppSwitcher
+          state={stateWithThumbs}
+          handlers={handlers}
+          nativeKeys={nativeKeys}
+          t={t}
+          material={{
+            status: materialStatus,
+            onRect: (rect) => void switcher.materialRect(rect).catch(() => {}),
+          }}
+        />
       ) : (
-        <Overlay state={stateWithThumbs} handlers={handlers} nativeKeys={nativeKeys} />
+        <Overlay
+          state={stateWithThumbs}
+          handlers={handlers}
+          nativeKeys={nativeKeys}
+          material={{
+            status: materialStatus,
+            onRect: (rect) => void switcher.materialRect(rect).catch(() => {}),
+          }}
+        />
       )}
       {state.open && actionError ? (
         <div className="ot-action-notice" role="alert">
@@ -429,6 +478,7 @@ function DockRoute() {
   const [state, setState] = useState<DockViewState | null>(null);
   const [frames, setFrames] = useState<Record<string, string>>({});
   const [nativePointer, setNativePointer] = useState<DockPointer | null>(null);
+  const [materialStatus, setMaterialStatus] = useState<MaterialStatus | null>(null);
   const currentSession = useRef(0);
   const activeSession = useRef(0);
   const retiredSession = useRef(0);
@@ -463,6 +513,14 @@ function DockRoute() {
         setFrames({});
         setNativePointer(null);
         pointerSequence.current = 0;
+        setMaterialStatus(null);
+        void dock
+          .materialStatus(next.session)
+          .then((status) => {
+            if (activeSession.current === next.session)
+              setMaterialStatus((old) => admitMaterialStatus(old, status, next.session));
+          })
+          .catch(() => {});
       }
       latestRevision.current = revision;
       activeSession.current = next.session;
@@ -520,9 +578,18 @@ function DockRoute() {
     setState(null);
     setFrames({});
     setNativePointer(null);
+    setMaterialStatus(null);
     pointerSequence.current = 0;
     if ((pendingPointer.current?.session ?? 0) <= session) pendingPointer.current = null;
   }, []);
+  useEffect(
+    () =>
+      onDockMaterial((next) => {
+        const session = activeSession.current;
+        if (session > 0) setMaterialStatus((old) => admitMaterialStatus(old, next, session));
+      }),
+    [],
+  );
   useEffect(() => {
     let active = true;
     const off = onDockEvent({
@@ -769,7 +836,13 @@ function DockRoute() {
     [run, runMedia, runMediaVoid],
   );
   return visible ? (
-    <DockPanelView state={visible} handlers={handlers} nativePointer={nativePointer} t={t} />
+    <DockPanelView
+      state={visible}
+      handlers={handlers}
+      nativePointer={nativePointer}
+      materialStatus={materialStatus}
+      t={t}
+    />
   ) : null;
 }
 
