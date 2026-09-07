@@ -30,50 +30,97 @@ func expand(b domain.Bounds, n float64) domain.Bounds {
 	return domain.Bounds{X: b.X - n, Y: b.Y - n, W: b.W + 2*n, H: b.H + 2*n}
 }
 
+// Layout uses global top-left logical points. Reserving each physical edge keeps
+// native Dock access available even when its orientation changes between samples.
 func Layout(p config.LauncherProfile, d platform.LauncherDisplay, count int, protected []domain.Bounds) Geometry {
 	fail := Geometry{Status: "unavailable"}
-	if !validBounds(d.Frame) || !validBounds(d.UsableFrame) || !finite(d.Scale) || d.Scale <= 0 || count < 0 || p.Edge != "bottom" || p.Layout != "floating" || !finite(p.MaxLengthFraction) || p.MaxLengthFraction < .25 || p.MaxLengthFraction > .9 || p.ThicknessPx < 48 || p.ThicknessPx > 112 || p.IconPx < 24 || p.IconPx > 64 || p.InsetPx < 12 || p.InsetPx > 64 {
+	if !validBounds(d.Frame) || !validBounds(d.UsableFrame) || !finite(d.Scale) || d.Scale <= 0 || count < 0 || len(protected) > 32 {
+		return fail
+	}
+	if config.ValidateReplacementDock(config.ReplacementDockSettings{Version: 2, Profiles: []config.LauncherProfile{p}}) != nil {
 		return fail
 	}
 	u := d.UsableFrame
-	left := math.Max(u.X, d.Frame.X)
-	top := math.Max(u.Y, d.Frame.Y)
-	right := math.Min(u.X+u.W, d.Frame.X+d.Frame.W)
+	left := math.Max(u.X, d.Frame.X+32)
+	right := math.Min(u.X+u.W, d.Frame.X+d.Frame.W-32)
+	top := math.Max(u.Y, d.Frame.Y+32)
 	bottom := math.Min(u.Y+u.H, d.Frame.Y+d.Frame.H-32)
 	inset := float64(p.InsetPx)
-	available := right - left - 2*inset
-	if available < 48 {
+	left += inset
+	right -= inset
+	top += inset
+	bottom -= inset
+	vertical := p.Edge == "left" || p.Edge == "right"
+	alongStart, available := left, right-left
+	if vertical {
+		alongStart, available = top, bottom-top
+	}
+	thickness := float64(p.ThicknessPx)
+	if available < 48 || right-left < thickness || bottom-top < thickness {
 		return fail
 	}
+	spacing := float64(p.Appearance.ItemSpacingPx)
 	count = min(count, 128)
-	length := float64(max(count, 1)*(p.IconPx+12) + 24)
+	n := max(count, 1)
+	length := float64(n*p.IconPx) + float64(n-1)*spacing + 24
 	for _, w := range p.Widgets {
 		if granted(w) {
-			length += 88
+			length += 88 + spacing
 		}
 	}
-	width := math.Min(length, math.Min(available, (right-left)*p.MaxLengthFraction))
-	if width < 48 {
+	if p.Layout == "fullWidth" {
+		length = available
+	} else {
+		length = math.Min(length, math.Min(available, available*p.MaxLengthFraction))
+	}
+	if length < 48 {
 		return fail
 	}
-	b := domain.Bounds{X: left + (right-left-width)/2, Y: bottom - inset - float64(p.ThicknessPx), W: width, H: float64(p.ThicknessPx)}
-	// At most one upward adjustment per region, repeated to a fixed bound for overlap chains.
+	along := alongStart
+	switch p.Alignment {
+	case "center":
+		along += (available - length) / 2
+	case "end":
+		along += available - length
+	}
+	var b domain.Bounds
+	switch p.Edge {
+	case "bottom":
+		b = domain.Bounds{X: along, Y: bottom - thickness, W: length, H: thickness}
+	case "top":
+		b = domain.Bounds{X: along, Y: top, W: length, H: thickness}
+	case "left":
+		b = domain.Bounds{X: left, Y: along, W: thickness, H: length}
+	case "right":
+		b = domain.Bounds{X: right - thickness, Y: along, W: thickness, H: length}
+	}
+	// Move only inward; monotonic movement bounds chains and prevents oscillation.
 	for range len(protected) + 1 {
 		moved := false
 		for _, r := range protected {
 			if !validBounds(r) {
 				return fail
 			}
-			if overlap(b, r) {
-				b.Y = r.Y - inset - b.H
-				moved = true
+			if !overlap(b, r) {
+				continue
 			}
+			switch p.Edge {
+			case "bottom":
+				b.Y = r.Y - inset - b.H
+			case "top":
+				b.Y = r.Y + r.H + inset
+			case "left":
+				b.X = r.X + r.W + inset
+			case "right":
+				b.X = r.X - inset - b.W
+			}
+			moved = true
 		}
 		if !moved {
 			break
 		}
 	}
-	if b.Y < top+inset || b.X < left || b.X+b.W > right {
+	if !validBounds(b) || b.X < left || b.Y < top || b.X+b.W > right || b.Y+b.H > bottom {
 		return fail
 	}
 	for _, r := range protected {
@@ -81,5 +128,18 @@ func Layout(p config.LauncherProfile, d platform.LauncherDisplay, count int, pro
 			return fail
 		}
 	}
-	return Geometry{Bounds: b, RevealBand: domain.Bounds{X: b.X, Y: b.Y + b.H - 8, W: b.W, H: 8}, Status: "ready"}
+	reveal := b
+	switch p.Edge {
+	case "bottom":
+		reveal.Y = b.Y + b.H - 8
+		reveal.H = 8
+	case "top":
+		reveal.H = 8
+	case "left":
+		reveal.W = 8
+	case "right":
+		reveal.X = b.X + b.W - 8
+		reveal.W = 8
+	}
+	return Geometry{Bounds: b, RevealBand: reveal, Status: "ready"}
 }

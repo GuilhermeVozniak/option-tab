@@ -445,14 +445,26 @@ export interface LauncherWidgetInstance {
 export interface LauncherProfile {
   id: string;
   name: string;
-  edge: "bottom";
-  layout: "floating";
+  edge: "bottom" | "left" | "right" | "top";
+  layout: "floating" | "fullWidth";
+  alignment: "start" | "center" | "end";
+  appearance: LauncherAppearance;
   iconPx: number;
   thicknessPx: number;
   maxLengthFraction: number;
   insetPx: number;
   autoHide: boolean;
   widgets: LauncherWidgetInstance[];
+}
+export interface LauncherAppearance {
+  theme: "system" | "light" | "dark";
+  material: "solid" | "system";
+  tint: string;
+  opacity: number;
+  borderOpacity: number;
+  cornerRadiusPx: number;
+  itemSpacingPx: number;
+  showLabels: boolean;
 }
 export interface LauncherBinding {
   id: string;
@@ -481,6 +493,9 @@ export interface LauncherPresentation {
   profileID: string;
   bounds: Bounds;
   iconPx: number;
+  edge: "bottom" | "left" | "right" | "top";
+  layout: "floating" | "fullWidth";
+  appearance: LauncherAppearance;
   items: Array<{ id: string; name: string; icon: string }>;
   widgets: Array<{
     id: string;
@@ -606,7 +621,7 @@ export const defaultSettings: Settings = {
     placement: "cursorScreen",
   },
   replacementDock: {
-    version: 1,
+    version: 2,
     enabled: false,
     profiles: [
       {
@@ -614,6 +629,17 @@ export const defaultSettings: Settings = {
         name: "Default",
         edge: "bottom",
         layout: "floating",
+        alignment: "center",
+        appearance: {
+          theme: "system",
+          material: "solid",
+          tint: "#172033",
+          opacity: 0.76,
+          borderOpacity: 0.16,
+          cornerRadiusPx: 18,
+          itemSpacingPx: 6,
+          showLabels: true,
+        },
         iconPx: 40,
         thicknessPx: 64,
         maxLengthFraction: 0.8,

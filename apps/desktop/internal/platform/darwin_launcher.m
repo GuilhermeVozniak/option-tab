@@ -29,6 +29,26 @@ static NSDictionary *launcherRect(NSRect b, double top) {
     @"H" : @(b.size.height)
   };
 }
+static NSRect launcherSafeFrame(NSRect frame, NSRect visible,
+                                NSEdgeInsets insets) {
+  double values[] = {frame.origin.x,     frame.origin.y,      frame.size.width,
+                     frame.size.height,  visible.origin.x,    visible.origin.y,
+                     visible.size.width, visible.size.height, insets.top,
+                     insets.left,        insets.bottom,       insets.right};
+  for (int i = 0; i < 12; i++)
+    if (!isfinite(values[i]))
+      return NSZeroRect;
+  if (insets.top < 0 || insets.left < 0 || insets.bottom < 0 ||
+      insets.right < 0)
+    return NSZeroRect;
+  NSRect safe =
+      NSMakeRect(frame.origin.x + insets.left, frame.origin.y + insets.bottom,
+                 frame.size.width - insets.left - insets.right,
+                 frame.size.height - insets.top - insets.bottom);
+  if (NSIsEmptyRect(safe) || NSIsEmptyRect(visible))
+    return NSZeroRect;
+  return NSIntersectionRect(safe, visible);
+}
 static NSString *launcherUUID(CGDirectDisplayID display) {
   CFUUIDRef uuid = CGDisplayCreateUUIDFromDisplayID(display);
   if (!uuid)
@@ -124,7 +144,10 @@ char *ot_launcher_environment(void) {
           @"MirrorGroup" : CGDisplayIsInMirrorSet(display) ? @"unresolved"
                                                            : @"",
           @"Frame" : launcherRect(screen.frame, top),
-          @"UsableFrame" : launcherRect(screen.visibleFrame, top),
+          @"UsableFrame" :
+              launcherRect(launcherSafeFrame(screen.frame, screen.visibleFrame,
+                                             screen.safeAreaInsets),
+                           top),
           @"Scale" : @(screen.backingScaleFactor)
         }];
       }

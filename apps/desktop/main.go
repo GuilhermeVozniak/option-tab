@@ -170,7 +170,7 @@ func main() {
 	}
 
 	if host, ok := app.platform.(platform.LauncherPanelHost); ok {
-		app.launcherFactory = func(session uint64, uuid string, failed func()) *dockWindow {
+		app.launcherFactory = func(session uint64, uuid string, style platform.LauncherPanelStyle, failed func()) *dockWindow {
 			var scheduled *dockWindow
 			factory := func() nativeWindow {
 				window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
@@ -185,7 +185,7 @@ func main() {
 				})
 				return window
 			}
-			scheduled = newDockWindow(application.InvokeAsync, factory, launcherPanelHostAdapter{source: host, uuid: uuid})
+			scheduled = newDockWindow(application.InvokeAsync, factory, launcherPanelHostAdapter{source: host, uuid: uuid, style: style})
 			scheduled.onFailure = func() { go failed() }
 			return scheduled
 		}

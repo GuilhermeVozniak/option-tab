@@ -8,6 +8,9 @@ import { Create as $Create } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as config$0 from "../config/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as domain$0 from "../domain/models.js";
 
 export class DisplayState {
@@ -135,6 +138,27 @@ export class Presentation {
      * @param {Partial<Presentation>} [$$source = {}] - The source object to create the Presentation.
      */
     constructor($$source = {}) {
+        if (!("edge" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["edge"] = "";
+        }
+        if (!("layout" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["layout"] = "";
+        }
+        if (!("appearance" in $$source)) {
+            /**
+             * @member
+             * @type {config$0.LauncherAppearance}
+             */
+            this["appearance"] = (new config$0.LauncherAppearance());
+        }
         if (!("epoch" in $$source)) {
             /**
              * @member
@@ -222,18 +246,22 @@ export class Presentation {
      * @returns {Presentation}
      */
     static createFrom($$source = {}) {
-        const $$createField7_0 = $$createType0;
-        const $$createField9_0 = $$createType2;
-        const $$createField10_0 = $$createType4;
+        const $$createField2_0 = $$createType0;
+        const $$createField10_0 = $$createType1;
+        const $$createField12_0 = $$createType3;
+        const $$createField13_0 = $$createType5;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("appearance" in $$parsedSource) {
+            $$parsedSource["appearance"] = $$createField2_0($$parsedSource["appearance"]);
+        }
         if ("bounds" in $$parsedSource) {
-            $$parsedSource["bounds"] = $$createField7_0($$parsedSource["bounds"]);
+            $$parsedSource["bounds"] = $$createField10_0($$parsedSource["bounds"]);
         }
         if ("items" in $$parsedSource) {
-            $$parsedSource["items"] = $$createField9_0($$parsedSource["items"]);
+            $$parsedSource["items"] = $$createField12_0($$parsedSource["items"]);
         }
         if ("widgets" in $$parsedSource) {
-            $$parsedSource["widgets"] = $$createField10_0($$parsedSource["widgets"]);
+            $$parsedSource["widgets"] = $$createField13_0($$parsedSource["widgets"]);
         }
         return new Presentation(/** @type {Partial<Presentation>} */($$parsedSource));
     }
@@ -290,7 +318,7 @@ export class Widget {
      * @returns {Widget}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType5;
+        const $$createField4_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("root" in $$parsedSource) {
             $$parsedSource["root"] = $$createField4_0($$parsedSource["root"]);
@@ -336,7 +364,7 @@ export class WidgetNode {
      * @returns {WidgetNode}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType6;
+        const $$createField2_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("children" in $$parsedSource) {
             $$parsedSource["children"] = $$createField2_0($$parsedSource["children"]);
@@ -346,10 +374,11 @@ export class WidgetNode {
 }
 
 // Private type creation functions
-const $$createType0 = domain$0.Bounds.createFrom;
-const $$createType1 = Item.createFrom;
-const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = Widget.createFrom;
-const $$createType4 = $Create.Array($$createType3);
-const $$createType5 = WidgetNode.createFrom;
-const $$createType6 = $Create.Array($$createType5);
+const $$createType0 = config$0.LauncherAppearance.createFrom;
+const $$createType1 = domain$0.Bounds.createFrom;
+const $$createType2 = Item.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = Widget.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = WidgetNode.createFrom;
+const $$createType7 = $Create.Array($$createType6);

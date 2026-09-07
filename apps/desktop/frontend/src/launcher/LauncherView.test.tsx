@@ -13,6 +13,18 @@ const presentation: LauncherPresentation = {
   profileID: "default",
   bounds: { x: 20, y: 700, w: 260, h: 64 },
   iconPx: 40,
+  edge: "bottom",
+  layout: "floating",
+  appearance: {
+    theme: "light",
+    material: "system",
+    tint: "#224466",
+    opacity: 0.8,
+    borderOpacity: 0.2,
+    cornerRadiusPx: 22,
+    itemSpacingPx: 9,
+    showLabels: false,
+  },
   items: [
     { id: "opaque-1", name: "Notes & Tasks", icon: "data:image/png;base64,AA==" },
     { id: "opaque-2", name: "Windowless Helper", icon: "" },
@@ -35,6 +47,8 @@ describe("LauncherView", () => {
     expect(screen.getByRole("button", { name: "Windowless Helper" })).toBeVisible();
     expect(screen.getByText("09:41")).toBeVisible();
     expect(screen.getByRole("list")).toHaveClass("ot-launcher-strip");
+    expect(screen.getByLabelText("Option Tab launcher")).toHaveClass("theme-light", "edge-bottom");
+    expect(screen.getByText("Notes & Tasks")).toHaveClass("ot-launcher-label-hidden");
   });
 
   it("dispatches the exact backend-owned scope and opaque item id", () => {

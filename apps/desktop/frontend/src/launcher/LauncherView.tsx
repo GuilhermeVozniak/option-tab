@@ -29,8 +29,17 @@ export function LauncherView({
   if (!presentation?.visible) return null;
   return (
     <main
-      className="ot-launcher-shell"
-      style={{ "--ot-launcher-icon": `${presentation.iconPx}px` } as React.CSSProperties}
+      className={`ot-launcher-shell edge-${presentation.edge} theme-${presentation.appearance.theme} material-${presentation.appearance.material}`}
+      style={
+        {
+          "--ot-launcher-icon": `${presentation.iconPx}px`,
+          "--ot-launcher-tint": presentation.appearance.tint,
+          "--ot-launcher-opacity": presentation.appearance.opacity,
+          "--ot-launcher-border-opacity": presentation.appearance.borderOpacity,
+          "--ot-launcher-radius": `${presentation.appearance.cornerRadiusPx}px`,
+          "--ot-launcher-gap": `${presentation.appearance.itemSpacingPx}px`,
+        } as React.CSSProperties
+      }
       aria-label="Option Tab launcher"
     >
       <ul className="ot-launcher-strip" aria-label="Running applications">
@@ -55,7 +64,11 @@ export function LauncherView({
               ) : (
                 <span>{item.name[0]}</span>
               )}
-              <small>{item.name}</small>
+              <small
+                className={presentation.appearance.showLabels ? "" : "ot-launcher-label-hidden"}
+              >
+                {item.name}
+              </small>
             </button>
           </li>
         ))}

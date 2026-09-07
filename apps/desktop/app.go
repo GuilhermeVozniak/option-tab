@@ -108,7 +108,7 @@ type App struct {
 	automation                *appAutomationRuntime
 	diagnostics               *diagnostics.Service
 	launcher                  *appLauncherRuntime
-	launcherFactory           func(uint64, string, func()) *dockWindow
+	launcherFactory           func(uint64, string, platform.LauncherPanelStyle, func()) *dockWindow
 	mediaPinFactory           func(uint64, platform.MediaProvider, func(platform.MediaPanelEvent)) *dockWindow
 	dockFolders               platform.FolderSource
 	dockFolderGrant           *dockFolderGrantOwner

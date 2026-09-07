@@ -24,17 +24,34 @@ type ReplacementDockSettings struct {
 	Profiles []LauncherProfile `json:"profiles"`
 	Bindings []LauncherBinding `json:"bindings"`
 }
+type LauncherAppearance struct {
+	Theme          string  `json:"theme"`
+	Material       string  `json:"material"`
+	Tint           string  `json:"tint"`
+	Opacity        float64 `json:"opacity"`
+	BorderOpacity  float64 `json:"borderOpacity"`
+	CornerRadiusPx int     `json:"cornerRadiusPx"`
+	ItemSpacingPx  int     `json:"itemSpacingPx"`
+	ShowLabels     bool    `json:"showLabels"`
+}
+
+func DefaultLauncherAppearance() LauncherAppearance {
+	return LauncherAppearance{Theme: "system", Material: "solid", Tint: "#172033", Opacity: .76, BorderOpacity: .16, CornerRadiusPx: 18, ItemSpacingPx: 6, ShowLabels: true}
+}
+
 type LauncherProfile struct {
-	ID                string           `json:"id"`
-	Name              string           `json:"name"`
-	Edge              string           `json:"edge"`
-	Layout            string           `json:"layout"`
-	IconPx            int              `json:"iconPx"`
-	ThicknessPx       int              `json:"thicknessPx"`
-	MaxLengthFraction float64          `json:"maxLengthFraction"`
-	InsetPx           int              `json:"insetPx"`
-	AutoHide          bool             `json:"autoHide"`
-	Widgets           []WidgetInstance `json:"widgets"`
+	Alignment         string             `json:"alignment"`
+	Appearance        LauncherAppearance `json:"appearance"`
+	ID                string             `json:"id"`
+	Name              string             `json:"name"`
+	Edge              string             `json:"edge"`
+	Layout            string             `json:"layout"`
+	IconPx            int                `json:"iconPx"`
+	ThicknessPx       int                `json:"thicknessPx"`
+	MaxLengthFraction float64            `json:"maxLengthFraction"`
+	InsetPx           int                `json:"insetPx"`
+	AutoHide          bool               `json:"autoHide"`
+	Widgets           []WidgetInstance   `json:"widgets"`
 }
 type LauncherBinding struct {
 	ID          string `json:"id"`
@@ -51,7 +68,7 @@ type WidgetInstance struct {
 }
 
 func DefaultReplacementDock() ReplacementDockSettings {
-	return ReplacementDockSettings{Version: 1, Profiles: []LauncherProfile{{ID: "default", Name: "Default", Edge: "bottom", Layout: "floating", IconPx: 40, ThicknessPx: 64, MaxLengthFraction: .8, InsetPx: 16, Widgets: []WidgetInstance{{ID: "clock", PackageID: BuiltinClockPackage, Digest: BuiltinClockDigest, Grants: []string{}}}}}, Bindings: []LauncherBinding{{ID: "main", Target: "main", ProfileID: "default"}}}
+	return ReplacementDockSettings{Version: 2, Profiles: []LauncherProfile{{ID: "default", Name: "Default", Alignment: "center", Appearance: DefaultLauncherAppearance(), Edge: "bottom", Layout: "floating", IconPx: 40, ThicknessPx: 64, MaxLengthFraction: .8, InsetPx: 16, Widgets: []WidgetInstance{{ID: "clock", PackageID: BuiltinClockPackage, Digest: BuiltinClockDigest, Grants: []string{}}}}}, Bindings: []LauncherBinding{{ID: "main", Target: "main", ProfileID: "default"}}}
 }
 
 func CloneReplacementDock(s ReplacementDockSettings) ReplacementDockSettings {
@@ -66,16 +83,22 @@ func CloneReplacementDock(s ReplacementDockSettings) ReplacementDockSettings {
 	return s
 }
 
+var launcherTint = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+func validLauncherAppearance(a LauncherAppearance) bool {
+	return slices.Contains([]string{"system", "light", "dark"}, a.Theme) && slices.Contains([]string{"solid", "system"}, a.Material) && launcherTint.MatchString(a.Tint) && !math.IsNaN(a.Opacity) && !math.IsInf(a.Opacity, 0) && a.Opacity >= .35 && a.Opacity <= 1 && !math.IsNaN(a.BorderOpacity) && !math.IsInf(a.BorderOpacity, 0) && a.BorderOpacity >= 0 && a.BorderOpacity <= .5 && a.CornerRadiusPx >= 0 && a.CornerRadiusPx <= 28 && a.ItemSpacingPx >= 2 && a.ItemSpacingPx <= 20
+}
+
 var launcherID = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
 func ValidateReplacementDock(s ReplacementDockSettings) error {
 	bad := errors.New("config: invalid replacement Dock settings")
-	if s.Version != 1 || len(s.Profiles) == 0 || len(s.Profiles) > 8 || len(s.Bindings) > 8 {
+	if s.Version != 2 || len(s.Profiles) == 0 || len(s.Profiles) > 8 || len(s.Bindings) > 8 {
 		return bad
 	}
 	profiles := map[string]bool{}
 	for _, p := range s.Profiles {
-		if !launcherID.MatchString(p.ID) || profiles[p.ID] || !utf8.ValidString(p.Name) || utf8.RuneCountInString(p.Name) < 1 || utf8.RuneCountInString(p.Name) > 80 || p.Edge != "bottom" || p.Layout != "floating" || p.IconPx < 24 || p.IconPx > 64 || p.ThicknessPx < 48 || p.ThicknessPx > 112 || p.ThicknessPx < p.IconPx+8 || math.IsNaN(p.MaxLengthFraction) || math.IsInf(p.MaxLengthFraction, 0) || p.MaxLengthFraction < .25 || p.MaxLengthFraction > .9 || p.InsetPx < 12 || p.InsetPx > 64 || len(p.Widgets) > 4 {
+		if !launcherID.MatchString(p.ID) || profiles[p.ID] || !utf8.ValidString(p.Name) || utf8.RuneCountInString(p.Name) < 1 || utf8.RuneCountInString(p.Name) > 80 || !slices.Contains([]string{"bottom", "top", "left", "right"}, p.Edge) || !slices.Contains([]string{"floating", "fullWidth"}, p.Layout) || !slices.Contains([]string{"start", "center", "end"}, p.Alignment) || !validLauncherAppearance(p.Appearance) || p.IconPx < 24 || p.IconPx > 64 || p.ThicknessPx < 48 || p.ThicknessPx > 112 || p.ThicknessPx < p.IconPx+8 || math.IsNaN(p.MaxLengthFraction) || math.IsInf(p.MaxLengthFraction, 0) || p.MaxLengthFraction < .25 || p.MaxLengthFraction > .9 || p.InsetPx < 12 || p.InsetPx > 64 || len(p.Widgets) > 4 {
 			return bad
 		}
 		profiles[p.ID] = true
@@ -175,6 +198,28 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 	var s ReplacementDockSettings
 	if err := d.Decode(&s); err != nil {
 		return s, bad
+	}
+	if s.Version == 1 {
+		var legacy struct {
+			Profiles []map[string]json.RawMessage `json:"profiles"`
+		}
+		if err := json.Unmarshal(raw, &legacy); err != nil {
+			return s, bad
+		}
+		for i, p := range s.Profiles {
+			if p.Edge != "bottom" || p.Layout != "floating" {
+				return s, bad
+			}
+			if _, exists := legacy.Profiles[i]["alignment"]; exists {
+				return s, bad
+			}
+			if _, exists := legacy.Profiles[i]["appearance"]; exists {
+				return s, bad
+			}
+			s.Profiles[i].Alignment = "center"
+			s.Profiles[i].Appearance = DefaultLauncherAppearance()
+		}
+		s.Version = 2
 	}
 	return s, ValidateReplacementDock(s)
 }

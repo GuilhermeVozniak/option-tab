@@ -9,8 +9,17 @@ char *ot_lock_read_container(void) { abort(); }
 @property(getter=isOnActiveSpace) BOOL onActiveSpace;
 @property(getter=isMiniaturized) BOOL miniaturized;
 @property NSWindowOcclusionState occlusionState;
+@property NSView *contentView;
+@property NSAppearance *appearance;
+@property BOOL closed;
 @end
 @implementation FakeLauncherPanel
+- (void)orderOut:(id)sender {
+  self.visible = NO;
+}
+- (void)close {
+  self.closed = YES;
+}
 @end
 int main(void) {
   @autoreleasepool {
@@ -156,6 +165,74 @@ int main(void) {
     [panelRecords() removeObjectForKey:@77];
     NSCAssert(!ot_launcher_panel_visible(77, "display"),
               @"retired token admitted");
+    FakeLauncherPanel *styleHost = [FakeLauncherPanel new],
+                      *stylePanel = [FakeLauncherPanel new];
+    NSView *original = [[NSView alloc] initWithFrame:NSMakeRect(3, 4, 300, 80)];
+    NSView *child = [[NSView alloc] initWithFrame:NSMakeRect(5, 6, 20, 30)];
+    [original addSubview:child];
+    OTDockPanelRecord *styled = [OTDockPanelRecord new];
+    styled.host = (NSWindow *)styleHost;
+    styled.panel = (OTDockPanel *)stylePanel;
+    styled.content = original;
+    styled.originalFrame = original.frame;
+    styled.originalAutoresizingMask = original.autoresizingMask;
+    styled.originalSubviewFrames = [NSMapTable weakToStrongObjectsMapTable];
+    [styled.originalSubviewFrames setObject:[NSValue valueWithRect:child.frame]
+                                     forKey:child];
+    styled.launcherDisplay = @"display";
+    stylePanel.contentView = original;
+    panelRecords()[@88] = styled;
+    NSCAssert(ot_launcher_panel_style(88, "system", "dark", 18),
+              @"valid launcher material refused");
+    NSCAssert(styled.launcherEffect &&
+                  styled.launcherRoot.subviews.firstObject ==
+                      styled.launcherEffect &&
+                  styled.launcherRoot.subviews.lastObject == original &&
+                  styled.launcherRoot.layer.cornerRadius == 18 &&
+                  styled.launcherRoot.layer.masksToBounds &&
+                  [styled.launcherRoot.appearance.name
+                      isEqual:NSAppearanceNameDarkAqua],
+              @"effect/theme/clipping not behind original content");
+
+    NSCAssert(!ot_launcher_panel_style(88, "remote", "dark", 18) &&
+                  !ot_launcher_panel_style(88, "solid", "dark", 29),
+              @"untrusted material/radius accepted");
+    styled.launcherDisplay = nil;
+    NSCAssert(!ot_launcher_panel_style(88, "solid", "light", 0),
+              @"non-launcher styled");
+    styled.launcherDisplay = @"display";
+    NSCAssert(ot_launcher_panel_style(88, "solid", "system", 0),
+              @"solid reset refused");
+    NSCAssert(!styled.launcherEffect &&
+                  styled.launcherRoot.subviews.count == 1 &&
+                  !styled.launcherRoot.appearance &&
+                  styled.launcherRoot.layer.cornerRadius == 0,
+              @"solid/system reset retained effect/theme");
+
+    destroyPanel(88, YES);
+    NSCAssert(styleHost.contentView == original &&
+                  NSEqualRects(original.frame, NSMakeRect(3, 4, 300, 80)) &&
+                  NSEqualRects(child.frame, NSMakeRect(5, 6, 20, 30)) &&
+                  stylePanel.closed,
+              @"exact original content/frame restoration failed");
+    NSCAssert(!ot_launcher_panel_style(88, "system", "dark", 18),
+              @"retired token styled");
+    NSRect usable = launcherSafeFrame(NSMakeRect(-1200, -200, 1200, 900),
+                                      NSMakeRect(-1200, -200, 1200, 878),
+                                      NSEdgeInsetsMake(40, 10, 20, 30));
+    NSCAssert(NSEqualRects(usable, NSMakeRect(-1190, -180, 1160, 840)),
+              @"safe area intersection must preserve negative coordinates and "
+              @"top notch");
+    NSDictionary *converted = launcherRect(usable, 700);
+    NSCAssert([converted[@"X"] doubleValue] == -1190 &&
+                  [converted[@"Y"] doubleValue] == 40 &&
+                  [converted[@"W"] doubleValue] == 1160,
+              @"safe area top-left logical conversion wrong");
+    NSCAssert(NSEqualRects(launcherSafeFrame(NSMakeRect(0, 0, 100, 100),
+                                             NSMakeRect(0, 0, 100, 90),
+                                             NSEdgeInsetsMake(110, 0, 0, 0)),
+                           NSZeroRect),
+              @"impossible safe area accepted");
     printf("PASS native launcher final preparation guard, process/Space/host "
            "invalidation and native refusal; no GUI or activation\n");
   }

@@ -5,6 +5,7 @@
 export {
     ActionKind,
     Appearance,
+    LauncherAppearance,
     LayoutDirection,
     Placement,
     PointerAction,

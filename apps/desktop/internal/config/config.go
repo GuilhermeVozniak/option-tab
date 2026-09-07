@@ -910,6 +910,9 @@ func Load(r io.Reader) (Settings, error) {
 			s.AppSwitcher.Behavior.ActionBindings = map[string]ActionKind{}
 		}
 	}
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return Settings{}, fmt.Errorf("config: parse: %w", err)
+	}
 	if presence.ReplacementDock != nil {
 		replacement, err := decodeReplacement(presence.ReplacementDock)
 		if err != nil {
@@ -917,9 +920,7 @@ func Load(r io.Reader) (Settings, error) {
 		}
 		s.ReplacementDock = replacement
 	}
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return Settings{}, fmt.Errorf("config: parse: %w", err)
-	}
+
 	s.Version = presence.Version
 	if s.Version < 3 {
 		for i := range s.Shortcuts {

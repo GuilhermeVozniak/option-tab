@@ -20,3 +20,5 @@ uint64_t ot_launcher_panel_create(void *host, const char *display);
 int ot_launcher_panel_visible(uint64_t token, const char *display);
 
 uint64_t ot_launcher_panel_space(uint64_t token);
+
+int ot_launcher_panel_style(uint64_t token, const char *material, const char *theme, int radius);

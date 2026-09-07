@@ -10,7 +10,7 @@ import (
 
 func TestLauncherNativeAdmission(t *testing.T) {
 	binary := filepath.Join(t.TempDir(), "launcher")
-	out, err := exec.Command("clang", "-fobjc-arc", "-framework", "Cocoa", "-framework", "ApplicationServices", "testdata/launcher/main.m", "-o", binary).CombinedOutput()
+	out, err := exec.Command("clang", "-fobjc-arc", "-framework", "Cocoa", "-framework", "ApplicationServices", "-framework", "QuartzCore", "testdata/launcher/main.m", "-o", binary).CombinedOutput()
 	if err != nil {
 		t.Fatalf("compile: %v\n%s", err, out)
 	}

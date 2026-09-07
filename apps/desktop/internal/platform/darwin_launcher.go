@@ -108,6 +108,26 @@ func (*darwinPlatform) ObserveLauncherEnvironment(ctx context.Context, emit func
 type darwinLauncherPanel struct{ *dockPanel }
 
 func (p *darwinLauncherPanel) LauncherToken() uint64 { return p.token }
+
+func (p *darwinLauncherPanel) SetLauncherStyle(style LauncherPanelStyle) error {
+	if (style.Material != "solid" && style.Material != "system") || (style.Theme != "system" && style.Theme != "light" && style.Theme != "dark") || style.CornerRadiusPx < 0 || style.CornerRadiusPx > 28 {
+		return errors.New("invalid launcher panel style")
+	}
+	p.mu.Lock()
+	closed := p.closed
+	p.mu.Unlock()
+	if closed {
+		return ErrDockPanelClosed
+	}
+	material, theme := C.CString(style.Material), C.CString(style.Theme)
+	defer C.free(unsafe.Pointer(material))
+	defer C.free(unsafe.Pointer(theme))
+	if C.ot_launcher_panel_style(C.uint64_t(p.token), material, theme, C.int(style.CornerRadiusPx)) == 0 {
+		return ErrDockPanelHostClosed
+	}
+	return nil
+}
+
 func (*darwinPlatform) CreateLauncherPanel(host unsafe.Pointer, display string) (LauncherPanel, error) {
 	if host == nil || display == "" {
 		return nil, ErrDockPanelHostClosed

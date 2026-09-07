@@ -4,6 +4,7 @@
 #import "darwin_launcher.h"
 #import "darwin_media_panel.h"
 #import <Cocoa/Cocoa.h>
+#import <QuartzCore/QuartzCore.h>
 
 @class OTDockPanel;
 static BOOL handlePanelWheel(OTDockPanel *, NSEvent *);
@@ -42,6 +43,8 @@ static BOOL handlePanelWheel(OTDockPanel *, NSEvent *);
 @property BOOL wheelEnabled, wheelVisible, wheelEnded, wheelBypass;
 @property double wheelLastTime;
 @property NSString *launcherDisplay;
+@property NSView *launcherRoot;
+@property NSVisualEffectView *launcherEffect;
 @property uint64_t launcherSpace;
 @property NSWindow *host;
 @property id hostDelegate;
@@ -312,7 +315,9 @@ static void destroyPanel(uint64_t token, BOOL restore) {
     r.closeObserver = nil;
   }
   [r.panel orderOut:nil];
+  if(r.launcherRoot) [r.content removeFromSuperview];
   r.panel.contentView = nil;
+  r.launcherEffect=nil; r.launcherRoot=nil;
   // The host is strongly retained here, including during its WillClose
   // notification. Wails stores WKWebView in an assign property and accesses it
   // in -dealloc, so its content must remain owned by the host through teardown.
@@ -547,4 +552,60 @@ uint64_t ot_media_panel_create(void *host,uint64_t session) {
   __block BOOL attached=NO;
   panelMain(^{OTDockPanelRecord *r=panelRecords()[@(token)];if(r){OTMediaAttach(token,session,r.panel);attached=YES;}});
   return attached?token:0;
+}
+
+int ot_launcher_panel_style(uint64_t token, const char *material,
+                            const char *theme, int radius) {
+  if (!material || !theme || radius < 0 || radius > 28)
+    return 0;
+  NSString *m = [NSString stringWithUTF8String:material],
+           *t = [NSString stringWithUTF8String:theme];
+  if (![@[ @"solid", @"system" ] containsObject:m] ||
+      ![@[ @"system", @"light", @"dark" ] containsObject:t])
+    return 0;
+  __block int ok = 0;
+  panelMain(^{
+    OTDockPanelRecord *r = panelRecords()[@(token)];
+    if (!r || !r.launcherDisplay || !r.content || !r.panel)
+      return;
+    if (!r.launcherRoot) {
+      NSView *root = [[NSView alloc]
+          initWithFrame:NSMakeRect(0, 0, r.content.frame.size.width,
+                                   r.content.frame.size.height)];
+      root.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+      root.wantsLayer = YES;
+      [r.content removeFromSuperview];
+      r.panel.contentView = root;
+      r.content.frame = root.bounds;
+      [root addSubview:r.content];
+      r.launcherRoot = root;
+    }
+    r.launcherRoot.layer.cornerRadius = radius;
+    r.launcherRoot.layer.masksToBounds = YES;
+    r.launcherRoot.appearance =
+        [t isEqual:@"system"]
+            ? nil
+            : [NSAppearance appearanceNamed:[t isEqual:@"dark"]
+                                                ? NSAppearanceNameDarkAqua
+                                                : NSAppearanceNameAqua];
+    if ([m isEqual:@"system"]) {
+      if (!r.launcherEffect) {
+        NSVisualEffectView *effect =
+            [[NSVisualEffectView alloc] initWithFrame:r.launcherRoot.bounds];
+        effect.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        effect.material = NSVisualEffectMaterialHUDWindow;
+        effect.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+        effect.state = NSVisualEffectStateActive;
+        [r.launcherRoot addSubview:effect
+                        positioned:NSWindowBelow
+                        relativeTo:r.content];
+        r.launcherEffect = effect;
+      }
+    } else {
+      [r.launcherEffect removeFromSuperview];
+      r.launcherEffect = nil;
+    }
+    ok = 1;
+  });
+  return ok;
 }

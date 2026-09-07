@@ -314,7 +314,8 @@ func (a *App) publishLauncher(state launcher.State) {
 			h := r.hosts[p.Session]
 			if h == nil {
 				var window *dockWindow
-				window = a.launcherFactory(p.Session, p.DisplayUUID, func() { a.launcherHostFailed(p.Session, window) })
+				style := platform.LauncherPanelStyle{Material: p.Appearance.Material, Theme: p.Appearance.Theme, CornerRadiusPx: p.Appearance.CornerRadiusPx}
+				window = a.launcherFactory(p.Session, p.DisplayUUID, style, func() { a.launcherHostFailed(p.Session, window) })
 				if window == nil {
 					r.core.FailDisplay(p.Scope, "hostUnavailable")
 					continue
@@ -452,8 +453,26 @@ func (a *App) UseNativeDock() error {
 type launcherPanelHostAdapter struct {
 	source platform.LauncherPanelHost
 	uuid   string
+	style  platform.LauncherPanelStyle
 }
 
 func (h launcherPanelHostAdapter) CreateDockPanel(host unsafe.Pointer) (platform.DockPanel, error) {
-	return h.source.CreateLauncherPanel(host, h.uuid)
+	panel, err := h.source.CreateLauncherPanel(host, h.uuid)
+	if err != nil || panel == nil {
+		return panel, err
+	}
+	style := h.style
+	if style == (platform.LauncherPanelStyle{}) {
+		style = platform.LauncherPanelStyle{Material: "solid", Theme: "system", CornerRadiusPx: 18}
+	}
+	if styled, ok := panel.(platform.LauncherPanelStyler); ok {
+		err = styled.SetLauncherStyle(style)
+	} else if style.Material == "system" {
+		err = errors.New("launcher: native material unavailable")
+	}
+	if err != nil {
+		_ = panel.Close()
+		return nil, err
+	}
+	return panel, nil
 }

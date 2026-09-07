@@ -243,6 +243,83 @@ export class Appearance {
     }
 }
 
+export class LauncherAppearance {
+    /**
+     * Creates a new LauncherAppearance instance.
+     * @param {Partial<LauncherAppearance>} [$$source = {}] - The source object to create the LauncherAppearance.
+     */
+    constructor($$source = {}) {
+        if (!("theme" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["theme"] = "";
+        }
+        if (!("material" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["material"] = "";
+        }
+        if (!("tint" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["tint"] = "";
+        }
+        if (!("opacity" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["opacity"] = 0;
+        }
+        if (!("borderOpacity" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["borderOpacity"] = 0;
+        }
+        if (!("cornerRadiusPx" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["cornerRadiusPx"] = 0;
+        }
+        if (!("itemSpacingPx" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["itemSpacingPx"] = 0;
+        }
+        if (!("showLabels" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["showLabels"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherAppearance instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherAppearance}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LauncherAppearance(/** @type {Partial<LauncherAppearance>} */($$parsedSource));
+    }
+}
+
 /**
  * @readonly
  * @enum {string}

@@ -13,6 +13,18 @@ const state = (session: number, revision: number, item = "Current"): LauncherPre
   profileID: "default",
   bounds: { x: 0, y: 0, w: 200, h: 64 },
   iconPx: 40,
+  edge: "bottom",
+  layout: "floating",
+  appearance: {
+    theme: "system",
+    material: "solid",
+    tint: "#172033",
+    opacity: 0.76,
+    borderOpacity: 0.16,
+    cornerRadiusPx: 18,
+    itemSpacingPx: 6,
+    showLabels: true,
+  },
   items: [{ id: `id-${item}`, name: item, icon: "" }],
   widgets: [],
 });

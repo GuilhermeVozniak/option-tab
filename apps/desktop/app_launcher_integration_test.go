@@ -77,6 +77,12 @@ type launcherIntegrationPanel struct {
 	token  uint64
 	shows  atomic.Int32
 	closes atomic.Int32
+	style  atomic.Pointer[platform.LauncherPanelStyle]
+}
+
+func (p *launcherIntegrationPanel) SetLauncherStyle(style platform.LauncherPanelStyle) error {
+	p.style.Store(&style)
+	return nil
 }
 
 func (p *launcherIntegrationPanel) LauncherToken() uint64    { return p.token }
@@ -86,7 +92,7 @@ func (p *launcherIntegrationPanel) Close() error             { p.closes.Add(1); 
 
 type launcherIntegrationHost struct{ panel *launcherIntegrationPanel }
 
-func (h launcherIntegrationHost) CreateDockPanel(unsafe.Pointer) (platform.DockPanel, error) {
+func (h launcherIntegrationHost) CreateLauncherPanel(unsafe.Pointer, string) (platform.LauncherPanel, error) {
 	return h.panel, nil
 }
 
@@ -111,10 +117,10 @@ func launcherIntegrationApp(t *testing.T) (*App, *launcherIntegrationPlatform, c
 	a := newApp(p, s, "")
 	q := make(chan func(), 64)
 	panel := &launcherIntegrationPanel{token: 99}
-	a.launcherFactory = func(_ uint64, _ string, failed func()) *dockWindow {
+	a.launcherFactory = func(_ uint64, uuid string, style platform.LauncherPanelStyle, failed func()) *dockWindow {
 		w := &dockFakeWindow{}
 		w.native = unsafe.Pointer(new(int))
-		d := newDockWindow(func(f func()) { q <- f }, func() nativeWindow { return w }, launcherIntegrationHost{panel})
+		d := newDockWindow(func(f func()) { q <- f }, func() nativeWindow { return w }, launcherPanelHostAdapter{source: launcherIntegrationHost{panel}, uuid: uuid, style: style})
 		d.onFailure = failed
 		return d
 	}

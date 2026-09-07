@@ -103,7 +103,7 @@ func (c *Controller) reconcileLocked() {
 		profile := profiles[b.ProfileID]
 		ds.BindingID = b.ID
 		ds.ProfileID = b.ProfileID
-		p := Presentation{Scope: Scope{Epoch: c.epoch, DisplayUUID: d.UUID}, ProfileID: b.ProfileID, IconPx: profile.IconPx, Items: append([]Item{}, c.items...), Widgets: []Widget{}}
+		p := Presentation{Scope: Scope{Epoch: c.epoch, DisplayUUID: d.UUID}, ProfileID: b.ProfileID, Edge: profile.Edge, Layout: profile.Layout, Appearance: profile.Appearance, IconPx: profile.IconPx, Items: append([]Item{}, c.items...), Widgets: []Widget{}}
 		prior := previous[d.UUID]
 		p.Session = prior.Session
 		p.Revision = prior.Revision
