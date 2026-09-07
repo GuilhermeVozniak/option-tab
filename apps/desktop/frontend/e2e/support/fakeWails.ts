@@ -149,6 +149,11 @@ const METHOD = {
   RemoveMediaLyrics: 2634844375,
   SetMediaLyricsOffset: 3423128546,
   ConnectMediaProvider: 2624774846,
+  GetAutomationPreviewState: 473218209,
+  SelectAutomationPreview: 2322291942,
+  PerformAutomationPreviewAction: 513435453,
+  SetAutomationPreviewSize: 3307079785,
+  CloseAutomationPreview: 43965240,
   SaveSettings: 1949631069,
 } as const;
 
@@ -181,6 +186,8 @@ export async function installFakeWails(page: Page): Promise<void> {
       __mediaPermissions?: Record<string, unknown>;
       __mediaPinSession?: number;
       __mediaActionError?: string;
+      __automationPreviewState?: Record<string, unknown> | null;
+      __automationPreviewError?: string;
       _wails?: { dispatchWailsEvent?: (ev: { name: string; data: unknown }) => void };
     };
     w.__calls = [];
@@ -190,6 +197,7 @@ export async function installFakeWails(page: Page): Promise<void> {
     w.__dockState = null;
     w.__mediaState = null;
     w.__mediaPermissions = {};
+    w.__automationPreviewState = null;
     w.__dockLockState = {
       session: 0,
       revision: 0,
@@ -254,6 +262,8 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json(await page.evaluate(() => (window as any).__mediaState));
       case "GetMediaPermissions":
         return json(await page.evaluate(() => (window as any).__mediaPermissions));
+      case "GetAutomationPreviewState":
+        return json(await page.evaluate(() => (window as any).__automationPreviewState));
       case "PinMediaPanel": {
         const pinned = await page.evaluate(
           ([n, a]) => {
@@ -373,6 +383,21 @@ export async function installFakeWails(page: Page): Promise<void> {
             body: await page.evaluate(() => (window as any).__mediaActionError),
           });
         return json(name === "ConnectMediaProvider" ? { status: "ready", reason: "" } : null);
+      }
+      case "SelectAutomationPreview":
+      case "SetAutomationPreviewSize":
+      case "CloseAutomationPreview":
+      case "PerformAutomationPreviewAction": {
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        if (
+          name === "PerformAutomationPreviewAction" &&
+          (await page.evaluate(() => (window as any).__automationPreviewError))
+        )
+          return route.fulfill({
+            status: 500,
+            body: await page.evaluate(() => (window as any).__automationPreviewError),
+          });
+        return json(null);
       }
       case "FocusDockWindow":
       case "PerformDockAction": {

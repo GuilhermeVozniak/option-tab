@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppSwitcher } from "./app-switcher/AppSwitcher";
+import { AutomationPreviewRoute } from "./automation/AutomationPreviewRoute";
 import { type DockPanelHandlers, DockPanelView } from "./dock/DockPanelView";
 import { useAbout, useCrash, usePermissions } from "./hooks/useBridge";
+import { automationPreview, onAutomationPreviewEvents } from "./lib/automation-preview-bridge";
 import {
   hasBackend,
   importSettings,
@@ -50,6 +52,10 @@ function isDockRoute(): boolean {
 }
 function mediaRouteSession(): number {
   const match = route().match(/^media\/(\d+)$/);
+  return match ? Number(match[1]) : 0;
+}
+function automationRouteSession(): number {
+  const match = route().match(/^automation\/(\d+)$/);
   return match ? Number(match[1]) : 0;
 }
 
@@ -152,6 +158,7 @@ function useSettingsModel() {
 export default function App() {
   if (isSettingsRoute()) return <SettingsRoute />;
   if (isDockRoute()) return <DockRoute />;
+  if (automationRouteSession()) return <AutomationRoute session={automationRouteSession()} />;
   if (mediaRouteSession()) return <MediaRoute session={mediaRouteSession()} />;
   if (isDemoRoute()) {
     return (
@@ -161,6 +168,10 @@ export default function App() {
     );
   }
   return <OverlayRoute />;
+}
+
+function AutomationRoute({ session }: { session: number }) {
+  return <AutomationPreviewRoute session={session} t={useRuntimeTranslator()} />;
 }
 
 function OverlayRoute() {

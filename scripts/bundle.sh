@@ -67,6 +67,7 @@ cp "$PLIST" "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist"
 cp "$BIN_DIR/option-tab" "$APP/Contents/MacOS/option-tab"
 cp "$BIN_DIR/iconfile.icns" "$APP/Contents/Resources/"
+cp apps/desktop/build/darwin/OptionTab.sdef "$APP/Contents/Resources/OptionTab.sdef"
 
 # 5. Sign (hardened runtime) when an identity is available.
 if [ -n "${CODESIGN_IDENTITY:-}" ]; then

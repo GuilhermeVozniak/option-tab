@@ -73,6 +73,11 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   GetVersion: vi.fn().mockResolvedValue("1.2.3"),
   InstallUpdate: vi.fn().mockResolvedValue(undefined),
   GetCrashReport: vi.fn().mockResolvedValue(""),
+  GetAutomationPreviewState: vi.fn().mockResolvedValue(null),
+  SelectAutomationPreview: vi.fn().mockResolvedValue(undefined),
+  PerformAutomationPreviewAction: vi.fn().mockResolvedValue(undefined),
+  SetAutomationPreviewSize: vi.fn().mockResolvedValue(undefined),
+  CloseAutomationPreview: vi.fn().mockResolvedValue(undefined),
 }));
 
 import * as AppService from "../bindings/option-tab/app.js";
@@ -170,6 +175,100 @@ beforeEach(() => {
 });
 
 describe("App", () => {
+  it("admits scoped automation preview updates, frames, controls, and terminal hide", async () => {
+    const preview = {
+      open: true,
+      session: 55,
+      revision: 2,
+      title: "Automation preview",
+      entries: [{ ...appEntry(102, "Document"), thumbnail: "" }],
+      selectedWindowId: 102,
+      appearance: { ...emptyState.appearance, showWindowControls: true },
+      cardSpacingPx: 7,
+      emptyReason: "",
+      error: "",
+      frames: { "102": "data:image/png;base64,snapshot", "999": "foreign" },
+      frameSequence: 1,
+    };
+    mocked.GetAutomationPreviewState.mockResolvedValueOnce(preview as never);
+    window.location.hash = "#automation/55";
+    render(<App />);
+    expect(await screen.findByText("Automation preview")).toBeInTheDocument();
+    expect(document.querySelector(".ot-dock-native-titlebar")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Close preview" })).toHaveClass(
+      "ot-dock-native-close",
+    );
+    expect(document.querySelector('img[src="data:image/png;base64,snapshot"]')).not.toBeNull();
+    expect(document.querySelector('img[src="foreign"]')).toBeNull();
+    act(() =>
+      eventHandlers.get("automation-preview:frames")?.({
+        data: {
+          session: 55,
+          revision: 2,
+          sequence: 2,
+          frames: {
+            "102": "data:image/png;base64,current",
+            "999": "data:image/png;base64,foreign",
+          },
+        },
+      }),
+    );
+    expect(document.querySelector('img[src="data:image/png;base64,current"]')).not.toBeNull();
+    expect(document.querySelector('img[src="data:image/png;base64,foreign"]')).toBeNull();
+    act(() =>
+      eventHandlers.get("automation-preview:update")?.({
+        data: { ...preview, revision: 3, title: "Current revision" },
+      }),
+    );
+    expect(document.querySelector('img[src="data:image/png;base64,current"]')).toBeNull();
+    act(() =>
+      eventHandlers.get("automation-preview:frames")?.({
+        data: { session: 55, revision: 2, sequence: 99, frames: { "102": "old" } },
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Focus Document" }));
+    fireEvent.click(screen.getByLabelText("Fullscreen window"));
+    expect(mocked.PerformAutomationPreviewAction).toHaveBeenCalledWith(55, 3, "focus", 102, false);
+    expect(mocked.PerformAutomationPreviewAction).toHaveBeenCalledWith(
+      55,
+      3,
+      "fullscreen",
+      102,
+      true,
+    );
+    expect(screen.queryByText("New window")).toBeNull();
+    act(() =>
+      eventHandlers.get("automation-preview:hide")?.({ data: { session: 55, revision: 4 } }),
+    );
+    act(() =>
+      eventHandlers.get("automation-preview:update")?.({
+        data: { ...preview, revision: 5, title: "Late resurrection" },
+      }),
+    );
+    expect(screen.queryByText("Late resurrection")).toBeNull();
+  });
+
+  it("shows only current-revision automation action failures", async () => {
+    const preview = {
+      open: true,
+      session: 56,
+      revision: 1,
+      title: "Failure preview",
+      entries: [appEntry(103, "Failure document")],
+      selectedWindowId: 103,
+      appearance: { ...emptyState.appearance, showWindowControls: true },
+      cardSpacingPx: 7,
+      emptyReason: "",
+      error: "",
+    };
+    mocked.GetAutomationPreviewState.mockResolvedValueOnce(preview as never);
+    mocked.PerformAutomationPreviewAction.mockRejectedValueOnce(new Error("Exact action refused"));
+    window.location.hash = "#automation/56";
+    render(<App />);
+    fireEvent.click(await screen.findByLabelText("Close window"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Exact action refused");
+  });
+
   it("resets hover progress admission when embedded media scope changes", () => {
     window.location.hash = "#dock";
     render(<App />);

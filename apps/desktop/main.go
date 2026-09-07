@@ -36,7 +36,13 @@ func main() {
 		},
 	})
 
-	wailsApp.OnShutdown(app.stopCapture)
+	wailsApp.OnShutdown(func() {
+		app.stopAutomation()
+		// Wails invokes shutdown hooks synchronously on main before closing
+		// windows or ending the AppKit loop. Drain suspended native replies here.
+		app.drainAutomationOnMainThread()
+		app.stopCapture()
+	})
 
 	// --- Switcher overlay window ---
 	// Frameless, transparent, always-on-top, and created hidden; shown on the
@@ -129,6 +135,29 @@ func main() {
 				window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
 					if scheduled.markHostClosedIf(window) {
 						go app.mediaPinHostClosed(session, scheduled, window)
+					}
+				})
+				return window
+			}
+			adapter := &mediaPinHostAdapter{source: host, session: session, emit: emit}
+			scheduled = newDockWindow(application.InvokeAsync, factory, adapter)
+			adapter.owner = scheduled
+			return scheduled
+		}
+	}
+
+	if host, ok := app.platform.(platform.MediaPanelHost); ok && app.automation != nil {
+		app.automation.previewFactory = func(session uint64, emit func(platform.MediaPanelEvent)) *dockWindow {
+			var scheduled *dockWindow
+			factory := func() nativeWindow {
+				window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+					Name: fmt.Sprintf("automation-preview-%d", session), Title: "Option Tab app previews", Width: 420, Height: 300,
+					Hidden: true, Frameless: true, DisableResize: true, URL: fmt.Sprintf("/#/automation/%d", session),
+					Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
+				})
+				window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
+					if scheduled.markHostClosedIf(window) {
+						go app.automationPreviewHostClosed(session, scheduled, window)
 					}
 				})
 				return window

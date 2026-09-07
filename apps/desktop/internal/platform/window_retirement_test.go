@@ -42,6 +42,7 @@ func TestWindowRetirementRejectsUnknownIdentityAndStaleCallbacks(t *testing.T) {
 		}
 	}
 	old := r.observe(id)
+	r.finish(old) // Finished tickets are stale; a concurrent live peer remains valid.
 	newer := r.observe(id)
 	if r.destroyed(old) {
 		t.Fatal("stale observer callback accepted")

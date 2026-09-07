@@ -156,3 +156,7 @@ E01–E03 implementation is available on the feature branch: exact Dock-folder p
 ## Current media checkpoint
 
 E04–E06 implementation adds independently enabled Music/Spotify panels, typed native transport, bounded artwork, explicit local timestamped lyrics and separate session-only media pins. Provider consent and remote artwork are opt-in. Spotify seek remains unavailable pending runtime unit verification. Automated/native fixture evidence and physical acceptance limits are recorded in the [media checkpoint report](superpowers/reports/2026-09-07-dock-media.md); E04–E06 stay unchecked. Automation, distribution and the optional replacement Dock remain retained work.
+
+## Current automation checkpoint
+
+F01–F06 implementation adds a packaged AppleScript dictionary, guarded switcher/window commands, an independent app-preview panel and bounded JSON queries with optional existing cached images. The combined automated gates pass. A real packaged fixture reached macOS authorization but no-prompt preflight required consent, so full AppleScript/Wails/native action acceptance remains open and F01–F06 stay unchecked. See the [automation checkpoint report](superpowers/reports/2026-09-07-local-automation.md) and [command documentation](automation.md). The same-hover Windows/Media selector, distribution/support and optional replacement Dock remain implementation work.

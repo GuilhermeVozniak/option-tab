@@ -31,10 +31,31 @@
 .ot-dock-blur {
   backdrop-filter: blur(20px);
 }
+.ot-dock-native-header {
+  position: relative;
+}
+.ot-dock-panel .ot-dock-native-titlebar {
+  position: absolute;
+  inset: 0 0 auto;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 48px 0 14px;
+}
+.ot-dock-panel .ot-dock-native-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 48px;
+  height: 32px;
+}
 .ot-dock-content {
   box-sizing: border-box;
 }
 .ot-dock-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   padding: 1px 3px 8px;
   font-weight: 650;
   overflow-wrap: anywhere;

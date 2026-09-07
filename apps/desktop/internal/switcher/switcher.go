@@ -6,6 +6,7 @@ package switcher
 
 import (
 	"errors"
+	"fmt"
 	"maps"
 	"sync"
 	"sync/atomic"
@@ -18,6 +19,13 @@ import (
 	"option-tab/internal/order"
 	"option-tab/internal/platform"
 	"option-tab/internal/search"
+)
+
+var (
+	ErrUnsupportedMode = errors.New("switcher mode is unsupported")
+	ErrPaused          = errors.New("switcher is paused")
+	ErrUnavailable     = errors.New("switcher is unavailable")
+	ErrEmpty           = errors.New("switcher has no eligible items")
 )
 
 // View receives switcher state changes for rendering. The Wails layer
@@ -148,6 +156,7 @@ type Controller struct {
 	selected            int
 	search              string
 	session             uint64
+	admissionEpoch      uint64
 }
 
 // New creates a Controller with the given dependencies and initial settings.
@@ -162,6 +171,7 @@ func New(deps Deps, settings config.Settings) *Controller {
 func (c *Controller) SetSettings(s config.Settings) {
 	c.mu.Lock()
 	c.settings = s
+	c.admissionEpoch++
 	c.mu.Unlock()
 }
 
@@ -177,6 +187,139 @@ func (c *Controller) State() State {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.snapshot()
+}
+
+// Open presents the requested mode without applying hotkey cycling semantics.
+// Reopening the active mode is idempotent. Changing mode replaces the visible
+// presentation with a fresh scoped session.
+func (c *Controller) Open(mode config.SwitcherMode) (State, error) {
+	return c.OpenGuarded(mode, nil)
+}
+
+// OpenGuarded prepares inventory, then runs guard without holding the
+// controller mutex immediately before committing the presentation.
+func (c *Controller) OpenGuarded(mode config.SwitcherMode, guard func() error) (State, error) {
+	c.mu.Lock()
+	if !mode.Valid() {
+		c.mu.Unlock()
+		return State{}, ErrUnsupportedMode
+	}
+	if c.open && c.shortcut.Mode == mode {
+		state := c.snapshot()
+		c.mu.Unlock()
+		return state, nil
+	}
+	if c.settings.Behavior.Paused {
+		c.mu.Unlock()
+		return State{}, ErrPaused
+	}
+	if c.suspended || c.stopped {
+		c.mu.Unlock()
+		return State{}, ErrUnavailable
+	}
+	if c.deps.Windows == nil || c.deps.Env == nil {
+		c.mu.Unlock()
+		return State{}, ErrUnavailable
+	}
+	sc, ok := c.shortcutForModeLocked(mode)
+	if !ok {
+		c.mu.Unlock()
+		return State{}, ErrUnsupportedMode
+	}
+	wins, err := c.deps.Windows.Windows()
+	if err != nil {
+		c.mu.Unlock()
+		return State{}, fmt.Errorf("%w: window inventory: %v", ErrUnavailable, err)
+	}
+	wins = c.deps.MRU.Stamp(wins)
+	ctx := filter.Context{
+		ActiveAppID: c.deps.Env.ActiveApp(), ActiveSpaceID: c.deps.Env.ActiveSpace(),
+		ActiveScreenID: c.deps.Env.ActiveScreen(), CursorScreenID: c.deps.Env.CursorScreen(),
+		SelfBundleID: c.deps.SelfBundleID,
+	}
+	if filter.ShortcutIgnoredForApp(wins, ctx.ActiveAppID, c.settings.Filters.AppBlacklist) {
+		c.mu.Unlock()
+		return State{}, ErrUnavailable
+	}
+	prefs := c.settings.Preferences(mode)
+	placementScreen := resolvePlacementScreen(prefs.Placement, c.deps.Env.Screens(), ctx.ActiveScreenID, ctx.CursorScreenID)
+	ordered := c.composeLocked(wins, sc.Scope, ctx, prefs)
+	var groups []appgroup.Group
+	if mode == config.ModeApps {
+		if c.deps.Apps == nil || c.deps.AppActivator == nil {
+			c.mu.Unlock()
+			return State{}, ErrUnsupportedMode
+		}
+		apps, appErr := c.deps.Apps.Apps()
+		if appErr != nil {
+			c.mu.Unlock()
+			return State{}, fmt.Errorf("%w: application inventory: %v", ErrUnavailable, appErr)
+		}
+		groups = c.composeAppsLocked(apps, wins, ordered, sc.Scope, ctx)
+	}
+	if (mode == config.ModeApps && len(groups) == 0) || (mode == config.ModeWindows && len(ordered) == 0) {
+		c.mu.Unlock()
+		return State{}, ErrEmpty
+	}
+	admissionEpoch, wasOpen, previousSession := c.admissionEpoch, c.open, c.session
+	c.mu.Unlock()
+	if guard != nil {
+		if err := guard(); err != nil {
+			return State{}, err
+		}
+	}
+	c.mu.Lock()
+	if c.admissionEpoch != admissionEpoch || c.open != wasOpen || c.session != previousSession ||
+		c.settings.Behavior.Paused || c.suspended || c.stopped {
+		c.mu.Unlock()
+		return State{}, ErrUnavailable
+	}
+	retiringSession := uint64(0)
+	if c.open {
+		retiringSession = c.session
+	}
+	c.open = true
+	c.session++
+	c.admissionEpoch++
+	c.presentationSession.Store(c.session)
+	c.shortcut = sc
+	c.baseList, c.list = ordered, ordered
+	c.baseGroups, c.groups = groups, groups
+	c.activeSpace = ctx.ActiveSpaceID
+	c.placementScreen = placementScreen
+	c.search, c.selected = "", 0
+	c.syncSelectedWindowLocked()
+	count := len(ordered)
+	if mode == config.ModeApps {
+		count = len(groups)
+	}
+	if prefs.Behavior.HoldToCycle && count > 1 {
+		c.selected = 1
+		c.syncSelectedWindowLocked()
+	}
+	state := c.snapshot()
+	c.mu.Unlock()
+	if retiringSession != 0 {
+		c.deliverHide(retiringSession)
+	}
+	if c.deps.View != nil {
+		c.deps.View.Show(state)
+	}
+	return state, nil
+}
+
+func (c *Controller) shortcutForModeLocked(mode config.SwitcherMode) (config.Shortcut, bool) {
+	for _, shortcut := range c.settings.Shortcuts {
+		if shortcut.Mode == mode {
+			return shortcut, true
+		}
+	}
+	for _, shortcut := range config.Default().Shortcuts {
+		if shortcut.Mode == mode {
+			return shortcut, true
+		}
+	}
+	return config.Shortcut{}, false
 }
 
 // HandleHotkey routes a platform hotkey event to the right transition.
@@ -223,6 +366,7 @@ func (c *Controller) releaseDoesNothing() bool {
 func (c *Controller) SetPaused(paused bool) {
 	c.mu.Lock()
 	c.settings.Behavior.Paused = paused
+	c.admissionEpoch++
 	c.mu.Unlock()
 }
 
@@ -241,6 +385,7 @@ func (c *Controller) PresentationSession() uint64 { return c.presentationSession
 // without changing the user's persisted pause setting.
 func (c *Controller) Suspend(suspended bool) {
 	c.mu.Lock()
+	c.admissionEpoch++
 	c.suspended = suspended || c.stopped
 	hide := suspended && c.open
 	retiringSession := c.session
@@ -262,6 +407,7 @@ func (c *Controller) Stop() {
 		return
 	}
 	c.stopped = true
+	c.admissionEpoch++
 	c.suspended = true
 	hide, retiringSession := c.open, c.session
 	c.reset()
@@ -339,6 +485,7 @@ func (c *Controller) activate(shortcutID int) {
 
 	c.open = true
 	c.session++
+	c.admissionEpoch++
 	c.presentationSession.Store(c.session)
 	c.shortcut = sc
 	c.baseList = ordered
@@ -668,6 +815,7 @@ func (c *Controller) composeLocked(wins []domain.Window, scope config.ShortcutSc
 
 // reset clears the open state. Caller must hold the lock.
 func (c *Controller) reset() {
+	c.admissionEpoch++
 	c.presentationSession.Store(0)
 	c.open = false
 	c.baseList = nil

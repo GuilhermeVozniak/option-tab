@@ -8,6 +8,7 @@ export {
 };
 
 export {
+    AutomationPreviewViewState,
     DockBounds,
     DockItemView,
     DockPointer,

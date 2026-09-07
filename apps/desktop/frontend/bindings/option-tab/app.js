@@ -19,6 +19,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 import * as actions$0 from "./internal/actions/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as domain$0 from "./internal/domain/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as platform$0 from "./internal/platform/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -135,6 +138,15 @@ export function CheckForUpdates() {
  * @param {number} revision
  * @returns {$CancellablePromise<void>}
  */
+export function CloseAutomationPreview(session, revision) {
+    return $Call.ByID(43965240, session, revision);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
 export function CloseMediaPanel(session, revision) {
     return $Call.ByID(231734221, session, revision);
 }
@@ -216,6 +228,16 @@ export function FullscreenSelected() {
 }
 
 /**
+ * @param {number} session
+ * @returns {$CancellablePromise<$models.AutomationPreviewViewState | null>}
+ */
+export function GetAutomationPreviewState(session) {
+    return $Call.ByID(473218209, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
  * GetCrashReport returns the previous run's crash log, or "" when there is
  * none (or the policy is "never").
  * @returns {$CancellablePromise<string>}
@@ -230,7 +252,7 @@ export function GetCrashReport() {
  */
 export function GetDockMonitorLockDisplays() {
     return $Call.ByID(961307694).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType5($result);
     }));
 }
 
@@ -239,7 +261,7 @@ export function GetDockMonitorLockDisplays() {
  */
 export function GetDockMonitorLockState() {
     return $Call.ByID(3014544674).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType6($result);
     }));
 }
 
@@ -250,7 +272,7 @@ export function GetDockMonitorLockState() {
  */
 export function GetDockState() {
     return $Call.ByID(1033939333).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType8($result);
     }));
 }
 
@@ -259,7 +281,7 @@ export function GetDockState() {
  */
 export function GetMediaPermissions() {
     return $Call.ByID(3673411287).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType7($result);
+        return $$createType9($result);
     }));
 }
 
@@ -269,7 +291,7 @@ export function GetMediaPermissions() {
  */
 export function GetMediaState(session) {
     return $Call.ByID(3763583330, session).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType11($result);
     }));
 }
 
@@ -411,6 +433,18 @@ export function PerformAction(kind, windowID, appID) {
 
 /**
  * @param {number} session
+ * @param {number} revision
+ * @param {string} kind
+ * @param {domain$0.WindowID} windowID
+ * @param {boolean} fullscreen
+ * @returns {$CancellablePromise<void>}
+ */
+export function PerformAutomationPreviewAction(session, revision, kind, windowID, fullscreen) {
+    return $Call.ByID(513435453, session, revision, kind, windowID, fullscreen);
+}
+
+/**
+ * @param {number} session
  * @param {string} kind
  * @param {number} windowID
  * @param {number} appID
@@ -457,7 +491,7 @@ export function PinMediaPanel(session, revision) {
  */
 export function PlaceDockOnSelectedMonitor(session, revision, generation) {
     return $Call.ByID(1589667255, session, revision, generation).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType10($result);
+        return $$createType12($result);
     }));
 }
 
@@ -564,11 +598,32 @@ export function SelectAppWindow(id) {
 
 /**
  * @param {number} session
+ * @param {number} revision
+ * @param {domain$0.WindowID} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectAutomationPreview(session, revision, id) {
+    return $Call.ByID(2322291942, session, revision, id);
+}
+
+/**
+ * @param {number} session
  * @param {number} id
  * @returns {$CancellablePromise<void>}
  */
 export function SelectDockWindow(session, id) {
     return $Call.ByID(1507952022, session, id);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {number} width
+ * @param {number} height
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetAutomationPreviewSize(session, revision, width, height) {
+    return $Call.ByID(3307079785, session, revision, width, height);
 }
 
 /**
@@ -677,12 +732,14 @@ export function Update(st) {
 // Private type creation functions
 const $$createType0 = platform$0.MediaPermission.createFrom;
 const $$createType1 = actions$0.Result.createFrom;
-const $$createType2 = platform$0.DockLockDisplay.createFrom;
-const $$createType3 = $Create.Array($$createType2);
-const $$createType4 = platform$0.DockMonitorLockState.createFrom;
-const $$createType5 = $models.DockViewState.createFrom;
-const $$createType6 = $Create.Nullable($$createType5);
-const $$createType7 = $Create.Map($Create.Any, $$createType0);
-const $$createType8 = $models.MediaViewState.createFrom;
-const $$createType9 = $Create.Nullable($$createType8);
-const $$createType10 = platform$0.DockPlacementResult.createFrom;
+const $$createType2 = $models.AutomationPreviewViewState.createFrom;
+const $$createType3 = $Create.Nullable($$createType2);
+const $$createType4 = platform$0.DockLockDisplay.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = platform$0.DockMonitorLockState.createFrom;
+const $$createType7 = $models.DockViewState.createFrom;
+const $$createType8 = $Create.Nullable($$createType7);
+const $$createType9 = $Create.Map($Create.Any, $$createType0);
+const $$createType10 = $models.MediaViewState.createFrom;
+const $$createType11 = $Create.Nullable($$createType10);
+const $$createType12 = platform$0.DockPlacementResult.createFrom;

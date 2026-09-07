@@ -324,6 +324,7 @@ func (a *App) syncDockSuspensionLocked() {
 	a.syncDockFolderGrantLocked()
 	a.syncDockMonitorLockLocked()
 	a.syncMediaLocked()
+	a.syncAutomationPreviewLocked()
 }
 
 func (a *App) setSessionInactive(inactive bool) {

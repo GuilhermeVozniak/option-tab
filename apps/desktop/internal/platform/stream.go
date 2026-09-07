@@ -13,6 +13,13 @@ type WindowStreamSource interface {
 	StreamWindow(context.Context, domain.WindowID, int, func(string)) error
 }
 
+// IdentityWindowCaptureSource binds capture to a previously resolved owner.
+// A source must reject owner/process replacement before delivering a frame.
+type IdentityWindowCaptureSource interface {
+	StreamWindowWithIdentity(context.Context, AutomationWindowIdentity, int, func(string)) error
+	ThumbnailDataURLWithIdentity(context.Context, AutomationWindowIdentity, int) (string, error)
+}
+
 // WindowUnavailableError reports an ended window identity; snapshot retry is unsafe.
 type WindowUnavailableError struct{}
 

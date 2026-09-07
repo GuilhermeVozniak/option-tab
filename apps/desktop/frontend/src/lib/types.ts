@@ -144,6 +144,20 @@ export interface DockViewState {
   folder?: DockFolderState;
   media?: MediaViewState;
 }
+export interface AutomationPreviewState {
+  open: boolean;
+  session: number;
+  revision: number;
+  title: string;
+  entries: Entry[];
+  selectedWindowId: number;
+  appearance: Appearance;
+  cardSpacingPx: number;
+  emptyReason: string;
+  error?: string;
+  frames?: Record<string, string>;
+  frameSequence?: number;
+}
 export type MediaProvider = "music" | "spotify";
 export interface MediaScope {
   provider: MediaProvider;

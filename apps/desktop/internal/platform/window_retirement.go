@@ -25,8 +25,9 @@ type windowObservation struct {
 }
 type retiredWindow struct {
 	windowObservation
-	revision uint64
-	retired  bool
+	revision  uint64
+	retired   bool
+	observers map[uint64]struct{}
 }
 type windowRetirements struct {
 	mu       sync.Mutex
@@ -46,7 +47,16 @@ func (r *windowRetirements) observe(id windowIdentity) windowObservation {
 	previous := r.windows[id.Window]
 	r.sequence++
 	ticket := windowObservation{id, r.sequence}
-	r.windows[id.Window] = retiredWindow{ticket, r.sequence, previous.identity == id && previous.retired}
+	if previous.identity != id {
+		previous = retiredWindow{}
+	}
+	if previous.observers == nil {
+		previous.observers = make(map[uint64]struct{})
+	}
+	previous.windowObservation = ticket
+	previous.revision = r.sequence
+	previous.observers[ticket.generation] = struct{}{}
+	r.windows[id.Window] = previous
 	return ticket
 }
 
@@ -59,7 +69,10 @@ func (r *windowRetirements) destroyed(ticket windowObservation) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	current, ok := r.windows[ticket.identity.Window]
-	if !ok || current.windowObservation != ticket {
+	if !ok || current.identity != ticket.identity {
+		return false
+	}
+	if _, active := current.observers[ticket.generation]; !active {
 		return false
 	}
 	r.sequence++
@@ -72,8 +85,11 @@ func (r *windowRetirements) destroyed(ticket windowObservation) bool {
 func (r *windowRetirements) finish(ticket windowObservation) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if current, ok := r.windows[ticket.identity.Window]; ok && current.windowObservation == ticket && !current.retired {
-		delete(r.windows, ticket.identity.Window)
+	if current, ok := r.windows[ticket.identity.Window]; ok && current.identity == ticket.identity {
+		delete(current.observers, ticket.generation)
+		if len(current.observers) == 0 && !current.retired {
+			delete(r.windows, ticket.identity.Window)
+		}
 	}
 }
 

@@ -25,6 +25,126 @@ import * as platform$0 from "./internal/platform/models.js";
 // @ts-ignore: Unused imports
 import * as switcher$0 from "./internal/switcher/models.js";
 
+/**
+ * Automation previews have their own owner and never impersonate a Dock item.
+ */
+export class AutomationPreviewViewState {
+    /**
+     * Creates a new AutomationPreviewViewState instance.
+     * @param {Partial<AutomationPreviewViewState>} [$$source = {}] - The source object to create the AutomationPreviewViewState.
+     */
+    constructor($$source = {}) {
+        if (!("open" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["open"] = false;
+        }
+        if (!("session" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["session"] = 0;
+        }
+        if (!("revision" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["revision"] = 0;
+        }
+        if (!("title" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["title"] = "";
+        }
+        if (!("entries" in $$source)) {
+            /**
+             * @member
+             * @type {switcher$0.Entry[]}
+             */
+            this["entries"] = [];
+        }
+        if (!("selectedWindowId" in $$source)) {
+            /**
+             * @member
+             * @type {domain$0.WindowID}
+             */
+            this["selectedWindowId"] = 0;
+        }
+        if (!("appearance" in $$source)) {
+            /**
+             * @member
+             * @type {config$0.Appearance}
+             */
+            this["appearance"] = (new config$0.Appearance());
+        }
+        if (!("cardSpacingPx" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["cardSpacingPx"] = 0;
+        }
+        if (!("emptyReason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["emptyReason"] = "";
+        }
+        if (!("frames" in $$source)) {
+            /**
+             * @member
+             * @type {{ [_ in domain$0.WindowID]?: string }}
+             */
+            this["frames"] = {};
+        }
+        if (!("frameSequence" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["frameSequence"] = 0;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AutomationPreviewViewState instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {AutomationPreviewViewState}
+     */
+    static createFrom($$source = {}) {
+        const $$createField4_0 = $$createType1;
+        const $$createField6_0 = $$createType2;
+        const $$createField9_0 = $$createType3;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("entries" in $$parsedSource) {
+            $$parsedSource["entries"] = $$createField4_0($$parsedSource["entries"]);
+        }
+        if ("appearance" in $$parsedSource) {
+            $$parsedSource["appearance"] = $$createField6_0($$parsedSource["appearance"]);
+        }
+        if ("frames" in $$parsedSource) {
+            $$parsedSource["frames"] = $$createField9_0($$parsedSource["frames"]);
+        }
+        return new AutomationPreviewViewState(/** @type {Partial<AutomationPreviewViewState>} */($$parsedSource));
+    }
+}
+
 export class DockBounds {
     /**
      * Creates a new DockBounds instance.
@@ -146,7 +266,7 @@ export class DockItemView {
      * @returns {DockItemView}
      */
     static createFrom($$source = {}) {
-        const $$createField5_0 = $$createType0;
+        const $$createField5_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("bounds" in $$parsedSource) {
             $$parsedSource["bounds"] = $$createField5_0($$parsedSource["bounds"]);
@@ -248,7 +368,7 @@ export class DockPreviewRegion {
      * @returns {DockPreviewRegion}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType0;
+        const $$createField2_0 = $$createType4;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("bounds" in $$parsedSource) {
             $$parsedSource["bounds"] = $$createField2_0($$parsedSource["bounds"]);
@@ -385,12 +505,12 @@ export class DockViewState {
      * @returns {DockViewState}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType2;
-        const $$createField2_0 = $$createType4;
-        const $$createField6_0 = $$createType5;
-        const $$createField7_0 = $$createType7;
-        const $$createField9_0 = $$createType8;
-        const $$createField12_0 = $$createType10;
+        const $$createField1_0 = $$createType6;
+        const $$createField2_0 = $$createType8;
+        const $$createField6_0 = $$createType9;
+        const $$createField7_0 = $$createType1;
+        const $$createField9_0 = $$createType2;
+        const $$createField12_0 = $$createType11;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("folder" in $$parsedSource) {
             $$parsedSource["folder"] = $$createField1_0($$parsedSource["folder"]);
@@ -507,7 +627,7 @@ export class MediaLyricsView {
      * @returns {MediaLyricsView}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType12;
+        const $$createField3_0 = $$createType13;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cues" in $$parsedSource) {
             $$parsedSource["cues"] = $$createField3_0($$parsedSource["cues"]);
@@ -637,11 +757,11 @@ export class MediaViewState {
      * @returns {MediaViewState}
      */
     static createFrom($$source = {}) {
-        const $$createField7_0 = $$createType13;
-        const $$createField8_0 = $$createType14;
-        const $$createField9_0 = $$createType8;
-        const $$createField10_0 = $$createType15;
-        const $$createField11_0 = $$createType16;
+        const $$createField7_0 = $$createType14;
+        const $$createField8_0 = $$createType15;
+        const $$createField9_0 = $$createType2;
+        const $$createField10_0 = $$createType16;
+        const $$createField11_0 = $$createType17;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("scope" in $$parsedSource) {
             $$parsedSource["scope"] = $$createField7_0($$parsedSource["scope"]);
@@ -663,20 +783,21 @@ export class MediaViewState {
 }
 
 // Private type creation functions
-const $$createType0 = DockBounds.createFrom;
-const $$createType1 = dock$0.FolderState.createFrom;
-const $$createType2 = $Create.Nullable($$createType1);
-const $$createType3 = MediaViewState.createFrom;
-const $$createType4 = $Create.Nullable($$createType3);
-const $$createType5 = DockItemView.createFrom;
-const $$createType6 = switcher$0.Entry.createFrom;
-const $$createType7 = $Create.Array($$createType6);
-const $$createType8 = config$0.Appearance.createFrom;
-const $$createType9 = DockPointer.createFrom;
-const $$createType10 = $Create.Nullable($$createType9);
-const $$createType11 = media$0.Cue.createFrom;
-const $$createType12 = $Create.Array($$createType11);
-const $$createType13 = platform$0.MediaScope.createFrom;
-const $$createType14 = platform$0.MediaSample.createFrom;
-const $$createType15 = MediaArtworkView.createFrom;
-const $$createType16 = MediaLyricsView.createFrom;
+const $$createType0 = switcher$0.Entry.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = config$0.Appearance.createFrom;
+const $$createType3 = $Create.Map($Create.Any, $Create.Any);
+const $$createType4 = DockBounds.createFrom;
+const $$createType5 = dock$0.FolderState.createFrom;
+const $$createType6 = $Create.Nullable($$createType5);
+const $$createType7 = MediaViewState.createFrom;
+const $$createType8 = $Create.Nullable($$createType7);
+const $$createType9 = DockItemView.createFrom;
+const $$createType10 = DockPointer.createFrom;
+const $$createType11 = $Create.Nullable($$createType10);
+const $$createType12 = media$0.Cue.createFrom;
+const $$createType13 = $Create.Array($$createType12);
+const $$createType14 = platform$0.MediaScope.createFrom;
+const $$createType15 = platform$0.MediaSample.createFrom;
+const $$createType16 = MediaArtworkView.createFrom;
+const $$createType17 = MediaLyricsView.createFrom;

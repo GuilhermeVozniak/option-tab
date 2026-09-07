@@ -103,6 +103,7 @@ type App struct {
 	sessionObserveOnce        sync.Once
 	dockController            *dock.Controller
 	media                     *appMediaRuntime
+	automation                *appAutomationRuntime
 	mediaPinFactory           func(uint64, platform.MediaProvider, func(platform.MediaPanelEvent)) *dockWindow
 	dockFolders               platform.FolderSource
 	dockFolderGrant           *dockFolderGrantOwner
@@ -159,6 +160,7 @@ func NewApp() *App {
 	settings := loadStartupSettings(path)
 	a := newApp(p, settings, path, platform.NewFolderSource(filepath.Join(filepath.Dir(path), "folder-bookmarks.json")))
 	a.wireMedia(platform.NewMediaSource(), platform.NewMediaLyricsSource(filepath.Join(filepath.Dir(path), "media-lyrics.json")))
+	a.wireAutomation(platform.NewAutomationServer())
 	return a
 }
 
@@ -274,6 +276,7 @@ func (a *App) startup() {
 	go a.backgroundCaptureLoop()
 	a.startDock()
 	a.startMedia()
+	a.startAutomation()
 }
 
 func (a *App) emit(name string, data any) {
@@ -288,6 +291,8 @@ func (a *App) emit(name string, data any) {
 
 // stopCapture is safe before startup and on repeated shutdown notifications.
 func (a *App) stopCapture() {
+	a.stopAutomation()
+	a.stopAutomationPreview()
 	a.cancelDockPreviewDrag()
 	a.viewMu.Lock()
 	a.cancelDismissalLocked()

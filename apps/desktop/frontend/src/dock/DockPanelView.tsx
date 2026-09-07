@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { DockPointer } from "../lib/dock-bridge";
 import { computeLayout, effectiveStyle } from "../lib/layout";
 import { truncateTitle } from "../lib/text";
-import type { DockViewState, WindowAction } from "../lib/types";
+import type { DockItem, DockViewState, WindowAction } from "../lib/types";
 import { FolderPanel, type FolderPanelHandlers } from "./FolderPanel";
 import { MediaPanel, type MediaPanelHandlers } from "./MediaPanel";
 import "./dock.css";
@@ -51,16 +51,25 @@ export interface PreviewRegion {
   appId: number;
   bounds: { x: number; y: number; w: number; h: number };
 }
+export type DockPanelState = Omit<DockViewState, "item"> & { item?: DockItem };
 export function DockPanelView({
   state,
   handlers,
   t = (text) => text,
   nativePointer,
+  title,
+  item = state.item,
+  onClose,
+  nativeHeader = false,
 }: {
-  state: DockViewState;
+  state: DockPanelState;
   handlers: DockPanelHandlers;
   t?: (text: string) => string;
   nativePointer?: DockPointer | null;
+  title?: string;
+  item?: DockItem | null;
+  onClose?: () => void;
+  nativeHeader?: boolean;
 }) {
   dockDragGesture = Math.max(dockDragGesture, state.dragGestureFloor ?? 0);
   const drag = useRef<DragState | null>(null);
@@ -291,7 +300,7 @@ export function DockPanelView({
   ]);
   return (
     <div
-      className={`ot-dock-panel ot-theme-${a.theme}${a.blur ? " ot-dock-blur" : ""}${state.previewDragEnabled ? " ot-dock-drag-enabled" : ""}`}
+      className={`ot-dock-panel ot-theme-${a.theme}${a.blur ? " ot-dock-blur" : ""}${state.previewDragEnabled ? " ot-dock-drag-enabled" : ""}${nativeHeader ? " ot-dock-native-header" : ""}`}
       style={
         {
           "--ot-accent": a.accentColor,
@@ -310,8 +319,26 @@ export function DockPanelView({
         } as React.CSSProperties
       }
     >
-      <div ref={ref} className="ot-dock-content" style={{ width: contentWidth }}>
-        {state.contentKind !== "media" ? <header>{state.item.title}</header> : null}
+      <div
+        ref={ref}
+        className="ot-dock-content"
+        style={{ width: contentWidth, paddingTop: nativeHeader ? 32 : undefined }}
+      >
+        {state.contentKind !== "media" ? (
+          <header className={nativeHeader ? "ot-dock-native-titlebar" : undefined}>
+            <span>{title ?? item?.title}</span>
+            {onClose ? (
+              <button
+                type="button"
+                className={nativeHeader ? "ot-dock-native-close" : undefined}
+                aria-label={t("Close preview")}
+                onClick={onClose}
+              >
+                ×
+              </button>
+            ) : null}
+          </header>
+        ) : null}
         {state.contentKind === "media" && state.media && handlers.media ? (
           <MediaPanel state={state.media} handlers={handlers.media} t={t} />
         ) : state.contentKind === "folder" && state.folder ? (
@@ -543,21 +570,17 @@ export function DockPanelView({
                 <img key={selected?.windowId} src={preview} alt="" />
               </div>
             ) : null}
-            {state.item.appId > 0 && state.emptyReason !== "notRunning" ? (
+            {item && item.appId > 0 && state.emptyReason !== "notRunning" ? (
               <div className="ot-dock-app-actions">
                 <button
-                  onClick={() => handlers.onAction(state.session, "newWindow", 0, state.item.appId)}
+                  onClick={() => handlers.onAction(state.session, "newWindow", 0, item.appId)}
                 >
                   {t("New window")}
                 </button>
-                <button
-                  onClick={() => handlers.onAction(state.session, "hide", 0, state.item.appId)}
-                >
+                <button onClick={() => handlers.onAction(state.session, "hide", 0, item.appId)}>
                   {t("Hide app")}
                 </button>
-                <button
-                  onClick={() => handlers.onAction(state.session, "quit", 0, state.item.appId)}
-                >
+                <button onClick={() => handlers.onAction(state.session, "quit", 0, item.appId)}>
                   {t("Quit app")}
                 </button>
               </div>
