@@ -86,6 +86,7 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   QuitSelectedApp: vi.fn().mockResolvedValue(undefined),
   HideSelectedApp: vi.fn().mockResolvedValue(undefined),
   GetSettings: vi.fn().mockResolvedValue("{}"),
+  SaveSettings: vi.fn().mockResolvedValue(undefined),
   GetPermissions: vi.fn().mockResolvedValue("{}"),
   GetVersion: vi.fn().mockResolvedValue("1.2.3"),
   InstallUpdate: vi.fn().mockResolvedValue(undefined),
@@ -119,6 +120,9 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   CancelWidgetPackageReview: vi.fn().mockResolvedValue(undefined),
   RemoveWidgetPackage: vi.fn().mockResolvedValue(undefined),
   GetLauncherAppChoices: vi.fn().mockResolvedValue([]),
+  GetLauncherProfileExport: vi.fn().mockResolvedValue("{}"),
+  PreviewLauncherProfileImport: vi.fn().mockResolvedValue({}),
+  ImportLauncherProfile: vi.fn().mockResolvedValue({}),
   GetLauncherItemSettings: vi.fn().mockResolvedValue({
     profileID: "default",
     revision: "r1",
@@ -1216,6 +1220,58 @@ describe("App", () => {
       "aria-selected",
       "true",
     );
+  });
+
+  it("queues profile import after a pending settings save and recovers from canonical result", async () => {
+    window.location.hash = "#settings";
+    const initial = {
+      ...defaultSettings,
+      behavior: { ...defaultSettings.behavior, onboarded: true },
+    };
+    const imported = {
+      ...initial,
+      replacementDock: {
+        ...initial.replacementDock,
+        profiles: [
+          ...initial.replacementDock.profiles,
+          { ...initial.replacementDock.profiles[0], id: "profile-imported", name: "Travel" },
+        ],
+      },
+    };
+    mocked.GetSettings.mockResolvedValueOnce(JSON.stringify(initial)).mockResolvedValueOnce("{}");
+    let releaseSave!: () => void;
+    mocked.SaveSettings.mockReturnValueOnce(
+      new Promise<void>((resolve) => (releaseSave = resolve)) as never,
+    );
+    mocked.PreviewLauncherProfileImport.mockResolvedValueOnce({
+      digest: "digest-1",
+      revision: "dock-r1",
+      name: "Travel",
+      itemCount: 1,
+      widgetCount: 0,
+      notices: ["selectionsRequireRepair"],
+    } as never);
+    mocked.ImportLauncherProfile.mockResolvedValueOnce({
+      profileID: "profile-imported",
+      settingsJSON: JSON.stringify(imported),
+    } as never);
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Dock" }));
+    fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "Changed" } });
+    const file = new File(["{}"], "profile.json", { type: "application/json" });
+    fireEvent.change(screen.getByLabelText("Import profile file"), { target: { files: [file] } });
+    fireEvent.click(await screen.findByRole("button", { name: "Import reviewed profile" }));
+    expect(mocked.ImportLauncherProfile).not.toHaveBeenCalled();
+    await act(async () => {
+      releaseSave();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(mocked.ImportLauncherProfile).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Profile", { exact: true })).toHaveValue("profile-imported"),
+    );
+    expect(screen.queryByRole("button", { name: "Reload settings" })).toBeNull();
   });
 
   it("ignores delayed monitor-lock snapshot failures after runtime recovery", async () => {

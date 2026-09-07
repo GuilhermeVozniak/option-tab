@@ -21,6 +21,8 @@ export {
     LauncherItemPanelState,
     LauncherItemSettings,
     LauncherItemStatus,
+    LauncherProfileImportResult,
+    LauncherProfileImportReview,
     LauncherReferenceView,
     LauncherStatus,
     LauncherWidgetChoice,

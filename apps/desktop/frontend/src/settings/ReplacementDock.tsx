@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { resolveLang, type Translate } from "../lib/i18n";
+import type { LauncherProfileTransferActions } from "../lib/launcher-profile-transfer-bridge";
 import type {
   LauncherAppChoice,
   LauncherProfileRule,
@@ -15,6 +16,7 @@ import type { WidgetCatalogDescriptor, WidgetPackageStatus } from "../lib/widget
 import { type WidgetPackageActions, WidgetPackages } from "../widgets/WidgetPackages";
 import { WidgetSettings } from "../widgets/WidgetSettings";
 import { type LauncherItemSettingsActions, LauncherItems } from "./LauncherItems";
+import { LauncherProfileTransfer } from "./LauncherProfileTransfer";
 import { HINT, ROW } from "./shared";
 
 export function ReplacementDock({
@@ -29,6 +31,7 @@ export function ReplacementDock({
   itemActions,
   language = "",
   widgetPackages,
+  profileTransfer,
 }: {
   value: ReplacementDockSettings;
   t: Translate;
@@ -45,10 +48,19 @@ export function ReplacementDock({
     actions: WidgetPackageActions;
     onRefresh: () => void;
   };
+  profileTransfer?: LauncherProfileTransferActions;
 }) {
   const [profileID, setProfileID] = useState(value.profiles[0]?.id ?? "");
   const [replacementID, setReplacementID] = useState("");
+  const pendingImportedProfile = useRef("");
   useEffect(() => {
+    if (pendingImportedProfile.current) {
+      if (value.profiles.some((profile) => profile.id === pendingImportedProfile.current)) {
+        setProfileID(pendingImportedProfile.current);
+        pendingImportedProfile.current = "";
+      }
+      return;
+    }
     if (!value.profiles.some((profile) => profile.id === profileID))
       setProfileID(value.profiles[0]?.id ?? "");
   }, [profileID, value.profiles]);
@@ -186,6 +198,21 @@ export function ReplacementDock({
               onChange={(event) => patchProfile({ name: event.target.value })}
             />
           </label>
+        ) : null}
+        {profile && profileTransfer ? (
+          <LauncherProfileTransfer
+            key={`transfer-${profile.id}`}
+            profileID={profile.id}
+            t={t}
+            actions={profileTransfer}
+            onImported={(importedProfileID) => {
+              pendingImportedProfile.current = importedProfileID;
+              if (value.profiles.some((candidate) => candidate.id === importedProfileID)) {
+                setProfileID(importedProfileID);
+                pendingImportedProfile.current = "";
+              }
+            }}
+          />
         ) : null}
         {widgetPackages ? (
           <WidgetPackages

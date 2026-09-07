@@ -33,6 +33,32 @@ export function makeT(lang: Lang): Translate {
 }
 
 const PT: Record<string, string> = {
+  "Profile transfer": "Transferência de perfil",
+  "Export profile": "Exportar perfil",
+  "Exporting…": "Exportando…",
+  "Import profile file": "Importar arquivo de perfil",
+  "Exports omit private access, custom icons and display assignments.":
+    "A exportação omite acessos privados, ícones personalizados e atribuições de tela.",
+  "Import review": "Revisão da importação",
+  "{items} items · {widgets} widgets": "{items} itens · {widgets} widgets",
+  "Files, folders and apps must be selected again on this Mac.":
+    "Arquivos, pastas e apps devem ser selecionados novamente neste Mac.",
+  "Widgets are imported disabled and without access grants.":
+    "Os widgets são importados desativados e sem permissões de acesso.",
+  "Custom icons are not included.": "Ícones personalizados não são incluídos.",
+  "The imported profile requires review.": "O perfil importado requer revisão.",
+  "Import reviewed profile": "Importar perfil revisado",
+  "Importing…": "Importando…",
+  "Profile file is larger than 256 KiB.": "O arquivo de perfil excede 256 KiB.",
+  "The reviewed profile changed. Choose the file again.":
+    "O perfil revisado mudou. Escolha o arquivo novamente.",
+  "Dock settings changed. Review the profile again.":
+    "Os ajustes do Dock mudaram. Revise o perfil novamente.",
+  "You can keep up to 8 profiles.": "Você pode manter até 8 perfis.",
+  "This launcher profile file is invalid.": "Este arquivo de perfil do Dock é inválido.",
+  "Profile transfer is unavailable right now.":
+    "A transferência de perfil não está disponível agora.",
+  "The imported profile could not be saved.": "Não foi possível salvar o perfil importado.",
   "Launcher items": "Itens do Dock substituto",
   Running: "Em execução",
   "Open folder": "Abrir pasta",
@@ -562,6 +588,32 @@ const PT: Record<string, string> = {
 };
 
 const ES: Record<string, string> = {
+  "Profile transfer": "Transferencia de perfil",
+  "Export profile": "Exportar perfil",
+  "Exporting…": "Exportando…",
+  "Import profile file": "Importar archivo de perfil",
+  "Exports omit private access, custom icons and display assignments.":
+    "La exportación omite accesos privados, iconos personalizados y asignaciones de pantalla.",
+  "Import review": "Revisión de la importación",
+  "{items} items · {widgets} widgets": "{items} elementos · {widgets} widgets",
+  "Files, folders and apps must be selected again on this Mac.":
+    "Los archivos, carpetas y apps deben seleccionarse de nuevo en este Mac.",
+  "Widgets are imported disabled and without access grants.":
+    "Los widgets se importan desactivados y sin permisos de acceso.",
+  "Custom icons are not included.": "Los iconos personalizados no se incluyen.",
+  "The imported profile requires review.": "El perfil importado requiere revisión.",
+  "Import reviewed profile": "Importar perfil revisado",
+  "Importing…": "Importando…",
+  "Profile file is larger than 256 KiB.": "El archivo de perfil supera los 256 KiB.",
+  "The reviewed profile changed. Choose the file again.":
+    "El perfil revisado cambió. Elige el archivo de nuevo.",
+  "Dock settings changed. Review the profile again.":
+    "Los ajustes del Dock cambiaron. Revisa el perfil de nuevo.",
+  "You can keep up to 8 profiles.": "Puedes guardar hasta 8 perfiles.",
+  "This launcher profile file is invalid.": "Este archivo de perfil del Dock no es válido.",
+  "Profile transfer is unavailable right now.":
+    "La transferencia de perfil no está disponible ahora.",
+  "The imported profile could not be saved.": "No se pudo guardar el perfil importado.",
   "Launcher items": "Elementos del Dock sustituto",
   Running: "En ejecución",
   "Open folder": "Abrir carpeta",

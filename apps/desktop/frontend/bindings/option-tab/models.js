@@ -1003,6 +1003,108 @@ export class LauncherItemStatus {
     }
 }
 
+export class LauncherProfileImportResult {
+    /**
+     * Creates a new LauncherProfileImportResult instance.
+     * @param {Partial<LauncherProfileImportResult>} [$$source = {}] - The source object to create the LauncherProfileImportResult.
+     */
+    constructor($$source = {}) {
+        if (!("profileID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["profileID"] = "";
+        }
+        if (!("settingsJSON" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["settingsJSON"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherProfileImportResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherProfileImportResult}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LauncherProfileImportResult(/** @type {Partial<LauncherProfileImportResult>} */($$parsedSource));
+    }
+}
+
+export class LauncherProfileImportReview {
+    /**
+     * Creates a new LauncherProfileImportReview instance.
+     * @param {Partial<LauncherProfileImportReview>} [$$source = {}] - The source object to create the LauncherProfileImportReview.
+     */
+    constructor($$source = {}) {
+        if (!("digest" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["digest"] = "";
+        }
+        if (!("revision" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["revision"] = "";
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("itemCount" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["itemCount"] = 0;
+        }
+        if (!("widgetCount" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["widgetCount"] = 0;
+        }
+        if (!("notices" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["notices"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherProfileImportReview instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherProfileImportReview}
+     */
+    static createFrom($$source = {}) {
+        const $$createField5_0 = $$createType5;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("notices" in $$parsedSource) {
+            $$parsedSource["notices"] = $$createField5_0($$parsedSource["notices"]);
+        }
+        return new LauncherProfileImportReview(/** @type {Partial<LauncherProfileImportReview>} */($$parsedSource));
+    }
+}
+
 export class LauncherReferenceView {
     /**
      * Creates a new LauncherReferenceView instance.

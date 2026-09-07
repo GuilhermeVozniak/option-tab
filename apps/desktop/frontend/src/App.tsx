@@ -37,6 +37,7 @@ import {
 import { showLauncherItemPanel } from "./lib/launcher-item-panel-bridge";
 import { relaunchLauncherItem } from "./lib/launcher-item-runtime-bridge";
 import { launcherItemSettings } from "./lib/launcher-items-bridge";
+import { launcherProfileTransfer } from "./lib/launcher-profile-transfer-bridge";
 import { admitMaterialStatus, type MaterialStatus } from "./lib/material";
 import { media, onMediaEvents } from "./lib/media-bridge";
 import type {
@@ -1240,6 +1241,32 @@ function SettingsRoute() {
     [mutateSettings],
   );
 
+  const launcherProfileActions = useMemo(
+    () => ({
+      ...launcherProfileTransfer,
+      importProfile: (document: string, digest: string, expectedRevision: string) =>
+        mutateSettings(
+          async () => {
+            const result = await launcherProfileTransfer.importProfile(
+              document,
+              digest,
+              expectedRevision,
+            );
+            const canonical = JSON.parse(result.settingsJSON) as SettingsModel;
+            if (
+              !canonical?.behavior ||
+              !canonical.replacementDock?.profiles?.some((p) => p.id === result.profileID)
+            ) {
+              throw new Error("Could not reload imported settings.");
+            }
+            return { ...result, canonical };
+          },
+          (_current, result) => result.canonical,
+        ),
+    }),
+    [mutateSettings],
+  );
+
   return (
     <>
       {settingsStale ? (
@@ -1306,6 +1333,7 @@ function SettingsRoute() {
             error: launcherError,
             appChoices: launcherAppChoices,
             itemActions: launcherItemActions,
+            profileTransfer: launcherProfileActions,
             widgetCatalog,
             widgetPackages: {
               status: widgetPackageStatus,

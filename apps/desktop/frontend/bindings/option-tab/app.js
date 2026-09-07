@@ -417,6 +417,14 @@ export function GetLauncherItemStatus() {
 }
 
 /**
+ * @param {string} profileID
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetLauncherProfileExport(profileID) {
+    return $Call.ByID(2209096222, profileID);
+}
+
+/**
  * @param {number} session
  * @returns {$CancellablePromise<launcher$0.Presentation>}
  */
@@ -561,6 +569,18 @@ export function HideSelectedApp() {
  */
 export function HideSession(session) {
     return $Call.ByID(3201711143, session);
+}
+
+/**
+ * @param {string} document
+ * @param {string} digest
+ * @param {string} expectedRevision
+ * @returns {$CancellablePromise<$models.LauncherProfileImportResult>}
+ */
+export function ImportLauncherProfile(document, digest, expectedRevision) {
+    return $Call.ByID(216581033, document, digest, expectedRevision).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType29($result);
+    }));
 }
 
 /**
@@ -751,7 +771,17 @@ export function PinMediaPanel(session, revision) {
  */
 export function PlaceDockOnSelectedMonitor(session, revision, generation) {
     return $Call.ByID(1589667255, session, revision, generation).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType29($result);
+        return $$createType30($result);
+    }));
+}
+
+/**
+ * @param {string} document
+ * @returns {$CancellablePromise<$models.LauncherProfileImportReview>}
+ */
+export function PreviewLauncherProfileImport(document) {
+    return $Call.ByID(3977947893, document).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType31($result);
     }));
 }
 
@@ -874,7 +904,7 @@ export function Reverse() {
  */
 export function ReviewLocalWidgetPackage() {
     return $Call.ByID(460648480).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType30($result);
+        return $$createType32($result);
     }));
 }
 
@@ -884,7 +914,7 @@ export function ReviewLocalWidgetPackage() {
  */
 export function SaveDiagnosticsReport(token) {
     return $Call.ByID(1276106854, token).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType31($result);
+        return $$createType33($result);
     }));
 }
 
@@ -1213,6 +1243,8 @@ const $$createType25 = widgets$0.ActionOptions.createFrom;
 const $$createType26 = $models.WidgetCatalogItem.createFrom;
 const $$createType27 = $Create.Array($$createType26);
 const $$createType28 = $models.WidgetPackageStatus.createFrom;
-const $$createType29 = platform$0.DockPlacementResult.createFrom;
-const $$createType30 = $models.WidgetPackageReview.createFrom;
-const $$createType31 = platform$0.DiagnosticExportResult.createFrom;
+const $$createType29 = $models.LauncherProfileImportResult.createFrom;
+const $$createType30 = platform$0.DockPlacementResult.createFrom;
+const $$createType31 = $models.LauncherProfileImportReview.createFrom;
+const $$createType32 = $models.WidgetPackageReview.createFrom;
+const $$createType33 = platform$0.DiagnosticExportResult.createFrom;

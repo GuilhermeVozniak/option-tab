@@ -179,6 +179,9 @@ const METHOD = {
   PerformLauncherWindowAction: 2955927072,
   GetLauncherStatus: 3297738801,
   GetLauncherAppChoices: 1561877478,
+  GetLauncherProfileExport: 2209096222,
+  ImportLauncherProfile: 216581033,
+  PreviewLauncherProfileImport: 3977947893,
   GetLauncherWidgets: 1662395444,
   GetWidgetActionOptions: 1913639053,
   GetWidgetAsset: 1591270545,
@@ -227,6 +230,9 @@ export async function installFakeWails(page: Page): Promise<void> {
       __mediaPinSession?: number;
       __mediaActionError?: string;
       __automationPreviewState?: Record<string, unknown> | null;
+      __launcherProfileExport?: string;
+      __launcherProfileImportReview?: Record<string, unknown>;
+      __launcherProfileImportResult?: Record<string, unknown>;
       __automationPreviewError?: string;
       __diagnosticsReview?: Record<string, unknown>;
       __diagnosticsSaveResult?: Record<string, unknown>;
@@ -401,6 +407,15 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json(await page.evaluate(() => (window as any).__launcherStatus));
       case "GetLauncherAppChoices":
         return json(await page.evaluate(() => (window as any).__launcherAppChoices));
+      case "GetLauncherProfileExport":
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        return json(await page.evaluate(() => (window as any).__launcherProfileExport));
+      case "PreviewLauncherProfileImport":
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        return json(await page.evaluate(() => (window as any).__launcherProfileImportReview));
+      case "ImportLauncherProfile":
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        return json(await page.evaluate(() => (window as any).__launcherProfileImportResult));
       case "GetLauncherWidgets":
         return json(await page.evaluate(() => (window as any).__launcherWidgets));
       case "GetWidgetCatalog":

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { makeT, resolveLang } from "../lib/i18n";
+import type { LauncherProfileTransferActions } from "../lib/launcher-profile-transfer-bridge";
 import type {
   DockLockDisplay,
   DockMonitorLockState,
@@ -68,6 +69,7 @@ interface SettingsProps {
     appChoices?: LauncherAppChoice[];
     widgetCatalog?: WidgetCatalogDescriptor[];
     itemActions?: LauncherItemSettingsActions;
+    profileTransfer?: LauncherProfileTransferActions;
     widgetPackages?: {
       status: WidgetPackageStatus;
       actions: WidgetPackageActions;

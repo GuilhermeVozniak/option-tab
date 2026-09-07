@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import type { LauncherProfileTransferActions } from "../../lib/launcher-profile-transfer-bridge";
 import type {
   AppScopeMode,
   DockInputSettings,
@@ -49,6 +50,7 @@ export function DockTab({
     appChoices?: LauncherAppChoice[];
     widgetCatalog?: WidgetCatalogDescriptor[];
     itemActions?: LauncherItemSettingsActions;
+    profileTransfer?: LauncherProfileTransferActions;
     widgetPackages?: {
       status: WidgetPackageStatus;
       actions: WidgetPackageActions;
@@ -94,6 +96,7 @@ export function DockTab({
         appChoices={launcher?.appChoices}
         widgetCatalog={launcher?.widgetCatalog}
         itemActions={launcher?.itemActions}
+        profileTransfer={launcher?.profileTransfer}
         language={settings.behavior.language}
         widgetPackages={launcher?.widgetPackages}
       />
