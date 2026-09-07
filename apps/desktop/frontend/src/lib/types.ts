@@ -141,6 +141,7 @@ export interface DockViewState {
   dragGestureFloor?: number;
   pointer?: DockPointer;
   contentKind?: "windows" | "folder" | "media";
+  contentOptions?: string[];
   folder?: DockFolderState;
   media?: MediaViewState;
 }

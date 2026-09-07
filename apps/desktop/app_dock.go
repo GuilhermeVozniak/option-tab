@@ -35,6 +35,7 @@ type DockItemView struct {
 
 type DockViewState struct {
 	ContentKind        string            `json:"contentKind"`
+	ContentOptions     []string          `json:"contentOptions"`
 	Folder             *dock.FolderState `json:"folder,omitempty"`
 	Media              *MediaViewState   `json:"media,omitempty"`
 	Open               bool              `json:"open"`
@@ -171,6 +172,7 @@ func (a *App) showDock(st dock.State, first bool) {
 		a.captureDockSession.Store(st.Session)
 	}
 	st.Windows = slices.Clone(st.Windows)
+	st.ContentOptions = slices.Clone(st.ContentOptions)
 	st.Folder = cloneDockFolder(st.Folder)
 	if st.ContentKind == "" {
 		st.ContentKind = "windows"
@@ -192,7 +194,10 @@ func (a *App) showDock(st dock.State, first bool) {
 	dto.Open = true
 	dto.Revision = a.dockRevision
 	dto.Pointer = a.dockViewState.Pointer
-	dto.Error = a.dockInputError
+	dto.Error = st.Error
+	if dto.Error == "" {
+		dto.Error = a.dockInputError
+	}
 	if st.Item.Kind == "folder" || st.ContentKind == "media" {
 		dto.Error = ""
 		if previous := a.dockViewState.Folder; previous != nil && st.Folder != nil && previous.Revision == st.Folder.Revision && previous.FolderIdentity == st.Folder.FolderIdentity {
@@ -252,7 +257,7 @@ func dockStateView(st dock.State) DockViewState {
 	for _, w := range st.Windows {
 		entries = append(entries, switcher.Entry{WindowID: w.ID, AppID: w.AppID, Title: w.Title, AppName: w.AppName, BundleID: w.BundleID, SpaceID: w.SpaceID, Minimized: w.Minimized, Hidden: w.Hidden, Fullscreen: w.Fullscreen})
 	}
-	return DockViewState{ContentKind: contentKind, Folder: cloneDockFolder(st.Folder), Session: st.Session, Item: DockItemView{Kind: item.Kind, AppID: item.AppID, BundleID: item.BundleID, Path: item.Path, Title: item.Title, Bounds: DockBounds{X: item.Bounds.X, Y: item.Bounds.Y, W: item.Bounds.W, H: item.Bounds.H}, ScreenID: item.ScreenID, Edge: item.Edge}, Entries: entries, SelectedWindowID: st.SelectedWindowID, Appearance: st.Appearance, CardSpacingPx: st.CardSpacingPx, EmptyReason: st.EmptyReason}
+	return DockViewState{ContentKind: contentKind, ContentOptions: slices.Clone(st.ContentOptions), Folder: cloneDockFolder(st.Folder), Session: st.Session, Item: DockItemView{Kind: item.Kind, AppID: item.AppID, BundleID: item.BundleID, Path: item.Path, Title: item.Title, Bounds: DockBounds{X: item.Bounds.X, Y: item.Bounds.Y, W: item.Bounds.W, H: item.Bounds.H}, ScreenID: item.ScreenID, Edge: item.Edge}, Entries: entries, SelectedWindowID: st.SelectedWindowID, Appearance: st.Appearance, CardSpacingPx: st.CardSpacingPx, EmptyReason: st.EmptyReason}
 }
 
 // GetDockState lets a newly loaded hidden webview catch up with a hover that
@@ -265,6 +270,7 @@ func (a *App) GetDockState() *DockViewState {
 		state = DockViewState{Session: a.dockLastSession, Revision: a.dockRevision, Entries: []switcher.Entry{}, Error: a.dockInputError}
 	}
 	state.Entries = slices.Clone(state.Entries)
+	state.ContentOptions = slices.Clone(state.ContentOptions)
 	state.Folder = cloneDockFolder(state.Folder)
 	if a.media != nil && state.ContentKind == "media" {
 		if p := a.media.panels[a.media.hover]; p != nil {
@@ -410,6 +416,26 @@ func (a *App) SelectDockWindow(session, id uint64) {
 	if a.validateDockTarget(session, domain.WindowID(id), app, true) == nil && a.dockController != nil {
 		a.dockController.SelectWindow(session, domain.WindowID(id))
 	}
+}
+
+func (a *App) SelectDockContent(session, revision uint64, kind string) error {
+	a.viewMu.Lock()
+	controller := a.dockController
+	settings := a.settingsSnapshot()
+	allowed := kind == "windows" && settings.Dock.Enabled || kind == "media" && dock.MediaProviderForItem(a.dockState.Item, settings.Dock.Media) != ""
+	current := controller != nil && session != 0 && revision != 0 && session == a.dockState.Session && revision == a.dockViewState.Revision && a.dockItemAllowedLocked(a.dockState.Item)
+	if !current || !allowed || !slices.Contains(a.dockState.ContentOptions, kind) {
+		a.viewMu.Unlock()
+		return errStaleDockSession
+	}
+	if a.dockState.AdmissionEpoch != 0 && a.dockState.AdmissionEpoch != controller.AdmissionEpoch() {
+		a.viewMu.Unlock()
+		return errStaleDockSession
+	}
+	a.viewMu.Unlock()
+	// The owner loop performs final session/settings admission and publishes a
+	// fresh session. Never await that loop while holding its View callback lock.
+	return controller.SelectContent(session, kind)
 }
 
 func (a *App) SetDockPanelSize(session uint64, width, height float64) {

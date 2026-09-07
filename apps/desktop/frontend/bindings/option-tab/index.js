@@ -9,6 +9,7 @@ export {
 
 export {
     AutomationPreviewViewState,
+    DiagnosticsReview,
     DockBounds,
     DockItemView,
     DockPointer,

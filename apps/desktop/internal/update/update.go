@@ -24,12 +24,35 @@ type Asset struct {
 	DownloadURL string `json:"browser_download_url"`
 }
 
-// AssetFor returns the download URL of the asset matching the platform/arch
-// suffix (e.g. "darwin_arm64"), or "" when the release carries none.
+// AssetFor prefers one exact architecture asset, then one macOS universal asset.
+// Ambiguous candidates refuse selection; filenames must match this release tag.
 func (r Release) AssetFor(platformArch string) string {
-	for _, a := range r.Assets {
-		if strings.Contains(a.Name, platformArch) {
-			return a.DownloadURL
+	extensions := map[string]string{"darwin_arm64": "dmg", "darwin_amd64": "dmg", "darwin_universal": "dmg", "windows_amd64": "zip", "windows_arm64": "zip", "linux_amd64": "tar.gz", "linux_arm64": "tar.gz"}
+	ext, ok := extensions[platformArch]
+	version := strings.TrimPrefix(r.Version, "v")
+	if !ok || version == "" || strings.ContainsAny(version, "/\\ \t\n") {
+		return ""
+	}
+	find := func(arch string) (string, int) {
+		name := "option-tab_" + version + "_" + arch + "." + ext
+		url, count := "", 0
+		for _, asset := range r.Assets {
+			if asset.Name == name {
+				url = asset.DownloadURL
+				count++
+			}
+		}
+		return url, count
+	}
+	if url, count := find(platformArch); count > 0 {
+		if count == 1 {
+			return url
+		}
+		return ""
+	}
+	if platformArch == "darwin_arm64" || platformArch == "darwin_amd64" {
+		if url, count := find("darwin_universal"); count == 1 {
+			return url
 		}
 	}
 	return ""

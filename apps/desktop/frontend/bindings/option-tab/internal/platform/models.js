@@ -10,6 +10,34 @@ import { Create as $Create } from "@wailsio/runtime";
 // @ts-ignore: Unused imports
 import * as domain$0 from "../domain/models.js";
 
+export class DiagnosticExportResult {
+    /**
+     * Creates a new DiagnosticExportResult instance.
+     * @param {Partial<DiagnosticExportResult>} [$$source = {}] - The source object to create the DiagnosticExportResult.
+     */
+    constructor($$source = {}) {
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DiagnosticExportResult instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {DiagnosticExportResult}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DiagnosticExportResult(/** @type {Partial<DiagnosticExportResult>} */($$parsedSource));
+    }
+}
+
 export class DockLockDisplay {
     /**
      * Creates a new DockLockDisplay instance.

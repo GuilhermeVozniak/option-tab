@@ -22,6 +22,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"option-tab/internal/config"
+	"option-tab/internal/diagnostics"
 	"option-tab/internal/dock"
 	"option-tab/internal/domain"
 	"option-tab/internal/mru"
@@ -104,6 +105,7 @@ type App struct {
 	dockController            *dock.Controller
 	media                     *appMediaRuntime
 	automation                *appAutomationRuntime
+	diagnostics               *diagnostics.Service
 	mediaPinFactory           func(uint64, platform.MediaProvider, func(platform.MediaPanelEvent)) *dockWindow
 	dockFolders               platform.FolderSource
 	dockFolderGrant           *dockFolderGrantOwner
@@ -161,6 +163,7 @@ func NewApp() *App {
 	a := newApp(p, settings, path, platform.NewFolderSource(filepath.Join(filepath.Dir(path), "folder-bookmarks.json")))
 	a.wireMedia(platform.NewMediaSource(), platform.NewMediaLyricsSource(filepath.Join(filepath.Dir(path), "media-lyrics.json")))
 	a.wireAutomation(platform.NewAutomationServer())
+	a.wireDiagnostics(platform.NewDiagnosticExportSource())
 	return a
 }
 
@@ -185,6 +188,7 @@ func newApp(p platform.Platform, settings config.Settings, settingsPath string, 
 		captureStop:  make(chan struct{}),
 	}
 	a.captures = preview.New(p, a.emitCaptureFrame)
+	a.wireDiagnostics(nil)
 	a.dockFolders, _ = p.(platform.FolderSource)
 	if len(folders) > 0 {
 		a.dockFolders = folders[0]
@@ -280,6 +284,7 @@ func (a *App) startup() {
 }
 
 func (a *App) emit(name string, data any) {
+	a.recordDiagnosticEvent(name)
 	if a.eventSink != nil {
 		a.eventSink(name, data)
 		return
@@ -291,6 +296,9 @@ func (a *App) emit(name string, data any) {
 
 // stopCapture is safe before startup and on repeated shutdown notifications.
 func (a *App) stopCapture() {
+	if a.diagnostics != nil {
+		a.diagnostics.Close()
+	}
 	a.stopAutomation()
 	a.stopAutomationPreview()
 	a.cancelDockPreviewDrag()

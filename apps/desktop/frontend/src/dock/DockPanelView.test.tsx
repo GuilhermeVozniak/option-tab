@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { makeT } from "../lib/i18n";
 import { type DockViewState, emptyState } from "../lib/types";
 import { DockPanelView } from "./DockPanelView";
 
@@ -40,6 +41,60 @@ it("sends session and explicit target and displays native errors", () => {
   expect(h.onFocusWindow).toHaveBeenCalledWith(7, 102, 10);
   fireEvent.click(screen.getByLabelText("Close window"));
   expect(h.onAction).toHaveBeenCalledWith(7, "close", 102, 10);
+});
+
+it("selects an available media or windows view without invoking window actions", () => {
+  const h = {
+    onSelectWindow: vi.fn(),
+    onFocusWindow: vi.fn(),
+    onAction: vi.fn(),
+    onSize: vi.fn(),
+    onSelectContent: vi.fn(),
+  };
+  render(
+    <DockPanelView
+      state={{
+        ...state,
+        revision: 9,
+        contentKind: "windows",
+        contentOptions: ["windows", "media"],
+      }}
+      handlers={h}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Windows" })).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(screen.getByRole("button", { name: "Media" }));
+  expect(h.onSelectContent).toHaveBeenCalledWith(7, 9, "media");
+  expect(h.onFocusWindow).not.toHaveBeenCalled();
+  expect(h.onAction).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Windows" })).toHaveAttribute("aria-pressed", "true");
+});
+
+it("keeps the selector available while the selected window inventory is loading", () => {
+  const h = { onSelectWindow: vi.fn(), onFocusWindow: vi.fn(), onAction: vi.fn(), onSize: vi.fn() };
+  render(
+    <DockPanelView
+      state={{
+        ...state,
+        revision: 10,
+        contentKind: "windows",
+        contentOptions: ["windows", "media"],
+        entries: [],
+        emptyReason: "loading",
+      }}
+      handlers={h}
+    />,
+  );
+  expect(screen.getByText("Loading windows…")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Media" })).toBeEnabled();
+});
+
+it("localizes the generic native preview close control", () => {
+  const h = { onSelectWindow: vi.fn(), onFocusWindow: vi.fn(), onAction: vi.fn(), onSize: vi.fn() };
+  render(
+    <DockPanelView state={state} handlers={h} nativeHeader onClose={vi.fn()} t={makeT("es")} />,
+  );
+  expect(screen.getByRole("button", { name: "Cerrar vista previa" })).toBeInTheDocument();
 });
 
 it("starts an exact normalized preview drag after threshold and suppresses focus", () => {

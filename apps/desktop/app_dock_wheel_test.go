@@ -361,3 +361,29 @@ func TestDockPanelWheelSettingsPublishedDuringValidatorRetiresWindowAction(t *te
 		})
 	}
 }
+
+func TestDockPanelWheelExplicitMediaAppWindowsAdmitsRegions(t *testing.T) {
+	input := config.Default().Dock.Input
+	input.SwipeNext = config.PointerClose
+	a, _, wheel := wheelApp(t, input)
+	a.settingsMu.Lock()
+	a.settings.Dock.Media = config.DockMediaSettings{Enabled: true, MusicEnabled: true}
+	a.settingsMu.Unlock()
+	a.viewMu.Lock()
+	a.dockState.Item.BundleID = "com.apple.Music"
+	a.dockState.ContentKind = "windows"
+	a.dockState.ContentOptions = []string{"windows", "media"}
+	a.viewMu.Unlock()
+	if err := a.SetDockPreviewRegions(7, 1, region101()); err != nil {
+		t.Fatalf("selected windows rejected: %v", err)
+	}
+	if !wheel.snapshot().Enabled || !a.currentDockWheelPresentation(7, a.dockState.AdmissionEpoch) {
+		t.Fatal("selected windows did not acquire native policy")
+	}
+	a.viewMu.Lock()
+	a.dockState.ContentKind = "media"
+	a.viewMu.Unlock()
+	if a.currentDockWheelPresentation(7, a.dockState.AdmissionEpoch) {
+		t.Fatal("media replacement retained window policy")
+	}
+}

@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { makeT } from "../lib/i18n";
 import { emptyState, type MediaViewState } from "../lib/types";
 import { MediaPanel } from "./MediaPanel";
 
@@ -63,6 +64,23 @@ const handlers = () => ({
 });
 
 describe("MediaPanel", () => {
+  it("localizes icon-only hover and pinned media controls", () => {
+    const h = handlers();
+    const first = render(<MediaPanel state={state} handlers={h} t={makeT("pt-BR")} />);
+    expect(screen.getByRole("button", { name: "Reproduzir" })).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "Posição da reprodução" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Fixar painel de mídia" })).toBeInTheDocument();
+    first.unmount();
+    render(
+      <MediaPanel
+        state={{ ...state, pinned: true, pinnable: false }}
+        handlers={h}
+        t={makeT("es")}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Cerrar panel multimedia" })).toBeInTheDocument();
+  });
+
   it("sends explicit transport and seek requests and renders bounded lyric context", () => {
     const h = handlers();
     render(<MediaPanel state={state} handlers={h} />);

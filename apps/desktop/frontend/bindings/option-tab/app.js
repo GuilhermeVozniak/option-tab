@@ -134,6 +134,13 @@ export function CheckForUpdates() {
 }
 
 /**
+ * @returns {$CancellablePromise<void>}
+ */
+export function ClearDiagnostics() {
+    return $Call.ByID(2969743170);
+}
+
+/**
  * @param {number} session
  * @param {number} revision
  * @returns {$CancellablePromise<void>}
@@ -247,12 +254,21 @@ export function GetCrashReport() {
 }
 
 /**
+ * @returns {$CancellablePromise<$models.DiagnosticsReview>}
+ */
+export function GetDiagnosticsReview() {
+    return $Call.ByID(3103844513).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType4($result);
+    }));
+}
+
+/**
  * Display discovery is read-only and does not enable native input filtering.
  * @returns {$CancellablePromise<platform$0.DockLockDisplay[]>}
  */
 export function GetDockMonitorLockDisplays() {
     return $Call.ByID(961307694).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType6($result);
     }));
 }
 
@@ -261,7 +277,7 @@ export function GetDockMonitorLockDisplays() {
  */
 export function GetDockMonitorLockState() {
     return $Call.ByID(3014544674).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType7($result);
     }));
 }
 
@@ -272,7 +288,7 @@ export function GetDockMonitorLockState() {
  */
 export function GetDockState() {
     return $Call.ByID(1033939333).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType8($result);
+        return $$createType9($result);
     }));
 }
 
@@ -281,7 +297,7 @@ export function GetDockState() {
  */
 export function GetMediaPermissions() {
     return $Call.ByID(3673411287).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType9($result);
+        return $$createType10($result);
     }));
 }
 
@@ -291,7 +307,7 @@ export function GetMediaPermissions() {
  */
 export function GetMediaState(session) {
     return $Call.ByID(3763583330, session).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType11($result);
+        return $$createType12($result);
     }));
 }
 
@@ -491,7 +507,7 @@ export function PinMediaPanel(session, revision) {
  */
 export function PlaceDockOnSelectedMonitor(session, revision, generation) {
     return $Call.ByID(1589667255, session, revision, generation).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType13($result);
     }));
 }
 
@@ -522,7 +538,7 @@ export function RemoveMediaLyrics(session, revision) {
 
 /**
  * ReportCrash opens a prefilled GitHub issue containing the pending crash log
- * (truncated), so the user sees exactly what is shared before submitting.
+ * (truncated). Navigation sends that text to GitHub before issue submission.
  * @returns {$CancellablePromise<void>}
  */
 export function ReportCrash() {
@@ -561,6 +577,16 @@ export function RequestScreenRecording() {
  */
 export function Reverse() {
     return $Call.ByID(2687580445);
+}
+
+/**
+ * @param {string} token
+ * @returns {$CancellablePromise<platform$0.DiagnosticExportResult>}
+ */
+export function SaveDiagnosticsReport(token) {
+    return $Call.ByID(1276106854, token).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType14($result);
+    }));
 }
 
 /**
@@ -604,6 +630,16 @@ export function SelectAppWindow(id) {
  */
 export function SelectAutomationPreview(session, revision, id) {
     return $Call.ByID(2322291942, session, revision, id);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} kind
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectDockContent(session, revision, kind) {
+    return $Call.ByID(2963493651, session, revision, kind);
 }
 
 /**
@@ -713,6 +749,20 @@ export function Show(st) {
 }
 
 /**
+ * @returns {$CancellablePromise<void>}
+ */
+export function StartDiagnosticsRecording() {
+    return $Call.ByID(2282172420);
+}
+
+/**
+ * @returns {$CancellablePromise<void>}
+ */
+export function StopDiagnosticsRecording() {
+    return $Call.ByID(76990490);
+}
+
+/**
  * TogglePause serializes read-modify-write with other settings changes.
  * @returns {$CancellablePromise<boolean>}
  */
@@ -734,12 +784,14 @@ const $$createType0 = platform$0.MediaPermission.createFrom;
 const $$createType1 = actions$0.Result.createFrom;
 const $$createType2 = $models.AutomationPreviewViewState.createFrom;
 const $$createType3 = $Create.Nullable($$createType2);
-const $$createType4 = platform$0.DockLockDisplay.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = platform$0.DockMonitorLockState.createFrom;
-const $$createType7 = $models.DockViewState.createFrom;
-const $$createType8 = $Create.Nullable($$createType7);
-const $$createType9 = $Create.Map($Create.Any, $$createType0);
-const $$createType10 = $models.MediaViewState.createFrom;
-const $$createType11 = $Create.Nullable($$createType10);
-const $$createType12 = platform$0.DockPlacementResult.createFrom;
+const $$createType4 = $models.DiagnosticsReview.createFrom;
+const $$createType5 = platform$0.DockLockDisplay.createFrom;
+const $$createType6 = $Create.Array($$createType5);
+const $$createType7 = platform$0.DockMonitorLockState.createFrom;
+const $$createType8 = $models.DockViewState.createFrom;
+const $$createType9 = $Create.Nullable($$createType8);
+const $$createType10 = $Create.Map($Create.Any, $$createType0);
+const $$createType11 = $models.MediaViewState.createFrom;
+const $$createType12 = $Create.Nullable($$createType11);
+const $$createType13 = platform$0.DockPlacementResult.createFrom;
+const $$createType14 = platform$0.DiagnosticExportResult.createFrom;

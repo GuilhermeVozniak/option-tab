@@ -8,6 +8,8 @@ export type { DockPointer } from "./types";
 export const dock = {
   state: async () => (await AppService.GetDockState()) as DockViewState | null,
   select: (session: number, id: number) => AppService.SelectDockWindow(session, id),
+  selectContent: (session: number, revision: number, kind: string) =>
+    AppService.SelectDockContent(session, revision, kind),
   focus: async (session: number, id: number, appId: number) =>
     (await AppService.FocusDockWindow(session, id, appId)) as WindowActionResult,
   action: (session: number, kind: WindowAction, id: number, appId: number) =>

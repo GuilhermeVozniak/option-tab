@@ -30,6 +30,7 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   ConfirmApp: vi.fn().mockResolvedValue(undefined),
   GetDockState: vi.fn().mockResolvedValue(null),
   SelectDockWindow: vi.fn().mockResolvedValue(undefined),
+  SelectDockContent: vi.fn().mockResolvedValue(undefined),
   FocusDockWindow: vi.fn().mockResolvedValue({ succeeded: 1, failures: [] }),
   PerformDockAction: vi.fn().mockResolvedValue({ succeeded: 1, failures: [] }),
   SetDockPanelSize: vi.fn().mockResolvedValue(undefined),
@@ -305,6 +306,83 @@ describe("App", () => {
       eventHandlers.get("dock:update")?.({ data: dockMediaState(3, dockMedia(72, 1, "New")) }),
     );
     expect(screen.getByText("New")).toBeInTheDocument();
+  });
+
+  it("switches Dock content only from fresh outer events and ignores reordered media events", async () => {
+    window.location.hash = "#dock";
+    render(<App />);
+    const oldMedia = dockMedia(73, 2, "Media track");
+    act(() =>
+      eventHandlers.get("dock:show")?.({
+        data: { ...dockMediaState(8, oldMedia), contentOptions: ["windows", "media"] },
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Windows" }));
+    expect(mocked.SelectDockContent).toHaveBeenCalledWith(40, 8, "windows");
+    expect(screen.getByText("Media track")).toBeInTheDocument();
+
+    const windowState = {
+      ...dockMediaState(1, oldMedia),
+      session: 41,
+      revision: 1,
+      contentKind: "windows",
+      contentOptions: ["windows", "media"],
+      media: undefined,
+      entries: [appEntry(104, "Provider window")],
+      selectedWindowId: 104,
+    };
+    act(() => eventHandlers.get("dock:show")?.({ data: windowState }));
+    act(() => eventHandlers.get("media:hide")?.({ data: { session: 73, revision: 3 } }));
+    act(() =>
+      eventHandlers.get("media:update")?.({
+        data: {
+          ...oldMedia,
+          revision: 4,
+          sample: { ...oldMedia.sample, track: { ...oldMedia.sample.track, title: "Late media" } },
+        },
+      }),
+    );
+    act(() =>
+      eventHandlers.get("dock:frames")?.({
+        data: { session: 40, frames: { "104": "data:image/png;base64,stale" } },
+      }),
+    );
+    expect(screen.getByText("Provider window")).toBeInTheDocument();
+    expect(screen.queryByText("Late media")).toBeNull();
+    expect(document.querySelector('img[src="data:image/png;base64,stale"]')).toBeNull();
+  });
+
+  it("does not render a selector refusal after a replacement Dock session", async () => {
+    let reject!: (error: Error) => void;
+    mocked.SelectDockContent.mockReturnValueOnce(
+      new Promise<void>((_, fail) => {
+        reject = fail;
+      }) as never,
+    );
+    window.location.hash = "#dock";
+    render(<App />);
+    const mediaState = {
+      ...dockMediaState(8, dockMedia(74, 2, "Original")),
+      contentOptions: ["windows", "media"],
+    };
+    act(() => eventHandlers.get("dock:show")?.({ data: mediaState }));
+    fireEvent.click(screen.getByRole("button", { name: "Windows" }));
+    act(() =>
+      eventHandlers.get("dock:show")?.({
+        data: {
+          ...mediaState,
+          session: 41,
+          revision: 1,
+          contentKind: "windows",
+          media: undefined,
+          entries: [appEntry(105, "Replacement window")],
+          selectedWindowId: 105,
+        },
+      }),
+    );
+    await act(async () => reject(new Error("Late selector refusal")));
+    expect(screen.getByText("Replacement window")).toBeInTheDocument();
+    expect(screen.queryByText("Late selector refusal")).toBeNull();
   });
 
   it("admits only current pinned media revisions and progress sequences", async () => {

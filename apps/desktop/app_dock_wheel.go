@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"math"
+	"slices"
 	"strings"
 
 	"option-tab/internal/actions"
@@ -96,7 +97,7 @@ func (a *App) setDockPreviewRegions(session, frontendRevision uint64, regions []
 func (a *App) dockWindowWheelAllowedLocked() bool {
 	s := a.settingsSnapshot()
 	item := a.dockState.Item
-	return s.Dock.Enabled && a.dockAllowedLocked() && a.dockState.ContentKind != "media" && (item.Kind == "" || item.Kind == "app") && dock.MediaProviderForItem(item, s.Dock.Media) == ""
+	return s.Dock.Enabled && a.dockAllowedLocked() && a.dockState.ContentKind != "media" && (item.Kind == "" || item.Kind == "app") && (dock.MediaProviderForItem(item, s.Dock.Media) == "" || (a.dockState.ContentKind == "windows" && slices.Contains(a.dockState.ContentOptions, "windows") && slices.Contains(a.dockState.ContentOptions, "media")))
 }
 
 func (a *App) currentDockWheelPresentation(session, admission uint64) bool {

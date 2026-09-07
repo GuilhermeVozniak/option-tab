@@ -27,6 +27,7 @@ export interface DockPanelHandlers {
   onFocusWindow: (session: number, id: number, appId: number) => void;
   onAction: (session: number, kind: WindowAction, id: number, appId: number) => void;
   onSize: (session: number, width: number, height: number) => void;
+  onSelectContent?: (session: number, revision: number, kind: string) => void;
   onRegions?: (session: number, revision: number, regions: PreviewRegion[]) => void;
   onBeginDrag?: (request: PreviewDragRequest) => Promise<void> | void;
   onCancelDrag?: (session: number, gesture: number) => Promise<void> | void;
@@ -139,6 +140,9 @@ export function DockPanelView({
   const selected = state.entries.find((e) => e.windowId === state.selectedWindowId);
   const preview = a.previewSelected ? selected?.preview || selected?.thumbnail : undefined;
   const cardSpacingPx = Math.max(0, Math.min(24, state.cardSpacingPx ?? 7));
+  const contentOptions = state.contentOptions?.filter(
+    (kind): kind is "windows" | "media" => kind === "windows" || kind === "media",
+  );
   const contentWidth =
     state.contentKind === "folder" || state.contentKind === "media"
       ? 420
@@ -338,6 +342,20 @@ export function DockPanelView({
               </button>
             ) : null}
           </header>
+        ) : null}
+        {(contentOptions?.length ?? 0) > 1 ? (
+          <div className="ot-dock-content-selector" role="group" aria-label={t("Preview content")}>
+            {contentOptions?.map((kind) => (
+              <button
+                type="button"
+                key={kind}
+                aria-pressed={state.contentKind === kind}
+                onClick={() => handlers.onSelectContent?.(state.session, state.revision ?? 0, kind)}
+              >
+                {t(kind === "windows" ? "Windows" : "Media")}
+              </button>
+            ))}
+          </div>
         ) : null}
         {state.contentKind === "media" && state.media && handlers.media ? (
           <MediaPanel state={state.media} handlers={handlers.media} t={t} />
@@ -554,11 +572,13 @@ export function DockPanelView({
                 {t(
                   state.emptyReason === "filtered"
                     ? "No windows match these filters"
-                    : state.emptyReason === "notRunning"
-                      ? "App is not running"
-                      : state.emptyReason === "unavailable"
-                        ? "Windows unavailable"
-                        : "No open windows",
+                    : state.emptyReason === "loading"
+                      ? "Loading windows…"
+                      : state.emptyReason === "notRunning"
+                        ? "App is not running"
+                        : state.emptyReason === "unavailable"
+                          ? "Windows unavailable"
+                          : "No open windows",
                 )}
               </p>
             )}

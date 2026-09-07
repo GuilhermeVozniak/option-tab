@@ -17,7 +17,7 @@
         <key>CFBundleIconFile</key>
         <string>iconfile</string>
         <key>LSMinimumSystemVersion</key>
-        <string>13.0</string>
+        <string>14.0</string>
         <key>NSHighResolutionCapable</key>
         <string>true</string>
         <key>NSAppleEventsUsageDescription</key>

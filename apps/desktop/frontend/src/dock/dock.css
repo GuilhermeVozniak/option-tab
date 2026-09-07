@@ -51,6 +51,30 @@
 .ot-dock-content {
   box-sizing: border-box;
 }
+
+.ot-dock-content-selector {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  padding: 3px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--ot-dock-text) 9%, transparent);
+}
+
+.ot-dock-content-selector button {
+  min-height: 28px;
+  border: 0;
+  border-radius: 7px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ot-dock-content-selector button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ot-accent) 24%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ot-accent) 50%, transparent);
+}
 .ot-dock-panel header {
   display: flex;
   align-items: center;

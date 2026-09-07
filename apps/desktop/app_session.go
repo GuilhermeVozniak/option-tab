@@ -66,6 +66,9 @@ func (a *App) transitionSession(generation uint64, inactive bool) {
 	invalidate := inactive || (generation != 0 && previous != 0)
 	if invalidate {
 		a.sessionInactive = true
+		if a.diagnostics != nil {
+			a.diagnostics.CancelExport()
+		}
 		a.cancelDismissalLocked()
 		a.dismissDockLocked()
 		a.captureActive = false

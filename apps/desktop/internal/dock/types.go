@@ -18,6 +18,8 @@ type FolderState struct {
 
 type State struct {
 	ContentKind      string
+	ContentOptions   []string
+	Error            string
 	Folder           *FolderState
 	AdmissionEpoch   uint64
 	Session          uint64

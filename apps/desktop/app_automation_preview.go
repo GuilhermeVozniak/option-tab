@@ -9,6 +9,7 @@ import (
 	"option-tab/internal/actions"
 	"option-tab/internal/automation"
 	"option-tab/internal/config"
+	"option-tab/internal/diagnostics"
 	"option-tab/internal/domain"
 	"option-tab/internal/filter"
 	"option-tab/internal/platform"
@@ -220,6 +221,7 @@ func (a *App) showAutomationPreviews(ctx context.Context, process platform.Proce
 	a.publishAutomationPreviewLocked(p)
 	a.updateAutomationPreviewCaptureLocked(p)
 	host.show(bounds)
+	a.recordDiagnostic(diagnostics.Automation, diagnostics.PresentationRequested)
 	return automation.Presentation{Token: strconv.FormatUint(session, 10), Status: "accepted", Bounds: bounds}, nil
 }
 

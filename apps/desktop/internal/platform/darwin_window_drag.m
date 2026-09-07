@@ -1,4 +1,4 @@
-// go:build darwin
+//go:build darwin
 #import "darwin_window_drag.h"
 #import "darwin_retirement.h"
 #import <ApplicationServices/ApplicationServices.h>

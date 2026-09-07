@@ -60,7 +60,7 @@ export default function Home() {
         </div>
         <DownloadButtons />
         <p className="m-0 text-sm text-muted-foreground">
-          macOS 13+ · Windows &amp; Linux builds available · no account, no paywall
+          macOS 14+ · Windows &amp; Linux builds available · no account, no paywall
         </p>
         <SwitcherMock />
       </section>

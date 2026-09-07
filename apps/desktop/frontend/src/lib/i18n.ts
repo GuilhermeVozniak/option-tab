@@ -28,11 +28,37 @@ export type Translate = (s: string) => string;
 // makeT returns a translate function for the language. English is identity.
 export function makeT(lang: Lang): Translate {
   if (lang === "en") return (s) => s;
-  const dict = DICTS[lang];
+  const dict = TRANSLATIONS[lang];
   return (s) => dict[s] ?? s;
 }
 
 const PT: Record<string, string> = {
+  Diagnostics: "Diagnóstico",
+  "Review a bounded local report with the app version, coarse statuses and diagnostic events. It excludes window, media and file content and is never uploaded automatically.":
+    "Revise um relatório local limitado com a versão do app, estados gerais e eventos de diagnóstico. Ele exclui conteúdo de janelas, mídia e arquivos e nunca é enviado automaticamente.",
+  "Review diagnostics": "Revisar diagnóstico",
+  "Preparing preview…": "Preparando prévia…",
+  "Refresh preview": "Atualizar prévia",
+  "Start recording": "Iniciar gravação",
+  "Stop recording": "Parar gravação",
+  "Clear diagnostics": "Limpar diagnóstico",
+  "Save report…": "Salvar relatório…",
+  "Recording stops automatically after 10 minutes.":
+    "A gravação para automaticamente após 10 minutos.",
+  "Recording is off.": "A gravação está desativada.",
+  "Dropped events": "Eventos descartados",
+  "Diagnostics report preview": "Prévia do relatório de diagnóstico",
+  "That filename already exists. Choose a new name.":
+    "Esse nome de arquivo já existe. Escolha um novo nome.",
+  "This preview expired. Refresh it before saving.":
+    "Esta prévia expirou. Atualize-a antes de salvar.",
+  "Report saved": "Relatório salvo",
+  "Another diagnostics operation is already in progress.":
+    "Outra operação de diagnóstico já está em andamento.",
+  "Preview content": "Conteúdo da prévia",
+  Windows: "Janelas",
+  Media: "Mídia",
+  "Loading windows…": "Carregando janelas…",
   "Option Tab — Preferences": "Option Tab — Preferências",
   General: "Geral",
   Controls: "Controles",
@@ -275,6 +301,13 @@ const PT: Record<string, string> = {
   "No synchronized lyrics": "Sem letras sincronizadas",
   "Nothing playing": "Nada em reprodução",
   "Media unavailable": "Mídia indisponível",
+  Previous: "Anterior",
+  Play: "Reproduzir",
+  Pause: "Pausar",
+  Next: "Próxima",
+  "Playback position": "Posição da reprodução",
+  "Pin media panel": "Fixar painel de mídia",
+  "Close media panel": "Fechar painel de mídia",
   "Show a folder’s contents when the pointer rests on its Dock icon.":
     "Mostra o conteúdo de uma pasta ao repousar o ponteiro sobre seu ícone no Dock.",
   "Folder contents": "Conteúdo da pasta",
@@ -323,6 +356,10 @@ const PT: Record<string, string> = {
   "Main display": "Monitor principal",
   "Disconnected display": "Monitor desconectado",
   "Bypass modifier": "Tecla modificadora de desvio",
+  Option: "Opção",
+  Control: "Controle",
+  Command: "Comando",
+  Shift: "Shift",
   "Move Dock here": "Mover o Dock para aqui",
   "Cancel placement": "Cancelar posicionamento",
   "Starting placement…": "Iniciando posicionamento…",
@@ -357,6 +394,7 @@ const PT: Record<string, string> = {
   "Dock rows": "Linhas do Dock",
   "Dock columns": "Colunas do Dock",
   "Windows unavailable": "Janelas indisponíveis",
+  "Close preview": "Fechar prévia",
   "No open windows": "Nenhuma janela aberta",
   "No windows match these filters": "Nenhuma janela corresponde aos filtros",
   "App is not running": "O app não está em execução",
@@ -364,6 +402,32 @@ const PT: Record<string, string> = {
 };
 
 const ES: Record<string, string> = {
+  Diagnostics: "Diagnóstico",
+  "Review a bounded local report with the app version, coarse statuses and diagnostic events. It excludes window, media and file content and is never uploaded automatically.":
+    "Revisa un informe local limitado con la versión de la app, estados generales y eventos de diagnóstico. Excluye contenido de ventanas, multimedia y archivos y nunca se sube automáticamente.",
+  "Review diagnostics": "Revisar diagnóstico",
+  "Preparing preview…": "Preparando vista previa…",
+  "Refresh preview": "Actualizar vista previa",
+  "Start recording": "Iniciar grabación",
+  "Stop recording": "Detener grabación",
+  "Clear diagnostics": "Borrar diagnóstico",
+  "Save report…": "Guardar informe…",
+  "Recording stops automatically after 10 minutes.":
+    "La grabación se detiene automáticamente después de 10 minutos.",
+  "Recording is off.": "La grabación está desactivada.",
+  "Dropped events": "Eventos descartados",
+  "Diagnostics report preview": "Vista previa del informe de diagnóstico",
+  "That filename already exists. Choose a new name.":
+    "Ese nombre de archivo ya existe. Elige otro nombre.",
+  "This preview expired. Refresh it before saving.":
+    "Esta vista previa caducó. Actualízala antes de guardar.",
+  "Report saved": "Informe guardado",
+  "Another diagnostics operation is already in progress.":
+    "Ya hay otra operación de diagnóstico en curso.",
+  "Preview content": "Contenido de la vista previa",
+  Windows: "Ventanas",
+  Media: "Multimedia",
+  "Loading windows…": "Cargando ventanas…",
   "Option Tab — Preferences": "Option Tab — Preferencias",
   General: "General",
   Controls: "Controles",
@@ -606,6 +670,13 @@ const ES: Record<string, string> = {
   "No synchronized lyrics": "Sin letras sincronizadas",
   "Nothing playing": "Nada en reproducción",
   "Media unavailable": "Contenido multimedia no disponible",
+  Previous: "Anterior",
+  Play: "Reproducir",
+  Pause: "Pausar",
+  Next: "Siguiente",
+  "Playback position": "Posición de reproducción",
+  "Pin media panel": "Fijar panel multimedia",
+  "Close media panel": "Cerrar panel multimedia",
   "Show a folder’s contents when the pointer rests on its Dock icon.":
     "Muestra el contenido de una carpeta al posar el puntero sobre su icono del Dock.",
   "Folder contents": "Contenido de la carpeta",
@@ -655,6 +726,10 @@ const ES: Record<string, string> = {
   "Main display": "Pantalla principal",
   "Disconnected display": "Pantalla desconectada",
   "Bypass modifier": "Tecla modificadora de omisión",
+  Option: "Opción",
+  Control: "Control",
+  Command: "Comando",
+  Shift: "Mayúsculas",
   "Move Dock here": "Mover el Dock aquí",
   "Cancel placement": "Cancelar colocación",
   "Starting placement…": "Iniciando colocación…",
@@ -689,13 +764,14 @@ const ES: Record<string, string> = {
   "Dock rows": "Filas del Dock",
   "Dock columns": "Columnas del Dock",
   "Windows unavailable": "Ventanas no disponibles",
+  "Close preview": "Cerrar vista previa",
   "No open windows": "No hay ventanas abiertas",
   "No windows match these filters": "Ninguna ventana coincide con los filtros",
   "App is not running": "La app no está en ejecución",
   "Open app": "Abrir app",
 };
 
-const DICTS: Record<Exclude<Lang, "en">, Record<string, string>> = {
+export const TRANSLATIONS: Record<Exclude<Lang, "en">, Record<string, string>> = {
   "pt-BR": PT,
   es: ES,
 };

@@ -527,8 +527,8 @@ function DockRoute() {
           latestMediaRevision.current = next.revision;
           mediaProgressSequence.current = 0;
           setState((old) =>
-            old && old.media?.session === next.session
-              ? { ...old, media: next, contentKind: "media" }
+            old && old.contentKind === "media" && old.media?.session === next.session
+              ? { ...old, media: next }
               : old,
           );
         },
@@ -538,7 +538,7 @@ function DockRoute() {
           activeMediaSession.current = 0;
           latestMediaRevision.current = revision;
           retiredMediaSessions.current.add(session);
-          setState(null);
+          setState((old) => (old?.media?.session === session ? { ...old, media: undefined } : old));
         },
         progress: (next) =>
           setState((old) => {
@@ -629,6 +629,17 @@ function DockRoute() {
     () => ({
       onSelectWindow: (session, id) => {
         if (session === activeSession.current) void dock.select(session, id);
+      },
+      onSelectContent: (session, revision, kind) => {
+        if (session !== activeSession.current || revision !== latestRevision.current) return;
+        void dock.selectContent(session, revision, kind).catch((error) => {
+          if (session === activeSession.current && revision === latestRevision.current)
+            setState((old) =>
+              old?.session === session && old.revision === revision
+                ? { ...old, error: error instanceof Error ? error.message : String(error) }
+                : old,
+            );
+        });
       },
       onFocusWindow: (session, id, appId) => {
         if (session === activeSession.current)
@@ -837,10 +848,20 @@ function SettingsRoute() {
   const [mediaPermissions, setMediaPermissions] = useState<
     Record<string, { status: string; reason: string }>
   >({});
+  const [diagnosticsAvailable, setDiagnosticsAvailable] = useState(false);
   const lockMark = useRef<[number, number, number]>([0, 0, 0]);
   const lockSeen = useRef(false);
 
   useEffect(() => onPrefsTab(setRequestedTab), []);
+  useEffect(() => {
+    let active = true;
+    void hasBackend().then((available) => {
+      if (active) setDiagnosticsAvailable(available);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   useEffect(() => {
     let active = true;
     void media
@@ -964,6 +985,7 @@ function SettingsRoute() {
               );
           },
         }}
+        diagnostics={diagnosticsAvailable}
       />
     </fieldset>
   );

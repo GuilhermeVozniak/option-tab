@@ -287,8 +287,8 @@ func (u UpdatePolicy) Valid() bool {
 	return u == UpdatesOff || u == UpdatesCheck || u == UpdatesAuto
 }
 
-// CrashPolicy mirrors AltTab's crash-report preference. option-tab never
-// transmits anything; the choice is persisted for parity and future use.
+// CrashPolicy controls local crash capture. Explicit reporting opens a browser
+// URL containing crash text; neither Ask nor Always uploads automatically.
 type CrashPolicy string
 
 const (

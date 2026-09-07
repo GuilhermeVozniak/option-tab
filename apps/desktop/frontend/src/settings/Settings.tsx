@@ -56,6 +56,7 @@ interface SettingsProps {
     permissions: Record<string, { status: string; reason: string }>;
     onConnect: (provider: "music" | "spotify") => void;
   };
+  diagnostics?: boolean;
 }
 
 const TABS = [
@@ -87,6 +88,7 @@ export function Settings({
   dockInputError,
   monitorLock,
   media,
+  diagnostics,
 }: SettingsProps) {
   const [tab, setTab] = useState<Tab>("General");
   const [mode, setMode] = useState<SwitcherMode>("windows");
@@ -309,7 +311,13 @@ export function Settings({
           />
         </section>
         <section hidden={tab !== "About"} aria-label="About" className="space-y-4">
-          <AboutTab ctx={ctx} about={about} openURL={openURL} checkUpdates={checkUpdates} />
+          <AboutTab
+            ctx={ctx}
+            about={about}
+            openURL={openURL}
+            checkUpdates={checkUpdates}
+            diagnostics={diagnostics}
+          />
         </section>
       </div>
     </div>

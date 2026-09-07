@@ -104,8 +104,12 @@ Acceptance remains partial for the broader native matrix: actual shortcut delive
 - [ ] G02 Homebrew installation route.
 - [ ] G03 Validate signed/notarized packages and supported macOS versions; macOS 13 capture needs a real fallback before claiming parity.
 - [ ] G04 User-controlled diagnostic log export.
-- [ ] G05 Document local data handling and any update/media-provider network activity.
+- [x] G05 Document local data handling and any update/media-provider network activity.
 - [ ] G06 Extend existing English, Brazilian Portuguese and Spanish strings to all new controls.
+
+## Current parity follow-ups checkpoint
+
+The feature branch implements the same-hover Windows/Media selector, the future universal/macOS 14 release contract, an in-repository cask for the published v0.4.8 ARM64 build, bounded user-reviewed diagnostics, current data-handling documentation, and explicit PT-BR/Spanish strings for new controls. Combined JavaScript unit, browser and lint gates pass. Go integration, real universal compilation, signed/notarized release validation, Homebrew installation lifecycle, diagnostics chooser behavior and physical media-selector acceptance remain pending, so the G checkboxes and native media acceptance stay open. See the [parity follow-ups checkpoint](superpowers/reports/2026-09-07-parity-followups.md).
 
 ## H. Optional Dock replacement — later delivery stage
 
@@ -151,12 +155,12 @@ Sources: supplied 2:09 screen recording; [DockDoor Free](https://dockdoor.net/);
 
 ## Current Folder Pop checkpoint
 
-E01–E03 implementation is available on the feature branch: exact Dock-folder previews, sorting, on-demand access and guarded opening. Automated and disposable native fixtures pass. Visible chooser approval, real default-app opening and distributed-app permission behavior remain acceptance checks; E01–E03 stay unchecked until that evidence is complete. See the [Folder Pop checkpoint report](superpowers/reports/2026-09-06-folder-pop.md). Media, automation, distribution and the optional replacement Dock remain retained work.
+E01–E03 implementation is available on the feature branch: exact Dock-folder previews, sorting, on-demand access and guarded opening. Automated and disposable native fixtures pass. Visible chooser approval, real default-app opening and distributed-app permission behavior remain acceptance checks; E01–E03 stay unchecked until that evidence is complete. See the [Folder Pop checkpoint report](superpowers/reports/2026-09-06-folder-pop.md). Media, automation, distribution/support and the optional replacement Dock remain retained work at their respective checkpoints.
 
 ## Current media checkpoint
 
-E04–E06 implementation adds independently enabled Music/Spotify panels, typed native transport, bounded artwork, explicit local timestamped lyrics and separate session-only media pins. Provider consent and remote artwork are opt-in. Spotify seek remains unavailable pending runtime unit verification. Automated/native fixture evidence and physical acceptance limits are recorded in the [media checkpoint report](superpowers/reports/2026-09-07-dock-media.md); E04–E06 stay unchecked. Automation, distribution and the optional replacement Dock remain retained work.
+E04–E06 implementation adds independently enabled Music/Spotify panels, typed native transport, bounded artwork, explicit local timestamped lyrics and separate session-only media pins. Provider consent and remote artwork are opt-in. The follow-up branch also implements a backend-owned Windows/Media selector for one provider hover, with fresh sessions for real content changes. Spotify seek remains unavailable pending runtime unit verification. Automated/native fixture evidence and physical acceptance limits are recorded in the [media checkpoint report](superpowers/reports/2026-09-07-dock-media.md); E04–E06 stay unchecked. Automation, distribution/support and the optional replacement Dock remain at their respective checkpoints.
 
 ## Current automation checkpoint
 
-F01–F06 implementation adds a packaged AppleScript dictionary, guarded switcher/window commands, an independent app-preview panel and bounded JSON queries with optional existing cached images. The combined automated gates pass. A real packaged fixture reached macOS authorization but no-prompt preflight required consent, so full AppleScript/Wails/native action acceptance remains open and F01–F06 stay unchecked. See the [automation checkpoint report](superpowers/reports/2026-09-07-local-automation.md) and [command documentation](automation.md). The same-hover Windows/Media selector, distribution/support and optional replacement Dock remain implementation work.
+F01–F06 implementation adds a packaged AppleScript dictionary, guarded switcher/window commands, an independent app-preview panel and bounded JSON queries with optional existing cached images. The combined automated gates pass. A real packaged fixture reached macOS authorization but no-prompt preflight required consent, so full AppleScript/Wails/native action acceptance remains open and F01–F06 stay unchecked. See the [automation checkpoint report](superpowers/reports/2026-09-07-local-automation.md) and [command documentation](automation.md). The same-hover Windows/Media selector and distribution/support are now implemented at the parity follow-ups checkpoint; their native/release acceptance remains open. The optional replacement Dock remains later work.

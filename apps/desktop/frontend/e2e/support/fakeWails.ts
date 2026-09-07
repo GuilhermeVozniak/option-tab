@@ -123,6 +123,7 @@ const METHOD = {
   PerformAction: 280563800,
   GetDockState: 1033939333,
   SelectDockWindow: 1507952022,
+  SelectDockContent: 2963493651,
   FocusDockWindow: 1587026944,
   PerformDockAction: 1943493959,
   SetDockPanelSize: 1080314307,
@@ -154,6 +155,11 @@ const METHOD = {
   PerformAutomationPreviewAction: 513435453,
   SetAutomationPreviewSize: 3307079785,
   CloseAutomationPreview: 43965240,
+  GetDiagnosticsReview: 3103844513,
+  StartDiagnosticsRecording: 2282172420,
+  StopDiagnosticsRecording: 76990490,
+  ClearDiagnostics: 2969743170,
+  SaveDiagnosticsReport: 1276106854,
   SaveSettings: 1949631069,
 } as const;
 
@@ -179,6 +185,7 @@ export async function installFakeWails(page: Page): Promise<void> {
       __actionResult?: { succeeded: number; failures: { windowId: number; error: string }[] };
       __actionError?: string;
       __dockState?: Record<string, unknown> | null;
+      __dockContentError?: string;
       __dockLockState?: Record<string, unknown>;
       __dockLockDisplays?: unknown[];
       __dockPlacementResult?: Record<string, unknown>;
@@ -188,6 +195,9 @@ export async function installFakeWails(page: Page): Promise<void> {
       __mediaActionError?: string;
       __automationPreviewState?: Record<string, unknown> | null;
       __automationPreviewError?: string;
+      __diagnosticsReview?: Record<string, unknown>;
+      __diagnosticsSaveResult?: Record<string, unknown>;
+      __diagnosticsError?: Record<string, string>;
       _wails?: { dispatchWailsEvent?: (ev: { name: string; data: unknown }) => void };
     };
     w.__calls = [];
@@ -198,6 +208,15 @@ export async function installFakeWails(page: Page): Promise<void> {
     w.__mediaState = null;
     w.__mediaPermissions = {};
     w.__automationPreviewState = null;
+    w.__diagnosticsReview = {
+      token: "diagnostics-review-1",
+      json: '{"schemaVersion":1,"recording":false}',
+      expiresAt: "2026-09-07T12:00:00Z",
+      recording: false,
+      dropped: 0,
+    };
+    w.__diagnosticsSaveResult = { status: "saved" };
+    w.__diagnosticsError = {};
     w.__dockLockState = {
       session: 0,
       revision: 0,
@@ -264,6 +283,10 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json(await page.evaluate(() => (window as any).__mediaPermissions));
       case "GetAutomationPreviewState":
         return json(await page.evaluate(() => (window as any).__automationPreviewState));
+      case "GetDiagnosticsReview": {
+        await evaluate((n) => (window as any).__calls.push([n]), name);
+        return json(await page.evaluate(() => (window as any).__diagnosticsReview));
+      }
       case "PinMediaPanel": {
         const pinned = await page.evaluate(
           ([n, a]) => {
@@ -353,6 +376,7 @@ export async function installFakeWails(page: Page): Promise<void> {
       case "SelectApp":
       case "SelectAppWindow":
       case "SelectDockWindow":
+      case "SelectDockContent":
       case "SetDockPanelSize":
       case "SetDockPreviewRegions":
       case "BeginDockPreviewDrag":
@@ -362,6 +386,14 @@ export async function installFakeWails(page: Page): Promise<void> {
       case "CancelDockFolderAccess":
       case "OpenDockFolderEntry": {
         await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        if (
+          name === "SelectDockContent" &&
+          (await page.evaluate(() => (window as any).__dockContentError))
+        )
+          return route.fulfill({
+            status: 500,
+            body: await page.evaluate(() => (window as any).__dockContentError),
+          });
         return json(null);
       }
       case "PerformMediaAction":
@@ -397,6 +429,17 @@ export async function installFakeWails(page: Page): Promise<void> {
             status: 500,
             body: await page.evaluate(() => (window as any).__automationPreviewError),
           });
+        return json(null);
+      }
+      case "StartDiagnosticsRecording":
+      case "StopDiagnosticsRecording":
+      case "ClearDiagnostics":
+      case "SaveDiagnosticsReport": {
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        const error = await page.evaluate((n) => (window as any).__diagnosticsError?.[n], name);
+        if (error) return route.fulfill({ status: 500, body: error });
+        if (name === "SaveDiagnosticsReport")
+          return json(await page.evaluate(() => (window as any).__diagnosticsSaveResult));
         return json(null);
       }
       case "FocusDockWindow":

@@ -47,22 +47,23 @@ type windowResult struct {
 // environment queries run separately; at most one query can be in flight even
 // while the hovered app changes. Results never outlive their visible session.
 type Controller struct {
-	admission     atomic.Uint64
-	deps          Deps
-	initial       config.Settings
-	commands      []command
-	commandMu     sync.Mutex
-	commandReady  chan struct{}
-	observations  chan observation
-	results       chan windowResult
-	folderResults chan folderResult
-	folderWork    sync.WaitGroup
-	done          chan struct{}
-	once          sync.Once
+	admission       atomic.Uint64
+	deps            Deps
+	initial         config.Settings
+	commands        []command
+	commandMu       sync.Mutex
+	commandReady    chan struct{}
+	contentRequests chan contentRequest
+	observations    chan observation
+	results         chan windowResult
+	folderResults   chan folderResult
+	folderWork      sync.WaitGroup
+	done            chan struct{}
+	once            sync.Once
 }
 
 func NewController(deps Deps, settings config.Settings) *Controller {
-	c := &Controller{deps: deps, initial: settings.Normalize(), commandReady: make(chan struct{}, 1), observations: make(chan observation, 1), results: make(chan windowResult, 1), folderResults: make(chan folderResult, 1), done: make(chan struct{})}
+	c := &Controller{deps: deps, initial: settings.Normalize(), commandReady: make(chan struct{}, 1), contentRequests: make(chan contentRequest), observations: make(chan observation, 1), results: make(chan windowResult, 1), folderResults: make(chan folderResult, 1), done: make(chan struct{})}
 	c.admission.Store(1)
 	return c
 }
@@ -156,6 +157,7 @@ type controllerLoop struct {
 	restartPending                       bool
 	last                                 *platform.DockObservation
 	candidate, blocked                   *Item
+	contentKind                          string
 	state                                State
 	shown, querying, dirty               bool
 	screen                               domain.Bounds
@@ -196,6 +198,8 @@ func (l *controllerLoop) run() {
 			for _, cmd := range l.controller.takeCommands() {
 				l.command(cmd)
 			}
+		case request := <-l.controller.contentRequests:
+			request.reply <- l.selectContent(request)
 		case result := <-l.controller.folderResults:
 			l.folderQuerying = false
 			l.acceptFolder(result)
@@ -298,6 +302,7 @@ func (l *controllerLoop) reset() {
 	l.session++
 	l.shown = false
 	l.candidate = nil
+	l.contentKind = ""
 	l.state = State{}
 	l.last = nil
 	l.dirty = false
@@ -388,6 +393,7 @@ func (l *controllerLoop) step(at time.Time) {
 		l.state = State{}
 		l.measured = domain.Bounds{}
 		l.candidate = copyItem(change.Show)
+		l.contentKind = ""
 		l.request()
 	}
 	if change.Move != nil {
@@ -487,10 +493,16 @@ func (l *controllerLoop) query() {
 	l.querying = true
 	l.dirty = false
 	item, settings := *l.candidate, l.settings
+	content := l.selectedContent()
 	session, generation := l.session, l.generation
 	c := l.controller
 	go func() {
-		result := queryWindows(c.deps, settings, item)
+		var result windowResult
+		if content == "media" {
+			result = queryMedia(c.deps, settings, item, MediaProviderForItem(item, settings.Dock.Media))
+		} else {
+			result = queryWindowContents(c.deps, settings, item)
+		}
 		result.session = session
 		result.generation = generation
 		select {
@@ -504,6 +516,10 @@ func queryWindows(deps Deps, settings config.Settings, item Item) windowResult {
 	if provider := MediaProviderForItem(item, settings.Dock.Media); provider != "" {
 		return queryMedia(deps, settings, item, provider)
 	}
+	return queryWindowContents(deps, settings, item)
+}
+
+func queryWindowContents(deps Deps, settings config.Settings, item Item) windowResult {
 	result := windowResult{}
 	if deps.Env == nil || deps.Windows == nil {
 		result.err = errors.New("dock: window environment unavailable")
@@ -609,8 +625,25 @@ func (l *controllerLoop) accept(result windowResult) {
 		return
 	}
 	provider := MediaProviderForItem(*l.candidate, l.settings.Dock.Media)
+	if l.selectedContent() != "media" {
+		provider = ""
+	}
 	if result.provider != provider || (provider == "" && !l.settings.Dock.Enabled) {
 		return
+	}
+	if result.err != nil && l.contentKind == "windows" && len(contentOptions(*l.candidate, l.settings)) > 1 && result.screen.Area() > 0 {
+		l.state.Error = result.err.Error()
+		l.state.EmptyReason = "unavailable"
+		l.state.Windows = nil
+		l.state.SelectedWindowID = 0
+		l.publish(false)
+		return
+	}
+	// Window-only filters must not remove a still-eligible media choice.
+	if result.excluded && l.contentKind == "windows" && MediaProviderForItem(*l.candidate, l.settings.Dock.Media) != "" && mediaChoiceAllowed(*l.candidate, l.settings.Filters, l.controller.deps.SelfBundleID) {
+		result.excluded = false
+		result.windows = nil
+		result.emptyReason = "filtered"
 	}
 	if result.err != nil || result.excluded {
 		blocked := copyItem(l.candidate)
@@ -620,7 +653,7 @@ func (l *controllerLoop) accept(result windowResult) {
 	}
 	if provider != "" {
 		l.screen = result.screen
-		l.state = State{ContentKind: "media", AdmissionEpoch: l.admission, Session: l.session, Item: *l.candidate, Appearance: l.settings.Dock.Appearance, CardSpacingPx: l.settings.Dock.CardSpacingPx}
+		l.state = State{ContentKind: "media", ContentOptions: contentOptions(*l.candidate, l.settings), AdmissionEpoch: l.admission, Session: l.session, Item: *l.candidate, Appearance: l.settings.Dock.Appearance, CardSpacingPx: l.settings.Dock.CardSpacingPx}
 		l.place()
 		first := !l.shown
 		l.shown = true
@@ -635,7 +668,7 @@ func (l *controllerLoop) accept(result windowResult) {
 		}
 	}
 	l.screen = result.screen
-	l.state = State{ContentKind: "windows", AdmissionEpoch: l.admission, Session: l.session, Item: *l.candidate, Windows: result.windows, SelectedWindowID: selected, Appearance: l.settings.Dock.Appearance, CardSpacingPx: l.settings.Dock.CardSpacingPx, EmptyReason: result.emptyReason}
+	l.state = State{ContentKind: "windows", ContentOptions: contentOptions(*l.candidate, l.settings), AdmissionEpoch: l.admission, Session: l.session, Item: *l.candidate, Windows: result.windows, SelectedWindowID: selected, Appearance: l.settings.Dock.Appearance, CardSpacingPx: l.settings.Dock.CardSpacingPx, EmptyReason: result.emptyReason}
 	l.place()
 	first := !l.shown
 	l.shown = true
@@ -666,6 +699,7 @@ func (l *controllerLoop) publish(first bool) {
 	if view := l.controller.deps.View; view != nil {
 		state := l.state
 		state.Windows = slices.Clone(state.Windows)
+		state.ContentOptions = slices.Clone(state.ContentOptions)
 		state.Folder = copyFolderState(state.Folder)
 		if first {
 			view.Show(state)
@@ -749,4 +783,17 @@ func (l *controllerLoop) publishPointer() {
 	l.pointer = next
 	l.pointerBounds = bounds
 	view.Pointer(next)
+}
+
+// Media eligibility is independent of window presence, hidden state and scope.
+func mediaChoiceAllowed(item Item, filters config.Filters, self string) bool {
+	if self != "" && strings.EqualFold(item.BundleID, self) {
+		return false
+	}
+	for _, entry := range filters.AppBlacklist {
+		if entry.Hide != config.HideWhenNoWindow && entry.Match != "" && (strings.EqualFold(entry.Match, item.BundleID) || strings.EqualFold(entry.Match, item.Title)) {
+			return false
+		}
+	}
+	return true
 }
