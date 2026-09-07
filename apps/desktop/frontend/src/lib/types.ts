@@ -441,6 +441,13 @@ export interface LauncherWidgetInstance {
   digest: string;
   enabled: boolean;
   grants: string[];
+  settings?: Record<string, { text: string } | { number: number } | { boolean: boolean }>;
+}
+export interface LauncherWidgetStack {
+  id: string;
+  name: string;
+  members: string[];
+  activeID: string;
 }
 export interface LauncherProfile {
   id: string;
@@ -455,6 +462,7 @@ export interface LauncherProfile {
   insetPx: number;
   autoHide: boolean;
   widgets: LauncherWidgetInstance[];
+  stacks?: LauncherWidgetStack[];
 }
 export interface LauncherAppearance {
   theme: "system" | "light" | "dark";
@@ -661,7 +669,7 @@ export const defaultSettings: Settings = {
           {
             id: "clock",
             packageID: "org.optiontab.clock",
-            digest: "sha256:c2504147560285311f61886cae7a1f1396781443c9db52a85a04fbe669b2ded7d",
+            digest: "sha256:09bcb4221f7ace94e21898b4e583f9db72be1be5f6524fbe9972af70726c9dc3",
             enabled: false,
             grants: [],
           },

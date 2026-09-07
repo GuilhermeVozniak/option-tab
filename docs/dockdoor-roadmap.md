@@ -113,6 +113,8 @@ The feature branch implements the same-hover Windows/Media selector, the future 
 
 ## H. Optional Dock replacement — later delivery stage
 
+The feature branch now contains the replacement-Dock host/recovery foundation, per-display profiles and appearance, focused-app profile rules, and the shared widget runtime with local package installation. See the [foundation](superpowers/reports/2026-09-07-replacement-dock-foundation.md), [profiles](superpowers/reports/2026-09-07-replacement-dock-profiles.md), [focused-app profiles](superpowers/reports/2026-09-07-focused-launcher-profiles.md), and [widget checkpoint](superpowers/reports/2026-09-07-widget-runtime.md). Native acceptance remains incomplete; the unchecked items distinguish that from delivered implementation. B10 for existing switcher/preview surfaces remains separate from replacement-Dock materials.
+
 - [ ] H01 Optional replacement Dock with safe restoration of native Dock access.
 - [ ] H02 Per-display Docks, edges, layouts and profiles.
 - [ ] H03 Switch profiles according to the focused app.

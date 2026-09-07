@@ -164,6 +164,17 @@ const METHOD = {
   GetLauncherState: 1942731528,
   GetLauncherStatus: 3297738801,
   GetLauncherAppChoices: 1561877478,
+  GetLauncherWidgets: 1662395444,
+  GetWidgetActionOptions: 1913639053,
+  GetWidgetAsset: 1591270545,
+  GetWidgetCatalog: 1508342138,
+  PerformWidgetAction: 4243588732,
+  SelectLauncherWidget: 3729375001,
+  CancelWidgetPackageReview: 1933127773,
+  GetWidgetPackageStatus: 2166434855,
+  InstallReviewedWidget: 4223715965,
+  RemoveWidgetPackage: 2737711739,
+  ReviewLocalWidgetPackage: 460648480,
   UseNativeDock: 421143656,
   SaveSettings: 1949631069,
 } as const;
@@ -206,6 +217,11 @@ export async function installFakeWails(page: Page): Promise<void> {
       __launcherState?: Record<string, unknown> | null;
       __launcherStatus?: Record<string, unknown>;
       __launcherAppChoices?: Array<{ name: string; bundleID: string }>;
+      __launcherWidgets?: Record<string, unknown>;
+      __widgetCatalog?: unknown[];
+      __widgetActionOptions?: Record<string, unknown>;
+      __widgetPackageStatus?: Record<string, unknown>;
+      __widgetPackageReview?: Record<string, unknown>;
       _wails?: { dispatchWailsEvent?: (ev: { name: string; data: unknown }) => void };
     };
     w.__calls = [];
@@ -217,6 +233,39 @@ export async function installFakeWails(page: Page): Promise<void> {
     w.__mediaPermissions = {};
     w.__automationPreviewState = null;
     w.__launcherState = null;
+    w.__launcherWidgets = { visible: false, revision: 0, slots: [] };
+    w.__widgetCatalog = [
+      {
+        packageID: "org.optiontab.clock",
+        digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        version: "1.0.0",
+        name: { en: "Clock", "pt-BR": "Relógio", es: "Reloj" },
+        description: { en: "Local time", "pt-BR": "Hora local", es: "Hora local" },
+        requiredCapabilities: ["clock.read"],
+        optionalCapabilities: [],
+        settings: [],
+        builtin: true,
+      },
+    ];
+    w.__widgetActionOptions = { options: [] };
+    w.__widgetPackageStatus = { available: true, busy: false, reason: "" };
+    w.__widgetPackageReview = {
+      token: "review-e2e",
+      sourceName: "status.otwidget",
+      expiresAt: "2026-09-07T18:00:00Z",
+      alreadyInstalled: false,
+      package: {
+        packageID: "org.example.status",
+        digest: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        version: "1.0.0",
+        name: { en: "Status card" },
+        description: { en: "Shows local status" },
+        requiredCapabilities: ["network.status.read"],
+        optionalCapabilities: [],
+        settings: [],
+        builtin: false,
+      },
+    };
     w.__launcherStatus = {
       epoch: 0,
       revision: 0,
@@ -317,7 +366,30 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json(await page.evaluate(() => (window as any).__launcherStatus));
       case "GetLauncherAppChoices":
         return json(await page.evaluate(() => (window as any).__launcherAppChoices));
+      case "GetLauncherWidgets":
+        return json(await page.evaluate(() => (window as any).__launcherWidgets));
+      case "GetWidgetCatalog":
+        return json(await page.evaluate(() => (window as any).__widgetCatalog));
+      case "GetWidgetPackageStatus":
+        return json(await page.evaluate(() => (window as any).__widgetPackageStatus));
+      case "ReviewLocalWidgetPackage":
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        return json(await page.evaluate(() => (window as any).__widgetPackageReview));
+      case "InstallReviewedWidget": {
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        return json(await page.evaluate(() => (window as any).__widgetPackageReview.package));
+      }
+      case "GetWidgetActionOptions":
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        return json(await page.evaluate(() => (window as any).__widgetActionOptions));
+      case "GetWidgetAsset":
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        return json("");
       case "ActivateLauncherItem":
+      case "PerformWidgetAction":
+      case "SelectLauncherWidget":
+      case "CancelWidgetPackageReview":
+      case "RemoveWidgetPackage":
       case "UseNativeDock": {
         await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
         return json(null);

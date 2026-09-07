@@ -27,6 +27,9 @@ import * as platform$0 from "./internal/platform/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as switcher$0 from "./internal/switcher/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as widgets$0 from "./internal/widgets/models.js";
 
 /**
  * Automation previews have their own owner and never impersonate a Dock item.
@@ -727,6 +730,201 @@ export class LauncherStatus {
     }
 }
 
+export class LauncherWidgetChoice {
+    /**
+     * Creates a new LauncherWidgetChoice instance.
+     * @param {Partial<LauncherWidgetChoice>} [$$source = {}] - The source object to create the LauncherWidgetChoice.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {widgets$0.Localized}
+             */
+            this["name"] = {};
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherWidgetChoice instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherWidgetChoice}
+     */
+    static createFrom($$source = {}) {
+        const $$createField1_0 = $$createType15;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("name" in $$parsedSource) {
+            $$parsedSource["name"] = $$createField1_0($$parsedSource["name"]);
+        }
+        return new LauncherWidgetChoice(/** @type {Partial<LauncherWidgetChoice>} */($$parsedSource));
+    }
+}
+
+export class LauncherWidgetSlot {
+    /**
+     * Creates a new LauncherWidgetSlot instance.
+     * @param {Partial<LauncherWidgetSlot>} [$$source = {}] - The source object to create the LauncherWidgetSlot.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["stackID"] = undefined;
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {widgets$0.Localized}
+             */
+            this["name"] = {};
+        }
+        if (!("members" in $$source)) {
+            /**
+             * @member
+             * @type {LauncherWidgetChoice[]}
+             */
+            this["members"] = [];
+        }
+        if (!("selectedID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["selectedID"] = "";
+        }
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {widgets$0.InstanceState | null | undefined}
+             */
+            this["state"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherWidgetSlot instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherWidgetSlot}
+     */
+    static createFrom($$source = {}) {
+        const $$createField2_0 = $$createType15;
+        const $$createField3_0 = $$createType18;
+        const $$createField6_0 = $$createType20;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("name" in $$parsedSource) {
+            $$parsedSource["name"] = $$createField2_0($$parsedSource["name"]);
+        }
+        if ("members" in $$parsedSource) {
+            $$parsedSource["members"] = $$createField3_0($$parsedSource["members"]);
+        }
+        if ("state" in $$parsedSource) {
+            $$parsedSource["state"] = $$createField6_0($$parsedSource["state"]);
+        }
+        return new LauncherWidgetSlot(/** @type {Partial<LauncherWidgetSlot>} */($$parsedSource));
+    }
+}
+
+export class LauncherWidgetState {
+    /**
+     * Creates a new LauncherWidgetState instance.
+     * @param {Partial<LauncherWidgetState>} [$$source = {}] - The source object to create the LauncherWidgetState.
+     */
+    constructor($$source = {}) {
+        if (!("epoch" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["epoch"] = 0;
+        }
+        if (!("displayUUID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["displayUUID"] = "";
+        }
+        if (!("session" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["session"] = 0;
+        }
+        if (!("profileID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["profileID"] = "";
+        }
+        if (!("revision" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["revision"] = 0;
+        }
+        if (!("visible" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["visible"] = false;
+        }
+        if (!("slots" in $$source)) {
+            /**
+             * @member
+             * @type {LauncherWidgetSlot[]}
+             */
+            this["slots"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherWidgetState instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherWidgetState}
+     */
+    static createFrom($$source = {}) {
+        const $$createField6_0 = $$createType22;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("slots" in $$parsedSource) {
+            $$parsedSource["slots"] = $$createField6_0($$parsedSource["slots"]);
+        }
+        return new LauncherWidgetState(/** @type {Partial<LauncherWidgetState>} */($$parsedSource));
+    }
+}
+
 export class MediaArtworkView {
     /**
      * Creates a new MediaArtworkView instance.
@@ -820,7 +1018,7 @@ export class MediaLyricsView {
      * @returns {MediaLyricsView}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType16;
+        const $$createField3_0 = $$createType24;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cues" in $$parsedSource) {
             $$parsedSource["cues"] = $$createField3_0($$parsedSource["cues"]);
@@ -950,11 +1148,11 @@ export class MediaViewState {
      * @returns {MediaViewState}
      */
     static createFrom($$source = {}) {
-        const $$createField7_0 = $$createType17;
-        const $$createField8_0 = $$createType18;
+        const $$createField7_0 = $$createType25;
+        const $$createField8_0 = $$createType26;
         const $$createField9_0 = $$createType2;
-        const $$createField10_0 = $$createType19;
-        const $$createField11_0 = $$createType20;
+        const $$createField10_0 = $$createType27;
+        const $$createField11_0 = $$createType28;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("scope" in $$parsedSource) {
             $$parsedSource["scope"] = $$createField7_0($$parsedSource["scope"]);
@@ -975,6 +1173,212 @@ export class MediaViewState {
     }
 }
 
+export class WidgetCatalogItem {
+    /**
+     * Creates a new WidgetCatalogItem instance.
+     * @param {Partial<WidgetCatalogItem>} [$$source = {}] - The source object to create the WidgetCatalogItem.
+     */
+    constructor($$source = {}) {
+        if (!("packageID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["packageID"] = "";
+        }
+        if (!("digest" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["digest"] = "";
+        }
+        if (!("version" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["version"] = "";
+        }
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {widgets$0.Localized}
+             */
+            this["name"] = {};
+        }
+        if (!("description" in $$source)) {
+            /**
+             * @member
+             * @type {widgets$0.Localized}
+             */
+            this["description"] = {};
+        }
+        if (!("requiredCapabilities" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["requiredCapabilities"] = [];
+        }
+        if (!("optionalCapabilities" in $$source)) {
+            /**
+             * @member
+             * @type {string[]}
+             */
+            this["optionalCapabilities"] = [];
+        }
+        if (!("settings" in $$source)) {
+            /**
+             * @member
+             * @type {widgets$0.Setting[]}
+             */
+            this["settings"] = [];
+        }
+        if (!("builtin" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["builtin"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new WidgetCatalogItem instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {WidgetCatalogItem}
+     */
+    static createFrom($$source = {}) {
+        const $$createField3_0 = $$createType15;
+        const $$createField4_0 = $$createType15;
+        const $$createField5_0 = $$createType5;
+        const $$createField6_0 = $$createType5;
+        const $$createField7_0 = $$createType30;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("name" in $$parsedSource) {
+            $$parsedSource["name"] = $$createField3_0($$parsedSource["name"]);
+        }
+        if ("description" in $$parsedSource) {
+            $$parsedSource["description"] = $$createField4_0($$parsedSource["description"]);
+        }
+        if ("requiredCapabilities" in $$parsedSource) {
+            $$parsedSource["requiredCapabilities"] = $$createField5_0($$parsedSource["requiredCapabilities"]);
+        }
+        if ("optionalCapabilities" in $$parsedSource) {
+            $$parsedSource["optionalCapabilities"] = $$createField6_0($$parsedSource["optionalCapabilities"]);
+        }
+        if ("settings" in $$parsedSource) {
+            $$parsedSource["settings"] = $$createField7_0($$parsedSource["settings"]);
+        }
+        return new WidgetCatalogItem(/** @type {Partial<WidgetCatalogItem>} */($$parsedSource));
+    }
+}
+
+export class WidgetPackageReview {
+    /**
+     * Creates a new WidgetPackageReview instance.
+     * @param {Partial<WidgetPackageReview>} [$$source = {}] - The source object to create the WidgetPackageReview.
+     */
+    constructor($$source = {}) {
+        if (!("token" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["token"] = "";
+        }
+        if (!("sourceName" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["sourceName"] = "";
+        }
+        if (!("package" in $$source)) {
+            /**
+             * @member
+             * @type {WidgetCatalogItem}
+             */
+            this["package"] = (new WidgetCatalogItem());
+        }
+        if (!("expiresAt" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["expiresAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("alreadyInstalled" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["alreadyInstalled"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new WidgetPackageReview instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {WidgetPackageReview}
+     */
+    static createFrom($$source = {}) {
+        const $$createField2_0 = $$createType31;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("package" in $$parsedSource) {
+            $$parsedSource["package"] = $$createField2_0($$parsedSource["package"]);
+        }
+        return new WidgetPackageReview(/** @type {Partial<WidgetPackageReview>} */($$parsedSource));
+    }
+}
+
+export class WidgetPackageStatus {
+    /**
+     * Creates a new WidgetPackageStatus instance.
+     * @param {Partial<WidgetPackageStatus>} [$$source = {}] - The source object to create the WidgetPackageStatus.
+     */
+    constructor($$source = {}) {
+        if (!("available" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["available"] = false;
+        }
+        if (!("busy" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["busy"] = false;
+        }
+        if (!("reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["reason"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new WidgetPackageStatus instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {WidgetPackageStatus}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new WidgetPackageStatus(/** @type {Partial<WidgetPackageStatus>} */($$parsedSource));
+    }
+}
+
 // Private type creation functions
 const $$createType0 = switcher$0.Entry.createFrom;
 const $$createType1 = $Create.Array($$createType0);
@@ -991,9 +1395,25 @@ const $$createType11 = DockPointer.createFrom;
 const $$createType12 = $Create.Nullable($$createType11);
 const $$createType13 = launcher$0.DisplayState.createFrom;
 const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = media$0.Cue.createFrom;
-const $$createType16 = $Create.Array($$createType15);
-const $$createType17 = platform$0.MediaScope.createFrom;
-const $$createType18 = platform$0.MediaSample.createFrom;
-const $$createType19 = MediaArtworkView.createFrom;
-const $$createType20 = MediaLyricsView.createFrom;
+var $$createType15 = /** @type {(...args: any[]) => any} */(function $$initCreateType15(...args) {
+    if ($$createType15 === $$initCreateType15) {
+        $$createType15 = $$createType16;
+    }
+    return $$createType15(...args);
+});
+const $$createType16 = $Create.Map($Create.Any, $Create.Any);
+const $$createType17 = LauncherWidgetChoice.createFrom;
+const $$createType18 = $Create.Array($$createType17);
+const $$createType19 = widgets$0.InstanceState.createFrom;
+const $$createType20 = $Create.Nullable($$createType19);
+const $$createType21 = LauncherWidgetSlot.createFrom;
+const $$createType22 = $Create.Array($$createType21);
+const $$createType23 = media$0.Cue.createFrom;
+const $$createType24 = $Create.Array($$createType23);
+const $$createType25 = platform$0.MediaScope.createFrom;
+const $$createType26 = platform$0.MediaSample.createFrom;
+const $$createType27 = MediaArtworkView.createFrom;
+const $$createType28 = MediaLyricsView.createFrom;
+const $$createType29 = widgets$0.Setting.createFrom;
+const $$createType30 = $Create.Array($$createType29);
+const $$createType31 = WidgetCatalogItem.createFrom;

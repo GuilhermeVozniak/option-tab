@@ -1,4 +1,6 @@
 import type { LauncherPresentation, LauncherWidgetNode } from "../lib/types";
+import type { LauncherWidgetState, WidgetActions, WidgetLocalized } from "../lib/widget-types";
+import { WidgetView } from "../widgets/WidgetView";
 import "./launcher.css";
 
 function WidgetNode({ node }: { node: LauncherWidgetNode }) {
@@ -16,6 +18,11 @@ function WidgetNode({ node }: { node: LauncherWidgetNode }) {
 export function LauncherView({
   presentation,
   onActivate,
+  widgetState,
+  widgetActions,
+  onSelectWidget,
+  t = (text) => text,
+  language = "en",
 }: {
   presentation: LauncherPresentation;
   onActivate: (
@@ -25,6 +32,11 @@ export function LauncherView({
     revision: number,
     itemID: string,
   ) => void;
+  widgetState?: LauncherWidgetState | null;
+  widgetActions?: WidgetActions;
+  onSelectWidget?: (stackID: string, instanceID: string) => void;
+  t?: (text: string) => string;
+  language?: string;
 }) {
   if (!presentation?.visible) return null;
   return (
@@ -73,11 +85,54 @@ export function LauncherView({
           </li>
         ))}
       </ul>
-      {presentation.widgets.map((widget) => (
-        <aside className="ot-launcher-widget" key={widget.id} aria-label={widget.packageID}>
-          {widget.status === "ready" ? <WidgetNode node={widget.root} /> : null}
-        </aside>
-      ))}
+      {widgetState === undefined
+        ? presentation.widgets.map((widget) => (
+            <aside className="ot-launcher-widget" key={widget.id} aria-label={widget.packageID}>
+              {widget.status === "ready" ? <WidgetNode node={widget.root} /> : null}
+            </aside>
+          ))
+        : null}
+      {widgetState?.visible && widgetActions ? (
+        <div className="ot-launcher-widgets" aria-label={t("Launcher widgets")}>
+          {widgetState.slots.map((slot) => (
+            <aside
+              className="ot-launcher-widget"
+              key={slot.id}
+              aria-label={localName(slot.name, language)}
+            >
+              {slot.members.length > 1 ? (
+                <div className="ot-launcher-widget-choices" aria-label={t("Widget stack")}>
+                  {slot.members.map((member) => (
+                    <button
+                      type="button"
+                      className={member.id === slot.selectedID ? "is-selected" : ""}
+                      key={member.id}
+                      onClick={() => onSelectWidget?.(slot.stackID ?? "", member.id)}
+                    >
+                      {localName(member.name, language)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {slot.state ? (
+                <WidgetView state={slot.state} actions={widgetActions} t={t} />
+              ) : (
+                <span className="ot-widget-status">{t(statusLabel(slot.status))}</span>
+              )}
+            </aside>
+          ))}
+        </div>
+      ) : null}
     </main>
   );
+}
+
+function localName(name: WidgetLocalized, language: string): string {
+  return name[language] || name.en || Object.values(name)[0] || "Widget";
+}
+
+function statusLabel(status: string): string {
+  if (status === "preparing") return "Loading widget…";
+  if (status === "grantRequired") return "Permission required";
+  return "Widget unavailable";
 }

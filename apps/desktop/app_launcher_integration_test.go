@@ -88,10 +88,21 @@ func (p *launcherIntegrationPlatform) ActivateLauncherApp(_ context.Context, tar
 }
 
 type launcherIntegrationPanel struct {
-	token  uint64
-	shows  atomic.Int32
-	closes atomic.Int32
-	style  atomic.Pointer[platform.LauncherPanelStyle]
+	token       uint64
+	shows       atomic.Int32
+	closes      atomic.Int32
+	style       atomic.Pointer[platform.LauncherPanelStyle]
+	unavailable atomic.Bool
+}
+
+func (p *launcherIntegrationPanel) ValidateLauncherPanel(ctx context.Context, display string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if display != integrationDisplay || p.unavailable.Load() {
+		return platform.ErrDockPanelHostClosed
+	}
+	return nil
 }
 
 func (p *launcherIntegrationPanel) SetLauncherStyle(style platform.LauncherPanelStyle) error {

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { LauncherPresentation } from "../lib/types";
+import type { LauncherWidgetState } from "../lib/widget-types";
 import { LauncherRoute, type LauncherTransport } from "./LauncherRoute";
 
 const state = (session: number, revision: number, item = "Current"): LauncherPresentation => ({
@@ -76,5 +77,83 @@ describe("LauncherRoute", () => {
     render(<LauncherRoute session={8} transport={t.api} />);
     fireEvent.click(await screen.findByRole("button", { name: "Current" }));
     expect(t.api.activate).toHaveBeenCalledWith(5, "display-a", 8, 2, "id-Current");
+  });
+
+  it("admits exact-parent widget revisions, selects stacks, and tombstones retirement", async () => {
+    const t = transport(state(8, 2));
+    let updateWidgets: (next: LauncherWidgetState) => void = () => {};
+    const widgetState: LauncherWidgetState = {
+      epoch: 5,
+      displayUUID: "display-a",
+      session: 8,
+      profileID: "default",
+      revision: 4,
+      visible: true,
+      slots: [
+        {
+          id: "stack:status",
+          stackID: "status",
+          name: { en: "Status" },
+          members: [
+            { id: "audio", name: { en: "Audio" } },
+            { id: "network", name: { en: "Network" } },
+          ],
+          selectedID: "audio",
+          status: "ready",
+          state: {
+            lease: {
+              controllerEpoch: 5,
+              displayUUID: "display-a",
+              session: 8,
+              profileID: "default",
+              instanceID: "audio",
+              digest: "owned",
+              admissionEpoch: 7,
+              revision: 4,
+            },
+            status: "ready",
+            root: { key: "name", kind: "text", status: "ready", text: "Speakers" },
+          },
+        },
+      ],
+    };
+    t.api.widgets = {
+      get: vi.fn(async () => widgetState),
+      subscribe: (handler) => {
+        updateWidgets = handler;
+        return () => {};
+      },
+      options: vi.fn(async () => ({ options: [] })),
+      perform: vi.fn(async () => {}),
+      asset: vi.fn(async () => ""),
+      select: vi.fn(async () => {}),
+    };
+    render(<LauncherRoute session={8} transport={t.api} />);
+    expect(await screen.findByText("Speakers")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Network" }));
+    expect(t.api.widgets.select).toHaveBeenCalledWith(
+      5,
+      "display-a",
+      8,
+      "default",
+      "status",
+      "network",
+    );
+    act(() => updateWidgets({ ...widgetState, session: 9, revision: 99 }));
+    act(() => updateWidgets({ ...widgetState, revision: 3 }));
+    expect(screen.getByText("Speakers")).toBeVisible();
+    act(() =>
+      updateWidgets({
+        ...widgetState,
+        epoch: 0,
+        displayUUID: "",
+        profileID: "",
+        revision: 5,
+        visible: false,
+        slots: [],
+      }),
+    );
+    act(() => updateWidgets({ ...widgetState, revision: 6 }));
+    expect(screen.queryByText("Speakers")).toBeNull();
   });
 });

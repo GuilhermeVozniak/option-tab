@@ -29,6 +29,9 @@ import * as platform$0 from "./internal/platform/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as switcher$0 from "./internal/switcher/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as widgets$0 from "./internal/widgets/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -124,6 +127,14 @@ export function CancelMediaLyricsImport(session, revision) {
  */
 export function CancelShortcutCapture() {
     return $Call.ByID(1824023725);
+}
+
+/**
+ * @param {string} token
+ * @returns {$CancellablePromise<void>}
+ */
+export function CancelWidgetPackageReview(token) {
+    return $Call.ByID(1933127773, token);
 }
 
 /**
@@ -338,11 +349,21 @@ export function GetLauncherStatus() {
 }
 
 /**
+ * @param {number} session
+ * @returns {$CancellablePromise<$models.LauncherWidgetState>}
+ */
+export function GetLauncherWidgets(session) {
+    return $Call.ByID(1662395444, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType14($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<{ [_ in string]?: platform$0.MediaPermission }>}
  */
 export function GetMediaPermissions() {
     return $Call.ByID(3673411287).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType14($result);
+        return $$createType15($result);
     }));
 }
 
@@ -352,7 +373,7 @@ export function GetMediaPermissions() {
  */
 export function GetMediaState(session) {
     return $Call.ByID(3763583330, session).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType16($result);
+        return $$createType17($result);
     }));
 }
 
@@ -380,6 +401,44 @@ export function GetSettings() {
  */
 export function GetVersion() {
     return $Call.ByID(1049863377);
+}
+
+/**
+ * @param {widgets$0.Lease} lease
+ * @param {string} actionToken
+ * @returns {$CancellablePromise<widgets$0.ActionOptions>}
+ */
+export function GetWidgetActionOptions(lease, actionToken) {
+    return $Call.ByID(1913639053, lease, actionToken).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType18($result);
+    }));
+}
+
+/**
+ * @param {widgets$0.Lease} lease
+ * @param {string} assetToken
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetWidgetAsset(lease, assetToken) {
+    return $Call.ByID(1591270545, lease, assetToken);
+}
+
+/**
+ * @returns {$CancellablePromise<$models.WidgetCatalogItem[]>}
+ */
+export function GetWidgetCatalog() {
+    return $Call.ByID(1508342138).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType20($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<$models.WidgetPackageStatus>}
+ */
+export function GetWidgetPackageStatus() {
+    return $Call.ByID(2166434855).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType21($result);
+    }));
 }
 
 /**
@@ -414,6 +473,16 @@ export function HideSession(session) {
  */
 export function ImportMediaLyrics(session, revision) {
     return $Call.ByID(4054143088, session, revision);
+}
+
+/**
+ * @param {string} token
+ * @returns {$CancellablePromise<$models.WidgetCatalogItem>}
+ */
+export function InstallReviewedWidget(token) {
+    return $Call.ByID(4223715965, token).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType19($result);
+    }));
 }
 
 /**
@@ -532,6 +601,17 @@ export function PerformMediaAction(session, revision, kind, positionMS) {
 }
 
 /**
+ * @param {widgets$0.Lease} lease
+ * @param {string} actionToken
+ * @param {string} optionToken
+ * @param {number | null} value
+ * @returns {$CancellablePromise<void>}
+ */
+export function PerformWidgetAction(lease, actionToken, optionToken, value) {
+    return $Call.ByID(4243588732, lease, actionToken, optionToken, value);
+}
+
+/**
  * The Wails factory creates only a scheduler here. Its native webview and panel
  * are constructed later on the UI queue, outside App.viewMu.
  * @param {number} session
@@ -552,7 +632,7 @@ export function PinMediaPanel(session, revision) {
  */
 export function PlaceDockOnSelectedMonitor(session, revision, generation) {
     return $Call.ByID(1589667255, session, revision, generation).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType17($result);
+        return $$createType22($result);
     }));
 }
 
@@ -579,6 +659,14 @@ export function ReloadMediaLyrics(session, revision) {
  */
 export function RemoveMediaLyrics(session, revision) {
     return $Call.ByID(2634844375, session, revision);
+}
+
+/**
+ * @param {string} digest
+ * @returns {$CancellablePromise<void>}
+ */
+export function RemoveWidgetPackage(digest) {
+    return $Call.ByID(2737711739, digest);
 }
 
 /**
@@ -625,12 +713,21 @@ export function Reverse() {
 }
 
 /**
+ * @returns {$CancellablePromise<$models.WidgetPackageReview>}
+ */
+export function ReviewLocalWidgetPackage() {
+    return $Call.ByID(460648480).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType23($result);
+    }));
+}
+
+/**
  * @param {string} token
  * @returns {$CancellablePromise<platform$0.DiagnosticExportResult>}
  */
 export function SaveDiagnosticsReport(token) {
     return $Call.ByID(1276106854, token).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType18($result);
+        return $$createType24($result);
     }));
 }
 
@@ -694,6 +791,19 @@ export function SelectDockContent(session, revision, kind) {
  */
 export function SelectDockWindow(session, id) {
     return $Call.ByID(1507952022, session, id);
+}
+
+/**
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} session
+ * @param {string} profileID
+ * @param {string} stackID
+ * @param {string} instanceID
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectLauncherWidget(epoch, displayUUID, session, profileID, stackID, instanceID) {
+    return $Call.ByID(3729375001, epoch, displayUUID, session, profileID, stackID, instanceID);
 }
 
 /**
@@ -848,8 +958,14 @@ const $$createType10 = $models.LauncherAppChoice.createFrom;
 const $$createType11 = $Create.Array($$createType10);
 const $$createType12 = launcher$0.Presentation.createFrom;
 const $$createType13 = $models.LauncherStatus.createFrom;
-const $$createType14 = $Create.Map($Create.Any, $$createType0);
-const $$createType15 = $models.MediaViewState.createFrom;
-const $$createType16 = $Create.Nullable($$createType15);
-const $$createType17 = platform$0.DockPlacementResult.createFrom;
-const $$createType18 = platform$0.DiagnosticExportResult.createFrom;
+const $$createType14 = $models.LauncherWidgetState.createFrom;
+const $$createType15 = $Create.Map($Create.Any, $$createType0);
+const $$createType16 = $models.MediaViewState.createFrom;
+const $$createType17 = $Create.Nullable($$createType16);
+const $$createType18 = widgets$0.ActionOptions.createFrom;
+const $$createType19 = $models.WidgetCatalogItem.createFrom;
+const $$createType20 = $Create.Array($$createType19);
+const $$createType21 = $models.WidgetPackageStatus.createFrom;
+const $$createType22 = platform$0.DockPlacementResult.createFrom;
+const $$createType23 = $models.WidgetPackageReview.createFrom;
+const $$createType24 = platform$0.DiagnosticExportResult.createFrom;

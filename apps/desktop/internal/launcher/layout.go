@@ -63,11 +63,7 @@ func Layout(p config.LauncherProfile, d platform.LauncherDisplay, count int, pro
 	count = min(count, 128)
 	n := max(count, 1)
 	length := float64(n*p.IconPx) + float64(n-1)*spacing + 24
-	for _, w := range p.Widgets {
-		if granted(w) {
-			length += 88 + spacing
-		}
-	}
+	length += float64(visibleWidgetSlots(p)) * (160 + spacing)
 	if p.Layout == "fullWidth" {
 		length = available
 	} else {
@@ -142,4 +138,28 @@ func Layout(p config.LauncherProfile, d platform.LauncherDisplay, count int, pro
 		reveal.W = 8
 	}
 	return Geometry{Bounds: b, RevealBand: reveal, Status: "ready"}
+}
+
+func visibleWidgetSlots(p config.LauncherProfile) int {
+	memberStack := map[string]string{}
+	for _, stack := range p.Stacks {
+		for _, id := range stack.Members {
+			memberStack[id] = stack.ID
+		}
+	}
+	count := 0
+	seen := map[string]bool{}
+	for _, w := range p.Widgets {
+		if !w.Enabled {
+			continue
+		}
+		if stack := memberStack[w.ID]; stack != "" {
+			if seen[stack] {
+				continue
+			}
+			seen[stack] = true
+		}
+		count++
+	}
+	return count
 }

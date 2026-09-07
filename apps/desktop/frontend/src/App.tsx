@@ -18,7 +18,13 @@ import { demoStateFor } from "./lib/demo";
 import { type DockPointer, dock, onDockEvent, onDockInputStatus } from "./lib/dock-bridge";
 import { dockLock } from "./lib/dock-lock-bridge";
 import { makeT, resolveLang } from "./lib/i18n";
-import { launcher, onLauncherState, onLauncherStatus } from "./lib/launcher-bridge";
+import {
+  launcher,
+  onLauncherState,
+  onLauncherStatus,
+  onLauncherWidgets,
+  onWidgetPackageStatus,
+} from "./lib/launcher-bridge";
 import { media, onMediaEvents } from "./lib/media-bridge";
 import type {
   DockLockDisplay,
@@ -35,6 +41,7 @@ import {
   type Settings as SettingsModel,
   type SwitcherState,
 } from "./lib/types";
+import type { WidgetCatalogDescriptor, WidgetPackageStatus } from "./lib/widget-types";
 import type { OverlayHandlers } from "./overlay/Overlay";
 import { Overlay } from "./overlay/Overlay";
 import "./action-notice.css";
@@ -79,6 +86,40 @@ function useRuntimeTranslator() {
     };
   }, []);
   return useMemo(() => makeT(resolveLang(language)), [language]);
+}
+
+function LauncherAppRoute({ session }: { session: number }) {
+  const [language, setLanguage] = useState("");
+  useEffect(() => {
+    let active = true;
+    void loadSettings().then((settings) => {
+      if (active) setLanguage(settings?.behavior?.language ?? "");
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  const resolved = resolveLang(language);
+  return (
+    <LauncherRoute
+      session={session}
+      language={resolved}
+      t={makeT(resolved)}
+      transport={{
+        getState: launcher.state,
+        activate: launcher.activate,
+        subscribe: onLauncherState,
+        widgets: {
+          get: launcher.widgets,
+          subscribe: onLauncherWidgets,
+          options: launcher.widgetOptions,
+          perform: launcher.widgetPerform,
+          asset: launcher.widgetAsset,
+          select: launcher.selectWidget,
+        },
+      }}
+    />
+  );
 }
 
 // demoStyle reads the style from a #demo route like "demo:appIcons" (default
@@ -175,17 +216,7 @@ export default function App() {
   if (isDockRoute()) return <DockRoute />;
   if (automationRouteSession()) return <AutomationRoute session={automationRouteSession()} />;
   if (mediaRouteSession()) return <MediaRoute session={mediaRouteSession()} />;
-  if (launcherRouteSession())
-    return (
-      <LauncherRoute
-        session={launcherRouteSession()}
-        transport={{
-          getState: launcher.state,
-          activate: launcher.activate,
-          subscribe: onLauncherState,
-        }}
-      />
-    );
+  if (launcherRouteSession()) return <LauncherAppRoute session={launcherRouteSession()} />;
   if (isDemoRoute()) {
     return (
       <div className="ot-demo-backdrop">
@@ -878,6 +909,13 @@ function SettingsRoute() {
   const [launcherStatus, setLauncherStatus] = useState<LauncherStatus>();
   const [launcherAppChoices, setLauncherAppChoices] = useState<LauncherAppChoice[]>([]);
   const [launcherError, setLauncherError] = useState("");
+  const [widgetCatalog, setWidgetCatalog] = useState<WidgetCatalogDescriptor[]>([]);
+  const [widgetPackageStatus, setWidgetPackageStatus] = useState<WidgetPackageStatus>({
+    available: false,
+    busy: false,
+    reason: "",
+  });
+  const widgetPackageLoad = useRef(0);
   const lockMark = useRef<[number, number, number]>([0, 0, 0]);
   const lockSeen = useRef(false);
 
@@ -904,6 +942,24 @@ function SettingsRoute() {
       off();
     };
   }, []);
+  const refreshWidgetPackages = useCallback(async () => {
+    const request = ++widgetPackageLoad.current;
+    const [status, catalog] = await Promise.allSettled([
+      launcher.packageStatus(),
+      launcher.catalog(),
+    ]);
+    if (request !== widgetPackageLoad.current) return;
+    if (status.status === "fulfilled") setWidgetPackageStatus(status.value);
+    if (catalog.status === "fulfilled") setWidgetCatalog(catalog.value);
+  }, []);
+  useEffect(() => {
+    void refreshWidgetPackages();
+    const off = onWidgetPackageStatus((status) => {
+      setWidgetPackageStatus(status);
+      void refreshWidgetPackages();
+    });
+    return off;
+  }, [refreshWidgetPackages]);
   useEffect(() => {
     let active = true;
     void launcher
@@ -1055,6 +1111,17 @@ function SettingsRoute() {
           status: launcherStatus,
           error: launcherError,
           appChoices: launcherAppChoices,
+          widgetCatalog,
+          widgetPackages: {
+            status: widgetPackageStatus,
+            actions: {
+              review: launcher.reviewPackage,
+              install: launcher.installPackage,
+              cancel: launcher.cancelPackageReview,
+              remove: launcher.removePackage,
+            },
+            onRefresh: () => void refreshWidgetPackages(),
+          },
           onUseNativeDock: () => {
             setLauncherError("");
             void launcher

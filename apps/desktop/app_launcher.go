@@ -77,6 +77,8 @@ func (a *App) wireLauncher() {
 }
 
 func (a *App) startLauncher() {
+	a.startWidgets()
+	a.startWidgetPackages()
 	if a.launcher == nil {
 		return
 	}
@@ -135,6 +137,7 @@ func (a *App) retireLauncherHostLocked(session uint64) {
 	p.Items, p.Widgets = []launcher.Item{}, []launcher.Widget{}
 	h.window.close()
 	a.emit("launcher:state", p)
+	a.syncWidgetsLocked()
 }
 
 func (a *App) stopLauncherAdmissionLocked() {
@@ -150,6 +153,7 @@ func (a *App) stopLauncherAdmissionLocked() {
 	}
 	r.core.Suspend(true)
 	a.retireLauncherHostsLocked()
+	a.syncWidgetsLocked()
 }
 
 // Input owners stop synchronously admitting actions; their native lifetimes
@@ -337,6 +341,7 @@ func (a *App) publishLauncher(state launcher.State) {
 	}
 	r.pointerOwned = state.PointerOwned && a.launcherAllowedLocked() && r.ready && len(r.hosts) != 0
 	a.syncNativeHoverForLauncherLocked()
+	a.syncWidgetsLocked()
 	a.emitLauncherStatusLocked()
 }
 

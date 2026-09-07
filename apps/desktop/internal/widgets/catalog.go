@@ -14,6 +14,9 @@ var fields = map[string]fieldSpec{
 }
 
 func validBinding(b Binding, caps map[string]bool, settings map[string]string, numeric bool) bool {
+	if b.FormatterSetting != "" && settings[b.FormatterSetting] != "choice" {
+		return false
+	}
 	f, ok := fields[b.Provider+"."+b.Field]
 	if !ok || !caps[f.capability] {
 		return false

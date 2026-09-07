@@ -4,13 +4,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import type { Translate } from "../lib/i18n";
+import { resolveLang, type Translate } from "../lib/i18n";
 import type {
   LauncherAppChoice,
   LauncherProfileRule,
   LauncherStatus,
   ReplacementDockSettings,
 } from "../lib/types";
+import type { WidgetCatalogDescriptor, WidgetPackageStatus } from "../lib/widget-types";
+import { type WidgetPackageActions, WidgetPackages } from "../widgets/WidgetPackages";
+import { WidgetSettings } from "../widgets/WidgetSettings";
 import { HINT, ROW } from "./shared";
 
 export function ReplacementDock({
@@ -21,6 +24,9 @@ export function ReplacementDock({
   error,
   onUseNativeDock,
   appChoices = [],
+  widgetCatalog = [],
+  language = "",
+  widgetPackages,
 }: {
   value: ReplacementDockSettings;
   t: Translate;
@@ -29,6 +35,13 @@ export function ReplacementDock({
   error?: string;
   onUseNativeDock?: () => void;
   appChoices?: LauncherAppChoice[];
+  widgetCatalog?: WidgetCatalogDescriptor[];
+  language?: string;
+  widgetPackages?: {
+    status: WidgetPackageStatus;
+    actions: WidgetPackageActions;
+    onRefresh: () => void;
+  };
 }) {
   const [profileID, setProfileID] = useState(value.profiles[0]?.id ?? "");
   const [replacementID, setReplacementID] = useState("");
@@ -38,7 +51,6 @@ export function ReplacementDock({
   }, [profileID, value.profiles]);
   useEffect(() => setReplacementID(""), [profileID]);
   const profile = value.profiles.find((profile) => profile.id === profileID) ?? value.profiles[0];
-  const clock = profile?.widgets.find((widget) => widget.packageID === "org.optiontab.clock");
   const rules = value.rules ?? [];
   const patchRules = (next: LauncherProfileRule[]) => onChange({ ...value, rules: next });
   const patchRule = (id: string, partial: Partial<LauncherProfileRule>) =>
@@ -52,28 +64,6 @@ export function ReplacementDock({
     onChange({
       ...value,
       profiles: value.profiles.map((p) => (p.id === profile?.id ? { ...p, ...partial } : p)),
-    });
-  const patchClock = (enabled: boolean) =>
-    onChange({
-      ...value,
-      profiles: value.profiles.map((p) =>
-        p.id === profile?.id
-          ? {
-              ...p,
-              widgets: p.widgets.map((w) =>
-                w.id === clock?.id
-                  ? {
-                      ...w,
-                      packageID: status?.clockPackageID ?? w.packageID,
-                      digest: status?.clockDigest ?? w.digest,
-                      enabled,
-                      grants: enabled ? ["clock.read"] : [],
-                    }
-                  : w,
-              ),
-            }
-          : p,
-      ),
     });
   return (
     <Card>
@@ -194,6 +184,16 @@ export function ReplacementDock({
             />
           </label>
         ) : null}
+        {widgetPackages ? (
+          <WidgetPackages
+            catalog={widgetCatalog}
+            status={widgetPackages.status}
+            actions={widgetPackages.actions}
+            onRefresh={widgetPackages.onRefresh}
+            t={t}
+            language={resolveLang(language)}
+          />
+        ) : null}
         <label className={ROW}>
           <span>{t("Enable replacement Dock")}</span>
           <Checkbox
@@ -205,15 +205,17 @@ export function ReplacementDock({
         <p className={HINT}>
           {t("The native Dock remains available. Use the menu command to return permanently.")}
         </p>
-        <label className={ROW}>
-          <span>{t("Show clock")}</span>
-          <Checkbox
-            aria-label="Show clock"
-            checked={clock?.enabled ?? false}
-            onChange={(event) => patchClock(event.target.checked)}
+        {profile ? (
+          <WidgetSettings
+            key={profile.id}
+            instances={profile.widgets}
+            stacks={profile.stacks ?? []}
+            catalog={widgetCatalog}
+            language={resolveLang(language)}
+            t={t}
+            onChange={({ widgets, stacks }) => patchProfile({ widgets, stacks })}
           />
-        </label>
-        <p className={HINT}>{t("Reads local time while visible.")}</p>
+        ) : null}
         {profile ? (
           <div className="grid grid-cols-2 gap-2">
             <label>

@@ -111,6 +111,14 @@ type darwinLauncherPanel struct{ *dockPanel }
 
 func (p *darwinLauncherPanel) LauncherToken() uint64 { return p.token }
 
+func (p *darwinLauncherPanel) ValidateLauncherPanel(ctx context.Context, display string) error {
+	return validateLauncherPanel(ctx, display, func() bool { p.mu.Lock(); defer p.mu.Unlock(); return p.closed }, func(display string) bool {
+		name := C.CString(display)
+		defer C.free(unsafe.Pointer(name))
+		return C.ot_launcher_panel_validate(C.uint64_t(p.token), name) != 0
+	})
+}
+
 func (p *darwinLauncherPanel) SetLauncherStyle(style LauncherPanelStyle) error {
 	if (style.Material != "solid" && style.Material != "system") || (style.Theme != "system" && style.Theme != "light" && style.Theme != "dark") || style.CornerRadiusPx < 0 || style.CornerRadiusPx > 28 {
 		return errors.New("invalid launcher panel style")

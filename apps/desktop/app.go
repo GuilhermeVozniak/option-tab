@@ -108,6 +108,8 @@ type App struct {
 	automation                *appAutomationRuntime
 	diagnostics               *diagnostics.Service
 	launcher                  *appLauncherRuntime
+	widgets                   *appWidgetsRuntime
+	widgetPackages            *appWidgetPackageManager
 	launcherFactory           func(uint64, string, platform.LauncherPanelStyle, func()) *dockWindow
 	mediaPinFactory           func(uint64, platform.MediaProvider, func(platform.MediaPanelEvent)) *dockWindow
 	dockFolders               platform.FolderSource
@@ -165,6 +167,8 @@ func NewApp() *App {
 	settings := loadStartupSettings(path)
 	a := newApp(p, settings, path, platform.NewFolderSource(filepath.Join(filepath.Dir(path), "folder-bookmarks.json")))
 	a.wireMedia(platform.NewMediaSource(), platform.NewMediaLyricsSource(filepath.Join(filepath.Dir(path), "media-lyrics.json")))
+	a.wireProductionWidgets()
+	_ = a.wireWidgetPackages(platform.NewWidgetPackageSource(), filepath.Join(filepath.Dir(path), "widgets"))
 	a.wireAutomation(platform.NewAutomationServer())
 	a.wireDiagnostics(platform.NewDiagnosticExportSource())
 	return a
@@ -215,6 +219,7 @@ func newApp(p platform.Platform, settings config.Settings, settingsPath string, 
 	a.wireDockInput()
 	a.wireDockShake()
 	a.wireDockMonitorLock()
+	a.wireWidgetsDefault()
 	a.wireLauncher()
 	return a
 }
@@ -321,6 +326,10 @@ func (a *App) stopCapture() {
 	if a.launcher != nil && a.launcher.cancel != nil {
 		a.launcher.cancel()
 	}
+	if a.widgets != nil {
+		a.widgets.cancel()
+	}
+	a.stopWidgetPackagesLocked()
 	a.syncMediaLocked()
 	a.syncDockFolderGrantLocked()
 	a.syncDockMonitorLockLocked()

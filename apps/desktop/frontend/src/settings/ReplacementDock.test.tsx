@@ -33,7 +33,7 @@ const value: ReplacementDockSettings = {
         {
           id: "clock",
           packageID: "org.optiontab.clock",
-          digest: "builtin-clock-v1",
+          digest: "sha256:09bcb4221f7ace94e21898b4e583f9db72be1be5f6524fbe9972af70726c9dc3",
           enabled: false,
           grants: [],
         },
@@ -63,14 +63,33 @@ describe("ReplacementDock", () => {
     expect(screen.getAllByText("Default").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("grants clock.read only with an explicit clock enable", () => {
+  it("keeps clock access explicit when enabling the catalog widget", () => {
     const onChange = vi.fn();
-    render(<ReplacementDock value={value} t={makeT("en")} onChange={onChange} />);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Show clock" }));
+    render(
+      <ReplacementDock
+        value={value}
+        t={makeT("en")}
+        onChange={onChange}
+        widgetCatalog={[
+          {
+            packageID: "org.optiontab.clock",
+            digest: "a".repeat(64),
+            version: "1.0.0",
+            name: { en: "Clock" },
+            description: { en: "Local time" },
+            requiredCapabilities: ["clock.read"],
+            optionalCapabilities: [],
+            settings: [],
+            builtin: true,
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Enable Clock" }));
     const next = onChange.mock.calls[0][0];
     expect(next.profiles[0].widgets[0]).toMatchObject({
       enabled: true,
-      grants: ["clock.read"],
+      grants: [],
     });
   });
 

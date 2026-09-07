@@ -55,6 +55,13 @@ type LauncherPanel interface {
 	LauncherToken() uint64
 }
 
+// LauncherPanelValidator validates the exact native host's physical visibility
+// and original ordinary display Space. It may synchronously consult AppKit;
+// callers must hold no App/view locks and recheck logical admission afterward.
+type LauncherPanelValidator interface {
+	ValidateLauncherPanel(context.Context, string) error
+}
+
 type LauncherPanelHost interface {
 	CreateLauncherPanel(unsafe.Pointer, string) (LauncherPanel, error)
 }

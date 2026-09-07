@@ -55,6 +55,37 @@ for (const edge of ["bottom", "top", "left", "right"] as const) {
     };
     await page.addInitScript((state) => {
       (window as any).__launcherState = state;
+      (window as any).__launcherWidgets = {
+        epoch: state.epoch,
+        displayUUID: state.displayUUID,
+        session: state.session,
+        profileID: state.profileID,
+        revision: 1,
+        visible: true,
+        slots: [
+          {
+            id: "clock",
+            name: { en: "Clock" },
+            members: [{ id: "clock", name: { en: "Clock" } }],
+            selectedID: "clock",
+            status: "ready",
+            state: {
+              lease: {
+                controllerEpoch: state.epoch,
+                displayUUID: state.displayUUID,
+                session: state.session,
+                profileID: state.profileID,
+                instanceID: "clock",
+                digest: "clock",
+                admissionEpoch: 1,
+                revision: 1,
+              },
+              status: "ready",
+              root: { key: "time", kind: "text", status: "ready", text: "09:41" },
+            },
+          },
+        ],
+      };
     }, many);
     await page.goto("/#/launcher/41");
     const geometry = await page.getByLabel("Option Tab launcher").evaluate((node, isVertical) => {
@@ -111,6 +142,78 @@ test("launcher activates the exact rendered scope and tombstones retirement", as
   await expect(page.getByText("Revived")).toHaveCount(0);
 });
 
+test("launcher renders a stack and performs an explicit audio chooser action", async ({ page }) => {
+  await installFakeWails(page);
+  await page.addInitScript(
+    (state) => {
+      (window as any).__launcherState = state;
+      (window as any).__launcherWidgets = {
+        epoch: 7,
+        displayUUID: "display-main",
+        session: 41,
+        profileID: "default",
+        revision: 6,
+        visible: true,
+        slots: [
+          {
+            id: "stack:status",
+            stackID: "status",
+            name: { en: "Status" },
+            members: [
+              { id: "audio", name: { en: "Audio" } },
+              { id: "network", name: { en: "Network" } },
+            ],
+            selectedID: "audio",
+            status: "ready",
+            state: {
+              lease: {
+                controllerEpoch: 7,
+                displayUUID: "display-main",
+                session: 41,
+                profileID: "default",
+                instanceID: "audio",
+                digest: "audio-owned",
+                admissionEpoch: 8,
+                revision: 6,
+              },
+              status: "ready",
+              root: {
+                key: "output",
+                kind: "button",
+                status: "ready",
+                text: "Choose output",
+                actionToken: "audio-authority",
+              },
+            },
+          },
+        ],
+      };
+      (window as any).__widgetActionOptions = {
+        options: [{ token: "display-output", label: "Studio Display" }],
+      };
+    },
+    presentation(2, "Music"),
+  );
+  await page.goto("/#/launcher/41");
+  await page.getByRole("button", { name: "Network" }).click();
+  await expect
+    .poll(() => getCallRecords(page))
+    .toContainEqual([
+      "SelectLauncherWidget",
+      7,
+      "display-main",
+      41,
+      "default",
+      "status",
+      "network",
+    ]);
+  await page.getByRole("button", { name: "Choose output" }).click();
+  await page.getByRole("button", { name: "Studio Display" }).click();
+  await expect
+    .poll(async () => (await getCallRecords(page)).map((call) => call[0]))
+    .toContain("PerformWidgetAction");
+});
+
 test("settings keeps launcher opt-in separate and offers native Dock recovery", async ({
   page,
 }) => {
@@ -118,7 +221,31 @@ test("settings keeps launcher opt-in separate and offers native Dock recovery", 
   await page.goto("/#/settings");
   await page.getByRole("tab", { name: "Dock" }).click();
   await expect(page.getByRole("checkbox", { name: "Enable replacement Dock" })).not.toBeChecked();
-  await expect(page.getByRole("checkbox", { name: "Show clock" })).not.toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "Enable Clock" })).not.toBeChecked();
+  await page.getByRole("checkbox", { name: "Enable Clock" }).click();
+  await expect(
+    page.getByRole("checkbox", { name: "Required · Read local time" }),
+  ).not.toBeChecked();
+  await page.getByRole("checkbox", { name: "Required · Read local time" }).click();
+  await expect
+    .poll(async () =>
+      (await getCallRecords(page)).some(
+        (call) =>
+          call[0] === "SaveSettings" &&
+          String(call[1]).includes('"grants":["clock.read"]') &&
+          String(call[1]).includes(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          ),
+      ),
+    )
+    .toBe(true);
+  await page.getByRole("button", { name: "Review local package…" }).click();
+  await expect(page.getByText("status.otwidget")).toBeVisible();
+  await expect(page.getByText("Not independently verified")).toBeVisible();
+  await page.getByRole("button", { name: "Install reviewed package" }).click();
+  await expect
+    .poll(() => getCallRecords(page))
+    .toContainEqual(["InstallReviewedWidget", "review-e2e"]);
   await page.getByRole("button", { name: "Use native Dock" }).click();
   await expect.poll(() => getCallRecords(page)).toContainEqual(["UseNativeDock"]);
 });

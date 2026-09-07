@@ -57,10 +57,11 @@ type Node struct {
 	Children []Node   `json:"children,omitempty"`
 }
 type Binding struct {
-	Provider        string `json:"provider"`
-	Field           string `json:"field"`
-	Formatter       string `json:"formatter"`
-	TimezoneSetting string `json:"timezoneSetting,omitempty"`
+	FormatterSetting string `json:"formatterSetting,omitempty"`
+	Provider         string `json:"provider"`
+	Field            string `json:"field"`
+	Formatter        string `json:"formatter"`
+	TimezoneSetting  string `json:"timezoneSetting,omitempty"`
 }
 type (
 	Command struct {
@@ -292,6 +293,24 @@ func validate(m Manifest) error {
 		count++
 		if count > 128 || depth > 8 || len(n.Children) > 16 || len(n.Text) > 2048 {
 			return false
+		}
+		if n.Binding != nil && n.Binding.FormatterSetting != "" {
+			matched := false
+			for _, setting := range m.Settings {
+				if setting.ID == n.Binding.FormatterSetting && setting.Type == "choice" {
+					matched = true
+					for _, format := range setting.Options {
+						binding := *n.Binding
+						binding.Formatter = format
+						if !validBinding(binding, caps, settings, false) {
+							return false
+						}
+					}
+				}
+			}
+			if !matched {
+				return false
+			}
 		}
 		if n.Kind == "row" || n.Kind == "column" {
 			if n.Text != "" || n.Binding != nil || n.Asset != "" || n.History != 0 || n.Command != nil {

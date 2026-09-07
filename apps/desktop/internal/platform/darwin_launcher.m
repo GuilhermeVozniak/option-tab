@@ -328,6 +328,39 @@ uint64_t ot_launcher_space_id(const char *display) {
 int ot_launcher_space_ordinary(const char *display) {
   return ot_launcher_space_id(display) != 0;
 }
+// Read-only native parent admission, shared with widget controls. Every read
+// uses the original shown-Space lease; missing metadata always refuses.
+static BOOL launcherPanelCurrent(uint64_t token, const char *display,
+                                 BOOL (^ordinary)(uint64_t)) {
+  if (!token || !display || !display[0])
+    return NO;
+  uint64_t original = ot_launcher_panel_space(token);
+  if (!original || !ordinary(original) ||
+      !ot_launcher_panel_visible(token, display))
+    return NO;
+  return ot_launcher_panel_space(token) == original && ordinary(original) &&
+         ot_launcher_panel_space(token) == original &&
+         ot_launcher_panel_visible(token, display);
+}
+int ot_launcher_panel_validate(uint64_t token, const char *display) {
+  if (!token || !display || !display[0])
+    return 0;
+  __block BOOL current = NO;
+  void (^read)(void) = ^{
+    @autoreleasepool {
+      NSString *uuid = [NSString stringWithUTF8String:display];
+      current = launcherPanelCurrent(token, display, ^BOOL(uint64_t expected) {
+        return launcherSpaceCurrent(uuid, expected) != 0;
+      });
+    }
+  };
+  if (NSThread.isMainThread)
+    read();
+  else
+    dispatch_sync(dispatch_get_main_queue(), read);
+  return current ? 1 : 0;
+}
+
 // Same serial admission pipeline is exercised by the fixture using inert
 // blocks.
 static BOOL launcherActivatePrepared(BOOL (^identity)(void),

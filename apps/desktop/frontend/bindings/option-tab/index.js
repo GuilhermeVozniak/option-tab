@@ -17,7 +17,13 @@ export {
     DockViewState,
     LauncherAppChoice,
     LauncherStatus,
+    LauncherWidgetChoice,
+    LauncherWidgetSlot,
+    LauncherWidgetState,
     MediaArtworkView,
     MediaLyricsView,
-    MediaViewState
+    MediaViewState,
+    WidgetCatalogItem,
+    WidgetPackageReview,
+    WidgetPackageStatus
 } from "./models.js";

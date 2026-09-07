@@ -319,6 +319,7 @@ func (a *App) dismissDockLocked() {
 }
 
 func (a *App) syncDockSuspensionLocked() {
+	a.syncWidgetPackageAdmissionLocked()
 	a.syncLauncherLocked()
 	a.syncNativeHoverForLauncherLocked()
 	a.syncDockInputLocked()

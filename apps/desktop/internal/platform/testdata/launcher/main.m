@@ -147,6 +147,35 @@ int main(void) {
     host.onActiveSpace = YES;
     host.miniaturized = NO;
     host.occlusionState = NSWindowOcclusionStateVisible;
+    NSCAssert(launcherPanelCurrent(77, "display",
+                                   ^BOOL(uint64_t expected) {
+                                     return expected == 6;
+                                   }),
+              @"valid exact panel Space refused");
+    NSCAssert(!launcherPanelCurrent(77, "other",
+                                    ^BOOL(uint64_t expected) {
+                                      return YES;
+                                    }),
+              @"wrong display validator accepted");
+    NSCAssert(!launcherPanelCurrent(77, "display",
+                                    ^BOOL(uint64_t expected) {
+                                      return NO;
+                                    }),
+              @"unknown/fullscreen Space validator accepted");
+    NSCAssert(!launcherPanelCurrent(77, "display",
+                                    ^BOOL(uint64_t expected) {
+                                      host.visible = NO;
+                                      return YES;
+                                    }),
+              @"visibility lost during Space lookup accepted");
+    host.visible = YES;
+    NSCAssert(!launcherPanelCurrent(77, "display",
+                                    ^BOOL(uint64_t expected) {
+                                      lease.launcherSpace = 7;
+                                      return YES;
+                                    }),
+              @"original Space changed during validation accepted");
+    lease.launcherSpace = 6;
     identity = space = YES;
     dispatches = 0;
     BOOL accepted = launcherActivatePrepared(

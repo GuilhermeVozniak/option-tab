@@ -11,6 +11,8 @@ import type {
   LauncherStatus,
   PointerAction,
 } from "../../lib/types";
+import type { WidgetCatalogDescriptor, WidgetPackageStatus } from "../../lib/widget-types";
+import type { WidgetPackageActions } from "../../widgets/WidgetPackages";
 import { DockMonitorLock } from "../DockMonitorLock";
 import { ReplacementDock } from "../ReplacementDock";
 import { HINT, type PermissionsControl, ROW, type TabContext } from "../shared";
@@ -44,6 +46,12 @@ export function DockTab({
     status?: LauncherStatus;
     error?: string;
     appChoices?: LauncherAppChoice[];
+    widgetCatalog?: WidgetCatalogDescriptor[];
+    widgetPackages?: {
+      status: WidgetPackageStatus;
+      actions: WidgetPackageActions;
+      onRefresh: () => void;
+    };
     onUseNativeDock: () => void;
   };
 }) {
@@ -82,6 +90,9 @@ export function DockTab({
         error={launcher?.error}
         onUseNativeDock={launcher?.onUseNativeDock}
         appChoices={launcher?.appChoices}
+        widgetCatalog={launcher?.widgetCatalog}
+        language={settings.behavior.language}
+        widgetPackages={launcher?.widgetPackages}
       />
       <Card>
         <CardHeader>

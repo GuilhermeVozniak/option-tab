@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"unicode/utf8"
+
+	"option-tab/internal/widgets"
 )
 
 const (
@@ -61,6 +63,7 @@ type LauncherProfile struct {
 	InsetPx           int                `json:"insetPx"`
 	AutoHide          bool               `json:"autoHide"`
 	Widgets           []WidgetInstance   `json:"widgets"`
+	Stacks            []WidgetStack      `json:"stacks,omitempty"`
 }
 type LauncherBinding struct {
 	ID          string `json:"id"`
@@ -69,11 +72,19 @@ type LauncherBinding struct {
 	ProfileID   string `json:"profileID"`
 }
 type WidgetInstance struct {
-	ID        string   `json:"id"`
-	PackageID string   `json:"packageID"`
-	Digest    string   `json:"digest"`
-	Enabled   bool     `json:"enabled"`
-	Grants    []string `json:"grants"`
+	ID        string                   `json:"id"`
+	PackageID string                   `json:"packageID"`
+	Digest    string                   `json:"digest"`
+	Enabled   bool                     `json:"enabled"`
+	Grants    []string                 `json:"grants"`
+	Settings  map[string]widgets.Value `json:"settings,omitempty"`
+}
+
+type WidgetStack struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Members  []string `json:"members"`
+	ActiveID string   `json:"activeID"`
 }
 
 func DefaultReplacementDock() ReplacementDockSettings {
@@ -88,6 +99,11 @@ func CloneReplacementDock(s ReplacementDockSettings) ReplacementDockSettings {
 		s.Profiles[i].Widgets = slices.Clone(s.Profiles[i].Widgets)
 		for j := range s.Profiles[i].Widgets {
 			s.Profiles[i].Widgets[j].Grants = slices.Clone(s.Profiles[i].Widgets[j].Grants)
+			s.Profiles[i].Widgets[j].Settings = cloneWidgetSettings(s.Profiles[i].Widgets[j].Settings)
+		}
+		s.Profiles[i].Stacks = slices.Clone(s.Profiles[i].Stacks)
+		for j := range s.Profiles[i].Stacks {
+			s.Profiles[i].Stacks[j].Members = slices.Clone(s.Profiles[i].Stacks[j].Members)
 		}
 	}
 	return s
@@ -108,21 +124,19 @@ func ValidateReplacementDock(s ReplacementDockSettings) error {
 	}
 	profiles := map[string]bool{}
 	for _, p := range s.Profiles {
-		if !launcherID.MatchString(p.ID) || profiles[p.ID] || !utf8.ValidString(p.Name) || utf8.RuneCountInString(p.Name) < 1 || utf8.RuneCountInString(p.Name) > 80 || !slices.Contains([]string{"bottom", "top", "left", "right"}, p.Edge) || !slices.Contains([]string{"floating", "fullWidth"}, p.Layout) || !slices.Contains([]string{"start", "center", "end"}, p.Alignment) || !validLauncherAppearance(p.Appearance) || p.IconPx < 24 || p.IconPx > 64 || p.ThicknessPx < 48 || p.ThicknessPx > 112 || p.ThicknessPx < p.IconPx+8 || math.IsNaN(p.MaxLengthFraction) || math.IsInf(p.MaxLengthFraction, 0) || p.MaxLengthFraction < .25 || p.MaxLengthFraction > .9 || p.InsetPx < 12 || p.InsetPx > 64 || len(p.Widgets) > 4 {
+		if !launcherID.MatchString(p.ID) || profiles[p.ID] || !utf8.ValidString(p.Name) || utf8.RuneCountInString(p.Name) < 1 || utf8.RuneCountInString(p.Name) > 80 || !slices.Contains([]string{"bottom", "top", "left", "right"}, p.Edge) || !slices.Contains([]string{"floating", "fullWidth"}, p.Layout) || !slices.Contains([]string{"start", "center", "end"}, p.Alignment) || !validLauncherAppearance(p.Appearance) || p.IconPx < 24 || p.IconPx > 64 || p.ThicknessPx < 48 || p.ThicknessPx > 112 || p.ThicknessPx < p.IconPx+8 || math.IsNaN(p.MaxLengthFraction) || math.IsInf(p.MaxLengthFraction, 0) || p.MaxLengthFraction < .25 || p.MaxLengthFraction > .9 || p.InsetPx < 12 || p.InsetPx > 64 || len(p.Widgets) > 16 {
 			return bad
 		}
 		profiles[p.ID] = true
-		widgets := map[string]bool{}
+		instances := map[string]bool{}
 		for _, w := range p.Widgets {
-			if !launcherID.MatchString(w.ID) || widgets[w.ID] || w.PackageID != BuiltinClockPackage || w.Digest != BuiltinClockDigest || len(w.Grants) > 1 {
+			if !launcherID.MatchString(w.ID) || instances[w.ID] || !validWidgetInstance(w) {
 				return bad
 			}
-			widgets[w.ID] = true
-			for _, g := range w.Grants {
-				if g != "clock.read" {
-					return bad
-				}
-			}
+			instances[w.ID] = true
+		}
+		if !validWidgetStacks(p.Stacks, instances) {
+			return bad
 		}
 	}
 	ids := map[string]bool{}
@@ -157,7 +171,7 @@ func ValidLauncherBundleID(id string) bool { return len(id) <= 255 && launcherBu
 // Strict bounded nested decoder; old top-level settings retain their migration rules.
 func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 	bad := errors.New("config: invalid replacement Dock document")
-	if len(raw) > 64*1024 {
+	if len(raw) > 256*1024 {
 		return ReplacementDockSettings{}, bad
 	}
 	d := json.NewDecoder(bytes.NewReader(raw))
@@ -165,7 +179,7 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 	var walk func(int) error
 	walk = func(depth int) error {
 		nodes++
-		if depth > 8 || nodes > 2048 {
+		if depth > 12 || nodes > 8192 {
 			return bad
 		}
 		t, err := d.Token()
@@ -185,10 +199,11 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 					return e
 				}
 				name, ok := key.(string)
-				if !ok || seen[name] {
+				fold := strings.ToLower(name)
+				if !ok || seen[fold] {
 					return bad
 				}
-				seen[name] = true
+				seen[fold] = true
 				if e = walk(depth + 1); e != nil {
 					return e
 				}
@@ -197,7 +212,7 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 			count := 0
 			for d.More() {
 				count++
-				if count > 8 {
+				if count > 16 {
 					return bad
 				}
 				if e := walk(depth + 1); e != nil {
@@ -248,6 +263,16 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 			}
 			if _, exists := legacy.Profiles[i]["appearance"]; exists {
 				return s, bad
+			}
+			for key := range legacy.Profiles[i] {
+				if strings.EqualFold(key, "stacks") {
+					return s, bad
+				}
+			}
+			for _, w := range p.Widgets {
+				if w.PackageID != BuiltinClockPackage || w.Digest != BuiltinClockDigest || len(w.Settings) != 0 {
+					return s, bad
+				}
 			}
 			s.Profiles[i].Alignment = "center"
 			s.Profiles[i].Appearance = DefaultLauncherAppearance()

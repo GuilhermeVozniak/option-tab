@@ -60,6 +60,17 @@ vi.mock("../bindings/option-tab/app.js", () => ({
     clockPackageID: "org.optiontab.clock",
     clockDigest: "digest",
   }),
+  GetWidgetCatalog: vi.fn().mockResolvedValue([]),
+  GetLauncherWidgets: vi.fn().mockResolvedValue({ visible: false, slots: [] }),
+  GetWidgetActionOptions: vi.fn().mockResolvedValue({ options: [] }),
+  PerformWidgetAction: vi.fn().mockResolvedValue(undefined),
+  GetWidgetAsset: vi.fn().mockResolvedValue(""),
+  SelectLauncherWidget: vi.fn().mockResolvedValue(undefined),
+  GetWidgetPackageStatus: vi.fn().mockResolvedValue({ available: false, busy: false, reason: "" }),
+  ReviewLocalWidgetPackage: vi.fn().mockResolvedValue({}),
+  InstallReviewedWidget: vi.fn().mockResolvedValue({}),
+  CancelWidgetPackageReview: vi.fn().mockResolvedValue(undefined),
+  RemoveWidgetPackage: vi.fn().mockResolvedValue(undefined),
   GetLauncherAppChoices: vi.fn().mockResolvedValue([]),
   ActivateLauncherItem: vi.fn().mockResolvedValue(undefined),
   UseNativeDock: vi.fn().mockResolvedValue(undefined),
@@ -80,6 +91,10 @@ beforeEach(() => {
   mocked.ConnectMediaProvider.mockClear();
   mocked.GetLauncherAppChoices.mockReset();
   mocked.GetLauncherAppChoices.mockResolvedValue([]);
+  mocked.GetWidgetCatalog.mockReset();
+  mocked.GetWidgetCatalog.mockResolvedValue([]);
+  mocked.GetWidgetPackageStatus.mockReset();
+  mocked.GetWidgetPackageStatus.mockResolvedValue({ available: false, busy: false, reason: "" });
 });
 
 it("loads exact launcher app choices only for the settings editor", async () => {
@@ -99,6 +114,8 @@ it("loads exact launcher app choices only for the settings editor", async () => 
   fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
   fireEvent.click(screen.getByRole("button", { name: "Add focus rule" }));
   expect(mocked.GetLauncherAppChoices).toHaveBeenCalledTimes(1);
+  expect(mocked.GetWidgetCatalog).toHaveBeenCalledTimes(1);
+  expect(mocked.GetWidgetPackageStatus).toHaveBeenCalledTimes(1);
   expect(screen.getByLabelText("Running app")).toHaveTextContent("Editor — org.example.editor");
 });
 

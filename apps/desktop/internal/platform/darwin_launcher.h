@@ -13,3 +13,5 @@ uint64_t ot_launcher_space_id(const char *display);
 void *ot_launcher_watch_start(void);
 int ot_launcher_watch_changed(void *owner);
 void ot_launcher_watch_stop(void *owner);
+
+int ot_launcher_panel_validate(uint64_t token, const char *display);

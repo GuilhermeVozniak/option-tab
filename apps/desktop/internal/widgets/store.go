@@ -122,6 +122,13 @@ func (s *Store) Install(ctx context.Context, r io.Reader) (*Package, error) {
 	if _, err = s.root.Lstat(p.Digest()); err == nil || !errors.Is(err, os.ErrNotExist) {
 		return nil, ErrInvalid
 	}
+	names, err := s.catalogNames(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(names) >= MaxInstalledPackages {
+		return nil, ErrInvalid
+	}
 	var token [16]byte
 	if _, err = rand.Read(token[:]); err != nil {
 		return nil, err

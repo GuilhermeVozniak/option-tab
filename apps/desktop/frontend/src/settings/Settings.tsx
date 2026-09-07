@@ -11,6 +11,8 @@ import type {
   Settings as SettingsModel,
   SwitcherMode,
 } from "../lib/types";
+import type { WidgetCatalogDescriptor, WidgetPackageStatus } from "../lib/widget-types";
+import type { WidgetPackageActions } from "../widgets/WidgetPackages";
 import { Onboarding } from "./Onboarding";
 import {
   type AboutControl,
@@ -63,6 +65,12 @@ interface SettingsProps {
     status?: LauncherStatus;
     error?: string;
     appChoices?: LauncherAppChoice[];
+    widgetCatalog?: WidgetCatalogDescriptor[];
+    widgetPackages?: {
+      status: WidgetPackageStatus;
+      actions: WidgetPackageActions;
+      onRefresh: () => void;
+    };
     onUseNativeDock: () => void;
   };
 }
