@@ -33,3 +33,11 @@ The [widget guide](../../widgets.md) describes supported extension capabilities 
 Injected sources and browser fixtures do not establish real laptop/desktop battery behavior, actual route/VPN changes, device hotplug or audio selection, live player control/seek, visible NSOpenPanel/security-scoped access, or packaged multi-display widget/stack/recovery behavior. Those checks remain distinct from automated implementation evidence. No native device, player, chooser, cursor or Dock action was performed for this checkpoint.
 
 B10 materials for the existing switcher/preview surfaces and the remaining replacement-Dock items are separate retained work. This checkpoint does not complete the full roadmap or authorize a new release.
+
+## Read-only native follow-up
+
+A separate local status probe observed this desktop's absent battery, active Ethernet link and three audio outputs with a current default. Volume/mute were unavailable and remained absent. Each observer joined after cancellation. It opened no stream, chooser or application and changed no device, pointer or Dock state.
+
+The first real network probe exposed a rate-sampling bug: its interface name/index and counters were stable, but `ifi_lastchange.tv_sec` advanced between reads. Including that timestamp in identity prevented a second valid delta. Identity now uses interface name/index/type; observed link changes and counter resets still discard the prior sample. An injected native regression failed before the fix and passed afterwards. The real probe then emitted a second sample with both upload and download rates present. Focused platform/provider race tests passed.
+
+The native field layout was checked against the local SDK and [Apple's getifaddrs implementation](https://github.com/apple-oss-distributions/Libinfo/blob/main/gen.subproj/getifaddrs.c). This is evidence for the observed local configuration; laptop charging, interface transitions, output selection and the packaged widget UI remain pending.

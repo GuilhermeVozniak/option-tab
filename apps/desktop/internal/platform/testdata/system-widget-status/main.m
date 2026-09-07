@@ -1,4 +1,24 @@
+#define getifaddrs widgetFixtureAddresses
+#define freeifaddrs widgetFixtureFree
 #import "../../darwin_system_widget_status.m"
+#undef getifaddrs
+#undef freeifaddrs
+
+static struct if_data fixtureData;
+static struct sockaddr_dl fixtureLink;
+static struct ifaddrs fixtureAddress;
+int widgetFixtureAddresses(struct ifaddrs **out) {
+  *out = &fixtureAddress;
+  return 0;
+}
+void widgetFixtureFree(struct ifaddrs *list) {}
+static NSDictionary *fixtureCounter(void) {
+  char *raw = ot_widget_network_counters("fixture", 12);
+  NSData *data = [[NSString stringWithUTF8String:raw]
+      dataUsingEncoding:NSUTF8StringEncoding];
+  free(raw);
+  return [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
+}
 int main(void) {
   @autoreleasepool {
     NSDictionary *absent = widgetBattery(@[]);
@@ -43,7 +63,31 @@ int main(void) {
     NSCAssert(![widgetNetwork(@"iface", YES, YES, IFF_UP, 1,
                               @"wifi")[@"Connected"] boolValue],
               @"non-running link connected");
-    puts("PASS injected power dictionaries and route/link/type normalization; "
+    fixtureLink.sdl_family = AF_LINK;
+    fixtureLink.sdl_index = 12;
+    fixtureAddress.ifa_name = "fixture";
+    fixtureAddress.ifa_addr = (struct sockaddr *)&fixtureLink;
+    fixtureAddress.ifa_flags = IFF_UP | IFF_RUNNING;
+    fixtureAddress.ifa_data = &fixtureData;
+    fixtureData.ifi_type = 6;
+    fixtureData.ifi_ibytes = 100;
+    fixtureData.ifi_obytes = 200;
+    fixtureData.ifi_lastchange.tv_sec = 1000;
+    NSDictionary *first = fixtureCounter();
+    fixtureData.ifi_lastchange.tv_sec++;
+    fixtureData.ifi_ibytes += 10;
+    fixtureData.ifi_obytes += 20;
+    NSDictionary *second = fixtureCounter();
+    NSCAssert([first[@"Valid"] boolValue] &&
+                  [second[@"Valid"] boolValue] &&
+                  [first[@"Identity"] isEqual:second[@"Identity"]] &&
+                  [second[@"Upload"] unsignedLongLongValue] == 220 &&
+                  [second[@"Download"] unsignedLongLongValue] == 110,
+              @"volatile administrative timestamp retired stable counters");
+    fixtureLink.sdl_index++;
+    NSCAssert(![fixtureCounter()[@"Valid"] boolValue],
+              @"replaced interface index accepted");
+    puts("PASS injected power dictionaries and route/link/type/counter normalization; "
          "no native power/network read invoked");
   }
   return 0;

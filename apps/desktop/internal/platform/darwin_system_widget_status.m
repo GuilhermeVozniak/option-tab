@@ -230,10 +230,12 @@ char *ot_widget_network_counters(const char *name, uint32_t expected) {
           !(p->ifa_flags & IFF_UP) || !(p->ifa_flags & IFF_RUNNING))
         continue;
       struct if_data *data = p->ifa_data;
+      // Some drivers advance ifi_lastchange while the same link remains up.
+      // Treat identity separately from that administrative timestamp; the
+      // reducer already drops rates on link changes, resets and invalid deltas.
       NSString *identity =
-          [NSString stringWithFormat:@"%s:%u:%ld:%d", name, expected,
-                                     (long)data->ifi_lastchange.tv_sec,
-                                     (int)data->ifi_lastchange.tv_usec];
+          [NSString stringWithFormat:@"%s:%u:%u", name, expected,
+                                     (unsigned)data->ifi_type];
       result = @{
         @"Valid" : @YES,
         @"Identity" : identity,
