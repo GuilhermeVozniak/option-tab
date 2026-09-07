@@ -136,7 +136,9 @@ The feature branch now contains the replacement-Dock host/recovery foundation, p
 
 ## Current launcher item checkpoint
 
-The branch now implements persistent app/folder/file/link pins, exact running-app deduplication, groups and decorative items, custom PNG icons, internal reordering/grouping in Settings, and explicit app relaunch. Item saves share the Preferences persistence queue and retain private references independently of portable configuration. Folder-root opening is implemented; H09 fan-out and H11 show-all child previews continue next. Native acceptance remains open. See the [launcher item checkpoint](superpowers/reports/2026-09-07-launcher-items.md).
+The branch now implements persistent app/folder/file/link pins, exact running-app deduplication, groups and decorative items, custom PNG icons, internal reordering/grouping in Settings, and explicit app relaunch. Item saves share the Preferences persistence queue and retain private references independently of portable configuration. See the [launcher item checkpoint](superpowers/reports/2026-09-07-launcher-items.md).
+
+H09 folder list/grid fan-out and H11 show-all window children are now implemented, with explicit root-folder opening, exact window actions, independent capture lifetimes and parent/Space retirement. Automated Go, browser and build checks pass; physical native acceptance remains open. See the [launcher child-panel checkpoint](superpowers/reports/2026-09-07-launcher-item-panels.md). Runtime Dock dragging, magnification, gestures/navigation, supported badges and profile transfer remain retained follow-ups.
 
 ## Current input checkpoint
 

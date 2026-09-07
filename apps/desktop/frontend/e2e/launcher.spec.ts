@@ -312,3 +312,28 @@ test("settings keeps launcher opt-in separate and offers native Dock recovery", 
   await page.getByRole("button", { name: "Use native Dock" }).click();
   await expect.poll(() => getCallRecords(page)).toContainEqual(["UseNativeDock"]);
 });
+
+test("folder fan-out preserves explicit root open across parent clock ticks", async ({ page }) => {
+  await installFakeWails(page);
+  const state = {
+    ...presentation(2, ""),
+    items: [{ id: "pin:docs", name: "Documents", icon: "", kind: "folder", status: "ready" }],
+  };
+  await page.addInitScript((value) => {
+    (window as any).__launcherState = value;
+  }, state);
+  await page.goto("/#/launcher/41");
+  await page.getByRole("button", { name: "Documents", exact: true }).click();
+  await expect
+    .poll(() => getCallRecords(page))
+    .toContainEqual(["ShowLauncherItemPanel", 7, "display-main", 41, 2, "pin:docs"]);
+  await page.getByRole("button", { name: "Documents", exact: true }).click({ button: "right" });
+  await page.evaluate(
+    (value) => (window as any)._wails.dispatchWailsEvent({ name: "launcher:state", data: value }),
+    { ...state, revision: 3 },
+  );
+  await page.getByRole("button", { name: "Open folder", exact: true }).click();
+  await expect
+    .poll(() => getCallRecords(page))
+    .toContainEqual(["ActivateLauncherItem", 7, "display-main", 41, 3, "pin:docs"]);
+});

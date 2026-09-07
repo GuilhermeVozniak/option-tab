@@ -209,6 +209,15 @@ export function CloseAutomationPreview(session, revision) {
  * @param {number} revision
  * @returns {$CancellablePromise<void>}
  */
+export function CloseLauncherItemPanel(session, revision) {
+    return $Call.ByID(1453209586, session, revision);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
 export function CloseMediaPanel(session, revision) {
     return $Call.ByID(231734221, session, revision);
 }
@@ -379,12 +388,22 @@ export function GetLauncherItemIcon(id) {
 }
 
 /**
+ * @param {number} session
+ * @returns {$CancellablePromise<$models.LauncherItemPanelState | null>}
+ */
+export function GetLauncherItemPanelState(session) {
+    return $Call.ByID(2821689331, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType16($result);
+    }));
+}
+
+/**
  * @param {string} profileID
  * @returns {$CancellablePromise<$models.LauncherItemSettings>}
  */
 export function GetLauncherItemSettings(profileID) {
     return $Call.ByID(1300445933, profileID).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType15($result);
+        return $$createType17($result);
     }));
 }
 
@@ -393,7 +412,7 @@ export function GetLauncherItemSettings(profileID) {
  */
 export function GetLauncherItemStatus() {
     return $Call.ByID(117720418).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType16($result);
+        return $$createType18($result);
     }));
 }
 
@@ -403,7 +422,7 @@ export function GetLauncherItemStatus() {
  */
 export function GetLauncherState(session) {
     return $Call.ByID(1942731528, session).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType17($result);
+        return $$createType19($result);
     }));
 }
 
@@ -412,7 +431,7 @@ export function GetLauncherState(session) {
  */
 export function GetLauncherStatus() {
     return $Call.ByID(3297738801).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType18($result);
+        return $$createType20($result);
     }));
 }
 
@@ -422,7 +441,7 @@ export function GetLauncherStatus() {
  */
 export function GetLauncherWidgets(session) {
     return $Call.ByID(1662395444, session).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType19($result);
+        return $$createType21($result);
     }));
 }
 
@@ -431,7 +450,7 @@ export function GetLauncherWidgets(session) {
  */
 export function GetMediaPermissions() {
     return $Call.ByID(3673411287).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType20($result);
+        return $$createType22($result);
     }));
 }
 
@@ -441,7 +460,7 @@ export function GetMediaPermissions() {
  */
 export function GetMediaState(session) {
     return $Call.ByID(3763583330, session).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType22($result);
+        return $$createType24($result);
     }));
 }
 
@@ -488,7 +507,7 @@ export function GetVersion() {
  */
 export function GetWidgetActionOptions(lease, actionToken) {
     return $Call.ByID(1913639053, lease, actionToken).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType23($result);
+        return $$createType25($result);
     }));
 }
 
@@ -506,7 +525,7 @@ export function GetWidgetAsset(lease, assetToken) {
  */
 export function GetWidgetCatalog() {
     return $Call.ByID(1508342138).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType25($result);
+        return $$createType27($result);
     }));
 }
 
@@ -515,7 +534,7 @@ export function GetWidgetCatalog() {
  */
 export function GetWidgetPackageStatus() {
     return $Call.ByID(2166434855).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType26($result);
+        return $$createType28($result);
     }));
 }
 
@@ -559,7 +578,7 @@ export function ImportMediaLyrics(session, revision) {
  */
 export function InstallReviewedWidget(token) {
     return $Call.ByID(4223715965, token).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType24($result);
+        return $$createType26($result);
     }));
 }
 
@@ -595,6 +614,16 @@ export function MinimizeSelected() {
  */
 export function OpenDockFolderEntry(session, revision, itemID) {
     return $Call.ByID(1164782910, session, revision, itemID);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} entryID
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenLauncherFolderEntry(session, revision, entryID) {
+    return $Call.ByID(2663677683, session, revision, entryID);
 }
 
 /**
@@ -665,6 +694,18 @@ export function PerformDockAction(session, kind, windowID, appID) {
 }
 
 /**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} kind
+ * @param {domain$0.WindowID} id
+ * @param {boolean} fullscreen
+ * @returns {$CancellablePromise<void>}
+ */
+export function PerformLauncherWindowAction(session, revision, kind, id, fullscreen) {
+    return $Call.ByID(2955927072, session, revision, kind, id, fullscreen);
+}
+
+/**
  * Initial RPC admission uses the rendered revision. Once accepted, native
  * preparation keeps exact panel and track authority while progress/artwork can
  * update the view independently. Controller also checks its current owner epoch.
@@ -710,7 +751,7 @@ export function PinMediaPanel(session, revision) {
  */
 export function PlaceDockOnSelectedMonitor(session, revision, generation) {
     return $Call.ByID(1589667255, session, revision, generation).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType27($result);
+        return $$createType29($result);
     }));
 }
 
@@ -833,7 +874,7 @@ export function Reverse() {
  */
 export function ReviewLocalWidgetPackage() {
     return $Call.ByID(460648480).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType28($result);
+        return $$createType30($result);
     }));
 }
 
@@ -843,7 +884,7 @@ export function ReviewLocalWidgetPackage() {
  */
 export function SaveDiagnosticsReport(token) {
     return $Call.ByID(1276106854, token).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType29($result);
+        return $$createType31($result);
     }));
 }
 
@@ -925,6 +966,16 @@ export function SelectLauncherWidget(epoch, displayUUID, session, profileID, sta
 /**
  * @param {number} session
  * @param {number} revision
+ * @param {domain$0.WindowID} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectLauncherWindow(session, revision, id) {
+    return $Call.ByID(3962714865, session, revision, id);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
  * @param {number} width
  * @param {number} height
  * @returns {$CancellablePromise<void>}
@@ -968,6 +1019,39 @@ export function SetDockPreviewRegions(session, revision, regions) {
 }
 
 /**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} field
+ * @param {string} direction
+ * @param {boolean} foldersFirst
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetLauncherFolderSort(session, revision, field, direction, foldersFirst) {
+    return $Call.ByID(419936015, session, revision, field, direction, foldersFirst);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} view
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetLauncherFolderView(session, revision, view) {
+    return $Call.ByID(4073294914, session, revision, view);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {number} width
+ * @param {number} height
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetLauncherItemPanelSize(session, revision, width, height) {
+    return $Call.ByID(3203216027, session, revision, width, height);
+}
+
+/**
  * @param {string} profileID
  * @param {string} expectedRevision
  * @param {config$0.LauncherItem[]} items
@@ -975,7 +1059,7 @@ export function SetDockPreviewRegions(session, revision, regions) {
  */
 export function SetLauncherItems(profileID, expectedRevision, items) {
     return $Call.ByID(2858019573, profileID, expectedRevision, items).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType15($result);
+        return $$createType17($result);
     }));
 }
 
@@ -1046,6 +1130,20 @@ export function Show(st) {
 }
 
 /**
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} parentSession
+ * @param {number} parentRevision
+ * @param {string} itemID
+ * @returns {$CancellablePromise<$models.LauncherItemPanelState>}
+ */
+export function ShowLauncherItemPanel(epoch, displayUUID, parentSession, parentRevision, itemID) {
+    return $Call.ByID(3216568691, epoch, displayUUID, parentSession, parentRevision, itemID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType15($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<void>}
  */
 export function StartDiagnosticsRecording() {
@@ -1101,18 +1199,20 @@ const $$createType11 = $models.DockViewState.createFrom;
 const $$createType12 = $Create.Nullable($$createType11);
 const $$createType13 = $models.LauncherAppChoice.createFrom;
 const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = $models.LauncherItemSettings.createFrom;
-const $$createType16 = $models.LauncherItemStatus.createFrom;
-const $$createType17 = launcher$0.Presentation.createFrom;
-const $$createType18 = $models.LauncherStatus.createFrom;
-const $$createType19 = $models.LauncherWidgetState.createFrom;
-const $$createType20 = $Create.Map($Create.Any, $$createType2);
-const $$createType21 = $models.MediaViewState.createFrom;
-const $$createType22 = $Create.Nullable($$createType21);
-const $$createType23 = widgets$0.ActionOptions.createFrom;
-const $$createType24 = $models.WidgetCatalogItem.createFrom;
-const $$createType25 = $Create.Array($$createType24);
-const $$createType26 = $models.WidgetPackageStatus.createFrom;
-const $$createType27 = platform$0.DockPlacementResult.createFrom;
-const $$createType28 = $models.WidgetPackageReview.createFrom;
-const $$createType29 = platform$0.DiagnosticExportResult.createFrom;
+const $$createType15 = $models.LauncherItemPanelState.createFrom;
+const $$createType16 = $Create.Nullable($$createType15);
+const $$createType17 = $models.LauncherItemSettings.createFrom;
+const $$createType18 = $models.LauncherItemStatus.createFrom;
+const $$createType19 = launcher$0.Presentation.createFrom;
+const $$createType20 = $models.LauncherStatus.createFrom;
+const $$createType21 = $models.LauncherWidgetState.createFrom;
+const $$createType22 = $Create.Map($Create.Any, $$createType2);
+const $$createType23 = $models.MediaViewState.createFrom;
+const $$createType24 = $Create.Nullable($$createType23);
+const $$createType25 = widgets$0.ActionOptions.createFrom;
+const $$createType26 = $models.WidgetCatalogItem.createFrom;
+const $$createType27 = $Create.Array($$createType26);
+const $$createType28 = $models.WidgetPackageStatus.createFrom;
+const $$createType29 = platform$0.DockPlacementResult.createFrom;
+const $$createType30 = $models.WidgetPackageReview.createFrom;
+const $$createType31 = platform$0.DiagnosticExportResult.createFrom;

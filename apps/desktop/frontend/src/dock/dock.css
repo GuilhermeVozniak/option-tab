@@ -293,10 +293,14 @@
   font: inherit;
 }
 .ot-folder-panel {
-  min-width: 320px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 .ot-folder-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 7px;
   margin-bottom: 7px;
@@ -330,6 +334,15 @@
   margin: 0;
   padding: 0;
 }
+.ot-folder-list.is-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(132px, 100%), 1fr));
+  gap: 6px;
+  max-width: 100%;
+}
+.ot-folder-list.is-grid > li {
+  min-width: 0;
+}
 .ot-folder-entry {
   display: grid;
   grid-template-columns: 18px minmax(120px, 1fr) 66px 58px;
@@ -351,6 +364,39 @@
 }
 .ot-folder-entry.is-hidden {
   opacity: 0.62;
+}
+.ot-folder-list.is-grid .ot-folder-entry {
+  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 5px;
+  min-height: 68px;
+  align-content: center;
+  padding: 7px;
+}
+.ot-folder-list.is-grid .ot-folder-icon {
+  grid-row: 1 / span 2;
+  align-self: start;
+  font-size: 18px;
+}
+.ot-folder-list.is-grid .ot-folder-name {
+  display: -webkit-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.ot-folder-list.is-grid .ot-folder-kind,
+.ot-folder-list.is-grid .ot-folder-size {
+  grid-column: 2;
+  text-align: left;
+  font-size: 0.82em;
+}
+.ot-folder-list.is-grid .ot-folder-kind {
+  grid-row: 2;
+}
+.ot-folder-list.is-grid .ot-folder-size {
+  grid-row: 2;
+  justify-self: end;
 }
 .ot-folder-name {
   min-width: 0;

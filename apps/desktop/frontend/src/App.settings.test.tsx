@@ -20,6 +20,15 @@ vi.mock("@wailsio/runtime", async (importOriginal) => {
 });
 
 vi.mock("../bindings/option-tab/app.js", () => ({
+  GetLauncherItemPanelState: vi.fn().mockResolvedValue(null),
+  ShowLauncherItemPanel: vi.fn().mockResolvedValue(undefined),
+  CloseLauncherItemPanel: vi.fn().mockResolvedValue(undefined),
+  SetLauncherItemPanelSize: vi.fn().mockResolvedValue(undefined),
+  SetLauncherFolderSort: vi.fn().mockResolvedValue(undefined),
+  SetLauncherFolderView: vi.fn().mockResolvedValue(undefined),
+  OpenLauncherFolderEntry: vi.fn().mockResolvedValue(undefined),
+  SelectLauncherWindow: vi.fn().mockResolvedValue(undefined),
+  PerformLauncherWindowAction: vi.fn().mockResolvedValue(undefined),
   Advance: vi.fn().mockResolvedValue(undefined),
   Reverse: vi.fn().mockResolvedValue(undefined),
   Confirm: vi.fn().mockResolvedValue(undefined),

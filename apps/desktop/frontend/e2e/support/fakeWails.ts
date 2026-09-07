@@ -168,6 +168,15 @@ const METHOD = {
   GetLauncherItemSettings: 1300445933,
   GetLauncherItemStatus: 117720418,
   GetLauncherState: 1942731528,
+  GetLauncherItemPanelState: 2821689331,
+  ShowLauncherItemPanel: 3216568691,
+  CloseLauncherItemPanel: 1453209586,
+  SetLauncherItemPanelSize: 3203216027,
+  SetLauncherFolderSort: 419936015,
+  SetLauncherFolderView: 4073294914,
+  OpenLauncherFolderEntry: 2663677683,
+  SelectLauncherWindow: 3962714865,
+  PerformLauncherWindowAction: 2955927072,
   GetLauncherStatus: 3297738801,
   GetLauncherAppChoices: 1561877478,
   GetLauncherWidgets: 1662395444,
@@ -376,6 +385,8 @@ export async function installFakeWails(page: Page): Promise<void> {
       }
       case "GetLauncherState":
         return json(await page.evaluate(() => (window as any).__launcherState));
+      case "GetLauncherItemPanelState":
+        return json(await page.evaluate(() => (window as any).__launcherItemPanelState));
       case "GetLauncherItemSettings":
         return json({
           profileID: args[0],
@@ -411,6 +422,14 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json("");
       case "ActivateLauncherItem":
       case "RelaunchLauncherItem":
+      case "ShowLauncherItemPanel":
+      case "CloseLauncherItemPanel":
+      case "SetLauncherItemPanelSize":
+      case "SetLauncherFolderSort":
+      case "SetLauncherFolderView":
+      case "OpenLauncherFolderEntry":
+      case "SelectLauncherWindow":
+      case "PerformLauncherWindowAction":
       case "PerformWidgetAction":
       case "SelectLauncherWidget":
       case "CancelWidgetPackageReview":

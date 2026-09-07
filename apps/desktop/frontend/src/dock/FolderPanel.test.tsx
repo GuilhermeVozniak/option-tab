@@ -51,6 +51,21 @@ describe("FolderPanel", () => {
     expect(h.onOpen).toHaveBeenCalledWith(7, 9, "opaque-2");
   });
 
+  it("renders the same accessible entries as a bounded grid", () => {
+    const h = handlers();
+    const { container } = render(
+      <FolderPanel session={7} revision={9} folder={ready()} handlers={h} view="grid" />,
+    );
+    expect(container.querySelector(".ot-folder-list")).toHaveClass("is-grid");
+    expect(screen.getByRole("button", { name: "Open Projects" })).toBeVisible();
+    expect(screen.getByText("A very long document name that must truncate.txt")).toHaveAttribute(
+      "title",
+      "A very long document name that must truncate.txt",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open Projects" }));
+    expect(h.onOpen).toHaveBeenCalledWith(7, 9, "opaque-2");
+  });
+
   it("changes sort and folders-first with the outer presentation scope", () => {
     const h = handlers();
     render(<FolderPanel session={7} revision={9} folder={ready()} handlers={h} />);

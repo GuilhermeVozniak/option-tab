@@ -13,11 +13,13 @@ export function LauncherItemStrip({
   presentation,
   onActivate,
   onRelaunch,
+  onShowPanel,
   t,
 }: {
   presentation: LauncherPresentation;
   onActivate: LauncherItemCommand;
   onRelaunch?: LauncherItemCommand;
+  onShowPanel?: LauncherItemCommand;
   t: (text: string) => string;
 }) {
   const [group, setGroup] = useState("");
@@ -54,7 +56,8 @@ export function LauncherItemStrip({
         ? t("Running")
         : t(kindLabel(kind))
       : t(referenceStatus(item.status));
-    const showContext = currentItems && contextItem === item.id && canRelaunch;
+    const canShowPanel = !!onShowPanel && (kind === "folder" || (kind === "app" && !!item.running));
+    const showContext = currentItems && contextItem === item.id && (canRelaunch || canShowPanel);
     return (
       <li className={`ot-launcher-item kind-${kind}`} key={item.id}>
         <button
@@ -65,22 +68,28 @@ export function LauncherItemStrip({
           aria-description={status}
           title={`${item.name} · ${status}`}
           aria-expanded={
-            isGroup ? currentItems && group === item.id : canRelaunch ? !!showContext : undefined
+            isGroup
+              ? currentItems && group === item.id
+              : canRelaunch || canShowPanel
+                ? !!showContext
+                : undefined
           }
           onClick={() =>
             isGroup
               ? setGroup(currentItems && group === item.id ? "" : item.id)
-              : invoke(onActivate, item.id)
+              : kind === "folder" && onShowPanel
+                ? invoke(onShowPanel, item.id)
+                : invoke(onActivate, item.id)
           }
           onContextMenu={(event) => {
-            if (canRelaunch) {
+            if (canRelaunch || canShowPanel) {
               event.preventDefault();
               setContextItem(item.id);
             }
           }}
           onKeyDown={(event) => {
             if (
-              canRelaunch &&
+              (canRelaunch || canShowPanel) &&
               ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu")
             ) {
               event.preventDefault();
@@ -115,14 +124,26 @@ export function LauncherItemStrip({
             </i>
           ) : null}
         </button>
-        {showContext && onRelaunch ? (
+        {showContext ? (
           <div
             className="ot-launcher-item-actions"
             aria-label={`${t("Application actions")}: ${item.name}`}
           >
-            <button type="button" onClick={() => invoke(onRelaunch, item.id)}>
-              {t("Relaunch")}
-            </button>
+            {canShowPanel && onShowPanel ? (
+              <button type="button" onClick={() => invoke(onShowPanel, item.id)}>
+                {t(kind === "folder" ? "Show folder contents" : "Show all windows")}
+              </button>
+            ) : null}
+            {kind === "folder" && ready ? (
+              <button type="button" onClick={() => invoke(onActivate, item.id)}>
+                {t("Open folder")}
+              </button>
+            ) : null}
+            {canRelaunch && onRelaunch ? (
+              <button type="button" onClick={() => invoke(onRelaunch, item.id)}>
+                {t("Relaunch")}
+              </button>
+            ) : null}
             <button
               type="button"
               aria-label={t("Close application actions")}

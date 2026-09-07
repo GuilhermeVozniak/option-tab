@@ -130,6 +130,7 @@ func (a *App) retireLauncherHostsLocked() {
 }
 
 func (a *App) retireLauncherHostLocked(session uint64) {
+	a.retireLauncherItemPanelLocked(session)
 	h := a.launcher.hosts[session]
 	if h == nil {
 		return
@@ -172,6 +173,7 @@ func (a *App) syncLauncherLocked() {
 		return
 	}
 	if r.ready {
+		a.syncLauncherItemPanelsLocked()
 		r.core.Suspend(false)
 		return
 	}
@@ -346,6 +348,7 @@ func (a *App) publishLauncher(state launcher.State) {
 	r.pointerOwned = state.PointerOwned && a.launcherAllowedLocked() && r.ready && len(r.hosts) != 0
 	a.syncNativeHoverForLauncherLocked()
 	a.syncWidgetsLocked()
+	a.syncLauncherItemPanelsLocked()
 	a.emitLauncherStatusLocked()
 }
 

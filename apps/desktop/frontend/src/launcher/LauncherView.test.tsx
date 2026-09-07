@@ -123,6 +123,28 @@ it("offers relaunch only for an exact pinned running application", () => {
   expect(relaunch).toHaveBeenCalledExactlyOnceWith(9, "display-main", 12, 4, "pin");
 });
 
+it("opens a folder panel on primary click and app show-all from context", () => {
+  const show = vi.fn();
+  render(
+    <LauncherView
+      presentation={{
+        ...presentation,
+        items: [
+          { id: "docs", name: "Documents", icon: "", kind: "folder", status: "ready" },
+          { id: "editor", name: "Editor", icon: "", kind: "app", status: "ready", running: true },
+        ],
+      }}
+      onActivate={() => {}}
+      onShowPanel={show}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Documents" }));
+  expect(show).toHaveBeenCalledWith(9, "display-main", 12, 4, "docs");
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Editor" }));
+  fireEvent.click(screen.getByRole("button", { name: "Show all windows" }));
+  expect(show).toHaveBeenCalledWith(9, "display-main", 12, 4, "editor");
+});
+
 it("keeps a group open through clock revisions and dispatches the latest scope", () => {
   const activate = vi.fn();
   const items = [
@@ -164,4 +186,24 @@ it("keeps a group open through clock revisions and dispatches the latest scope",
     />,
   );
   expect(screen.queryByRole("button", { name: "Editor" })).toBeNull();
+});
+
+it("retains explicit folder root open with the latest clock revision", () => {
+  const activate = vi.fn(),
+    show = vi.fn();
+  const p = {
+    ...presentation,
+    items: [{ id: "docs", name: "Documents", icon: "", kind: "folder", status: "ready" }],
+  };
+  const { rerender } = render(
+    <LauncherView presentation={p} onActivate={activate} onShowPanel={show} />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Documents" }));
+  expect(show).toHaveBeenCalledTimes(1);
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Documents" }));
+  rerender(
+    <LauncherView presentation={{ ...p, revision: 5 }} onActivate={activate} onShowPanel={show} />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+  expect(activate).toHaveBeenCalledWith(9, "display-main", 12, 5, "docs");
 });

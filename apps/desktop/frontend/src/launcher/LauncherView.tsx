@@ -20,6 +20,7 @@ export function LauncherView({
   presentation,
   onActivate,
   onRelaunch,
+  onShowPanel,
   widgetState,
   widgetActions,
   onSelectWidget,
@@ -35,6 +36,7 @@ export function LauncherView({
     itemID: string,
   ) => void;
   onRelaunch?: LauncherItemCommand;
+  onShowPanel?: LauncherItemCommand;
   widgetState?: LauncherWidgetState | null;
   widgetActions?: WidgetActions;
   onSelectWidget?: (stackID: string, instanceID: string) => void;
@@ -62,6 +64,7 @@ export function LauncherView({
         presentation={presentation}
         onActivate={onActivate}
         onRelaunch={onRelaunch}
+        onShowPanel={onShowPanel}
         t={t}
       />
       {widgetState === undefined

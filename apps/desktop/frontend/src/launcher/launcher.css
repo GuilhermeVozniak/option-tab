@@ -301,3 +301,48 @@
   height: 1px;
   margin: 6px auto;
 }
+.ot-launcher-child {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 960px;
+  max-height: 720px;
+  overflow: hidden;
+  padding: 8px;
+  color: var(--ot-dock-text, #f5f5f7);
+}
+.ot-launcher-child-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: center;
+  min-height: 32px;
+}
+.ot-launcher-child-header strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ot-launcher-child-header button,
+.ot-launcher-child-view button {
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: inherit;
+}
+.ot-launcher-child-header button {
+  justify-self: end;
+  width: 32px;
+  height: 28px;
+}
+.ot-launcher-child-view {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.ot-launcher-child-view button {
+  padding: 3px 8px;
+}
+.ot-launcher-child-view button[aria-pressed="true"] {
+  outline: 1px solid var(--ot-accent, #78a8ff);
+}

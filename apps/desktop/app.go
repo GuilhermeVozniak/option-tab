@@ -114,6 +114,8 @@ type App struct {
 	widgets                   *appWidgetsRuntime
 	widgetPackages            *appWidgetPackageManager
 	launcherItems             *appLauncherItems
+	launcherItemPanels        *appLauncherItemPanels
+	launcherItemPanelFactory  func(uint64, string, platform.LauncherPanelStyle, func()) *dockWindow
 	launcherFactory           func(uint64, string, platform.LauncherPanelStyle, func()) *dockWindow
 	mediaPinFactory           func(uint64, platform.MediaProvider, func(platform.MediaPanelEvent)) *dockWindow
 	dockFolders               platform.FolderSource
@@ -228,6 +230,7 @@ func newApp(p platform.Platform, settings config.Settings, settingsPath string, 
 	a.wireDockMonitorLock()
 	a.wireWidgetsDefault()
 	a.wireLauncher()
+	a.wireLauncherItemPanels()
 	return a
 }
 
@@ -318,6 +321,7 @@ func (a *App) stopCapture() {
 	}
 	a.stopAutomation()
 	a.stopAutomationPreview()
+	a.stopLauncherItemPanels()
 	a.cancelDockPreviewDrag()
 	a.viewMu.Lock()
 	a.cancelDismissalLocked()

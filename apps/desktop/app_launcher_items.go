@@ -117,6 +117,11 @@ func (a *App) stopLauncherItemsLocked() {
 	if m == nil || m.closed {
 		return
 	}
+	if a.launcherItemPanels != nil {
+		for id := range a.launcherItemPanels.owners {
+			a.retireLauncherItemPanelLocked(id)
+		}
+	}
 	m.closed = true
 	m.allowed = false
 	m.epoch++

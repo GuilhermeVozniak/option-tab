@@ -71,12 +71,15 @@ type DisplayState struct {
 	Reason    string `json:"reason"`
 }
 type State struct {
-	PointerOwned  bool           `json:"-"`
-	Epoch         uint64         `json:"epoch"`
-	Enabled       bool           `json:"enabled"`
-	Status        string         `json:"status"`
-	Displays      []DisplayState `json:"displays"`
-	Presentations []Presentation `json:"presentations"`
+	// Forces Go view reconciliation when coalescing preserves parent pixels
+	// but retires a child. It never becomes renderer authority or content.
+	childAdmission uint64
+	PointerOwned   bool           `json:"-"`
+	Epoch          uint64         `json:"epoch"`
+	Enabled        bool           `json:"enabled"`
+	Status         string         `json:"status"`
+	Displays       []DisplayState `json:"displays"`
+	Presentations  []Presentation `json:"presentations"`
 }
 type (
 	View       interface{ Publish(State) }

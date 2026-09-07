@@ -642,6 +642,91 @@ export class LauncherAppChoice {
     }
 }
 
+export class LauncherItemFolderState {
+    /**
+     * Creates a new LauncherItemFolderState instance.
+     * @param {Partial<LauncherItemFolderState>} [$$source = {}] - The source object to create the LauncherItemFolderState.
+     */
+    constructor($$source = {}) {
+        if (!("folderIdentity" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["folderIdentity"] = "";
+        }
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["reason"] = "";
+        }
+        if (!("view" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["view"] = "";
+        }
+        if (!("entries" in $$source)) {
+            /**
+             * @member
+             * @type {platform$0.FolderEntry[]}
+             */
+            this["entries"] = [];
+        }
+        if (!("sort" in $$source)) {
+            /**
+             * @member
+             * @type {platform$0.FolderSort}
+             */
+            this["sort"] = (new platform$0.FolderSort());
+        }
+        if (!("partial" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["partial"] = false;
+        }
+        if (!("revision" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["revision"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherItemFolderState instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherItemFolderState}
+     */
+    static createFrom($$source = {}) {
+        const $$createField4_0 = $$createType14;
+        const $$createField5_0 = $$createType15;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("entries" in $$parsedSource) {
+            $$parsedSource["entries"] = $$createField4_0($$parsedSource["entries"]);
+        }
+        if ("sort" in $$parsedSource) {
+            $$parsedSource["sort"] = $$createField5_0($$parsedSource["sort"]);
+        }
+        return new LauncherItemFolderState(/** @type {Partial<LauncherItemFolderState>} */($$parsedSource));
+    }
+}
+
 export class LauncherItemIcon {
     /**
      * Creates a new LauncherItemIcon instance.
@@ -674,6 +759,137 @@ export class LauncherItemIcon {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new LauncherItemIcon(/** @type {Partial<LauncherItemIcon>} */($$parsedSource));
+    }
+}
+
+export class LauncherItemPanelState {
+    /**
+     * Creates a new LauncherItemPanelState instance.
+     * @param {Partial<LauncherItemPanelState>} [$$source = {}] - The source object to create the LauncherItemPanelState.
+     */
+    constructor($$source = {}) {
+        if (!("session" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["session"] = 0;
+        }
+        if (!("revision" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["revision"] = 0;
+        }
+        if (!("parentEpoch" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["parentEpoch"] = 0;
+        }
+        if (!("parentSession" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["parentSession"] = 0;
+        }
+        if (!("displayUUID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["displayUUID"] = "";
+        }
+        if (!("profileID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["profileID"] = "";
+        }
+        if (!("itemID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["itemID"] = "";
+        }
+        if (!("kind" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["kind"] = "";
+        }
+        if (!("title" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["title"] = "";
+        }
+        if (!("open" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["open"] = false;
+        }
+        if (!("bounds" in $$source)) {
+            /**
+             * @member
+             * @type {domain$0.Bounds}
+             */
+            this["bounds"] = (new domain$0.Bounds());
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {LauncherItemFolderState | null | undefined}
+             */
+            this["folder"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {AutomationPreviewViewState | null | undefined}
+             */
+            this["windows"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["error"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherItemPanelState instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherItemPanelState}
+     */
+    static createFrom($$source = {}) {
+        const $$createField10_0 = $$createType16;
+        const $$createField11_0 = $$createType18;
+        const $$createField12_0 = $$createType20;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("bounds" in $$parsedSource) {
+            $$parsedSource["bounds"] = $$createField10_0($$parsedSource["bounds"]);
+        }
+        if ("folder" in $$parsedSource) {
+            $$parsedSource["folder"] = $$createField11_0($$parsedSource["folder"]);
+        }
+        if ("windows" in $$parsedSource) {
+            $$parsedSource["windows"] = $$createField12_0($$parsedSource["windows"]);
+        }
+        return new LauncherItemPanelState(/** @type {Partial<LauncherItemPanelState>} */($$parsedSource));
     }
 }
 
@@ -729,8 +945,8 @@ export class LauncherItemSettings {
      */
     static createFrom($$source = {}) {
         const $$createField0_0 = $$createType5;
-        const $$createField3_0 = $$createType14;
-        const $$createField4_0 = $$createType16;
+        const $$createField3_0 = $$createType22;
+        const $$createField4_0 = $$createType24;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("iconIDs" in $$parsedSource) {
             $$parsedSource["iconIDs"] = $$createField0_0($$parsedSource["iconIDs"]);
@@ -936,7 +1152,7 @@ export class LauncherStatus {
      * @returns {LauncherStatus}
      */
     static createFrom($$source = {}) {
-        const $$createField6_0 = $$createType18;
+        const $$createField6_0 = $$createType26;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("displays" in $$parsedSource) {
             $$parsedSource["displays"] = $$createField6_0($$parsedSource["displays"]);
@@ -975,7 +1191,7 @@ export class LauncherWidgetChoice {
      * @returns {LauncherWidgetChoice}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType19;
+        const $$createField1_0 = $$createType27;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("name" in $$parsedSource) {
             $$parsedSource["name"] = $$createField1_0($$parsedSource["name"]);
@@ -1049,9 +1265,9 @@ export class LauncherWidgetSlot {
      * @returns {LauncherWidgetSlot}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType19;
-        const $$createField3_0 = $$createType22;
-        const $$createField6_0 = $$createType24;
+        const $$createField2_0 = $$createType27;
+        const $$createField3_0 = $$createType30;
+        const $$createField6_0 = $$createType32;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("name" in $$parsedSource) {
             $$parsedSource["name"] = $$createField2_0($$parsedSource["name"]);
@@ -1131,7 +1347,7 @@ export class LauncherWidgetState {
      * @returns {LauncherWidgetState}
      */
     static createFrom($$source = {}) {
-        const $$createField6_0 = $$createType26;
+        const $$createField6_0 = $$createType34;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("slots" in $$parsedSource) {
             $$parsedSource["slots"] = $$createField6_0($$parsedSource["slots"]);
@@ -1233,7 +1449,7 @@ export class MediaLyricsView {
      * @returns {MediaLyricsView}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType28;
+        const $$createField3_0 = $$createType36;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cues" in $$parsedSource) {
             $$parsedSource["cues"] = $$createField3_0($$parsedSource["cues"]);
@@ -1363,11 +1579,11 @@ export class MediaViewState {
      * @returns {MediaViewState}
      */
     static createFrom($$source = {}) {
-        const $$createField7_0 = $$createType29;
-        const $$createField8_0 = $$createType30;
+        const $$createField7_0 = $$createType37;
+        const $$createField8_0 = $$createType38;
         const $$createField9_0 = $$createType2;
-        const $$createField10_0 = $$createType31;
-        const $$createField11_0 = $$createType32;
+        const $$createField10_0 = $$createType39;
+        const $$createField11_0 = $$createType40;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("scope" in $$parsedSource) {
             $$parsedSource["scope"] = $$createField7_0($$parsedSource["scope"]);
@@ -1467,11 +1683,11 @@ export class WidgetCatalogItem {
      * @returns {WidgetCatalogItem}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType19;
-        const $$createField4_0 = $$createType19;
+        const $$createField3_0 = $$createType27;
+        const $$createField4_0 = $$createType27;
         const $$createField5_0 = $$createType5;
         const $$createField6_0 = $$createType5;
-        const $$createField7_0 = $$createType34;
+        const $$createField7_0 = $$createType42;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("name" in $$parsedSource) {
             $$parsedSource["name"] = $$createField3_0($$parsedSource["name"]);
@@ -1543,7 +1759,7 @@ export class WidgetPackageReview {
      * @returns {WidgetPackageReview}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType35;
+        const $$createField2_0 = $$createType43;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("package" in $$parsedSource) {
             $$parsedSource["package"] = $$createField2_0($$parsedSource["package"]);
@@ -1608,31 +1824,39 @@ const $$createType9 = $Create.Nullable($$createType8);
 const $$createType10 = DockItemView.createFrom;
 const $$createType11 = DockPointer.createFrom;
 const $$createType12 = $Create.Nullable($$createType11);
-const $$createType13 = config$0.LauncherItem.createFrom;
+const $$createType13 = platform$0.FolderEntry.createFrom;
 const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = LauncherReferenceView.createFrom;
-const $$createType16 = $Create.Array($$createType15);
-const $$createType17 = launcher$0.DisplayState.createFrom;
-const $$createType18 = $Create.Array($$createType17);
-var $$createType19 = /** @type {(...args: any[]) => any} */(function $$initCreateType19(...args) {
-    if ($$createType19 === $$initCreateType19) {
-        $$createType19 = $$createType20;
-    }
-    return $$createType19(...args);
-});
-const $$createType20 = $Create.Map($Create.Any, $Create.Any);
-const $$createType21 = LauncherWidgetChoice.createFrom;
+const $$createType15 = platform$0.FolderSort.createFrom;
+const $$createType16 = domain$0.Bounds.createFrom;
+const $$createType17 = LauncherItemFolderState.createFrom;
+const $$createType18 = $Create.Nullable($$createType17);
+const $$createType19 = AutomationPreviewViewState.createFrom;
+const $$createType20 = $Create.Nullable($$createType19);
+const $$createType21 = config$0.LauncherItem.createFrom;
 const $$createType22 = $Create.Array($$createType21);
-const $$createType23 = widgets$0.InstanceState.createFrom;
-const $$createType24 = $Create.Nullable($$createType23);
-const $$createType25 = LauncherWidgetSlot.createFrom;
+const $$createType23 = LauncherReferenceView.createFrom;
+const $$createType24 = $Create.Array($$createType23);
+const $$createType25 = launcher$0.DisplayState.createFrom;
 const $$createType26 = $Create.Array($$createType25);
-const $$createType27 = media$0.Cue.createFrom;
-const $$createType28 = $Create.Array($$createType27);
-const $$createType29 = platform$0.MediaScope.createFrom;
-const $$createType30 = platform$0.MediaSample.createFrom;
-const $$createType31 = MediaArtworkView.createFrom;
-const $$createType32 = MediaLyricsView.createFrom;
-const $$createType33 = widgets$0.Setting.createFrom;
+var $$createType27 = /** @type {(...args: any[]) => any} */(function $$initCreateType27(...args) {
+    if ($$createType27 === $$initCreateType27) {
+        $$createType27 = $$createType28;
+    }
+    return $$createType27(...args);
+});
+const $$createType28 = $Create.Map($Create.Any, $Create.Any);
+const $$createType29 = LauncherWidgetChoice.createFrom;
+const $$createType30 = $Create.Array($$createType29);
+const $$createType31 = widgets$0.InstanceState.createFrom;
+const $$createType32 = $Create.Nullable($$createType31);
+const $$createType33 = LauncherWidgetSlot.createFrom;
 const $$createType34 = $Create.Array($$createType33);
-const $$createType35 = WidgetCatalogItem.createFrom;
+const $$createType35 = media$0.Cue.createFrom;
+const $$createType36 = $Create.Array($$createType35);
+const $$createType37 = platform$0.MediaScope.createFrom;
+const $$createType38 = platform$0.MediaSample.createFrom;
+const $$createType39 = MediaArtworkView.createFrom;
+const $$createType40 = MediaLyricsView.createFrom;
+const $$createType41 = widgets$0.Setting.createFrom;
+const $$createType42 = $Create.Array($$createType41);
+const $$createType43 = WidgetCatalogItem.createFrom;

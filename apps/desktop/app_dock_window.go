@@ -15,6 +15,8 @@ import (
 // At most one UI closure is outstanding. Requests coalesce to the latest revision.
 type dockWindow struct {
 	materialDelivery        *dockMaterialDelivery
+	closeReceipt            chan struct{}
+	closeReceiptDone        bool
 	mu                      sync.Mutex
 	dispatch                func(func())
 	factory                 func() nativeWindow
@@ -71,22 +73,30 @@ func (d *dockWindow) hide() {
 	d.scheduleLocked()
 }
 
-func (d *dockWindow) close() {
+func (d *dockWindow) close() { _ = d.closeAndDrain() }
+
+// closeAndDrain returns promptly. Its receipt covers scheduled resource cleanup,
+// including Panel.Close and Wails Close returning, not arbitrary OS destruction
+// notifications or independent material event delivery.
+func (d *dockWindow) closeAndDrain() <-chan struct{} {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.closed {
-		return
+	if d.closeReceipt == nil {
+		d.closeReceipt = make(chan struct{})
 	}
-	d.closed = true
-	if d.materialDelivery != nil {
-		d.materialDelivery.close()
+	if !d.closed {
+		d.closed = true
+		if d.materialDelivery != nil {
+			d.materialDelivery.close()
+		}
+		d.visible = false
+		d.clearMaterialLocked()
+		d.visibility++
+		d.retireMediaEventsLocked()
+		d.revision++
+		d.scheduleLocked()
 	}
-	d.visible = false
-	d.clearMaterialLocked()
-	d.visibility++
-	d.retireMediaEventsLocked()
-	d.revision++
-	d.scheduleLocked()
+	return d.closeReceipt
 }
 
 func (d *dockWindow) scheduleLocked() {
@@ -127,6 +137,12 @@ func (d *dockWindow) reconcile() {
 		d.queued = false
 		if d.revision != revision {
 			d.scheduleLocked()
+		} else if closed && d.closed && d.current == nil && d.closeReceipt != nil && !d.closeReceiptDone {
+			// Only a completed terminal reconcile can issue the receipt. A
+			// close arriving during factory/Show still requires its queued
+			// terminal pass, and callback revision changes require another pass.
+			d.closeReceiptDone = true
+			close(d.closeReceipt)
 		}
 		d.mu.Unlock()
 	}()

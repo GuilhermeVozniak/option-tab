@@ -13,6 +13,7 @@ export interface LauncherTransport {
     itemID: string,
   ): Promise<void>;
   relaunch?: LauncherTransport["activate"];
+  showPanel?: LauncherTransport["activate"];
   subscribe(handler: (state: LauncherPresentation) => void): () => void;
   widgets?: {
     get(session: number): Promise<LauncherWidgetState>;
@@ -168,6 +169,9 @@ export function LauncherRoute({
         presentation={state}
         onActivate={(...args) => performItem(transport.activate, args)}
         onRelaunch={relaunch ? (...args) => performItem(relaunch, args) : undefined}
+        onShowPanel={
+          transport.showPanel ? (...args) => performItem(transport.showPanel!, args) : undefined
+        }
         widgetState={transport.widgets ? widgetState : undefined}
         widgetActions={widgetActions}
         language={language}

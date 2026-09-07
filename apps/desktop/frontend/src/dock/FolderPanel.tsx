@@ -49,12 +49,16 @@ export function FolderPanel({
   revision,
   folder,
   handlers,
+  view = "list",
+  accessLabel,
   t = (text) => text,
 }: {
   session: number;
   revision: number;
   folder: DockFolderState;
   handlers: FolderPanelHandlers;
+  view?: "list" | "grid";
+  accessLabel?: string;
   t?: (text: string) => string;
 }) {
   type Scope = { session: number; revision: number; identity: string };
@@ -196,7 +200,7 @@ export function FolderPanel({
                     ))
               }
             >
-              {t(guidance[1])}
+              {t(guidance[2] === "access" && accessLabel ? accessLabel : guidance[1])}
             </button>
           )}
         </div>
@@ -205,7 +209,7 @@ export function FolderPanel({
           {t("Loading folder…")}
         </p>
       ) : folder.entries.length ? (
-        <ul className="ot-folder-list">
+        <ul className={`ot-folder-list${view === "grid" ? " is-grid" : ""}`}>
           {folder.entries.map((entry) => (
             <li key={entry.id}>
               <button

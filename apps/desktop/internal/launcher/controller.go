@@ -42,6 +42,10 @@ type (
 		activeSourceEpoch                      uint64
 		failed                                 map[string]time.Time
 		spaces                                 map[string]uint64
+		childAdmissions                        map[string]uint64
+		nextChildAdmission                     uint64
+		childSessions                          map[string]uint64
+		childHolds                             map[string]childHold
 		hide                                   map[string]hideDeadline
 		wake                                   chan struct{}
 	}
@@ -92,6 +96,9 @@ func (c *Controller) retireLocked() {
 	c.itemIcons = nil
 	c.failed = map[string]time.Time{}
 	c.hide = map[string]hideDeadline{}
+	c.childAdmissions = nil
+	c.childSessions = nil
+	c.childHolds = nil
 }
 
 func (c *Controller) Configure(s config.ReplacementDockSettings) error {
@@ -165,7 +172,9 @@ func (c *Controller) acceptEnvironment(epoch uint64, e platform.LauncherEnvironm
 		c.mu.Unlock()
 		return
 	}
+	previous := c.env
 	c.env = e
+	c.retireChangedChildDisplaysLocked(previous)
 	c.retireChangedProfilesLocked()
 	c.mu.Unlock()
 	c.notify()
@@ -457,6 +466,11 @@ func (c *Controller) Run(ctx context.Context) error {
 			oldEpoch := c.activeSourceEpoch
 			c.sourceCancel = nil
 			c.env = platform.LauncherEnvironment{}
+			for uuid := range c.childAdmissions {
+				c.nextChildAdmission++
+				c.childAdmissions[uuid] = c.nextChildAdmission
+			}
+			c.childHolds = nil
 			c.inventoryReady = false
 			c.mu.Unlock()
 			sourceDone = nil

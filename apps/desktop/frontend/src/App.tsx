@@ -4,6 +4,7 @@ import { AppSwitcher } from "./app-switcher/AppSwitcher";
 import { AutomationPreviewRoute } from "./automation/AutomationPreviewRoute";
 import { type DockPanelHandlers, DockPanelView } from "./dock/DockPanelView";
 import { useAbout, useCrash, usePermissions } from "./hooks/useBridge";
+import { LauncherItemPanelRoute } from "./launcher/LauncherItemPanelRoute";
 import { LauncherRoute } from "./launcher/LauncherRoute";
 import { automationPreview, onAutomationPreviewEvents } from "./lib/automation-preview-bridge";
 import {
@@ -33,6 +34,7 @@ import {
   onLauncherWidgets,
   onWidgetPackageStatus,
 } from "./lib/launcher-bridge";
+import { showLauncherItemPanel } from "./lib/launcher-item-panel-bridge";
 import { relaunchLauncherItem } from "./lib/launcher-item-runtime-bridge";
 import { launcherItemSettings } from "./lib/launcher-items-bridge";
 import { admitMaterialStatus, type MaterialStatus } from "./lib/material";
@@ -85,6 +87,16 @@ function launcherRouteSession(): number {
   return match ? Number(match[1]) : 0;
 }
 
+function launcherItemRouteSession(): number {
+  const match = route().match(/^launcher-item\/(\d+)$/);
+  return match ? Number(match[1]) : 0;
+}
+
+function LauncherChildAppRoute({ session }: { session: number }) {
+  const t = useRuntimeTranslator();
+  return <LauncherItemPanelRoute session={session} t={t} />;
+}
+
 function useRuntimeTranslator() {
   const [language, setLanguage] = useState("");
   useEffect(() => {
@@ -120,6 +132,7 @@ function LauncherAppRoute({ session }: { session: number }) {
         getState: launcher.state,
         activate: launcher.activate,
         relaunch: relaunchLauncherItem,
+        showPanel: showLauncherItemPanel,
         subscribe: onLauncherState,
         widgets: {
           get: launcher.widgets,
@@ -286,6 +299,8 @@ export default function App() {
   if (isDockRoute()) return <DockRoute />;
   if (automationRouteSession()) return <AutomationRoute session={automationRouteSession()} />;
   if (mediaRouteSession()) return <MediaRoute session={mediaRouteSession()} />;
+  if (launcherItemRouteSession())
+    return <LauncherChildAppRoute session={launcherItemRouteSession()} />;
   if (launcherRouteSession()) return <LauncherAppRoute session={launcherRouteSession()} />;
   if (isDemoRoute()) {
     return (

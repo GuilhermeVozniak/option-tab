@@ -176,25 +176,29 @@ func main() {
 	}
 
 	if host, ok := app.platform.(platform.LauncherPanelHost); ok {
-		app.launcherFactory = func(session uint64, uuid string, style platform.LauncherPanelStyle, failed func()) *dockWindow {
-			var scheduled *dockWindow
-			factory := func() nativeWindow {
-				window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
-					Name: fmt.Sprintf("launcher-%d", session), Title: "Option Tab Dock", Width: 400, Height: 64,
-					Hidden: true, Frameless: true, DisableResize: true, URL: fmt.Sprintf("/#/launcher/%d", session),
-					Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
-				})
-				window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
-					if scheduled.markHostClosedIf(window) {
-						go failed()
-					}
-				})
-				return window
+		makeLauncherFactory := func(route, title string, width, height int) func(uint64, string, platform.LauncherPanelStyle, func()) *dockWindow {
+			return func(session uint64, uuid string, style platform.LauncherPanelStyle, failed func()) *dockWindow {
+				var scheduled *dockWindow
+				factory := func() nativeWindow {
+					window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+						Name: fmt.Sprintf("%s-%d", route, session), Title: title, Width: width, Height: height,
+						Hidden: true, Frameless: true, DisableResize: true, URL: fmt.Sprintf("/#/%s/%d", route, session),
+						Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
+					})
+					window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
+						if scheduled.markHostClosedIf(window) {
+							go failed()
+						}
+					})
+					return window
+				}
+				scheduled = newDockWindow(application.InvokeAsync, factory, launcherPanelHostAdapter{source: host, uuid: uuid, style: style})
+				scheduled.onFailure = func() { go failed() }
+				return scheduled
 			}
-			scheduled = newDockWindow(application.InvokeAsync, factory, launcherPanelHostAdapter{source: host, uuid: uuid, style: style})
-			scheduled.onFailure = func() { go failed() }
-			return scheduled
 		}
+		app.launcherFactory = makeLauncherFactory("launcher", "Option Tab Dock", 400, 64)
+		app.launcherItemPanelFactory = makeLauncherFactory("launcher-item", "Option Tab item", 420, 360)
 	}
 
 	// --- Menubar tray ---
