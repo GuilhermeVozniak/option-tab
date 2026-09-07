@@ -8,6 +8,7 @@ import (
 	"math"
 	"regexp"
 	"slices"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -18,11 +19,19 @@ const (
 	BuiltinClockDigest   = "sha256:09bcb4221f7ace94e21898b4e583f9db72be1be5f6524fbe9972af70726c9dc3"
 )
 
+type LauncherProfileRule struct {
+	ID        string `json:"id"`
+	Enabled   bool   `json:"enabled"`
+	BundleID  string `json:"bundleID"`
+	ProfileID string `json:"profileID"`
+	BindingID string `json:"bindingID,omitempty"`
+}
 type ReplacementDockSettings struct {
-	Version  int               `json:"version"`
-	Enabled  bool              `json:"enabled"`
-	Profiles []LauncherProfile `json:"profiles"`
-	Bindings []LauncherBinding `json:"bindings"`
+	Rules    []LauncherProfileRule `json:"rules,omitempty"`
+	Version  int                   `json:"version"`
+	Enabled  bool                  `json:"enabled"`
+	Profiles []LauncherProfile     `json:"profiles"`
+	Bindings []LauncherBinding     `json:"bindings"`
 }
 type LauncherAppearance struct {
 	Theme          string  `json:"theme"`
@@ -74,6 +83,7 @@ func DefaultReplacementDock() ReplacementDockSettings {
 func CloneReplacementDock(s ReplacementDockSettings) ReplacementDockSettings {
 	s.Profiles = slices.Clone(s.Profiles)
 	s.Bindings = slices.Clone(s.Bindings)
+	s.Rules = slices.Clone(s.Rules)
 	for i := range s.Profiles {
 		s.Profiles[i].Widgets = slices.Clone(s.Profiles[i].Widgets)
 		for j := range s.Profiles[i].Widgets {
@@ -93,7 +103,7 @@ var launcherID = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
 func ValidateReplacementDock(s ReplacementDockSettings) error {
 	bad := errors.New("config: invalid replacement Dock settings")
-	if s.Version != 2 || len(s.Profiles) == 0 || len(s.Profiles) > 8 || len(s.Bindings) > 8 {
+	if s.Version != 2 || len(s.Profiles) == 0 || len(s.Profiles) > 8 || len(s.Bindings) > 8 || len(s.Rules) > 8 {
 		return bad
 	}
 	profiles := map[string]bool{}
@@ -128,8 +138,21 @@ func ValidateReplacementDock(s ReplacementDockSettings) error {
 		targets[key] = true
 		ids[b.ID] = true
 	}
+	ruleIDs := map[string]bool{}
+	for _, r := range s.Rules {
+		if !launcherID.MatchString(r.ID) || ruleIDs[r.ID] || !ValidLauncherBundleID(r.BundleID) || !profiles[r.ProfileID] || (r.BindingID != "" && !ids[r.BindingID]) {
+			return bad
+		}
+		ruleIDs[r.ID] = true
+	}
 	return nil
 }
+
+// ValidLauncherBundleID bounds exact identity text; it does not establish that
+// an application is installed or authorize a process action.
+var launcherBundleID = regexp.MustCompile(`^[A-Za-z0-9._-]{1,255}$`)
+
+func ValidLauncherBundleID(id string) bool { return len(id) <= 255 && launcherBundleID.MatchString(id) }
 
 // Strict bounded nested decoder; old top-level settings retain their migration rules.
 func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
@@ -200,6 +223,16 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 		return s, bad
 	}
 	if s.Version == 1 {
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			return s, bad
+		}
+		for key := range fields {
+			if strings.EqualFold(key, "rules") {
+				return s, bad
+			}
+		}
+
 		var legacy struct {
 			Profiles []map[string]json.RawMessage `json:"profiles"`
 		}

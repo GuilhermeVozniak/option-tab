@@ -163,6 +163,7 @@ const METHOD = {
   ActivateLauncherItem: 529143415,
   GetLauncherState: 1942731528,
   GetLauncherStatus: 3297738801,
+  GetLauncherAppChoices: 1561877478,
   UseNativeDock: 421143656,
   SaveSettings: 1949631069,
 } as const;
@@ -204,6 +205,7 @@ export async function installFakeWails(page: Page): Promise<void> {
       __diagnosticsError?: Record<string, string>;
       __launcherState?: Record<string, unknown> | null;
       __launcherStatus?: Record<string, unknown>;
+      __launcherAppChoices?: Array<{ name: string; bundleID: string }>;
       _wails?: { dispatchWailsEvent?: (ev: { name: string; data: unknown }) => void };
     };
     w.__calls = [];
@@ -226,6 +228,10 @@ export async function installFakeWails(page: Page): Promise<void> {
       clockPackageID: "org.optiontab.clock",
       clockDigest: "sha256:c2504147560285311f61886cae7a1f1396781443c9db52a85a04fbe669b2ded7d",
     };
+    w.__launcherAppChoices = [
+      { name: "Editor", bundleID: "com.example.editor" },
+      { name: "Editor", bundleID: "org.example.editor" },
+    ];
     w.__diagnosticsReview = {
       token: "diagnostics-review-1",
       json: '{"schemaVersion":1,"recording":false}',
@@ -309,6 +315,8 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json(await page.evaluate(() => (window as any).__launcherState));
       case "GetLauncherStatus":
         return json(await page.evaluate(() => (window as any).__launcherStatus));
+      case "GetLauncherAppChoices":
+        return json(await page.evaluate(() => (window as any).__launcherAppChoices));
       case "ActivateLauncherItem":
       case "UseNativeDock": {
         await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);

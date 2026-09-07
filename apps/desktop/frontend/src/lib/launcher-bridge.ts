@@ -1,16 +1,18 @@
 import { Events } from "@wailsio/runtime";
 import {
   ActivateLauncherItem,
+  GetLauncherAppChoices,
   GetLauncherState,
   GetLauncherStatus,
   UseNativeDock,
 } from "../../bindings/option-tab/app.js";
-import type { LauncherPresentation, LauncherStatus } from "./types";
+import type { LauncherAppChoice, LauncherPresentation, LauncherStatus } from "./types";
 
 export const launcher = {
   state: (session: number) =>
     GetLauncherState(session) as unknown as Promise<LauncherPresentation | null>,
   status: () => GetLauncherStatus() as Promise<LauncherStatus>,
+  appChoices: () => GetLauncherAppChoices() as Promise<LauncherAppChoice[]>,
   activate: (
     epoch: number,
     displayUUID: string,

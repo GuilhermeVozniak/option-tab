@@ -21,13 +21,14 @@ const integrationDisplay = "11111111-1111-1111-1111-111111111111"
 
 type launcherIntegrationPlatform struct {
 	*fake.Fake
-	mu        sync.Mutex
-	emit      func(platform.LauncherEnvironment)
-	sequence  uint64
-	entered   chan platform.LauncherAppTarget
-	release   chan struct{}
-	mutations atomic.Int32
-	stopped   chan struct{}
+	mu          sync.Mutex
+	emit        func(platform.LauncherEnvironment)
+	sequence    uint64
+	focusBundle string
+	entered     chan platform.LauncherAppTarget
+	release     chan struct{}
+	mutations   atomic.Int32
+	stopped     chan struct{}
 }
 
 func (p *launcherIntegrationPlatform) Apps() ([]domain.App, error) {
@@ -54,11 +55,24 @@ func (p *launcherIntegrationPlatform) send(x, y float64) {
 	p.sequence++
 	seq := p.sequence
 	emit := p.emit
+	focusBundle := p.focusBundle
 	p.mu.Unlock()
 	if emit == nil {
 		return
 	}
-	emit(platform.LauncherEnvironment{Generation: 1, Sequence: seq, ObservedAt: time.Now(), Complete: true, Status: "ready", PointerKnown: true, PointerX: x, PointerY: y, NativeDock: platform.LauncherNativeDock{Process: platform.ProcessIdentity{PID: 1, StartSeconds: 1}, Edge: "bottom", Visibility: "hidden", Confidence: "known", Bounds: domain.Bounds{X: 400, Y: 780, W: 200, H: 20}}, Displays: []platform.LauncherDisplay{{UUID: integrationDisplay, Main: true, Frame: domain.Bounds{W: 1000, H: 800}, UsableFrame: domain.Bounds{Y: 25, W: 1000, H: 775}, Scale: 2, SpaceID: 1, SpaceKind: "ordinary", SpaceStatus: "known"}}})
+	environment := platform.LauncherEnvironment{Generation: 1, Sequence: seq, ObservedAt: time.Now(), Complete: true, Status: "ready", PointerKnown: true, PointerX: x, PointerY: y, NativeDock: platform.LauncherNativeDock{Process: platform.ProcessIdentity{PID: 1, StartSeconds: 1}, Edge: "bottom", Visibility: "hidden", Confidence: "known", Bounds: domain.Bounds{X: 400, Y: 780, W: 200, H: 20}}, Displays: []platform.LauncherDisplay{{UUID: integrationDisplay, Main: true, Frame: domain.Bounds{W: 1000, H: 800}, UsableFrame: domain.Bounds{Y: 25, W: 1000, H: 775}, Scale: 2, SpaceID: 1, SpaceKind: "ordinary", SpaceStatus: "known"}}}
+	if focusBundle != "" {
+		environment.FocusedProcess = platform.ProcessIdentity{PID: 4242, StartSeconds: 123}
+		environment.FocusedBundleID, environment.FocusKnown = focusBundle, true
+	}
+	emit(environment)
+}
+
+func (p *launcherIntegrationPlatform) focus(bundle string) {
+	p.mu.Lock()
+	p.focusBundle = bundle
+	p.mu.Unlock()
+	p.send(100, 100)
 }
 
 func (p *launcherIntegrationPlatform) ActivateLauncherApp(_ context.Context, target platform.LauncherAppTarget, guard func() error) error {

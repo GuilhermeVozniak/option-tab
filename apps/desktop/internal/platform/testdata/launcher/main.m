@@ -233,6 +233,47 @@ int main(void) {
                                              NSEdgeInsetsMake(110, 0, 0, 0)),
                            NSZeroRect),
               @"impossible safe area accepted");
+    NSDictionary *focus = @{
+      @"Process" : @{@"PID" : @42, @"StartSeconds" : @100, @"StartMicros" : @1},
+      @"BundleID" : @"com.example.one"
+    };
+    NSCAssert(launcherFocusEvidence(focus, focus),
+              @"stable foreground evidence refused");
+    for (NSDictionary *changed in @[
+           @{
+             @"Process" :
+                 @{@"PID" : @43, @"StartSeconds" : @100, @"StartMicros" : @1},
+             @"BundleID" : @"com.example.one"
+           },
+           @{
+             @"Process" :
+                 @{@"PID" : @42, @"StartSeconds" : @101, @"StartMicros" : @1},
+             @"BundleID" : @"com.example.one"
+           },
+           @{
+             @"Process" :
+                 @{@"PID" : @42, @"StartSeconds" : @100, @"StartMicros" : @1},
+             @"BundleID" : @"com.example.two"
+           }
+         ]) {
+      NSCAssert(!launcherFocusEvidence(focus, changed),
+                @"changed PID/start/bundle admitted as known focus");
+    }
+    NSCAssert(!launcherFocusEvidence(focus, nil) &&
+                  !launcherFocusEvidence(nil, focus),
+              @"unknown focus admitted");
+    NSCAssert(launcherNotificationMatters(
+                  NSWorkspaceDidActivateApplicationNotification,
+                  @"com.example.foreground"),
+              @"activation did not dirty observation");
+    NSCAssert(!launcherNotificationMatters(
+                  NSWorkspaceDidLaunchApplicationNotification,
+                  @"com.example.background"),
+              @"background launch dirtied focus");
+    NSCAssert(
+        launcherNotificationMatters(
+            NSWorkspaceDidTerminateApplicationNotification, @"com.apple.dock"),
+        @"Dock lifecycle dirtiness lost");
     printf("PASS native launcher final preparation guard, process/Space/host "
            "invalidation and native refusal; no GUI or activation\n");
   }

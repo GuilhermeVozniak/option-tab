@@ -24,6 +24,7 @@ import type {
   DockLockDisplay,
   DockMonitorLockState,
   DockViewState,
+  LauncherAppChoice,
   LauncherStatus,
   MediaViewState,
   VisualStyle,
@@ -875,6 +876,7 @@ function SettingsRoute() {
   >({});
   const [diagnosticsAvailable, setDiagnosticsAvailable] = useState(false);
   const [launcherStatus, setLauncherStatus] = useState<LauncherStatus>();
+  const [launcherAppChoices, setLauncherAppChoices] = useState<LauncherAppChoice[]>([]);
   const [launcherError, setLauncherError] = useState("");
   const lockMark = useRef<[number, number, number]>([0, 0, 0]);
   const lockSeen = useRef(false);
@@ -900,6 +902,20 @@ function SettingsRoute() {
     return () => {
       active = false;
       off();
+    };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    void launcher
+      .appChoices()
+      .then((choices) => {
+        if (active) setLauncherAppChoices(choices);
+      })
+      .catch(() => {
+        if (active) setLauncherAppChoices([]);
+      });
+    return () => {
+      active = false;
     };
   }, []);
   useEffect(() => {
@@ -1038,6 +1054,7 @@ function SettingsRoute() {
         launcher={{
           status: launcherStatus,
           error: launcherError,
+          appChoices: launcherAppChoices,
           onUseNativeDock: () => {
             setLauncherError("");
             void launcher

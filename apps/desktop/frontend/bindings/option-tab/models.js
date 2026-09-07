@@ -604,6 +604,41 @@ export class DockViewState {
     }
 }
 
+export class LauncherAppChoice {
+    /**
+     * Creates a new LauncherAppChoice instance.
+     * @param {Partial<LauncherAppChoice>} [$$source = {}] - The source object to create the LauncherAppChoice.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("bundleID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["bundleID"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherAppChoice instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherAppChoice}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LauncherAppChoice(/** @type {Partial<LauncherAppChoice>} */($$parsedSource));
+    }
+}
+
 export class LauncherStatus {
     /**
      * Creates a new LauncherStatus instance.

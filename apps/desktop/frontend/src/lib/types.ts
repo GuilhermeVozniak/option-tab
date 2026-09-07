@@ -472,11 +472,23 @@ export interface LauncherBinding {
   displayUUID: string;
   profileID: string;
 }
+export interface LauncherProfileRule {
+  id: string;
+  enabled: boolean;
+  bundleID: string;
+  profileID: string;
+  bindingID: string;
+}
+export interface LauncherAppChoice {
+  name: string;
+  bundleID: string;
+}
 export interface ReplacementDockSettings {
   version: number;
   enabled: boolean;
   profiles: LauncherProfile[];
   bindings: LauncherBinding[];
+  rules?: LauncherProfileRule[];
 }
 export interface LauncherWidgetNode {
   kind: "row" | "text";

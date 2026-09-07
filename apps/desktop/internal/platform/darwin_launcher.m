@@ -114,11 +114,55 @@ static NSDictionary *launcherDockBoundSnapshot(NSDictionary * (^identity)(void),
   out[@"Process"] = before;
   return out;
 }
+static NSDictionary *launcherFocusedProcess(void) {
+  NSRunningApplication *app = NSWorkspace.sharedWorkspace.frontmostApplication;
+  NSString *bundle = app.bundleIdentifier;
+  pid_t pid = app.processIdentifier;
+  if (!app || app.terminated || pid <= 0 || !bundle.length ||
+      bundle.length > 255)
+    return nil;
+  struct proc_bsdinfo info = {0};
+  if (proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, sizeof(info)) !=
+          sizeof(info) ||
+      !info.pbi_start_tvsec || info.pbi_start_tvusec >= 1000000)
+    return nil;
+  return @{
+    @"Process" : @{
+      @"PID" : @(pid),
+      @"StartSeconds" : @(info.pbi_start_tvsec),
+      @"StartMicros" : @(info.pbi_start_tvusec)
+    },
+    @"BundleID" : bundle
+  };
+}
+static NSDictionary *launcherFocusEvidence(NSDictionary *before,
+                                           NSDictionary *after) {
+  if (!before || !after || ![before isEqual:after] ||
+      ![before[@"Process"] isKindOfClass:NSDictionary.class] ||
+      ![before[@"BundleID"] isKindOfClass:NSString.class] ||
+      ![before[@"BundleID"] length])
+    return nil;
+  return @{
+    @"Known" : @YES,
+    @"Process" : before[@"Process"],
+    @"BundleID" : before[@"BundleID"]
+  };
+}
+static BOOL launcherNotificationMatters(NSString *name, NSString *bundle) {
+  if ([name isEqual:NSWorkspaceDidActivateApplicationNotification] ||
+      [name isEqual:NSWorkspaceActiveSpaceDidChangeNotification])
+    return YES;
+  return ([name isEqual:NSWorkspaceDidLaunchApplicationNotification] ||
+          [name isEqual:NSWorkspaceDidTerminateApplicationNotification]) &&
+         [bundle isEqual:@"com.apple.dock"];
+}
 char *ot_launcher_environment(void) {
   @autoreleasepool {
+    __block NSDictionary *focusBefore = nil;
     __block NSMutableArray *displays = [NSMutableArray array];
     __block BOOL complete = NO;
     void (^read)(void) = ^{
+      focusBefore = launcherFocusedProcess();
       NSArray<NSScreen *> *screens = NSScreen.screens;
       double top = NSMaxY(screens.firstObject.frame);
       CGDirectDisplayID active[32];
@@ -174,7 +218,17 @@ char *ot_launcher_environment(void) {
           free(dockJSON);
           return [value isKindOfClass:NSDictionary.class] ? value : nil;
         });
+    __block NSDictionary *focusAfter = nil;
+    void (^readFocus)(void) = ^{
+      focusAfter = launcherFocusedProcess();
+    };
+    if (NSThread.isMainThread)
+      readFocus();
+    else
+      dispatch_sync(dispatch_get_main_queue(), readFocus);
+    NSDictionary *focus = launcherFocusEvidence(focusBefore, focusAfter);
     return launcherJSON(@{
+      @"Focus" : focus ?: @{},
       @"Complete" : @(complete),
       @"Displays" : displays,
       @"Dock" : dock ?: @{}
@@ -358,6 +412,7 @@ void *ot_launcher_watch_start(void) {
   void (^install)(void) = ^{
     watch.workspaceTokens = [NSMutableArray array];
     for (NSString *name in @[
+           NSWorkspaceDidActivateApplicationNotification,
            NSWorkspaceActiveSpaceDidChangeNotification,
            NSWorkspaceDidLaunchApplicationNotification,
            NSWorkspaceDidTerminateApplicationNotification
@@ -367,14 +422,11 @@ void *ot_launcher_watch_start(void) {
                       object:nil
                        queue:nil
                   usingBlock:^(NSNotification *note) {
-                    if (![note.name
-                            isEqual:
-                                NSWorkspaceActiveSpaceDidChangeNotification]) {
-                      NSRunningApplication *app =
-                          note.userInfo[NSWorkspaceApplicationKey];
-                      if (![app.bundleIdentifier isEqual:@"com.apple.dock"])
-                        return;
-                    }
+                    NSRunningApplication *app =
+                        note.userInfo[NSWorkspaceApplicationKey];
+                    if (!launcherNotificationMatters(note.name,
+                                                     app.bundleIdentifier))
+                      return;
                     atomic_store(&watch->dirty, true);
                   }];
       [watch.workspaceTokens addObject:token];

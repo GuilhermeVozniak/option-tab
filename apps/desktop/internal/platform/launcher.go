@@ -20,6 +20,9 @@ type LauncherEnvironment struct {
 	PointerX, PointerY   float64
 	PointerKnown         bool
 	NativeDock           LauncherNativeDock
+	FocusedProcess       ProcessIdentity
+	FocusedBundleID      string
+	FocusKnown           bool
 }
 
 type LauncherDisplay struct {

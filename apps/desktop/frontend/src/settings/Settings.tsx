@@ -6,6 +6,7 @@ import { makeT, resolveLang } from "../lib/i18n";
 import type {
   DockLockDisplay,
   DockMonitorLockState,
+  LauncherAppChoice,
   LauncherStatus,
   Settings as SettingsModel,
   SwitcherMode,
@@ -58,7 +59,12 @@ interface SettingsProps {
     onConnect: (provider: "music" | "spotify") => void;
   };
   diagnostics?: boolean;
-  launcher?: { status?: LauncherStatus; error?: string; onUseNativeDock: () => void };
+  launcher?: {
+    status?: LauncherStatus;
+    error?: string;
+    appChoices?: LauncherAppChoice[];
+    onUseNativeDock: () => void;
+  };
 }
 
 const TABS = [

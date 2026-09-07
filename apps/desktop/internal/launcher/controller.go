@@ -131,7 +131,7 @@ func (c *Controller) FailDisplay(scope Scope, reason string) {
 	c.mu.Lock()
 	for i := range c.state.Presentations {
 		p := &c.state.Presentations[i]
-		if p.Scope == scope && p.Visible {
+		if p.Scope == scope && p.Visible && p.ProfileID == c.profileForDisplayLocked(p.DisplayUUID) {
 			c.failed[p.DisplayUUID] = c.deps.Now().Add(time.Second)
 			c.state.PointerOwned = false
 			p.Visible = false
@@ -146,6 +146,7 @@ func (c *Controller) FailDisplay(scope Scope, reason string) {
 
 func (c *Controller) acceptEnvironment(epoch uint64, e platform.LauncherEnvironment) {
 	e.Displays = slices.Clone(e.Displays)
+	normalizeFocusedEvidence(&e)
 	if e.Generation == 0 || e.Sequence == 0 || len(e.Displays) > 32 {
 		return
 	}
@@ -155,6 +156,7 @@ func (c *Controller) acceptEnvironment(epoch uint64, e platform.LauncherEnvironm
 		return
 	}
 	c.env = e
+	c.retireChangedProfilesLocked()
 	c.mu.Unlock()
 	c.notify()
 }
@@ -209,7 +211,7 @@ func (c *Controller) currentLocked(scope Scope, id string) bool {
 		return false
 	}
 	for _, p := range c.state.Presentations {
-		if p.Scope == scope && p.Visible {
+		if p.Scope == scope && p.Visible && p.ProfileID == c.profileForDisplayLocked(p.DisplayUUID) {
 			return true
 		}
 	}

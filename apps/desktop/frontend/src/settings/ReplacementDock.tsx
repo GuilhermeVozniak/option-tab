@@ -5,7 +5,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { Translate } from "../lib/i18n";
-import type { LauncherStatus, ReplacementDockSettings } from "../lib/types";
+import type {
+  LauncherAppChoice,
+  LauncherProfileRule,
+  LauncherStatus,
+  ReplacementDockSettings,
+} from "../lib/types";
 import { HINT, ROW } from "./shared";
 
 export function ReplacementDock({
@@ -15,6 +20,7 @@ export function ReplacementDock({
   status,
   error,
   onUseNativeDock,
+  appChoices = [],
 }: {
   value: ReplacementDockSettings;
   t: Translate;
@@ -22,6 +28,7 @@ export function ReplacementDock({
   status?: LauncherStatus;
   error?: string;
   onUseNativeDock?: () => void;
+  appChoices?: LauncherAppChoice[];
 }) {
   const [profileID, setProfileID] = useState(value.profiles[0]?.id ?? "");
   const [replacementID, setReplacementID] = useState("");
@@ -32,6 +39,10 @@ export function ReplacementDock({
   useEffect(() => setReplacementID(""), [profileID]);
   const profile = value.profiles.find((profile) => profile.id === profileID) ?? value.profiles[0];
   const clock = profile?.widgets.find((widget) => widget.packageID === "org.optiontab.clock");
+  const rules = value.rules ?? [];
+  const patchRules = (next: LauncherProfileRule[]) => onChange({ ...value, rules: next });
+  const patchRule = (id: string, partial: Partial<LauncherProfileRule>) =>
+    patchRules(rules.map((rule) => (rule.id === id ? { ...rule, ...partial } : rule)));
   const bindingLabel = (binding: ReplacementDockSettings["bindings"][number]) => {
     if (binding.target === "main") return t("Main display");
     const display = status?.displays.find((candidate) => candidate.uuid === binding.displayUUID);
@@ -146,6 +157,9 @@ export function ReplacementDock({
                 profiles: value.profiles.filter((p) => p.id !== profile.id),
                 bindings: value.bindings.map((b) =>
                   b.profileID === profile.id ? { ...b, profileID: replacement.id } : b,
+                ),
+                rules: rules.map((rule) =>
+                  rule.profileID === profile.id ? { ...rule, profileID: replacement.id } : rule,
                 ),
               });
             }}
@@ -466,6 +480,7 @@ export function ReplacementDock({
                   onChange({
                     ...value,
                     bindings: value.bindings.filter((b) => b.id !== binding.id),
+                    rules: rules.filter((rule) => rule.bindingID !== binding.id),
                   })
                 }
               >
@@ -505,7 +520,170 @@ export function ReplacementDock({
                 {t("Add {display}").replace("{display}", display.name)}
               </Button>
             ))}
+          <p className={HINT}>
+            {t(
+              "Removing a display assignment also removes focus rules scoped only to that display.",
+            )}
+          </p>
         </div>
+        <section aria-labelledby="focus-rules-heading" className="space-y-2 pt-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 id="focus-rules-heading" className="m-0 text-sm font-semibold">
+                {t("Focus rules")}
+              </h3>
+              <p className={HINT}>
+                {t(
+                  "The first matching app rule chooses a profile. Display assignments remain the base profile.",
+                )}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              disabled={rules.length >= 8 || value.profiles.length === 0}
+              onClick={() => {
+                let n = rules.length + 1;
+                while (rules.some((rule) => rule.id === `focus-${n}`)) n++;
+                patchRules([
+                  ...rules,
+                  {
+                    id: `focus-${n}`,
+                    enabled: true,
+                    bundleID: "",
+                    profileID: profile?.id ?? value.profiles[0]?.id ?? "",
+                    bindingID: "",
+                  },
+                ]);
+              }}
+            >
+              {t("Add focus rule")}
+            </Button>
+          </div>
+          {rules.length === 0 ? <p className={HINT}>{t("No focus rules")}</p> : null}
+          {rules.map((rule, index) => {
+            const invalidBundle = !/^[A-Za-z0-9._-]{1,255}$/.test(rule.bundleID);
+            const label = rule.bundleID || t("New rule");
+            return (
+              <article key={rule.id} className="rounded-xl border border-white/10 bg-black/10 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {t("Priority {number}").replace("{number}", String(index + 1))}
+                  </span>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      aria-label={`${t("Move {app} up").replace("{app}", label)}`}
+                      disabled={index === 0}
+                      onClick={() => {
+                        const next = [...rules];
+                        [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                        patchRules(next);
+                      }}
+                    >
+                      ↑
+                    </Button>
+                    <Button
+                      variant="outline"
+                      aria-label={`${t("Move {app} down").replace("{app}", label)}`}
+                      disabled={index === rules.length - 1}
+                      onClick={() => {
+                        const next = [...rules];
+                        [next[index], next[index + 1]] = [next[index + 1], next[index]];
+                        patchRules(next);
+                      }}
+                    >
+                      ↓
+                    </Button>
+                    <Button
+                      variant="outline"
+                      aria-label={t("Remove {app}").replace("{app}", label)}
+                      onClick={() =>
+                        patchRules(rules.filter((candidate) => candidate.id !== rule.id))
+                      }
+                    >
+                      {t("Remove")}
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label>
+                    <span>{t("Running app")}</span>
+                    <Select
+                      aria-label="Running app"
+                      value={
+                        appChoices.some((choice) => choice.bundleID === rule.bundleID)
+                          ? rule.bundleID
+                          : ""
+                      }
+                      onChange={(event) => patchRule(rule.id, { bundleID: event.target.value })}
+                    >
+                      <option value="">{t("Enter bundle identifier")}</option>
+                      {appChoices.map((choice) => (
+                        <option key={choice.bundleID} value={choice.bundleID}>
+                          {choice.name} — {choice.bundleID}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  <label>
+                    <span>{t("Exact bundle identifier")}</span>
+                    <Input
+                      aria-label={`${t("Exact bundle identifier")} ${label}`}
+                      value={rule.bundleID}
+                      maxLength={255}
+                      spellCheck={false}
+                      onChange={(event) => patchRule(rule.id, { bundleID: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    <span>{t("Destination profile")}</span>
+                    <Select
+                      aria-label={`${t("Destination profile")} ${label}`}
+                      value={rule.profileID}
+                      onChange={(event) => patchRule(rule.id, { profileID: event.target.value })}
+                    >
+                      {value.profiles.map((candidate) => (
+                        <option key={candidate.id} value={candidate.id}>
+                          {candidate.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                  <label>
+                    <span>{t("Display scope")}</span>
+                    <Select
+                      aria-label={`${t("Display scope")} ${label}`}
+                      value={rule.bindingID}
+                      onChange={(event) => patchRule(rule.id, { bindingID: event.target.value })}
+                    >
+                      <option value="">{t("Every assigned display")}</option>
+                      {value.bindings.map((binding) => (
+                        <option key={binding.id} value={binding.id}>
+                          {bindingLabel(binding)}
+                        </option>
+                      ))}
+                    </Select>
+                  </label>
+                </div>
+                <label className={ROW}>
+                  <span>{t("Enabled")}</span>
+                  <Checkbox
+                    aria-label={t("Enable rule {app}").replace("{app}", label)}
+                    checked={rule.enabled}
+                    onChange={(event) => patchRule(rule.id, { enabled: event.target.checked })}
+                  />
+                </label>
+                {invalidBundle ? (
+                  <p role="alert" className={HINT}>
+                    {t(
+                      "Enter an exact bundle identifier using letters, numbers, dots, hyphens, or underscores.",
+                    )}
+                  </p>
+                ) : null}
+              </article>
+            );
+          })}
+        </section>
         {error || (status && status.status !== "ready" && status.status !== "disabled") ? (
           <p role="alert">
             {t("Replacement Dock unavailable")}: {error || status?.reason || status?.status}

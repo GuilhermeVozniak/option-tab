@@ -308,12 +308,23 @@ export function GetDockState() {
 }
 
 /**
+ * GetLauncherAppChoices is an explicit settings inventory. It performs no
+ * window query, permission prompt or app activation and exposes no process IDs.
+ * @returns {$CancellablePromise<$models.LauncherAppChoice[]>}
+ */
+export function GetLauncherAppChoices() {
+    return $Call.ByID(1561877478).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType11($result);
+    }));
+}
+
+/**
  * @param {number} session
  * @returns {$CancellablePromise<launcher$0.Presentation>}
  */
 export function GetLauncherState(session) {
     return $Call.ByID(1942731528, session).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType10($result);
+        return $$createType12($result);
     }));
 }
 
@@ -322,7 +333,7 @@ export function GetLauncherState(session) {
  */
 export function GetLauncherStatus() {
     return $Call.ByID(3297738801).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType11($result);
+        return $$createType13($result);
     }));
 }
 
@@ -331,7 +342,7 @@ export function GetLauncherStatus() {
  */
 export function GetMediaPermissions() {
     return $Call.ByID(3673411287).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType14($result);
     }));
 }
 
@@ -341,7 +352,7 @@ export function GetMediaPermissions() {
  */
 export function GetMediaState(session) {
     return $Call.ByID(3763583330, session).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType14($result);
+        return $$createType16($result);
     }));
 }
 
@@ -541,7 +552,7 @@ export function PinMediaPanel(session, revision) {
  */
 export function PlaceDockOnSelectedMonitor(session, revision, generation) {
     return $Call.ByID(1589667255, session, revision, generation).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType15($result);
+        return $$createType17($result);
     }));
 }
 
@@ -619,7 +630,7 @@ export function Reverse() {
  */
 export function SaveDiagnosticsReport(token) {
     return $Call.ByID(1276106854, token).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType16($result);
+        return $$createType18($result);
     }));
 }
 
@@ -833,10 +844,12 @@ const $$createType6 = $Create.Array($$createType5);
 const $$createType7 = platform$0.DockMonitorLockState.createFrom;
 const $$createType8 = $models.DockViewState.createFrom;
 const $$createType9 = $Create.Nullable($$createType8);
-const $$createType10 = launcher$0.Presentation.createFrom;
-const $$createType11 = $models.LauncherStatus.createFrom;
-const $$createType12 = $Create.Map($Create.Any, $$createType0);
-const $$createType13 = $models.MediaViewState.createFrom;
-const $$createType14 = $Create.Nullable($$createType13);
-const $$createType15 = platform$0.DockPlacementResult.createFrom;
-const $$createType16 = platform$0.DiagnosticExportResult.createFrom;
+const $$createType10 = $models.LauncherAppChoice.createFrom;
+const $$createType11 = $Create.Array($$createType10);
+const $$createType12 = launcher$0.Presentation.createFrom;
+const $$createType13 = $models.LauncherStatus.createFrom;
+const $$createType14 = $Create.Map($Create.Any, $$createType0);
+const $$createType15 = $models.MediaViewState.createFrom;
+const $$createType16 = $Create.Nullable($$createType15);
+const $$createType17 = platform$0.DockPlacementResult.createFrom;
+const $$createType18 = platform$0.DiagnosticExportResult.createFrom;

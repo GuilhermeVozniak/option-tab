@@ -7,6 +7,7 @@ import type {
   DockInputSettings,
   DockLockDisplay,
   DockMonitorLockState,
+  LauncherAppChoice,
   LauncherStatus,
   PointerAction,
 } from "../../lib/types";
@@ -39,7 +40,12 @@ export function DockTab({
     permissions: Record<string, { status: string; reason: string }>;
     onConnect: (provider: "music" | "spotify") => void;
   };
-  launcher?: { status?: LauncherStatus; error?: string; onUseNativeDock: () => void };
+  launcher?: {
+    status?: LauncherStatus;
+    error?: string;
+    appChoices?: LauncherAppChoice[];
+    onUseNativeDock: () => void;
+  };
 }) {
   const { settings, t, patch } = ctx;
   const d = settings.dock;
@@ -75,6 +81,7 @@ export function DockTab({
         status={launcher?.status}
         error={launcher?.error}
         onUseNativeDock={launcher?.onUseNativeDock}
+        appChoices={launcher?.appChoices}
       />
       <Card>
         <CardHeader>

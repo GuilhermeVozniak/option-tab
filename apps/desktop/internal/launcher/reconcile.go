@@ -100,10 +100,11 @@ func (c *Controller) reconcileLocked() {
 			out.Displays = append(out.Displays, ds)
 			continue
 		}
-		profile := profiles[b.ProfileID]
+		profileID := c.profileForBindingLocked(b)
+		profile := profiles[profileID]
 		ds.BindingID = b.ID
-		ds.ProfileID = b.ProfileID
-		p := Presentation{Scope: Scope{Epoch: c.epoch, DisplayUUID: d.UUID}, ProfileID: b.ProfileID, Edge: profile.Edge, Layout: profile.Layout, Appearance: profile.Appearance, IconPx: profile.IconPx, Items: append([]Item{}, c.items...), Widgets: []Widget{}}
+		ds.ProfileID = profileID
+		p := Presentation{Scope: Scope{Epoch: c.epoch, DisplayUUID: d.UUID}, ProfileID: profileID, Edge: profile.Edge, Layout: profile.Layout, Appearance: profile.Appearance, IconPx: profile.IconPx, Items: append([]Item{}, c.items...), Widgets: []Widget{}}
 		prior := previous[d.UUID]
 		p.Session = prior.Session
 		p.Revision = prior.Revision
@@ -136,7 +137,7 @@ func (c *Controller) reconcileLocked() {
 		p.Visible = reason == ""
 		if p.Visible && profile.AutoHide {
 			hold := c.hide[d.UUID]
-			wasVisible := prior.Visible && prior.Epoch == c.epoch && c.spaces[d.UUID] == d.SpaceID
+			wasVisible := prior.Visible && prior.Epoch == c.epoch && prior.ProfileID == p.ProfileID && c.spaces[d.UUID] == d.SpaceID
 			if wasVisible {
 				if contains(p.Bounds, c.env.PointerX, c.env.PointerY) {
 					hold.leave = time.Time{}
@@ -166,7 +167,7 @@ func (c *Controller) reconcileLocked() {
 		}
 		p.Reason = reason
 		p.Widgets = widgets(profile, p.Visible, now)
-		if p.Visible && (!prior.Visible || prior.Epoch != c.epoch || c.spaces[d.UUID] != d.SpaceID) {
+		if p.Visible && (!prior.Visible || prior.Epoch != c.epoch || prior.ProfileID != p.ProfileID || c.spaces[d.UUID] != d.SpaceID) {
 			c.nextSession++
 			p.Session = c.nextSession
 			p.Revision = 1

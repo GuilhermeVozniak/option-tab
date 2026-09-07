@@ -60,6 +60,7 @@ vi.mock("../bindings/option-tab/app.js", () => ({
     clockPackageID: "org.optiontab.clock",
     clockDigest: "digest",
   }),
+  GetLauncherAppChoices: vi.fn().mockResolvedValue([]),
   ActivateLauncherItem: vi.fn().mockResolvedValue(undefined),
   UseNativeDock: vi.fn().mockResolvedValue(undefined),
 }));
@@ -77,6 +78,28 @@ beforeEach(() => {
   window.location.hash = "";
   mocked.GetMediaPermissions.mockClear();
   mocked.ConnectMediaProvider.mockClear();
+  mocked.GetLauncherAppChoices.mockReset();
+  mocked.GetLauncherAppChoices.mockResolvedValue([]);
+});
+
+it("loads exact launcher app choices only for the settings editor", async () => {
+  window.location.hash = "#settings";
+  mocked.GetLauncherAppChoices.mockResolvedValueOnce([
+    { name: "Editor", bundleID: "com.example.editor" },
+    { name: "Editor", bundleID: "org.example.editor" },
+  ]);
+  mocked.GetSettings.mockResolvedValueOnce(
+    JSON.stringify({
+      ...defaultSettings,
+      behavior: { ...defaultSettings.behavior, onboarded: true },
+    }),
+  );
+  render(<App />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add focus rule" }));
+  expect(mocked.GetLauncherAppChoices).toHaveBeenCalledTimes(1);
+  expect(screen.getByLabelText("Running app")).toHaveTextContent("Editor — org.example.editor");
 });
 
 it("shows persistence errors without unmounting preferences", async () => {

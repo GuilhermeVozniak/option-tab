@@ -15,6 +15,7 @@ export {
     DockPointer,
     DockPreviewRegion,
     DockViewState,
+    LauncherAppChoice,
     LauncherStatus,
     MediaArtworkView,
     MediaLyricsView,

@@ -30,6 +30,7 @@ func launcherCStringResult(raw *C.char) []byte {
 
 func nativeLauncherSnapshot() LauncherEnvironment {
 	var raw struct {
+		Focus    json.RawMessage
 		Complete bool
 		Displays []LauncherDisplay
 		Dock     struct {
@@ -45,6 +46,7 @@ func nativeLauncherSnapshot() LauncherEnvironment {
 	}
 	state.Complete = raw.Complete
 	state.Displays = raw.Displays
+	state = mapLauncherFocus(state, raw.Focus)
 	applyLauncherSpaces(state.Displays, launcherCStringResult(C.ot_launcher_spaces()))
 	if raw.Dock.Reason == "" && raw.Dock.PID > 0 && raw.Dock.Container.W > 0 && raw.Dock.Container.H > 0 {
 		identity, err := (&darwinPlatform{}).ProcessIdentity(raw.Dock.PID)

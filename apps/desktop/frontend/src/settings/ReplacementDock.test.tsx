@@ -44,6 +44,7 @@ const value: ReplacementDockSettings = {
     { id: "main", target: "main", displayUUID: "", profileID: "default" },
     { id: "studio", target: "display", displayUUID: "display-studio", profileID: "default" },
   ],
+  rules: [],
 };
 
 describe("ReplacementDock", () => {
@@ -75,7 +76,7 @@ describe("ReplacementDock", () => {
 
   it("edits bounded profile geometry and adds a stable display binding", () => {
     const onChange = vi.fn();
-    render(
+    const { rerender } = render(
       <ReplacementDock
         value={value}
         t={makeT("en")}
@@ -200,5 +201,137 @@ describe("ReplacementDock", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Duplicate profile" }));
     expect(Array.from(onChange.mock.calls[0][0].profiles[1].name)).toHaveLength(80);
+  });
+
+  it("creates an exact app rule from a running-app suggestion and preserves its priority", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <ReplacementDock
+        value={value}
+        t={makeT("en")}
+        onChange={onChange}
+        appChoices={[
+          { name: "Editor", bundleID: "com.example.editor" },
+          { name: "Editor", bundleID: "org.example.editor" },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add focus rule" }));
+    const created = onChange.mock.calls.at(-1)?.[0];
+    expect(created.rules).toEqual([
+      expect.objectContaining({ enabled: true, bundleID: "", profileID: "default" }),
+    ]);
+
+    rerender(
+      <ReplacementDock
+        value={created}
+        t={makeT("en")}
+        onChange={onChange}
+        appChoices={[
+          { name: "Editor", bundleID: "com.example.editor" },
+          { name: "Editor", bundleID: "org.example.editor" },
+        ]}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Running app"), {
+      target: { value: "org.example.editor" },
+    });
+    expect(onChange.mock.calls.at(-1)?.[0].rules[0].bundleID).toBe("org.example.editor");
+  });
+
+  it("edits, scopes, disables, reorders, and removes focus rules", () => {
+    const onChange = vi.fn();
+    const rules = [
+      {
+        id: "rule-a",
+        enabled: true,
+        bundleID: "com.example.a",
+        profileID: "default",
+        bindingID: "",
+      },
+      {
+        id: "rule-b",
+        enabled: true,
+        bundleID: "com.example.b",
+        profileID: "default",
+        bindingID: "studio",
+      },
+    ];
+    render(<ReplacementDock value={{ ...value, rules }} t={makeT("en")} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Enable rule com.example.a" }));
+    expect(onChange.mock.calls.at(-1)?.[0].rules[0].enabled).toBe(false);
+    fireEvent.change(screen.getByLabelText("Display scope com.example.a"), {
+      target: { value: "studio" },
+    });
+    expect(onChange.mock.calls.at(-1)?.[0].rules[0].bindingID).toBe("studio");
+    fireEvent.click(screen.getByRole("button", { name: "Move com.example.b up" }));
+    expect(onChange.mock.calls.at(-1)?.[0].rules.map((rule: { id: string }) => rule.id)).toEqual([
+      "rule-b",
+      "rule-a",
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Remove com.example.a" }));
+    expect(onChange.mock.calls.at(-1)?.[0].rules).toEqual([rules[1]]);
+  });
+
+  it("reassigns deleted profile rules and drops only rules scoped to a removed binding", () => {
+    const second = { ...value.profiles[0], id: "second", name: "Second" };
+    const onChange = vi.fn();
+    const withRules: ReplacementDockSettings = {
+      ...value,
+      profiles: [...value.profiles, second],
+      rules: [
+        {
+          id: "global",
+          enabled: true,
+          bundleID: "com.example.global",
+          profileID: "second",
+          bindingID: "",
+        },
+        {
+          id: "scoped",
+          enabled: true,
+          bundleID: "com.example.scoped",
+          profileID: "default",
+          bindingID: "studio",
+        },
+      ],
+    };
+    const { rerender } = render(
+      <ReplacementDock value={withRules} t={makeT("en")} onChange={onChange} />,
+    );
+    fireEvent.change(screen.getByLabelText("Profile"), { target: { value: "second" } });
+    fireEvent.change(screen.getByLabelText("Reassign deleted profile to"), {
+      target: { value: "default" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Delete profile" }));
+    expect(onChange.mock.calls.at(-1)?.[0].rules[0].profileID).toBe("default");
+
+    rerender(<ReplacementDock value={withRules} t={makeT("en")} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: "Remove assignment studio" }));
+    expect(onChange.mock.calls.at(-1)?.[0].rules).toEqual([withRules.rules?.[0]]);
+    expect(screen.getByText(/removes focus rules scoped only to that display/i)).toBeVisible();
+  });
+
+  it("shows invalid exact bundle identifiers without changing their meaning", () => {
+    render(
+      <ReplacementDock
+        value={{
+          ...value,
+          rules: [
+            {
+              id: "invalid",
+              enabled: true,
+              bundleID: "Editor App",
+              profileID: "default",
+              bindingID: "",
+            },
+          ],
+        }}
+        t={makeT("en")}
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter an exact bundle identifier");
+    expect(screen.getByLabelText("Exact bundle identifier Editor App")).toHaveValue("Editor App");
   });
 });

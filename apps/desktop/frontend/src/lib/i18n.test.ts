@@ -67,6 +67,15 @@ describe("i18n", () => {
       "Save report…",
       "Diagnostics report preview",
       "Report saved",
+      "Focus rules",
+      "Add focus rule",
+      "Running app",
+      "Exact bundle identifier",
+      "Destination profile",
+      "Display scope",
+      "Every assigned display",
+      "Enter an exact bundle identifier using letters, numbers, dots, hyphens, or underscores.",
+      "Removing a display assignment also removes focus rules scoped only to that display.",
     ];
     for (const locale of ["pt-BR", "es"] as const) {
       for (const key of keys) {

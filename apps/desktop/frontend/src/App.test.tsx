@@ -91,6 +91,7 @@ vi.mock("../bindings/option-tab/app.js", () => ({
     clockPackageID: "org.optiontab.clock",
     clockDigest: "digest",
   }),
+  GetLauncherAppChoices: vi.fn().mockResolvedValue([]),
   ActivateLauncherItem: vi.fn().mockResolvedValue(undefined),
   UseNativeDock: vi.fn().mockResolvedValue(undefined),
 }));
