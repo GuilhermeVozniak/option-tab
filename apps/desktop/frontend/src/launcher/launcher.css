@@ -369,3 +369,54 @@
   min-width: 0;
   min-height: calc(var(--ot-launcher-icon) + 2 * var(--ot-mag-primary));
 }
+
+.ot-launcher-item {
+  position: relative;
+}
+.ot-launcher-reorder-handle {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  top: calc(var(--ot-launcher-icon) - 18px);
+  width: 14px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  cursor: grab;
+  touch-action: none;
+}
+.ot-launcher-item[data-reorder-zone="moveBefore"] > .ot-launcher-app {
+  box-shadow: -3px 0 var(--ot-accent, #78a8ff);
+}
+.ot-launcher-item[data-reorder-zone="moveAfter"] > .ot-launcher-app {
+  box-shadow: 3px 0 var(--ot-accent, #78a8ff);
+}
+.ot-launcher-item[data-reorder-zone="addToGroup"] > .ot-launcher-app {
+  outline: 2px solid var(--ot-accent, #78a8ff);
+}
+.ot-launcher-shell.edge-left .ot-launcher-item[data-reorder-zone="moveBefore"] > .ot-launcher-app,
+.ot-launcher-shell.edge-right .ot-launcher-item[data-reorder-zone="moveBefore"] > .ot-launcher-app {
+  box-shadow: 0 -3px var(--ot-accent, #78a8ff);
+}
+.ot-launcher-shell.edge-left .ot-launcher-item[data-reorder-zone="moveAfter"] > .ot-launcher-app,
+.ot-launcher-shell.edge-right .ot-launcher-item[data-reorder-zone="moveAfter"] > .ot-launcher-app {
+  box-shadow: 0 3px var(--ot-accent, #78a8ff);
+}
+
+:is(.ot-launcher-spacer, .ot-launcher-separator)[data-reorder-zone="moveBefore"] {
+  box-shadow: -3px 0 var(--ot-accent, #78a8ff);
+}
+:is(.ot-launcher-spacer, .ot-launcher-separator)[data-reorder-zone="moveAfter"] {
+  box-shadow: 3px 0 var(--ot-accent, #78a8ff);
+}
+.ot-launcher-shell:is(.edge-left, .edge-right)
+  :is(.ot-launcher-spacer, .ot-launcher-separator)[data-reorder-zone="moveBefore"] {
+  box-shadow: 0 -3px var(--ot-accent, #78a8ff);
+}
+.ot-launcher-shell:is(.edge-left, .edge-right)
+  :is(.ot-launcher-spacer, .ot-launcher-separator)[data-reorder-zone="moveAfter"] {
+  box-shadow: 0 3px var(--ot-accent, #78a8ff);
+}

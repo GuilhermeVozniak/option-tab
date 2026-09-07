@@ -402,6 +402,51 @@ export class LauncherItem {
 }
 
 /**
+ * LauncherItemMutation names existing profile records, never replacement metadata.
+ */
+export class LauncherItemMutation {
+    /**
+     * Creates a new LauncherItemMutation instance.
+     * @param {Partial<LauncherItemMutation>} [$$source = {}] - The source object to create the LauncherItemMutation.
+     */
+    constructor($$source = {}) {
+        if (!("kind" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["kind"] = "";
+        }
+        if (!("itemID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["itemID"] = "";
+        }
+        if (!("targetID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["targetID"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherItemMutation instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherItemMutation}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LauncherItemMutation(/** @type {Partial<LauncherItemMutation>} */($$parsedSource));
+    }
+}
+
+/**
  * @readonly
  * @enum {string}
  */

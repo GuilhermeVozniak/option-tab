@@ -425,3 +425,13 @@ describe("ReplacementDock", () => {
     expect(screen.getByLabelText("Exact bundle identifier Editor App")).toHaveValue("Editor App");
   });
 });
+
+it("runtime reordering is opt-in and updates only the selected profile", () => {
+  const onChange = vi.fn();
+  render(<ReplacementDock value={value} onChange={onChange} t={(s) => s} />);
+  const control = screen.getByLabelText("Enable runtime launcher reordering");
+  expect(control).not.toBeChecked();
+  fireEvent.click(control);
+  expect(onChange.mock.calls.at(-1)?.[0].profiles[0].runtimeReorder).toBe(true);
+  expect(onChange.mock.calls.at(-1)?.[0].enabled).toBe(false);
+});

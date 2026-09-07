@@ -142,7 +142,9 @@ H09 folder list/grid fan-out and H11 show-all window children are now implemente
 
 H17 profile transfer now exports structural layout/items/widget settings and imports a reviewed document as a new unassigned profile. Private selections and widget access must be restored locally. The full Go, unit, browser and build gates pass; native WebKit file selection/download acceptance remains open. See the [profile transfer checkpoint](superpowers/reports/2026-09-07-launcher-profile-transfer.md).
 
-H06 spring magnification is implemented with per-profile scale/reach, resolved native bounds, stable hitboxes, reduced-motion handling and conservative scroll-edge behavior. Automated Go, unit, browser and build gates pass; physical smoothness and native pointer/display acceptance remain open. See the [magnification checkpoint](superpowers/reports/2026-09-07-launcher-magnification.md). Runtime Dock dragging, gestures/navigation and supported badges remain retained follow-ups.
+H06 spring magnification is implemented with per-profile scale/reach, resolved native bounds, stable hitboxes, reduced-motion handling and conservative scroll-edge behavior. Automated Go, unit, browser and build gates pass; physical smoothness and native pointer/display acceptance remain open. See the [magnification checkpoint](superpowers/reports/2026-09-07-launcher-magnification.md).
+
+H05 runtime dragging and keyboard grouping are implemented with exact presentation/native admission and revision-aware Settings saves. Reopening Preferences refreshes the canonical model before edits resume; stale full-settings saves cannot overwrite runtime pin changes. See the [runtime reordering checkpoint](superpowers/reports/2026-09-07-launcher-runtime-reorder.md) for verification and native acceptance limits. Gestures/navigation and supported badges remain retained follow-ups.
 
 ## Current input checkpoint
 

@@ -51,6 +51,8 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   HideSelectedApp: vi.fn().mockResolvedValue(undefined),
   SaveSettings: vi.fn().mockResolvedValue(undefined),
   GetSettings: vi.fn().mockResolvedValue("{}"),
+  GetSettingsState: vi.fn().mockResolvedValue({ revision: 0, json: "{}" }),
+  SaveSettingsAtRevision: vi.fn().mockResolvedValue({ revision: 0, json: "{}" }),
   GetPermissions: vi.fn().mockResolvedValue("{}"),
   GetVersion: vi.fn().mockResolvedValue("1.2.3"),
   InstallUpdate: vi.fn().mockResolvedValue(undefined),
@@ -135,6 +137,16 @@ beforeEach(() => {
     references: [],
     iconIDs: [],
   });
+  mocked.GetSettingsState.mockResolvedValue({
+    revision: 1,
+    json: JSON.stringify({
+      ...defaultSettings,
+      behavior: { ...defaultSettings.behavior, onboarded: true },
+    }),
+  } as never);
+  mocked.SaveSettingsAtRevision.mockImplementation(
+    (json: string, revision: number) => Promise.resolve({ revision: revision + 1, json }) as never,
+  );
 });
 
 it("loads exact launcher app choices only for the settings editor", async () => {
@@ -143,12 +155,13 @@ it("loads exact launcher app choices only for the settings editor", async () => 
     { name: "Editor", bundleID: "com.example.editor" },
     { name: "Editor", bundleID: "org.example.editor" },
   ]);
-  mocked.GetSettings.mockResolvedValueOnce(
-    JSON.stringify({
+  mocked.GetSettingsState.mockResolvedValueOnce({
+    revision: 1,
+    json: JSON.stringify({
       ...defaultSettings,
       behavior: { ...defaultSettings.behavior, onboarded: true },
     }),
-  );
+  } as never);
   render(<App />);
   await act(async () => {});
   fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
@@ -161,13 +174,14 @@ it("loads exact launcher app choices only for the settings editor", async () => 
 
 it("shows persistence errors without unmounting preferences", async () => {
   window.location.hash = "#settings";
-  mocked.GetSettings.mockResolvedValueOnce(
-    JSON.stringify({
+  mocked.GetSettingsState.mockResolvedValueOnce({
+    revision: 1,
+    json: JSON.stringify({
       ...defaultSettings,
       behavior: { ...defaultSettings.behavior, onboarded: true },
     }),
-  );
-  mocked.SaveSettings.mockRejectedValueOnce(new Error("disk full"));
+  } as never);
+  mocked.SaveSettingsAtRevision.mockRejectedValueOnce(new Error("disk full"));
   render(<App />);
   await act(async () => {});
   expect(mocked.GetMediaPermissions).toHaveBeenCalledTimes(1);
@@ -183,7 +197,10 @@ it("keeps preferences usable after an invalid import and loads canonical partial
     ...defaultSettings,
     behavior: { ...defaultSettings.behavior, onboarded: true },
   };
-  mocked.GetSettings.mockResolvedValueOnce(JSON.stringify(initial));
+  mocked.GetSettingsState.mockResolvedValueOnce({
+    revision: 1,
+    json: JSON.stringify(initial),
+  } as never);
   const { container } = render(<App />);
   await act(async () => {});
   const input = container.querySelector('input[type="file"]') as HTMLInputElement;
@@ -196,56 +213,84 @@ it("keeps preferences usable after an invalid import and loads canonical partial
   await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("JSON object"));
   expect(screen.getByLabelText("Start at login")).toBeInTheDocument();
   const canonical = { ...initial, behavior: { ...initial.behavior, startAtLogin: true } };
-  mocked.GetSettings.mockResolvedValueOnce(JSON.stringify(canonical));
-  upload('{"version":1,"behavior":{"startAtLogin":true}}');
+  mocked.SaveSettingsAtRevision.mockResolvedValueOnce({
+    revision: 2,
+    json: JSON.stringify(canonical),
+  } as never);
+  const importedDocument = '{\n  "version": 1,\n  "behavior": {"startAtLogin": true}\n}';
+  upload(importedDocument);
   await waitFor(() => expect(screen.getByLabelText("Start at login")).toBeChecked());
+  expect(mocked.SaveSettingsAtRevision).toHaveBeenLastCalledWith(importedDocument, 1);
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
 
-it("serializes rapid preference saves", async () => {
+it("serializes saves without letting older completions reset newer optimistic edits", async () => {
   window.location.hash = "#settings";
-  mocked.GetSettings.mockResolvedValueOnce(
-    JSON.stringify({
+  mocked.GetSettingsState.mockResolvedValueOnce({
+    revision: 1,
+    json: JSON.stringify({
       ...defaultSettings,
       behavior: { ...defaultSettings.behavior, onboarded: true },
     }),
-  );
-  let finish: () => void = () => {};
-  const first = new Promise<void>((resolve) => {
+  } as never);
+  let finish: (value: { revision: number; json: string }) => void = () => {};
+  let finishSecond: (value: { revision: number; json: string }) => void = () => {};
+  const first = new Promise<{ revision: number; json: string }>((resolve) => {
     finish = resolve;
   });
-  mocked.SaveSettings.mockClear();
-  mocked.SaveSettings.mockImplementationOnce(
-    () => first as ReturnType<typeof AppService.SaveSettings>,
+  mocked.SaveSettingsAtRevision.mockClear();
+  mocked.SaveSettingsAtRevision.mockImplementationOnce(
+    () => first as ReturnType<typeof AppService.SaveSettingsAtRevision>,
+  ).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => (finishSecond = resolve)) as ReturnType<
+        typeof AppService.SaveSettingsAtRevision
+      >,
   );
   render(<App />);
   await act(async () => {});
   fireEvent.click(screen.getByLabelText("Start at login"));
   fireEvent.click(screen.getByLabelText("Start at login"));
-  await waitFor(() => expect(mocked.SaveSettings).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(1));
   await act(async () => {
-    finish();
+    finish({ revision: 2, json: mocked.SaveSettingsAtRevision.mock.calls[0][0] });
   });
-  await waitFor(() => expect(mocked.SaveSettings).toHaveBeenCalledTimes(2));
-  expect(JSON.parse(mocked.SaveSettings.mock.calls[1][0]).behavior.startAtLogin).toBe(false);
+  await waitFor(() => expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(2));
+  expect(screen.getByLabelText("Start at login")).not.toBeChecked();
+  fireEvent.click(screen.getByLabelText("Start at login"));
+  expect(screen.getByLabelText("Start at login")).toBeChecked();
+  await act(async () => {
+    finishSecond({ revision: 3, json: mocked.SaveSettingsAtRevision.mock.calls[1][0] });
+  });
+  await waitFor(() => expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(3));
+  expect(JSON.parse(mocked.SaveSettingsAtRevision.mock.calls[1][0]).behavior.startAtLogin).toBe(
+    false,
+  );
+  expect(mocked.SaveSettingsAtRevision.mock.calls[1][1]).toBe(2);
+  expect(JSON.parse(mocked.SaveSettingsAtRevision.mock.calls[2][0]).behavior.startAtLogin).toBe(
+    true,
+  );
+  expect(mocked.SaveSettingsAtRevision.mock.calls[2][1]).toBe(3);
 });
 
-it("queues launcher item CAS saves behind settings writes and reloads the canonical settings", async () => {
-  mocked.SaveSettings.mockReset();
-  mocked.SaveSettings.mockResolvedValue(undefined);
+it("queues launcher item CAS saves behind settings writes and blocks stale fallback writes", async () => {
+  mocked.SaveSettingsAtRevision.mockReset();
   mocked.SetLauncherItems.mockClear();
   window.location.hash = "#settings";
   const initial = {
     ...defaultSettings,
     behavior: { ...defaultSettings.behavior, onboarded: true },
   };
-  mocked.GetSettings.mockResolvedValueOnce(JSON.stringify(initial));
+  mocked.GetSettingsState.mockResolvedValueOnce({
+    revision: 1,
+    json: JSON.stringify(initial),
+  } as never);
   mocked.GetLauncherItemStatus.mockResolvedValue({ available: true, busy: false, reason: "" });
-  let finishSave: () => void = () => {};
-  mocked.SaveSettings.mockImplementationOnce(
+  let finishSave: (value: { revision: number; json: string }) => void = () => {};
+  mocked.SaveSettingsAtRevision.mockImplementationOnce(
     () =>
-      new Promise<void>((resolve) => (finishSave = resolve)) as ReturnType<
-        typeof AppService.SaveSettings
+      new Promise((resolve) => (finishSave = resolve)) as ReturnType<
+        typeof AppService.SaveSettingsAtRevision
       >,
   );
   mocked.SetLauncherItems.mockResolvedValueOnce({
@@ -273,17 +318,41 @@ it("queues launcher item CAS saves behind settings writes and reloads the canoni
   fireEvent.click(await screen.findByRole("button", { name: "Add spacer" }));
   fireEvent.click(screen.getByRole("button", { name: "Save launcher items" }));
   expect(mocked.SetLauncherItems).not.toHaveBeenCalled();
-  mocked.GetSettings.mockRejectedValueOnce(new Error("reload failed"));
-  await act(async () => finishSave());
+  mocked.GetSettingsState.mockRejectedValueOnce(new Error("reload failed"));
+  await act(async () =>
+    finishSave({ revision: 2, json: mocked.SaveSettingsAtRevision.mock.calls[0][0] }),
+  );
   await waitFor(() => expect(mocked.SetLauncherItems).toHaveBeenCalledTimes(1));
-  await waitFor(() => expect(mocked.GetSettings.mock.calls.length).toBeGreaterThanOrEqual(2));
-  expect(mocked.SaveSettings).toHaveBeenCalledTimes(1);
-  fireEvent.click(screen.getByRole("tab", { name: "General" }));
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Reload settings" })).toBeVisible(),
+  );
+  expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(1);
+});
+
+it("retires a queued native settings mutation when preferences unmount", async () => {
+  window.location.hash = "#settings";
+  mocked.GetLauncherItemStatus.mockResolvedValue({ available: true, busy: false, reason: "" });
+  let finishSave!: (value: { revision: number; json: string }) => void;
+  mocked.SaveSettingsAtRevision.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => (finishSave = resolve)) as ReturnType<
+        typeof AppService.SaveSettingsAtRevision
+      >,
+  );
+  const view = render(<App />);
+  await act(async () => {});
+  const savesBefore = mocked.SaveSettingsAtRevision.mock.calls.length;
+  const mutationsBefore = mocked.SetLauncherItems.mock.calls.length;
   fireEvent.click(screen.getByLabelText("Start at login"));
-  await waitFor(() => expect(mocked.SaveSettings).toHaveBeenCalledTimes(2));
-  expect(
-    JSON.parse(mocked.SaveSettings.mock.calls[1][0]).replacementDock.profiles[0].items,
-  ).toEqual([expect.objectContaining({ id: "spacer-1" })]);
+  fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add spacer" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save launcher items" }));
+  await waitFor(() => expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(savesBefore + 1));
+  view.unmount();
+  await act(async () => {
+    finishSave({ revision: 2, json: mocked.SaveSettingsAtRevision.mock.calls[savesBefore][0] });
+  });
+  expect(mocked.SetLauncherItems).toHaveBeenCalledTimes(mutationsBefore);
 });
 
 it("publishes a successful import even if the next queued import fails", async () => {
@@ -292,13 +361,16 @@ it("publishes a successful import even if the next queued import fails", async (
     ...defaultSettings,
     behavior: { ...defaultSettings.behavior, onboarded: true },
   };
-  mocked.GetSettings.mockResolvedValueOnce(JSON.stringify(initial));
-  let finish: () => void = () => {};
-  const first = new Promise<void>((resolve) => {
+  mocked.GetSettingsState.mockResolvedValueOnce({
+    revision: 1,
+    json: JSON.stringify(initial),
+  } as never);
+  let finish: (value: { revision: number; json: string }) => void = () => {};
+  const first = new Promise<{ revision: number; json: string }>((resolve) => {
     finish = resolve;
   });
-  mocked.SaveSettings.mockImplementationOnce(
-    () => first as ReturnType<typeof AppService.SaveSettings>,
+  mocked.SaveSettingsAtRevision.mockImplementationOnce(
+    () => first as ReturnType<typeof AppService.SaveSettingsAtRevision>,
   );
   const { container } = render(<App />);
   await act(async () => {});
@@ -309,7 +381,6 @@ it("publishes a successful import even if the next queued import fails", async (
     fireEvent.change(input, { target: { files: [file] } });
   };
   const canonical = { ...initial, behavior: { ...initial.behavior, startAtLogin: true } };
-  mocked.GetSettings.mockResolvedValueOnce(JSON.stringify(canonical));
   await act(async () => {
     upload('{"behavior":{"startAtLogin":true}}');
   });
@@ -317,7 +388,7 @@ it("publishes a successful import even if the next queued import fails", async (
     upload("null");
   });
   await act(async () => {
-    finish();
+    finish({ revision: 2, json: JSON.stringify(canonical) });
   });
   await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("JSON object"));
   expect(screen.getByLabelText("Start at login")).toBeChecked();

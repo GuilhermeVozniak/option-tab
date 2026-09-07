@@ -491,6 +491,15 @@ export function GetSettings() {
 }
 
 /**
+ * @returns {$CancellablePromise<$models.SettingsState>}
+ */
+export function GetSettingsState() {
+    return $Call.ByID(620781575).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType25($result);
+    }));
+}
+
+/**
  * @param {number} session
  * @returns {$CancellablePromise<platform$0.MaterialStatus>}
  */
@@ -515,7 +524,7 @@ export function GetVersion() {
  */
 export function GetWidgetActionOptions(lease, actionToken) {
     return $Call.ByID(1913639053, lease, actionToken).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType25($result);
+        return $$createType26($result);
     }));
 }
 
@@ -533,7 +542,7 @@ export function GetWidgetAsset(lease, assetToken) {
  */
 export function GetWidgetCatalog() {
     return $Call.ByID(1508342138).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType27($result);
+        return $$createType28($result);
     }));
 }
 
@@ -542,7 +551,7 @@ export function GetWidgetCatalog() {
  */
 export function GetWidgetPackageStatus() {
     return $Call.ByID(2166434855).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType28($result);
+        return $$createType29($result);
     }));
 }
 
@@ -579,7 +588,7 @@ export function HideSession(session) {
  */
 export function ImportLauncherProfile(document, digest, expectedRevision) {
     return $Call.ByID(216581033, document, digest, expectedRevision).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType29($result);
+        return $$createType30($result);
     }));
 }
 
@@ -598,7 +607,7 @@ export function ImportMediaLyrics(session, revision) {
  */
 export function InstallReviewedWidget(token) {
     return $Call.ByID(4223715965, token).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType26($result);
+        return $$createType27($result);
     }));
 }
 
@@ -624,6 +633,21 @@ export function IsPaused() {
  */
 export function MinimizeSelected() {
     return $Call.ByID(1240045732);
+}
+
+/**
+ * MutateLauncherItems changes only existing profile structure after exact native
+ * presentation admission. Once the final admitted save starts, disk owns completion.
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} expectedItemsRevision
+ * @param {config$0.LauncherItemMutation} mutation
+ * @returns {$CancellablePromise<void>}
+ */
+export function MutateLauncherItems(epoch, displayUUID, session, revision, expectedItemsRevision, mutation) {
+    return $Call.ByID(3805544533, epoch, displayUUID, session, revision, expectedItemsRevision, mutation);
 }
 
 /**
@@ -771,7 +795,7 @@ export function PinMediaPanel(session, revision) {
  */
 export function PlaceDockOnSelectedMonitor(session, revision, generation) {
     return $Call.ByID(1589667255, session, revision, generation).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType30($result);
+        return $$createType31($result);
     }));
 }
 
@@ -781,7 +805,7 @@ export function PlaceDockOnSelectedMonitor(session, revision, generation) {
  */
 export function PreviewLauncherProfileImport(document) {
     return $Call.ByID(3977947893, document).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType31($result);
+        return $$createType32($result);
     }));
 }
 
@@ -904,7 +928,7 @@ export function Reverse() {
  */
 export function ReviewLocalWidgetPackage() {
     return $Call.ByID(460648480).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType32($result);
+        return $$createType33($result);
     }));
 }
 
@@ -914,7 +938,7 @@ export function ReviewLocalWidgetPackage() {
  */
 export function SaveDiagnosticsReport(token) {
     return $Call.ByID(1276106854, token).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType33($result);
+        return $$createType34($result);
     }));
 }
 
@@ -925,6 +949,17 @@ export function SaveDiagnosticsReport(token) {
  */
 export function SaveSettings(jsonStr) {
     return $Call.ByID(1949631069, jsonStr);
+}
+
+/**
+ * @param {string} document
+ * @param {number} expectedRevision
+ * @returns {$CancellablePromise<$models.SettingsState>}
+ */
+export function SaveSettingsAtRevision(document, expectedRevision) {
+    return $Call.ByID(1896415605, document, expectedRevision).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType25($result);
+    }));
 }
 
 /**
@@ -1239,12 +1274,13 @@ const $$createType21 = $models.LauncherWidgetState.createFrom;
 const $$createType22 = $Create.Map($Create.Any, $$createType2);
 const $$createType23 = $models.MediaViewState.createFrom;
 const $$createType24 = $Create.Nullable($$createType23);
-const $$createType25 = widgets$0.ActionOptions.createFrom;
-const $$createType26 = $models.WidgetCatalogItem.createFrom;
-const $$createType27 = $Create.Array($$createType26);
-const $$createType28 = $models.WidgetPackageStatus.createFrom;
-const $$createType29 = $models.LauncherProfileImportResult.createFrom;
-const $$createType30 = platform$0.DockPlacementResult.createFrom;
-const $$createType31 = $models.LauncherProfileImportReview.createFrom;
-const $$createType32 = $models.WidgetPackageReview.createFrom;
-const $$createType33 = platform$0.DiagnosticExportResult.createFrom;
+const $$createType25 = $models.SettingsState.createFrom;
+const $$createType26 = widgets$0.ActionOptions.createFrom;
+const $$createType27 = $models.WidgetCatalogItem.createFrom;
+const $$createType28 = $Create.Array($$createType27);
+const $$createType29 = $models.WidgetPackageStatus.createFrom;
+const $$createType30 = $models.LauncherProfileImportResult.createFrom;
+const $$createType31 = platform$0.DockPlacementResult.createFrom;
+const $$createType32 = $models.LauncherProfileImportReview.createFrom;
+const $$createType33 = $models.WidgetPackageReview.createFrom;
+const $$createType34 = platform$0.DiagnosticExportResult.createFrom;

@@ -494,6 +494,7 @@ export interface LauncherItemStatus {
 }
 
 export interface LauncherProfile {
+  runtimeReorder?: boolean;
   id: string;
   name: string;
   edge: "bottom" | "left" | "right" | "top";
@@ -573,6 +574,8 @@ export interface LauncherMagnification {
   crossInset: number;
 }
 export interface LauncherPresentation {
+  runtimeReorder?: boolean;
+  itemsRevision?: string;
   magnification?: LauncherMagnification;
   epoch: number;
   displayUUID: string;

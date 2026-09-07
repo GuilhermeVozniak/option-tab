@@ -207,6 +207,26 @@ export function onPrefsTab(cb: (tab: string) => void): () => void {
   return Events.On("prefs:tab", (ev) => cb(ev.data as string));
 }
 
+export interface SettingsState {
+  generation?: number;
+  revision: number;
+  json: string;
+}
+
+export function onPrefsSettings(
+  loading: (value: { generation?: number }) => void,
+  state: (value: SettingsState) => void,
+): () => void {
+  const offLoading = Events.On("prefs:settings-loading", (event) =>
+    loading((event.data ?? {}) as { generation?: number }),
+  );
+  const offState = Events.On("prefs:settings", (event) => state(event.data as SettingsState));
+  return () => {
+    offLoading();
+    offState();
+  };
+}
+
 // UpdateInfo describes a newer release found by the background checker.
 export interface UpdateInfo {
   version: string;
@@ -297,6 +317,57 @@ export async function loadSettings(): Promise<Settings | null> {
   } catch {
     return null;
   }
+}
+
+function decodeSettings(json: string): Settings | null {
+  try {
+    const settings = JSON.parse(json) as Settings;
+    if (!settings?.behavior) return null;
+    if (settings.filters) settings.filters.appBlacklist = settings.filters.appBlacklist ?? [];
+    return settings;
+  } catch {
+    return null;
+  }
+}
+
+export async function loadSettingsState(): Promise<{
+  revision: number;
+  settings: Settings;
+} | null> {
+  try {
+    const value = await AppService.GetSettingsState();
+    const settings = decodeSettings(value.json);
+    return settings && Number.isSafeInteger(value.revision) && value.revision > 0
+      ? { revision: value.revision, settings }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveSettingsAtRevision(
+  settings: Settings,
+  expectedRevision: number,
+): Promise<{ revision: number; settings: Settings }> {
+  return saveSettingsDocumentAtRevision(JSON.stringify(settings), expectedRevision);
+}
+
+// Preserve imported source bytes through the revisioned RPC so Go's strict
+// decoder can still reject duplicate and unknown keys before it persists them.
+export async function saveSettingsDocumentAtRevision(
+  document: string,
+  expectedRevision: number,
+): Promise<{ revision: number; settings: Settings }> {
+  if (!(await hasBackend())) {
+    const settings = decodeSettings(document);
+    if (!settings) throw new Error("Settings must be a valid JSON object.");
+    return { revision: expectedRevision, settings };
+  }
+  const value = await AppService.SaveSettingsAtRevision(document, expectedRevision);
+  const canonical = decodeSettings(value.json);
+  if (!canonical || !Number.isSafeInteger(value.revision) || value.revision <= expectedRevision)
+    throw new Error("Settings save returned an invalid revision.");
+  return { revision: value.revision, settings: canonical };
 }
 
 // saveSettings persists settings through Go; a no-op when unavailable.

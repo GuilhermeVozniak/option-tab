@@ -18,7 +18,7 @@ test("builds an ordered exact-app focus rule from the settings inventory", async
   await expect
     .poll(async () => {
       const calls = await getCallRecords(page);
-      const saves = calls.filter(([name]) => name === "SaveSettings");
+      const saves = calls.filter(([name]) => name === "SaveSettingsAtRevision");
       const raw = saves.at(-1)?.[1];
       if (typeof raw !== "string") return "";
       return JSON.parse(raw).replacementDock.rules[0].bundleID;

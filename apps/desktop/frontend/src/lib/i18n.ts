@@ -33,6 +33,19 @@ export function makeT(lang: Lang): Translate {
 }
 
 const PT: Record<string, string> = {
+  Reorder: "Reordenar",
+  "Reorder item": "Reordenar item",
+  "Move earlier": "Mover antes",
+  "Move later": "Mover depois",
+  "Add to group": "Adicionar ao grupo",
+  "Group with": "Agrupar com",
+  "Remove from group": "Remover do grupo",
+  "The launcher changed. Try again.": "O Dock mudou. Tente novamente.",
+  "The item could not be rearranged.": "Não foi possível reorganizar o item.",
+  "Reorder items on the Dock": "Reordenar itens no Dock",
+  "Use item handles to rearrange pins or create application groups.":
+    "Use as alças dos itens para reordenar fixados ou criar grupos de aplicativos.",
+
   "Profile transfer": "Transferência de perfil",
   "Export profile": "Exportar perfil",
   "Exporting…": "Exportando…",
@@ -594,6 +607,19 @@ const PT: Record<string, string> = {
 };
 
 const ES: Record<string, string> = {
+  Reorder: "Reordenar",
+  "Reorder item": "Reordenar elemento",
+  "Move earlier": "Mover antes",
+  "Move later": "Mover después",
+  "Add to group": "Añadir al grupo",
+  "Group with": "Agrupar con",
+  "Remove from group": "Quitar del grupo",
+  "The launcher changed. Try again.": "El Dock cambió. Inténtalo de nuevo.",
+  "The item could not be rearranged.": "No se pudo reorganizar el elemento.",
+  "Reorder items on the Dock": "Reordenar elementos en el Dock",
+  "Use item handles to rearrange pins or create application groups.":
+    "Usa los controles de los elementos para reordenar los fijados o crear grupos de aplicaciones.",
+
   "Profile transfer": "Transferencia de perfil",
   "Export profile": "Exportar perfil",
   "Exporting…": "Exportando…",

@@ -64,7 +64,7 @@ test("monitor lock preserves explicit main UUID and scopes placement to admitted
     .poll(async () =>
       (await getCallRecords(page)).some(
         ([name, json]) =>
-          name === "SaveSettings" &&
+          name === "SaveSettingsAtRevision" &&
           String(json).includes('"displayUUID":"11111111-1111-1111-1111-111111111111"'),
       ),
     )

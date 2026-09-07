@@ -7,6 +7,7 @@ export {
     Appearance,
     LauncherAppearance,
     LauncherItem,
+    LauncherItemMutation,
     LayoutDirection,
     Placement,
     PointerAction,

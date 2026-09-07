@@ -186,3 +186,38 @@ it("keeps a hidden session retired when a parent replaces the transport object",
   await act(async () => rerender(<LauncherRoute session={8} transport={replacement.api} />));
   expect(screen.queryByRole("button", { name: "Obsolete" })).toBeNull();
 });
+
+it("routes exact runtime mutation and shows only current friendly refusals", async () => {
+  const initial = {
+    ...state(8, 2),
+    runtimeReorder: true,
+    itemsRevision: "hash",
+    items: [
+      { id: "pin:a", name: "A", icon: "", kind: "app" },
+      { id: "pin:b", name: "B", icon: "", kind: "app" },
+    ],
+  };
+  const t = transport(initial);
+  let reject!: (e: Error) => void;
+  t.api.mutate = vi.fn(
+    () =>
+      new Promise<void>((_resolve, fail) => {
+        reject = fail;
+      }),
+  );
+  render(<LauncherRoute session={8} transport={t.api} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Reorder A" }));
+  fireEvent.click(screen.getByRole("button", { name: "Move later" }));
+  expect(t.api.mutate).toHaveBeenCalledWith(5, "display-a", 8, 2, "hash", {
+    kind: "moveAfter",
+    itemID: "pin:a",
+    targetID: "pin:b",
+  });
+  await act(async () => reject(new Error("stale revision")));
+  expect(await screen.findByRole("alert")).toHaveTextContent("The launcher changed. Try again.");
+  fireEvent.click(screen.getByRole("button", { name: "Reorder A" }));
+  fireEvent.click(screen.getByRole("button", { name: "Move later" }));
+  t.update({ ...initial, revision: 3 });
+  await act(async () => reject(new Error("late refusal")));
+  expect(screen.queryByRole("alert")).toBeNull();
+});

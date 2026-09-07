@@ -48,10 +48,12 @@ type Widget struct {
 	Root      WidgetNode `json:"root"`
 }
 type Presentation struct {
-	Magnification ResolvedMagnification     `json:"magnification"`
-	Edge          string                    `json:"edge"`
-	Layout        string                    `json:"layout"`
-	Appearance    config.LauncherAppearance `json:"appearance"`
+	RuntimeReorder bool                      `json:"runtimeReorder"`
+	ItemsRevision  string                    `json:"itemsRevision"`
+	Magnification  ResolvedMagnification     `json:"magnification"`
+	Edge           string                    `json:"edge"`
+	Layout         string                    `json:"layout"`
+	Appearance     config.LauncherAppearance `json:"appearance"`
 	Scope
 	Visible   bool          `json:"visible"`
 	Reason    string        `json:"reason"`

@@ -31,6 +31,7 @@ export {
     MediaArtworkView,
     MediaLyricsView,
     MediaViewState,
+    SettingsState,
     WidgetCatalogItem,
     WidgetPackageReview,
     WidgetPackageStatus

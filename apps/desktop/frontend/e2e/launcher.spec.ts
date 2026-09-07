@@ -294,7 +294,7 @@ test("settings keeps launcher opt-in separate and offers native Dock recovery", 
     .poll(async () =>
       (await getCallRecords(page)).some(
         (call) =>
-          call[0] === "SaveSettings" &&
+          call[0] === "SaveSettingsAtRevision" &&
           String(call[1]).includes('"grants":["clock.read"]') &&
           String(call[1]).includes(
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

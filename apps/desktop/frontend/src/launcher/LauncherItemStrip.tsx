@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import type { LauncherMutateCommand } from "../lib/launcher-item-runtime-bridge";
 import type { LauncherPresentation, LauncherPresentationItem } from "../lib/types";
+import { type LauncherItemMutation, reorderable, reorderChoices } from "./reorder";
+import { useLauncherReorder } from "./useLauncherReorder";
 
 import { useMagnification } from "./useMagnification";
 
@@ -16,12 +19,14 @@ export function LauncherItemStrip({
   onActivate,
   onRelaunch,
   onShowPanel,
+  onMutate,
   t,
 }: {
   presentation: LauncherPresentation;
   onActivate: LauncherItemCommand;
   onRelaunch?: LauncherItemCommand;
   onShowPanel?: LauncherItemCommand;
+  onMutate?: LauncherMutateCommand;
   t: (text: string) => string;
 }) {
   const [group, setGroup] = useState("");
@@ -45,6 +50,29 @@ export function LauncherItemStrip({
     owner: `${presentation.epoch}:${presentation.displayUUID}:${presentation.session}:${presentation.profileID}`,
     itemsKey: `${itemsKey}:${group}`,
   });
+  const [reorderMenu, setReorderMenu] = useState("");
+  const reorderOwner = `${presentation.epoch}:${presentation.displayUUID}:${presentation.session}:${presentation.profileID}:${presentation.revision}:${presentation.itemsRevision}`;
+  const reorderEnabled =
+    !!presentation.runtimeReorder && !!presentation.itemsRevision && !!onMutate;
+  useEffect(() => setReorderMenu(""), [reorderOwner, reorderEnabled]);
+  const performMutation = (mutation: LauncherItemMutation) => {
+    setReorderMenu("");
+    onMutate?.(
+      presentation.epoch,
+      presentation.displayUUID,
+      presentation.session,
+      presentation.revision,
+      presentation.itemsRevision!,
+      mutation,
+    );
+  };
+  const reorder = useLauncherReorder(strip, {
+    enabled: reorderEnabled,
+    owner: reorderOwner,
+    items: presentation.items,
+    vertical: presentation.edge === "left" || presentation.edge === "right",
+    perform: performMutation,
+  });
   const currentItems = admittedItems === itemsKey;
   const invoke = (command: LauncherItemCommand, id: string) => {
     setContextItem("");
@@ -59,7 +87,15 @@ export function LauncherItemStrip({
   const renderItem = (item: LauncherPresentationItem, member = false) => {
     const kind = item.kind || "app";
     if (kind === "spacer" || kind === "separator") {
-      return <li key={item.id} className={`ot-launcher-${kind}`} aria-hidden="true" />;
+      return (
+        <li
+          key={item.id}
+          data-reorder-target={item.id}
+          data-reorder-zone={reorder.target?.targetID === item.id ? reorder.target.kind : undefined}
+          className={`ot-launcher-${kind}`}
+          aria-hidden="true"
+        />
+      );
     }
     const isGroup = kind === "group" && !member;
     const ready = !item.status || item.status === "ready";
@@ -73,11 +109,16 @@ export function LauncherItemStrip({
     const canShowPanel = !!onShowPanel && (kind === "folder" || (kind === "app" && !!item.running));
     const showContext = currentItems && contextItem === item.id && (canRelaunch || canShowPanel);
     return (
-      <li className={`ot-launcher-item kind-${kind}`} key={item.id}>
+      <li
+        className={`ot-launcher-item kind-${kind}`}
+        key={item.id}
+        data-reorder-zone={reorder.target?.targetID === item.id ? reorder.target.kind : undefined}
+      >
         <button
           type="button"
           aria-label={item.name}
           className="ot-launcher-app"
+          data-reorder-target={item.id}
           disabled={!ready && !isGroup}
           aria-description={status}
           title={`${item.name} · ${status}`}
@@ -140,6 +181,46 @@ export function LauncherItemStrip({
             ) : null}
           </span>
         </button>
+        {reorderEnabled && reorderable(item) ? (
+          <>
+            <button
+              type="button"
+              className="ot-launcher-reorder-handle"
+              aria-label={`${t("Reorder")} ${item.name}`}
+              onPointerDown={(event) => reorder.start(event, item.id)}
+              onClick={() => setReorderMenu(reorderMenu === item.id ? "" : item.id)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setReorderMenu(item.id);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setReorderMenu("");
+              }}
+            >
+              ⋮
+            </button>
+            {reorderMenu === item.id ? (
+              <div
+                className="ot-launcher-item-actions ot-launcher-reorder-menu"
+                aria-label={t("Reorder item")}
+              >
+                {reorderChoices(presentation.items, item.id).map((choice) => (
+                  <button
+                    type="button"
+                    key={`${choice.mutation.kind}:${choice.mutation.targetID}`}
+                    onClick={() => performMutation(choice.mutation)}
+                  >
+                    {t(choice.label)}
+                    {choice.targetName ? ` ${choice.targetName}` : ""}
+                  </button>
+                ))}
+                <button type="button" onClick={() => setReorderMenu("")}>
+                  {t("Cancel")}
+                </button>
+              </div>
+            ) : null}
+          </>
+        ) : null}
         {showContext ? (
           <div
             className="ot-launcher-item-actions"
@@ -180,6 +261,9 @@ export function LauncherItemStrip({
   return (
     <ul
       ref={strip}
+      onClickCapture={reorder.suppressClick}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => event.preventDefault()}
       className={`ot-launcher-strip${magnified ? " is-magnified" : ""}`}
       style={
         magnified

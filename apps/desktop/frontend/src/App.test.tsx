@@ -87,6 +87,8 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   HideSelectedApp: vi.fn().mockResolvedValue(undefined),
   GetSettings: vi.fn().mockResolvedValue("{}"),
   SaveSettings: vi.fn().mockResolvedValue(undefined),
+  GetSettingsState: vi.fn().mockResolvedValue({ revision: 0, json: "{}" }),
+  SaveSettingsAtRevision: vi.fn().mockResolvedValue({ revision: 0, json: "{}" }),
   GetPermissions: vi.fn().mockResolvedValue("{}"),
   GetVersion: vi.fn().mockResolvedValue("1.2.3"),
   InstallUpdate: vi.fn().mockResolvedValue(undefined),
@@ -239,9 +241,20 @@ function dockMediaState(revision: number, media: ReturnType<typeof dockMedia>) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   eventHandlers.clear();
   resetBackendProbeForTests();
   window.location.hash = "";
+  mocked.GetSettingsState.mockResolvedValue({
+    revision: 1,
+    json: JSON.stringify({
+      ...defaultSettings,
+      behavior: { ...defaultSettings.behavior, onboarded: true },
+    }),
+  } as never);
+  mocked.SaveSettingsAtRevision.mockImplementation(
+    (json: string, revision: number) => Promise.resolve({ revision: revision + 1, json }) as never,
+  );
 });
 
 describe("App", () => {
@@ -1222,6 +1235,167 @@ describe("App", () => {
     );
   });
 
+  it("disables retained preferences while loading and admits a monotonic canonical event", async () => {
+    window.location.hash = "#settings";
+    render(<App />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Dock" }));
+    const name = screen.getByLabelText("Profile name");
+    act(() => eventHandlers.get("prefs:settings-loading")?.({ data: { generation: 1 } }));
+    expect(name).toBeDisabled();
+    const refreshed = {
+      ...defaultSettings,
+      behavior: { ...defaultSettings.behavior, onboarded: true },
+      replacementDock: {
+        ...defaultSettings.replacementDock,
+        profiles: [{ ...defaultSettings.replacementDock.profiles[0], name: "Runtime pins" }],
+      },
+    };
+    act(() =>
+      eventHandlers.get("prefs:settings")?.({
+        data: { generation: 1, revision: 4, json: JSON.stringify(refreshed) },
+      }),
+    );
+    expect(name).toBeEnabled();
+    expect(name).toHaveValue("Runtime pins");
+    act(() => eventHandlers.get("prefs:settings-loading")?.({ data: { generation: 1 } }));
+    expect(name).toBeEnabled();
+    fireEvent.change(name, { target: { value: "Newer local edit" } });
+    await waitFor(() => expect(name).toHaveValue("Newer local edit"));
+    act(() =>
+      eventHandlers.get("prefs:settings")?.({
+        data: { generation: 1, revision: 3, json: JSON.stringify(defaultSettings) },
+      }),
+    );
+    expect(name).toHaveValue("Newer local edit");
+  });
+
+  it("keeps preferences disabled until the initial revisioned snapshot arrives", async () => {
+    window.location.hash = "#settings";
+    let resolve!: (value: unknown) => void;
+    mocked.GetSettingsState.mockReturnValueOnce(new Promise((done) => (resolve = done)) as never);
+    render(<App />);
+    const startAtLogin = screen.getByLabelText("Start at login");
+    expect(startAtLogin).toBeDisabled();
+    await act(async () => {
+      resolve({
+        revision: 3,
+        json: JSON.stringify({
+          ...defaultSettings,
+          behavior: { ...defaultSettings.behavior, onboarded: true },
+        }),
+      });
+    });
+    expect(startAtLogin).toBeEnabled();
+  });
+
+  it("enables local settings edits after confirming there is no Wails backend", async () => {
+    window.location.hash = "#settings";
+    mocked.GetSettingsState.mockRejectedValueOnce(new Error("no backend"));
+    mocked.GetVersion.mockResolvedValueOnce("<!doctype html>");
+    render(<App />);
+    const startAtLogin = screen.getByLabelText("Start at login");
+    await waitFor(() => expect(startAtLogin).toBeEnabled());
+    fireEvent.click(startAtLogin);
+    expect(startAtLogin).toBeChecked();
+    expect(mocked.SaveSettingsAtRevision).not.toHaveBeenCalled();
+  });
+
+  it("retires queued drafts after a CAS conflict and reloads canonical settings", async () => {
+    window.location.hash = "#settings";
+    const initial = {
+      ...defaultSettings,
+      behavior: { ...defaultSettings.behavior, onboarded: true },
+    };
+    const canonical = {
+      ...initial,
+      replacementDock: {
+        ...initial.replacementDock,
+        profiles: [{ ...initial.replacementDock.profiles[0], name: "Runtime winner" }],
+      },
+    };
+    mocked.GetSettingsState.mockResolvedValueOnce({
+      revision: 8,
+      json: JSON.stringify(initial),
+    } as never).mockResolvedValueOnce({ revision: 9, json: JSON.stringify(canonical) } as never);
+    let reject!: (error: Error) => void;
+    mocked.SaveSettingsAtRevision.mockReturnValueOnce(
+      new Promise((_, fail) => (reject = fail)) as never,
+    );
+    render(<App />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Dock" }));
+    const name = screen.getByLabelText("Profile name");
+    fireEvent.change(name, { target: { value: "First stale draft" } });
+    fireEvent.change(name, { target: { value: "Second stale draft" } });
+    await waitFor(() => expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(1));
+    expect(mocked.SaveSettingsAtRevision.mock.calls[0][1]).toBe(8);
+    await act(async () => {
+      reject(new Error("settings: staleRevision"));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(name).toHaveValue("Runtime winner"));
+    expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not let a delayed conflict reload overwrite a newer preferences event", async () => {
+    window.location.hash = "#settings";
+    const initial = {
+      ...defaultSettings,
+      behavior: { ...defaultSettings.behavior, onboarded: true },
+    };
+    let finishReload!: (value: unknown) => void;
+    mocked.GetSettingsState.mockResolvedValueOnce({
+      revision: 4,
+      json: JSON.stringify(initial),
+    } as never).mockReturnValueOnce(new Promise((done) => (finishReload = done)) as never);
+    mocked.SaveSettingsAtRevision.mockRejectedValueOnce(new Error("settings: staleRevision"));
+    render(<App />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Dock" }));
+    const loadsBefore = mocked.GetSettingsState.mock.calls.length;
+    fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "Old draft" } });
+    await waitFor(() => expect(mocked.GetSettingsState).toHaveBeenCalledTimes(loadsBefore + 1));
+    const savesDuringRecovery = mocked.SaveSettingsAtRevision.mock.calls.length;
+    expect(screen.getByLabelText("Profile name")).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Profile name"), {
+      target: { value: "Must not overwrite" },
+    });
+    expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(savesDuringRecovery);
+    const winner = {
+      ...initial,
+      replacementDock: {
+        ...initial.replacementDock,
+        profiles: [{ ...initial.replacementDock.profiles[0], name: "Event winner" }],
+      },
+    };
+    act(() =>
+      eventHandlers.get("prefs:settings")?.({
+        data: { generation: 2, revision: 8, json: JSON.stringify(winner) },
+      }),
+    );
+    await act(async () => {
+      finishReload({
+        revision: 7,
+        json: JSON.stringify({
+          ...winner,
+          replacementDock: {
+            ...winner.replacementDock,
+            profiles: [{ ...winner.replacementDock.profiles[0], name: "Late reload" }],
+          },
+        }),
+      });
+    });
+    expect(screen.getByLabelText("Profile name")).toHaveValue("Event winner");
+  });
+
+  it("unsubscribes revisioned preferences events on unmount", async () => {
+    window.location.hash = "#settings";
+    const view = render(<App />);
+    await screen.findByRole("tab", { name: "Dock" });
+    expect(eventHandlers.has("prefs:settings")).toBe(true);
+    view.unmount();
+    expect(eventHandlers.has("prefs:settings")).toBe(false);
+    expect(eventHandlers.has("prefs:settings-loading")).toBe(false);
+  });
+
   it("queues profile import after a pending settings save and recovers from canonical result", async () => {
     window.location.hash = "#settings";
     const initial = {
@@ -1238,10 +1412,13 @@ describe("App", () => {
         ],
       },
     };
-    mocked.GetSettings.mockResolvedValueOnce(JSON.stringify(initial)).mockResolvedValueOnce("{}");
-    let releaseSave!: () => void;
-    mocked.SaveSettings.mockReturnValueOnce(
-      new Promise<void>((resolve) => (releaseSave = resolve)) as never,
+    mocked.GetSettingsState.mockResolvedValueOnce({
+      revision: 1,
+      json: JSON.stringify(initial),
+    } as never).mockResolvedValueOnce({ revision: 0, json: "{}" } as never);
+    let releaseSave!: (value: { revision: number; json: string }) => void;
+    mocked.SaveSettingsAtRevision.mockReturnValueOnce(
+      new Promise((resolve) => (releaseSave = resolve)) as never,
     );
     mocked.PreviewLauncherProfileImport.mockResolvedValueOnce({
       digest: "digest-1",
@@ -1264,14 +1441,65 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Import reviewed profile" }));
     expect(mocked.ImportLauncherProfile).not.toHaveBeenCalled();
     await act(async () => {
-      releaseSave();
+      releaseSave({ revision: 2, json: JSON.stringify(initial) });
       await Promise.resolve();
     });
     await waitFor(() => expect(mocked.ImportLauncherProfile).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(screen.getByLabelText("Profile", { exact: true })).toHaveValue("profile-imported"),
     );
-    expect(screen.queryByRole("button", { name: "Reload settings" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Reload settings" })).toBeVisible();
+  });
+
+  it("does not let a retired native mutation re-block a newer preferences snapshot", async () => {
+    window.location.hash = "#settings";
+    const initial = {
+      ...defaultSettings,
+      behavior: { ...defaultSettings.behavior, onboarded: true },
+    };
+    mocked.GetSettingsState.mockResolvedValueOnce({
+      revision: 1,
+      json: JSON.stringify(initial),
+    } as never);
+    mocked.PreviewLauncherProfileImport.mockResolvedValueOnce({
+      digest: "digest-old",
+      revision: "dock-r1",
+      name: "Imported",
+      itemCount: 0,
+      widgetCount: 0,
+      notices: [],
+    } as never);
+    let finishImport!: (value: unknown) => void;
+    mocked.ImportLauncherProfile.mockReturnValueOnce(
+      new Promise((resolve) => (finishImport = resolve)) as never,
+    );
+    render(<App />);
+    fireEvent.click(await screen.findByRole("tab", { name: "Dock" }));
+    const file = new File(["{}"], "profile.json", { type: "application/json" });
+    fireEvent.change(screen.getByLabelText("Import profile file"), { target: { files: [file] } });
+    fireEvent.click(await screen.findByRole("button", { name: "Import reviewed profile" }));
+    await waitFor(() => expect(mocked.ImportLauncherProfile).toHaveBeenCalledTimes(1));
+
+    const winner = {
+      ...initial,
+      replacementDock: {
+        ...initial.replacementDock,
+        profiles: [{ ...initial.replacementDock.profiles[0], name: "New authority" }],
+      },
+    };
+    act(() => eventHandlers.get("prefs:settings-loading")?.({ data: { generation: 3 } }));
+    act(() =>
+      eventHandlers.get("prefs:settings")?.({
+        data: { generation: 3, revision: 6, json: JSON.stringify(winner) },
+      }),
+    );
+    expect(screen.getByLabelText("Profile name")).toHaveValue("New authority");
+
+    await act(async () => {
+      finishImport({ profileID: "old-import", settingsJSON: JSON.stringify(initial) });
+    });
+    expect(screen.getByLabelText("Profile name")).toHaveValue("New authority");
+    await waitFor(() => expect(screen.getByLabelText("Profile name")).toBeEnabled());
   });
 
   it("ignores delayed monitor-lock snapshot failures after runtime recovery", async () => {

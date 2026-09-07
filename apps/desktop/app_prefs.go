@@ -40,18 +40,29 @@ func (a *App) IsPaused() bool { return a.controller.Paused() }
 
 // ---- Preferences window ----
 
+type prefsSettingsLoading struct {
+	Generation uint64 `json:"generation"`
+}
+
+type prefsSettingsSnapshot struct {
+	Generation uint64 `json:"generation"`
+	SettingsState
+}
+
 // OpenPreferences shows and focuses the preferences window (created hidden at
 // startup; recreated defensively if macOS destroyed it). Invoked by the menubar
 // "Settings…" item and on first launch (onboarding).
 func (a *App) OpenPreferences() {
 	a.viewMu.Lock()
-	defer a.viewMu.Unlock()
 	if a.dismissal != nil {
 		a.cancelDismissalLocked()
 		a.overlay.hide()
 	}
 	dlog("OpenPreferences: prefsOpen=%v", a.prefsOpen)
 	a.prefsOpen = true
+	a.prefsRefreshGeneration++
+	generation := a.prefsRefreshGeneration
+	a.emit("prefs:settings-loading", prefsSettingsLoading{Generation: generation})
 	a.syncDockSuspensionLocked()
 	// Preferences need keyboard focus: flip the accessory app to a regular,
 	// activated app (the switcher overlay itself never activates).
@@ -59,6 +70,10 @@ func (a *App) OpenPreferences() {
 		act.ActivateForPrefs()
 	}
 	a.showPrefsWindow()
+	a.viewMu.Unlock()
+	// Correlate both events so late loading or older snapshots cannot replace a
+	// completed refresh. Snapshot reading does not wait for the native writer.
+	a.emit("prefs:settings", prefsSettingsSnapshot{Generation: generation, SettingsState: a.GetSettingsState()})
 }
 
 // showPrefsWindow shows and focuses the preferences window, recreating it once

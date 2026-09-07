@@ -9,12 +9,14 @@ import { LauncherRoute } from "./launcher/LauncherRoute";
 import { automationPreview, onAutomationPreviewEvents } from "./lib/automation-preview-bridge";
 import {
   hasBackend,
-  importSettings,
   loadSettings,
+  loadSettingsState,
+  onPrefsSettings,
   onPrefsTab,
   onSwitcherEvent,
   onSwitcherMaterial,
-  saveSettings,
+  saveSettingsAtRevision,
+  saveSettingsDocumentAtRevision,
   switcher,
 } from "./lib/bridge";
 import { demoStateFor } from "./lib/demo";
@@ -35,7 +37,7 @@ import {
   onWidgetPackageStatus,
 } from "./lib/launcher-bridge";
 import { showLauncherItemPanel } from "./lib/launcher-item-panel-bridge";
-import { relaunchLauncherItem } from "./lib/launcher-item-runtime-bridge";
+import { mutateLauncherItems, relaunchLauncherItem } from "./lib/launcher-item-runtime-bridge";
 import { launcherItemSettings } from "./lib/launcher-items-bridge";
 import { launcherProfileTransfer } from "./lib/launcher-profile-transfer-bridge";
 import { admitMaterialStatus, type MaterialStatus } from "./lib/material";
@@ -133,6 +135,7 @@ function LauncherAppRoute({ session }: { session: number }) {
         getState: launcher.state,
         activate: launcher.activate,
         relaunch: relaunchLauncherItem,
+        mutate: mutateLauncherItems,
         showPanel: showLauncherItemPanel,
         subscribe: onLauncherState,
         widgets: {
@@ -177,30 +180,139 @@ function useSettingsModel() {
   const [settings, setSettings] = useState<SettingsModel>(defaultSettings);
   const [saveError, setSaveError] = useState<string | null>(null);
   const queue = useRef<Promise<void>>(Promise.resolve());
-  const revision = useRef(0);
+  const backendRevision = useRef(0);
+  const authorityEpoch = useRef(0);
+  const modelEpoch = useRef(0);
+  const mounted = useRef(true);
+  const admissionBlocked = useRef(true);
+  const refreshGeneration = useRef(0);
+  const completedRefreshGeneration = useRef(0);
   const pendingImports = useRef(0);
   const [importing, setImporting] = useState(false);
+  const [refreshing, setRefreshing] = useState(true);
   const [settingsStale, setSettingsStale] = useState(false);
   useEffect(() => {
+    mounted.current = true;
     let active = true;
-    const initialRevision = revision.current;
-    loadSettings().then((s) => {
-      if (active && s && s.behavior && revision.current === initialRevision) setSettings(s);
+    const initialModelEpoch = modelEpoch.current;
+    const initialAuthorityEpoch = authorityEpoch.current;
+    const admit = (revision: number, next: SettingsModel) => {
+      if (!active || revision < backendRevision.current) return;
+      backendRevision.current = revision;
+      authorityEpoch.current++;
+      modelEpoch.current++;
+      admissionBlocked.current = false;
+      setSettings(next);
+      setSettingsStale(false);
+      setRefreshing(false);
+      setSaveError(null);
+    };
+    const acceptRaw = (value: { generation?: number; revision: number; json: string }) => {
+      try {
+        const next = JSON.parse(value.json) as SettingsModel;
+        const generation = value.generation ?? 0;
+        if (
+          Number.isSafeInteger(generation) &&
+          generation >= refreshGeneration.current &&
+          Number.isSafeInteger(value.revision) &&
+          value.revision > 0 &&
+          next?.behavior
+        ) {
+          refreshGeneration.current = generation;
+          completedRefreshGeneration.current = Math.max(
+            completedRefreshGeneration.current,
+            generation,
+          );
+          admit(value.revision, next);
+        }
+      } catch {
+        // A malformed event carries no settings authority.
+      }
+    };
+    const off = onPrefsSettings(({ generation = 0 }) => {
+      if (!active) return;
+      if (
+        !Number.isSafeInteger(generation) ||
+        generation <= completedRefreshGeneration.current ||
+        generation <= refreshGeneration.current
+      )
+        return;
+      refreshGeneration.current = generation;
+      authorityEpoch.current++;
+      admissionBlocked.current = true;
+      setRefreshing(true);
+    }, acceptRaw);
+    void loadSettingsState().then(async (state) => {
+      if (
+        !active ||
+        modelEpoch.current !== initialModelEpoch ||
+        authorityEpoch.current !== initialAuthorityEpoch
+      )
+        return;
+      if (state) {
+        admit(state.revision, state.settings);
+      } else {
+        const backend = await hasBackend();
+        if (
+          !active ||
+          modelEpoch.current !== initialModelEpoch ||
+          authorityEpoch.current !== initialAuthorityEpoch
+        )
+          return;
+        setRefreshing(false);
+        if (!backend) {
+          admissionBlocked.current = false;
+          return;
+        }
+        setSettingsStale(true);
+        setSaveError("The latest settings could not be loaded.");
+      }
     });
     return () => {
       active = false;
+      mounted.current = false;
+      admissionBlocked.current = true;
+      authorityEpoch.current++;
+      off();
     };
   }, []);
   const onChange = useCallback(
     (next: SettingsModel) => {
-      if (pendingImports.current > 0 || settingsStale) return;
-      const current = ++revision.current;
+      if (pendingImports.current > 0 || settingsStale || admissionBlocked.current) return;
+      const editEpoch = ++modelEpoch.current;
+      const owner = authorityEpoch.current;
       setSettings(next);
       queue.current = queue.current.then(async () => {
+        if (!mounted.current || owner !== authorityEpoch.current) return;
         try {
-          await saveSettings(next);
-          if (revision.current === current) setSaveError(null);
+          const saved = await saveSettingsAtRevision(next, backendRevision.current);
+          if (
+            !mounted.current ||
+            owner !== authorityEpoch.current ||
+            saved.revision < backendRevision.current
+          )
+            return;
+          backendRevision.current = saved.revision;
+          if (editEpoch === modelEpoch.current) setSettings(saved.settings);
+          setSaveError(null);
         } catch (error) {
+          if (!mounted.current || owner !== authorityEpoch.current) return;
+          const recoveryOwner = ++authorityEpoch.current;
+          admissionBlocked.current = true;
+          setRefreshing(true);
+          const canonical = await loadSettingsState();
+          if (!mounted.current || recoveryOwner !== authorityEpoch.current) return;
+          if (canonical && canonical.revision >= backendRevision.current) {
+            backendRevision.current = canonical.revision;
+            authorityEpoch.current++;
+            modelEpoch.current++;
+            admissionBlocked.current = false;
+            setSettings(canonical.settings);
+            setSettingsStale(false);
+          } else {
+            setSettingsStale(true);
+          }
+          setRefreshing(false);
           setSaveError(`Could not save settings: ${String(error)}`);
         }
       });
@@ -208,18 +320,55 @@ function useSettingsModel() {
     [settingsStale],
   );
   const onImport = useCallback((text: string): Promise<void> => {
-    ++revision.current;
+    if (admissionBlocked.current)
+      return Promise.reject(new Error("Settings are still refreshing."));
+    modelEpoch.current++;
+    const owner = authorityEpoch.current;
     ++pendingImports.current;
     setImporting(true);
     const imported = queue.current
       .then(async () => {
-        const canonical = await importSettings(text);
-        setSettings(canonical);
+        if (!mounted.current || owner !== authorityEpoch.current)
+          throw new Error("Settings changed before this import could be saved.");
+        const document = JSON.parse(text) as SettingsModel;
+        if (document === null || typeof document !== "object" || Array.isArray(document))
+          throw new Error("Settings must be a JSON object.");
+        let canonical: Awaited<ReturnType<typeof saveSettingsDocumentAtRevision>>;
+        try {
+          canonical = await saveSettingsDocumentAtRevision(text, backendRevision.current);
+        } catch (error) {
+          if (!mounted.current || owner !== authorityEpoch.current) throw error;
+          const recoveryOwner = ++authorityEpoch.current;
+          admissionBlocked.current = true;
+          setRefreshing(true);
+          const recovered = await loadSettingsState();
+          if (!mounted.current || recoveryOwner !== authorityEpoch.current) throw error;
+          if (recovered && recovered.revision >= backendRevision.current) {
+            backendRevision.current = recovered.revision;
+            authorityEpoch.current++;
+            modelEpoch.current++;
+            admissionBlocked.current = false;
+            setSettings(recovered.settings);
+            setSettingsStale(false);
+          } else {
+            setSettingsStale(true);
+          }
+          setRefreshing(false);
+          throw error;
+        }
+        if (
+          !mounted.current ||
+          owner !== authorityEpoch.current ||
+          canonical.revision < backendRevision.current
+        )
+          return;
+        backendRevision.current = canonical.revision;
+        setSettings(canonical.settings);
         setSaveError(null);
       })
       .finally(() => {
         --pendingImports.current;
-        setImporting(pendingImports.current > 0);
+        if (mounted.current) setImporting(pendingImports.current > 0);
       });
     // Publish every successful import in queue order, even when a later one
     // fails. Edits are disabled until the queue drains to avoid saving a
@@ -232,36 +381,63 @@ function useSettingsModel() {
       operation: () => Promise<T>,
       recover?: (settings: SettingsModel, value: T) => SettingsModel,
     ): Promise<T> => {
-      ++revision.current;
+      if (admissionBlocked.current)
+        return Promise.reject(new Error("Settings are still refreshing."));
+      modelEpoch.current++;
+      const owner = authorityEpoch.current;
       ++pendingImports.current;
       setImporting(true);
       let value: T;
       let succeeded = false;
       const mutation = queue.current
         .then(async () => {
+          if (!mounted.current || owner !== authorityEpoch.current)
+            throw new Error("Settings changed before this operation could start.");
           try {
             value = await operation();
             succeeded = true;
-            setSaveError(null);
+            if (mounted.current && owner === authorityEpoch.current) setSaveError(null);
             return value;
           } finally {
             // Reload even when the mutation reports a failure: a native operation
             // may have committed private-reference cleanup before returning it.
-            const canonical = await loadSettings();
-            if (canonical?.behavior) {
-              setSettings(canonical);
-              setSettingsStale(false);
-            } else if (succeeded && recover) {
-              setSettings((current) => recover(current, value));
-            } else {
-              setSettingsStale(true);
-              setSaveError("Settings changed, but the latest settings could not be reloaded.");
+            if (mounted.current && owner === authorityEpoch.current) {
+              admissionBlocked.current = true;
+              setRefreshing(true);
+              const canonical = await loadSettingsState();
+              if (
+                mounted.current &&
+                owner === authorityEpoch.current &&
+                canonical &&
+                canonical.revision >= backendRevision.current
+              ) {
+                backendRevision.current = canonical.revision;
+                authorityEpoch.current++;
+                modelEpoch.current++;
+                admissionBlocked.current = false;
+                setSettings(canonical.settings);
+                setSettingsStale(false);
+                setRefreshing(false);
+              } else if (
+                mounted.current &&
+                owner === authorityEpoch.current &&
+                succeeded &&
+                recover
+              ) {
+                setSettings((current) => recover(current, value));
+                setSettingsStale(true);
+                setSaveError("Settings changed, but the latest settings could not be reloaded.");
+              } else if (mounted.current && owner === authorityEpoch.current) {
+                setSettingsStale(true);
+                setSaveError("Settings changed, but the latest settings could not be reloaded.");
+              }
+              if (mounted.current && owner === authorityEpoch.current) setRefreshing(false);
             }
           }
         })
         .finally(() => {
           --pendingImports.current;
-          setImporting(pendingImports.current > 0);
+          if (mounted.current) setImporting(pendingImports.current > 0);
         });
       queue.current = mutation.then(
         () => undefined,
@@ -272,12 +448,26 @@ function useSettingsModel() {
     [],
   );
   const reload = useCallback(async () => {
-    const next = await loadSettings();
-    if (next?.behavior) {
-      ++revision.current;
-      setSettings(next);
+    const owner = authorityEpoch.current;
+    admissionBlocked.current = true;
+    setRefreshing(true);
+    const next = await loadSettingsState();
+    if (
+      mounted.current &&
+      owner === authorityEpoch.current &&
+      next &&
+      next.revision >= backendRevision.current
+    ) {
+      modelEpoch.current++;
+      authorityEpoch.current++;
+      backendRevision.current = next.revision;
+      admissionBlocked.current = false;
+      setSettings(next.settings);
       setSettingsStale(false);
+      setRefreshing(false);
+      setSaveError(null);
     }
+    if (mounted.current && owner === authorityEpoch.current) setRefreshing(false);
   }, []);
   return {
     settings,
@@ -285,7 +475,7 @@ function useSettingsModel() {
     onImport,
     mutateSettings,
     saveError,
-    importing,
+    importing: importing || refreshing,
     settingsStale,
     reload,
   };

@@ -72,12 +72,13 @@ type App struct {
 	pauseItem      *application.MenuItem
 	nativeDockItem *application.MenuItem
 
-	platform     platform.Platform
-	controller   *switcher.Controller
-	settingsMu   sync.RWMutex
-	saveMu       sync.Mutex // serializes persistence and platform/controller application
-	settings     config.Settings
-	settingsPath string
+	platform         platform.Platform
+	controller       *switcher.Controller
+	settingsMu       sync.RWMutex
+	saveMu           sync.Mutex // serializes persistence and platform/controller application
+	settingsRevision uint64     // settingsMu; writes also require saveMu
+	settings         config.Settings
+	settingsPath     string
 
 	iconMu    sync.Mutex
 	iconCache map[int]string // pid -> base64 PNG data URL
@@ -100,6 +101,7 @@ type App struct {
 
 	// prefsOpen tracks whether the preferences window is currently shown.
 	prefsOpen                 bool
+	prefsRefreshGeneration    uint64 // viewMu; correlates loading and canonical refresh events
 	switcherVisible           bool
 	visibleSwitcherSession    uint64
 	sessionInactive           bool
@@ -197,11 +199,12 @@ func loadStartupSettings(path string) config.Settings {
 // newApp builds an App from explicit dependencies (used by tests).
 func newApp(p platform.Platform, settings config.Settings, settingsPath string, folders ...platform.FolderSource) *App {
 	a := &App{
-		platform:     p,
-		settings:     settings,
-		settingsPath: settingsPath,
-		thumbCache:   map[domain.WindowID]string{},
-		captureStop:  make(chan struct{}),
+		platform:         p,
+		settings:         settings,
+		settingsRevision: 1,
+		settingsPath:     settingsPath,
+		thumbCache:       map[domain.WindowID]string{},
+		captureStop:      make(chan struct{}),
 	}
 	a.captures = preview.New(p, a.emitCaptureFrame)
 	a.wireDiagnostics(nil)

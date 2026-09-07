@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"slices"
 	"sort"
@@ -66,12 +65,7 @@ type appLauncherItems struct {
 
 func launcherItemsError(code string) error { return errors.New("launcher items: " + code) }
 func launcherItemsRevision(items []config.LauncherItem) string {
-	if len(items) == 0 {
-		items = []config.LauncherItem{}
-	}
-	b, _ := json.Marshal(items)
-	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:])
+	return config.LauncherItemsRevision(items)
 }
 
 func cloneLauncherItems(items []config.LauncherItem) []config.LauncherItem {

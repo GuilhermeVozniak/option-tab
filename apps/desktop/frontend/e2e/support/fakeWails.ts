@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { defaultSettings } from "../../src/lib/types";
 
 // A complete Appearance matching emptyState defaults, tuned for deterministic
 // e2e: dark theme, no apparition delay, animations off so nothing races.
@@ -194,6 +195,9 @@ const METHOD = {
   RemoveWidgetPackage: 2737711739,
   ReviewLocalWidgetPackage: 460648480,
   UseNativeDock: 421143656,
+  GetSettingsState: 620781575,
+  SaveSettingsAtRevision: 1896415605,
+  MutateLauncherItems: 3805544533,
   SaveSettings: 1949631069,
 } as const;
 
@@ -212,7 +216,7 @@ const METHOD_NAME = new Map<number, string>(Object.entries(METHOD).map(([name, i
 //
 // Window/app action calls are recorded on window.__calls for assertions.
 export async function installFakeWails(page: Page): Promise<void> {
-  await page.addInitScript(() => {
+  await page.addInitScript((initialSettingsJSON) => {
     const w = window as unknown as {
       __calls: unknown[][];
       __state: Record<string, unknown> | null;
@@ -245,9 +249,13 @@ export async function installFakeWails(page: Page): Promise<void> {
       __widgetActionOptions?: Record<string, unknown>;
       __widgetPackageStatus?: Record<string, unknown>;
       __widgetPackageReview?: Record<string, unknown>;
+      __settingsRevision?: number;
+      __settingsJSON?: string;
       _wails?: { dispatchWailsEvent?: (ev: { name: string; data: unknown }) => void };
     };
     w.__calls = [];
+    w.__settingsRevision = 1;
+    w.__settingsJSON = initialSettingsJSON;
     w.__state = null;
     w.__actionResult = undefined;
     w.__actionError = undefined;
@@ -351,7 +359,7 @@ export async function installFakeWails(page: Page): Promise<void> {
         },
       });
     });
-  });
+  }, JSON.stringify(defaultSettings));
 
   await page.route("**/wails/runtime", async (route) => {
     // Binding calls arrive as {object: CallBinding, method: 0, args: {"call-id",
@@ -369,6 +377,13 @@ export async function installFakeWails(page: Page): Promise<void> {
     switch (name) {
       case "GetVersion":
         return json("0.0.0-e2e");
+      case "GetSettingsState":
+        return json(
+          await page.evaluate(() => {
+            const w = window as any;
+            return { revision: w.__settingsRevision, json: w.__settingsJSON };
+          }),
+        );
       case "GetDockState":
         return json(await page.evaluate(() => (window as any).__dockState));
       case "GetDockMaterialStatus":
@@ -415,7 +430,17 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json(await page.evaluate(() => (window as any).__launcherProfileImportReview));
       case "ImportLauncherProfile":
         await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
-        return json(await page.evaluate(() => (window as any).__launcherProfileImportResult));
+        return json(
+          await page.evaluate(() => {
+            const w = window as any;
+            const result = w.__launcherProfileImportResult;
+            if (result?.settingsJSON) {
+              w.__settingsJSON = result.settingsJSON;
+              w.__settingsRevision++;
+            }
+            return result;
+          }),
+        );
       case "GetLauncherWidgets":
         return json(await page.evaluate(() => (window as any).__launcherWidgets));
       case "GetWidgetCatalog":
@@ -446,6 +471,7 @@ export async function installFakeWails(page: Page): Promise<void> {
       case "SelectLauncherWindow":
       case "PerformLauncherWindowAction":
       case "PerformWidgetAction":
+      case "MutateLauncherItems":
       case "SelectLauncherWidget":
       case "CancelWidgetPackageReview":
       case "RemoveWidgetPackage":
@@ -474,6 +500,23 @@ export async function installFakeWails(page: Page): Promise<void> {
           [name, args],
         );
         return json(result);
+      }
+      case "SaveSettingsAtRevision": {
+        const result = await page.evaluate(
+          ([n, a]) => {
+            const w = window as any;
+            w.__calls.push([n, ...a]);
+            const expected = Number(a[1]);
+            const revision = Number(w.__settingsRevision ?? 1);
+            if (expected !== revision) return { error: "settings: staleRevision" };
+            w.__settingsRevision = revision + 1;
+            w.__settingsJSON = a[0];
+            return { value: { revision: w.__settingsRevision, json: w.__settingsJSON } };
+          },
+          [name, args],
+        );
+        if (result.error) return route.fulfill({ status: 500, body: result.error });
+        return json(result.value);
       }
       case "CancelDockPlacement":
       case "SaveSettings": {

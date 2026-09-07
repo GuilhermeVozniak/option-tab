@@ -1,3 +1,4 @@
+import type { LauncherMutateCommand } from "../lib/launcher-item-runtime-bridge";
 import type { LauncherPresentation, LauncherWidgetNode } from "../lib/types";
 import type { LauncherWidgetState, WidgetActions, WidgetLocalized } from "../lib/widget-types";
 import { WidgetView } from "../widgets/WidgetView";
@@ -21,6 +22,7 @@ export function LauncherView({
   onActivate,
   onRelaunch,
   onShowPanel,
+  onMutate,
   widgetState,
   widgetActions,
   onSelectWidget,
@@ -37,6 +39,7 @@ export function LauncherView({
   ) => void;
   onRelaunch?: LauncherItemCommand;
   onShowPanel?: LauncherItemCommand;
+  onMutate?: LauncherMutateCommand;
   widgetState?: LauncherWidgetState | null;
   widgetActions?: WidgetActions;
   onSelectWidget?: (stackID: string, instanceID: string) => void;
@@ -65,6 +68,7 @@ export function LauncherView({
         onActivate={onActivate}
         onRelaunch={onRelaunch}
         onShowPanel={onShowPanel}
+        onMutate={onMutate}
         t={t}
       />
       {widgetState === undefined

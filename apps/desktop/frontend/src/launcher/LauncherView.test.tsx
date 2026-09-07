@@ -223,3 +223,27 @@ it("uses the resolved backend envelope without transforming action hitboxes", ()
   expect(strip.querySelector(".ot-launcher-visual")).not.toBeNull();
   expect(strip.querySelector<HTMLElement>("button")!.style.transform).toBe("");
 });
+
+it("offers explicit structural reorder for missing pins only with exact runtime scope", () => {
+  const mutate = vi.fn();
+  const p = {
+    ...presentation,
+    runtimeReorder: true,
+    itemsRevision: "hash",
+    items: [
+      { id: "pin:a", name: "Missing A", icon: "", kind: "app", status: "missing" },
+      { id: "pin:b", name: "B", icon: "", kind: "app" },
+      { id: "app:90", name: "Running", icon: "", kind: "app" },
+    ],
+  };
+  render(<LauncherView presentation={p} onActivate={() => {}} onMutate={mutate} />);
+  expect(screen.getByRole("button", { name: "Missing A" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Reorder Missing A" }));
+  fireEvent.click(screen.getByRole("button", { name: "Move later" }));
+  expect(mutate).toHaveBeenCalledWith(9, "display-main", 12, 4, "hash", {
+    kind: "moveAfter",
+    itemID: "pin:a",
+    targetID: "pin:b",
+  });
+  expect(screen.queryByRole("button", { name: "Reorder Running" })).toBeNull();
+});

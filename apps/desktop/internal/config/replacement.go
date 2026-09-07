@@ -51,6 +51,7 @@ func DefaultLauncherAppearance() LauncherAppearance {
 }
 
 type LauncherProfile struct {
+	RuntimeReorder    bool                   `json:"runtimeReorder,omitempty"`
 	Magnification     *LauncherMagnification `json:"magnification,omitempty"`
 	Alignment         string                 `json:"alignment"`
 	Appearance        LauncherAppearance     `json:"appearance"`
@@ -256,6 +257,9 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 	for i, fields := range profileFields.Profiles {
 		present := false
 		for key, value := range fields {
+			if strings.EqualFold(key, "runtimeReorder") && (s.Version == 1 || (string(value) != "true" && string(value) != "false")) {
+				return s, bad
+			}
 			if strings.EqualFold(key, "magnification") {
 				present = true
 				if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {

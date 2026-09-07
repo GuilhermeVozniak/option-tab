@@ -491,6 +491,17 @@ export function ReplacementDock({
               />
             </label>
             <div className="col-span-2 mt-1 border-t border-white/10 pt-2">
+              <label className={ROW}>
+                <span>{t("Reorder items on the Dock")}</span>
+                <Checkbox
+                  aria-label="Enable runtime launcher reordering"
+                  checked={profile.runtimeReorder ?? false}
+                  onChange={(event) => patchProfile({ runtimeReorder: event.target.checked })}
+                />
+              </label>
+              <p className={HINT}>
+                {t("Use item handles to rearrange pins or create application groups.")}
+              </p>
               <strong className="text-sm">{t("Magnification")}</strong>
               <p className={HINT}>
                 {t("Enlarge nearby launcher items as the pointer moves across them.")}

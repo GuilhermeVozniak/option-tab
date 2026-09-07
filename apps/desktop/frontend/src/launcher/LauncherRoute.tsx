@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { LauncherPresentation } from "../lib/types";
 import type { LauncherWidgetState, WidgetActions } from "../lib/widget-types";
 import { LauncherView } from "./LauncherView";
+import type { LauncherItemMutation } from "./reorder";
 
 export interface LauncherTransport {
   getState(session: number): Promise<LauncherPresentation | null>;
@@ -14,6 +15,14 @@ export interface LauncherTransport {
   ): Promise<void>;
   relaunch?: LauncherTransport["activate"];
   showPanel?: LauncherTransport["activate"];
+  mutate?: (
+    epoch: number,
+    displayUUID: string,
+    session: number,
+    revision: number,
+    itemsRevision: string,
+    mutation: LauncherItemMutation,
+  ) => Promise<void>;
   subscribe(handler: (state: LauncherPresentation) => void): () => void;
   widgets?: {
     get(session: number): Promise<LauncherWidgetState>;
@@ -171,6 +180,32 @@ export function LauncherRoute({
         onRelaunch={relaunch ? (...args) => performItem(relaunch, args) : undefined}
         onShowPanel={
           transport.showPanel ? (...args) => performItem(transport.showPanel!, args) : undefined
+        }
+        onMutate={
+          transport.mutate
+            ? (...args) => {
+                const admitted = stateRef.current;
+                if (
+                  !admitted ||
+                  !admitted.runtimeReorder ||
+                  args[3] !== admitted.revision ||
+                  args[4] !== admitted.itemsRevision
+                )
+                  return;
+                const operation = ++actionSequence.current;
+                setActionError("");
+                void transport.mutate!(...args).catch((error) => {
+                  if (stateRef.current === admitted && operation === actionSequence.current)
+                    setActionError(
+                      (t ?? ((value) => value))(
+                        String(error).match(/retired|stale|revision/i)
+                          ? "The launcher changed. Try again."
+                          : "The item could not be rearranged.",
+                      ),
+                    );
+                });
+              }
+            : undefined
         }
         widgetState={transport.widgets ? widgetState : undefined}
         widgetActions={widgetActions}

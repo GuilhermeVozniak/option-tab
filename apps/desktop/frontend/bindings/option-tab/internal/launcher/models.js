@@ -184,6 +184,20 @@ export class Presentation {
      * @param {Partial<Presentation>} [$$source = {}] - The source object to create the Presentation.
      */
     constructor($$source = {}) {
+        if (!("runtimeReorder" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["runtimeReorder"] = false;
+        }
+        if (!("itemsRevision" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["itemsRevision"] = "";
+        }
         if (!("magnification" in $$source)) {
             /**
              * @member
@@ -299,26 +313,26 @@ export class Presentation {
      * @returns {Presentation}
      */
     static createFrom($$source = {}) {
-        const $$createField0_0 = $$createType2;
-        const $$createField3_0 = $$createType3;
-        const $$createField11_0 = $$createType4;
-        const $$createField13_0 = $$createType1;
-        const $$createField14_0 = $$createType6;
+        const $$createField2_0 = $$createType2;
+        const $$createField5_0 = $$createType3;
+        const $$createField13_0 = $$createType4;
+        const $$createField15_0 = $$createType1;
+        const $$createField16_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("magnification" in $$parsedSource) {
-            $$parsedSource["magnification"] = $$createField0_0($$parsedSource["magnification"]);
+            $$parsedSource["magnification"] = $$createField2_0($$parsedSource["magnification"]);
         }
         if ("appearance" in $$parsedSource) {
-            $$parsedSource["appearance"] = $$createField3_0($$parsedSource["appearance"]);
+            $$parsedSource["appearance"] = $$createField5_0($$parsedSource["appearance"]);
         }
         if ("bounds" in $$parsedSource) {
-            $$parsedSource["bounds"] = $$createField11_0($$parsedSource["bounds"]);
+            $$parsedSource["bounds"] = $$createField13_0($$parsedSource["bounds"]);
         }
         if ("items" in $$parsedSource) {
-            $$parsedSource["items"] = $$createField13_0($$parsedSource["items"]);
+            $$parsedSource["items"] = $$createField15_0($$parsedSource["items"]);
         }
         if ("widgets" in $$parsedSource) {
-            $$parsedSource["widgets"] = $$createField14_0($$parsedSource["widgets"]);
+            $$parsedSource["widgets"] = $$createField16_0($$parsedSource["widgets"]);
         }
         return new Presentation(/** @type {Partial<Presentation>} */($$parsedSource));
     }

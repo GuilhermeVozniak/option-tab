@@ -1706,6 +1706,45 @@ export class MediaViewState {
     }
 }
 
+/**
+ * SettingsState pairs a canonical snapshot with its process-local write revision.
+ * Renderers do not survive a process restart, so this revision is not persisted.
+ */
+export class SettingsState {
+    /**
+     * Creates a new SettingsState instance.
+     * @param {Partial<SettingsState>} [$$source = {}] - The source object to create the SettingsState.
+     */
+    constructor($$source = {}) {
+        if (!("revision" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["revision"] = 0;
+        }
+        if (!("json" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["json"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SettingsState instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {SettingsState}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new SettingsState(/** @type {Partial<SettingsState>} */($$parsedSource));
+    }
+}
+
 export class WidgetCatalogItem {
     /**
      * Creates a new WidgetCatalogItem instance.
