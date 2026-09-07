@@ -364,6 +364,386 @@ export class FolderSort {
     }
 }
 
+export class MediaCapabilities {
+    /**
+     * Creates a new MediaCapabilities instance.
+     * @param {Partial<MediaCapabilities>} [$$source = {}] - The source object to create the MediaCapabilities.
+     */
+    constructor($$source = {}) {
+        if (!("play" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["play"] = false;
+        }
+        if (!("pause" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["pause"] = false;
+        }
+        if (!("previous" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["previous"] = false;
+        }
+        if (!("next" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["next"] = false;
+        }
+        if (!("seek" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["seek"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MediaCapabilities instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MediaCapabilities}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MediaCapabilities(/** @type {Partial<MediaCapabilities>} */($$parsedSource));
+    }
+}
+
+export class MediaPermission {
+    /**
+     * Creates a new MediaPermission instance.
+     * @param {Partial<MediaPermission>} [$$source = {}] - The source object to create the MediaPermission.
+     */
+    constructor($$source = {}) {
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["reason"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MediaPermission instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MediaPermission}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MediaPermission(/** @type {Partial<MediaPermission>} */($$parsedSource));
+    }
+}
+
+export class MediaProcess {
+    /**
+     * Creates a new MediaProcess instance.
+     * @param {Partial<MediaProcess>} [$$source = {}] - The source object to create the MediaProcess.
+     */
+    constructor($$source = {}) {
+        if (!("pid" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["pid"] = 0;
+        }
+        if (!("launchID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["launchID"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MediaProcess instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MediaProcess}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MediaProcess(/** @type {Partial<MediaProcess>} */($$parsedSource));
+    }
+}
+
+/**
+ * @readonly
+ * @enum {string}
+ */
+export const MediaProvider = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    MediaMusic: "music",
+    MediaSpotify: "spotify",
+};
+
+export class MediaSample {
+    /**
+     * Creates a new MediaSample instance.
+     * @param {Partial<MediaSample>} [$$source = {}] - The source object to create the MediaSample.
+     */
+    constructor($$source = {}) {
+        if (!("provider" in $$source)) {
+            /**
+             * @member
+             * @type {MediaProvider}
+             */
+            this["provider"] = MediaProvider.$zero;
+        }
+        if (!("process" in $$source)) {
+            /**
+             * @member
+             * @type {MediaProcess}
+             */
+            this["process"] = (new MediaProcess());
+        }
+        if (!("generation" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["generation"] = 0;
+        }
+        if (!("sequence" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["sequence"] = 0;
+        }
+        if (!("trackEpoch" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["trackEpoch"] = 0;
+        }
+        if (!("track" in $$source)) {
+            /**
+             * @member
+             * @type {MediaTrack}
+             */
+            this["track"] = (new MediaTrack());
+        }
+        if (!("playback" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["playback"] = "";
+        }
+        if (!("positionMS" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["positionMS"] = 0;
+        }
+        if (!("observedAt" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["observedAt"] = "0001-01-01T00:00:00.000Z";
+        }
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["reason"] = "";
+        }
+        if (!("capabilities" in $$source)) {
+            /**
+             * @member
+             * @type {MediaCapabilities}
+             */
+            this["capabilities"] = (new MediaCapabilities());
+        }
+        if (!("artworkToken" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["artworkToken"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MediaSample instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MediaSample}
+     */
+    static createFrom($$source = {}) {
+        const $$createField1_0 = $$createType3;
+        const $$createField5_0 = $$createType4;
+        const $$createField11_0 = $$createType5;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("process" in $$parsedSource) {
+            $$parsedSource["process"] = $$createField1_0($$parsedSource["process"]);
+        }
+        if ("track" in $$parsedSource) {
+            $$parsedSource["track"] = $$createField5_0($$parsedSource["track"]);
+        }
+        if ("capabilities" in $$parsedSource) {
+            $$parsedSource["capabilities"] = $$createField11_0($$parsedSource["capabilities"]);
+        }
+        return new MediaSample(/** @type {Partial<MediaSample>} */($$parsedSource));
+    }
+}
+
+export class MediaScope {
+    /**
+     * Creates a new MediaScope instance.
+     * @param {Partial<MediaScope>} [$$source = {}] - The source object to create the MediaScope.
+     */
+    constructor($$source = {}) {
+        if (!("provider" in $$source)) {
+            /**
+             * @member
+             * @type {MediaProvider}
+             */
+            this["provider"] = MediaProvider.$zero;
+        }
+        if (!("process" in $$source)) {
+            /**
+             * @member
+             * @type {MediaProcess}
+             */
+            this["process"] = (new MediaProcess());
+        }
+        if (!("generation" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["generation"] = 0;
+        }
+        if (!("trackEpoch" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["trackEpoch"] = 0;
+        }
+        if (!("trackID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["trackID"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MediaScope instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MediaScope}
+     */
+    static createFrom($$source = {}) {
+        const $$createField1_0 = $$createType3;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("process" in $$parsedSource) {
+            $$parsedSource["process"] = $$createField1_0($$parsedSource["process"]);
+        }
+        return new MediaScope(/** @type {Partial<MediaScope>} */($$parsedSource));
+    }
+}
+
+export class MediaTrack {
+    /**
+     * Creates a new MediaTrack instance.
+     * @param {Partial<MediaTrack>} [$$source = {}] - The source object to create the MediaTrack.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("title" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["title"] = "";
+        }
+        if (!("artist" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["artist"] = "";
+        }
+        if (!("album" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["album"] = "";
+        }
+        if (!("durationMS" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["durationMS"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MediaTrack instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MediaTrack}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MediaTrack(/** @type {Partial<MediaTrack>} */($$parsedSource));
+    }
+}
+
 /**
  * WindowPresence separates a positively empty inventory from unavailable AX
  * metadata. Unknown apps can still be activated, but do not acquire invented
@@ -386,3 +766,6 @@ export const WindowPresence = {
 const $$createType0 = domain$0.Bounds.createFrom;
 const $$createType1 = DockLockDisplay.createFrom;
 const $$createType2 = $Create.Array($$createType1);
+const $$createType3 = MediaProcess.createFrom;
+const $$createType4 = MediaTrack.createFrom;
+const $$createType5 = MediaCapabilities.createFrom;

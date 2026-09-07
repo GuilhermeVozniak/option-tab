@@ -71,7 +71,8 @@ func (a *App) setDockInputTarget(epoch uint64, target platform.DockInputTarget) 
 	if a.dockInput == nil || a.dockController == nil || epoch == 0 || epoch != a.dockController.AdmissionEpoch() || (target.Generation != 0 && !a.dockAllowedLocked()) {
 		return
 	}
-	if !a.settingsSnapshot().Dock.Enabled || (target.Item != nil && target.Item.Kind != "" && target.Item.Kind != "app") {
+	settings := a.settingsSnapshot()
+	if !settings.Dock.Enabled || (target.Item != nil && ((target.Item.Kind != "" && target.Item.Kind != "app") || dock.MediaProviderForItem(dock.Item{Kind: target.Item.Kind, BundleID: target.Item.BundleID}, settings.Dock.Media) != "")) {
 		target = platform.DockInputTarget{}
 	}
 	a.dockInput.Target(target)
@@ -96,7 +97,7 @@ func (a *App) executeDockInput(action dock.InputAction, nativeGuard func() error
 		a.viewMu.Lock()
 		defer a.viewMu.Unlock()
 		s := a.settingsSnapshot()
-		if !dockInputEnabled(s) || dockInputPolicy(s) != policy || !a.dockAllowedLocked() || a.dockController != controller || (controller != nil && controller.AdmissionEpoch() != admission) {
+		if dock.MediaProviderForItem(dock.Item{Kind: action.Item.Kind, BundleID: action.Item.BundleID}, s.Dock.Media) != "" || !dockInputEnabled(s) || dockInputPolicy(s) != policy || !a.dockAllowedLocked() || a.dockController != controller || (controller != nil && controller.AdmissionEpoch() != admission) {
 			return dock.ErrInputRetired
 		}
 		return nil

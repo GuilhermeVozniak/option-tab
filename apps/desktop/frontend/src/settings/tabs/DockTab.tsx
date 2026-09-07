@@ -18,6 +18,7 @@ export function DockTab({
   permissions,
   inputError,
   monitorLock,
+  media,
 }: {
   ctx: TabContext;
   permissions?: PermissionsControl;
@@ -30,6 +31,10 @@ export function DockTab({
     onEnable: () => void;
     onPlace: (session: number, revision: number, generation: number) => void;
     onCancel: () => void;
+  };
+  media?: {
+    permissions: Record<string, { status: string; reason: string }>;
+    onConnect: (provider: "music" | "spotify") => void;
   };
 }) {
   const { settings, t, patch } = ctx;
@@ -108,6 +113,79 @@ export function DockTab({
               {t("Dock input unavailable")}: {inputError}
             </p>
           ) : null}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Media controls")}</CardTitle>
+          <CardDescription>
+            {t(
+              "Show playback details and controls for enabled players. Connecting is always explicit.",
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          <label className={ROW}>
+            <span>{t("Enable media controls")}</span>
+            <Checkbox
+              aria-label="Enable media controls"
+              checked={d.media?.enabled ?? false}
+              onChange={(e) =>
+                patchDock({
+                  media: {
+                    ...(d.media ?? {
+                      enabled: false,
+                      musicEnabled: false,
+                      spotifyEnabled: false,
+                      remoteArtwork: false,
+                    }),
+                    enabled: e.target.checked,
+                  },
+                })
+              }
+            />
+          </label>
+          {(["music", "spotify"] as const).map((provider) => {
+            const field = provider === "music" ? "musicEnabled" : "spotifyEnabled";
+            const label = provider === "music" ? "Apple Music" : "Spotify";
+            return (
+              <div key={provider}>
+                <label className={ROW}>
+                  <span>{t(`Enable ${label}`)}</span>
+                  <Checkbox
+                    aria-label={`Enable ${label}`}
+                    checked={d.media?.[field] ?? false}
+                    onChange={(e) =>
+                      patchDock({ media: { ...d.media, [field]: e.target.checked } })
+                    }
+                  />
+                </label>
+                {d.media?.[field] && media ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <small>{media.permissions[provider]?.reason || t("Not connected")}</small>
+                    <button type="button" onClick={() => media.onConnect(provider)}>
+                      {t("Connect")}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+          <label className={ROW}>
+            <span>{t("Allow remote artwork")}</span>
+            <Checkbox
+              aria-label="Allow remote artwork"
+              checked={d.media?.remoteArtwork ?? false}
+              onChange={(e) =>
+                patchDock({ media: { ...d.media, remoteArtwork: e.target.checked } })
+              }
+            />
+          </label>
+          <p className={HINT}>
+            {t(
+              "Remote artwork contacts the image host. Metadata and controls still work when this is off.",
+            )}
+          </p>
         </CardContent>
       </Card>
       <Card>

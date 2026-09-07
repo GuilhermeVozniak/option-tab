@@ -52,6 +52,10 @@ interface SettingsProps {
     onPlace: (session: number, revision: number, generation: number) => void;
     onCancel: () => void;
   };
+  media?: {
+    permissions: Record<string, { status: string; reason: string }>;
+    onConnect: (provider: "music" | "spotify") => void;
+  };
 }
 
 const TABS = [
@@ -82,6 +86,7 @@ export function Settings({
   requestedTab,
   dockInputError,
   monitorLock,
+  media,
 }: SettingsProps) {
   const [tab, setTab] = useState<Tab>("General");
   const [mode, setMode] = useState<SwitcherMode>("windows");
@@ -300,6 +305,7 @@ export function Settings({
             permissions={permissions}
             inputError={dockInputError}
             monitorLock={monitorLock}
+            media={media}
           />
         </section>
         <section hidden={tab !== "About"} aria-label="About" className="space-y-4">

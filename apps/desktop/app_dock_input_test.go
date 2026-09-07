@@ -245,3 +245,44 @@ func TestDockInputRejectsNonAppCapturedItem(t *testing.T) {
 		t.Fatalf("folder item reached native app action: %v calls=%v", err, p.HideCalls)
 	}
 }
+
+func TestDockInputRejectsEnabledMediaProviderAtDispatch(t *testing.T) {
+	for _, bundle := range []string{"com.apple.Music", "com.spotify.client"} {
+		t.Run(bundle, func(t *testing.T) {
+			p := &appInputPlatform{Fake: fake.New(), apps: []domain.App{{ID: 10, BundleID: bundle}}}
+			s := enabledDockActionSettings()
+			s.Dock.Media = config.DockMediaSettings{Enabled: true, MusicEnabled: true, SpotifyEnabled: true}
+			a := newApp(p, s, "")
+			defer a.stopCapture()
+			action := inputAction("show")
+			action.Item.BundleID = bundle
+			if err := a.executeDockInput(action, func() error { return nil }); !errors.Is(err, dock.ErrInputRetired) {
+				t.Fatalf("media icon action admitted: %v", err)
+			}
+			if len(p.activateCalls) != 0 {
+				t.Fatal("media icon activated via window input")
+			}
+		})
+	}
+}
+
+func TestDockInputMediaEnableDuringPreparationRetiresDispatch(t *testing.T) {
+	p := &appInputPlatform{Fake: fake.New(), apps: []domain.App{{ID: 10, BundleID: "com.apple.Music"}}}
+	a := newApp(p, enabledDockActionSettings(), "")
+	defer a.stopCapture()
+	action := inputAction("show")
+	action.Item.BundleID = "com.apple.Music"
+	calls := 0
+	err := a.executeDockInput(action, func() error {
+		calls++
+		if calls == 2 {
+			a.settingsMu.Lock()
+			a.settings.Dock.Media = config.DockMediaSettings{Enabled: true, MusicEnabled: true}
+			a.settingsMu.Unlock()
+		}
+		return nil
+	})
+	if !errors.Is(err, dock.ErrInputRetired) || len(p.activateCalls) != 0 {
+		t.Fatalf("media enable after lookup dispatched: error=%v calls=%v", err, p.activateCalls)
+	}
+}

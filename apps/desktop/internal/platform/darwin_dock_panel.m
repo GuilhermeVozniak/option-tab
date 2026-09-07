@@ -1,5 +1,7 @@
-// go:build darwin
+//go:build darwin
+
 #import "darwin_dock_panel.h"
+#import "darwin_media_panel.h"
 #import <Cocoa/Cocoa.h>
 
 @class OTDockPanel;
@@ -9,6 +11,7 @@ static BOOL handlePanelWheel(OTDockPanel *, NSEvent *);
 @end
 @implementation OTDockPanel
 - (void)sendEvent:(NSEvent *)event {
+  if (OTMediaHeaderEvent(self.panelToken,event)) return;
   if (event.type == NSEventTypeScrollWheel && handlePanelWheel(self, event))
     return;
   [super sendEvent:event];
@@ -295,6 +298,7 @@ static void destroyPanel(uint64_t token, BOOL restore) {
     return;
   if (!restore)
     [retiredPanelHosts() addObject:r.host];
+  OTMediaDestroy(token,!restore);
   cancelWheel(r, 3);
   r.wheelVisible = NO;
   if (r.wheelMailbox && r.wheelMailbox->count)
@@ -391,9 +395,10 @@ int ot_dock_panel_show(uint64_t token, double x, double y, double w, double h) {
     if (!r)
       return;
     CGFloat top = NSMaxY(NSScreen.screens.firstObject.frame);
-    NSRect frame = NSMakeRect(x, top - y - h, w, h);
+    NSRect frame = OTMediaPrepare(token,NSMakeRect(x, top - y - h, w, h));
+
     [r.panel setFrame:frame display:YES];
-    NSRect contentFrame = NSMakeRect(0, 0, w, h);
+    NSRect contentFrame = NSMakeRect(0, 0, frame.size.width, frame.size.height);
     r.content.frame = contentFrame;
     for (NSView *view in r.content.subviews) {
       view.frame = r.content.bounds;
@@ -401,6 +406,7 @@ int ot_dock_panel_show(uint64_t token, double x, double y, double w, double h) {
     [r.host orderOut:nil];
     [r.panel orderFrontRegardless];
     r.wheelVisible = YES;
+    OTMediaShown(token);
     ok = 1;
   });
   return ok;
@@ -410,6 +416,7 @@ int ot_dock_panel_hide(uint64_t token) {
   panelMain(^{
     OTDockPanelRecord *r = panelRecords()[@(token)];
     if (r) {
+      OTMediaHide(token);
       cancelWheel(r, 2);
       r.wheelVisible = NO;
       [r.panel orderOut:nil];
@@ -489,4 +496,13 @@ void ot_dock_panel_wheel_complete(uint64_t token, uint64_t session,
   panelMain(^{
     acknowledgeWheel(panelRecords()[@(token)], session, revision, gesture);
   });
+}
+
+uint64_t ot_media_panel_create(void *host,uint64_t session) {
+  if (!session) return 0;
+  uint64_t token=ot_dock_panel_create(host);
+  if (!token) return 0;
+  __block BOOL attached=NO;
+  panelMain(^{OTDockPanelRecord *r=panelRecords()[@(token)];if(r){OTMediaAttach(token,session,r.panel);attached=YES;}});
+  return attached?token:0;
 }

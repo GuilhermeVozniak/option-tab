@@ -8,5 +8,12 @@ export {
     DockPlacementResult,
     FolderEntry,
     FolderSort,
+    MediaCapabilities,
+    MediaPermission,
+    MediaProcess,
+    MediaProvider,
+    MediaSample,
+    MediaScope,
+    MediaTrack,
     WindowPresence
 } from "./models.js";

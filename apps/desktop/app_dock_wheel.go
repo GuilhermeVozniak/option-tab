@@ -22,7 +22,7 @@ func (a *App) setDockPreviewRegions(session, frontendRevision uint64, regions []
 		return errors.New("invalid dock preview region revision")
 	}
 	a.viewMu.Lock()
-	if session == 0 || session != a.dockState.Session || !a.dockItemAllowedLocked(a.dockState.Item) || a.dockState.Item.Kind == "folder" {
+	if session == 0 || session != a.dockState.Session || !a.dockWindowWheelAllowedLocked() {
 		a.viewMu.Unlock()
 		return errStaleDockSession
 	}
@@ -91,10 +91,18 @@ func (a *App) setDockPreviewRegions(session, frontendRevision uint64, regions []
 	return nil
 }
 
+// Caller holds viewMu. Window input eligibility must follow current settings,
+// even before the Dock owner publishes a replacement presentation.
+func (a *App) dockWindowWheelAllowedLocked() bool {
+	s := a.settingsSnapshot()
+	item := a.dockState.Item
+	return s.Dock.Enabled && a.dockAllowedLocked() && a.dockState.ContentKind != "media" && (item.Kind == "" || item.Kind == "app") && dock.MediaProviderForItem(item, s.Dock.Media) == ""
+}
+
 func (a *App) currentDockWheelPresentation(session, admission uint64) bool {
 	a.viewMu.Lock()
 	defer a.viewMu.Unlock()
-	if session == 0 || session != a.dockState.Session || !a.dockItemAllowedLocked(a.dockState.Item) || a.dockState.Item.Kind == "folder" || admission != a.dockState.AdmissionEpoch {
+	if session == 0 || session != a.dockState.Session || !a.dockWindowWheelAllowedLocked() || admission != a.dockState.AdmissionEpoch {
 		return false
 	}
 	return a.dockController == nil || admission == a.dockController.AdmissionEpoch()
@@ -190,7 +198,7 @@ func (a *App) executeDockPanelGesture(intent dock.PanelGestureIntent, source pla
 		admission := a.dockWheelAdmission
 		wheelCurrent := a.dockWheelSession == intent.Session && a.dockWheelRevision == intent.Revision
 		a.dockWheelMu.Unlock()
-		current := wheelCurrent && intent.Session != 0 && intent.Session == a.dockState.Session && a.dockAllowedLocked() && a.dockState.AdmissionEpoch == admission
+		current := a.dockWindowWheelAllowedLocked() && wheelCurrent && intent.Session != 0 && intent.Session == a.dockState.Session && a.dockState.AdmissionEpoch == admission
 		if current {
 			current = a.dockController == nil || a.dockState.AdmissionEpoch == a.dockController.AdmissionEpoch()
 		}

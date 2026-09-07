@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"sync"
+	"unsafe"
 
 	"option-tab/internal/domain"
 	"option-tab/internal/platform"
@@ -17,13 +18,16 @@ type dockWindow struct {
 	factory                 func() nativeWindow
 	host                    platform.DockPanelHost
 	revision                uint64
+	visibility, nextHost    uint64
 	queued, visible, closed bool
 	bounds                  domain.Bounds
 	current                 *dockWindowResources
 }
 type dockWindowResources struct {
-	window *liveWindow
-	panel  platform.DockPanel
+	incarnation, mediaSequence uint64
+	nativeHost                 unsafe.Pointer
+	window                     *liveWindow
+	panel                      platform.DockPanel
 }
 
 func newDockWindow(dispatch func(func()), factory func() nativeWindow, host platform.DockPanelHost) *dockWindow {
@@ -35,6 +39,9 @@ func (d *dockWindow) show(b domain.Bounds) {
 	defer d.mu.Unlock()
 	if d.closed {
 		return
+	}
+	if !d.visible {
+		d.visibility++
 	}
 	d.visible = true
 	d.bounds = b
@@ -49,6 +56,8 @@ func (d *dockWindow) hide() {
 		return
 	}
 	d.visible = false
+	d.visibility++
+	d.retireMediaEventsLocked()
 	d.revision++
 	d.scheduleLocked()
 }
@@ -61,6 +70,8 @@ func (d *dockWindow) close() {
 	}
 	d.closed = true
 	d.visible = false
+	d.visibility++
+	d.retireMediaEventsLocked()
 	d.revision++
 	d.scheduleLocked()
 }
@@ -75,15 +86,16 @@ func (d *dockWindow) scheduleLocked() {
 
 // The callback identifies the exact Wails host. A delayed notification from an
 // already retired host cannot invalidate a replacement or create another panel.
-func (d *dockWindow) markHostClosedIf(w nativeWindow) {
+func (d *dockWindow) markHostClosedIf(w nativeWindow) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.current == nil || !d.current.window.wraps(w) || !d.current.window.alive() {
-		return
+		return false
 	}
 	d.current.window.markClosed()
 	d.revision++
 	d.scheduleLocked()
+	return true
 }
 
 func (d *dockWindow) valid(revision uint64) bool {
@@ -129,6 +141,8 @@ func (d *dockWindow) reconcile() {
 		}
 		r = &dockWindowResources{window: newLiveWindow(w)}
 		d.mu.Lock()
+		d.nextHost++
+		r.incarnation = d.nextHost
 		d.current = r
 		d.mu.Unlock()
 		if !d.valid(revision) {
@@ -137,7 +151,11 @@ func (d *dockWindow) reconcile() {
 		}
 		// Publish the live wrapper before invoking native code, which can synchronously
 		// announce host closure. Neither the factory nor AppKit executes under mu.
-		panel, err := d.host.CreateDockPanel(r.window.native())
+		nativeHost := r.window.native()
+		d.mu.Lock()
+		r.nativeHost = nativeHost
+		d.mu.Unlock()
+		panel, err := d.host.CreateDockPanel(nativeHost)
 		d.mu.Lock()
 		if d.current == r {
 			r.panel = panel
@@ -217,4 +235,58 @@ func (d *dockWindow) CompleteDockPanelWheelGesture(session, revision, gesture ui
 	if panel, ok := d.wheelPanel().(platform.DockPanelWheelGestureAcknowledger); ok {
 		panel.CompleteDockPanelWheelGesture(session, revision, gesture)
 	}
+}
+
+// Native media capability methods below are strictly Go-only and never call UI.
+func (d *dockWindow) retireMediaEventsLocked() {
+	if d.current != nil {
+		if source, ok := d.current.panel.(platform.MediaPanelEventRetirer); ok {
+			source.RetireMediaPanelEvents()
+		}
+	}
+}
+
+func (d *dockWindow) stampMediaPanelEvent(host unsafe.Pointer, incarnation uint64, event platform.MediaPanelEvent) (platform.MediaPanelEvent, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	r := d.current
+	if d.closed || r == nil || r.nativeHost != host || r.incarnation != incarnation {
+		return event, false
+	}
+	event.HostIncarnation = r.incarnation
+	event.HostVisibilityEpoch = d.visibility
+	return event, true
+}
+
+func (d *dockWindow) admitMediaPanelEvent(event platform.MediaPanelEvent) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	r := d.current
+	if d.closed || r == nil || event.HostIncarnation == 0 || r.incarnation != event.HostIncarnation || event.Sequence <= r.mediaSequence {
+		return false
+	}
+	if event.Reason != "hostClosed" && (!d.visible || event.HostVisibilityEpoch != d.visibility) {
+		return false
+	}
+	validator, ok := r.panel.(platform.MediaPanelEventValidator)
+	if !ok || !validator.MediaPanelEventCurrent(event) {
+		return false
+	}
+	r.mediaSequence = event.Sequence
+	return true
+}
+
+func (d *dockWindow) ownsMediaWindow(window nativeWindow) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return !d.closed && d.current != nil && d.current.window.wraps(window)
+}
+
+func (d *dockWindow) mediaHostIncarnation(host unsafe.Pointer) uint64 {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.closed || d.current == nil || d.current.nativeHost != host {
+		return 0
+	}
+	return d.current.incarnation
 }

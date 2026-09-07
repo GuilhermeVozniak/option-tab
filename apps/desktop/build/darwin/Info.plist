@@ -20,6 +20,8 @@
         <string>13.0</string>
         <key>NSHighResolutionCapable</key>
         <string>true</string>
+        <key>NSAppleEventsUsageDescription</key>
+        <string>Option Tab reads playback details and controls Music or Spotify only when you connect that player.</string>
         <key>LSUIElement</key>
         <true/>
     </dict>

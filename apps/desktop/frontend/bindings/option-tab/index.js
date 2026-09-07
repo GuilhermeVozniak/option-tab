@@ -12,5 +12,8 @@ export {
     DockItemView,
     DockPointer,
     DockPreviewRegion,
-    DockViewState
+    DockViewState,
+    MediaArtworkView,
+    MediaLyricsView,
+    MediaViewState
 } from "./models.js";

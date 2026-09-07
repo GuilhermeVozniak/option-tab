@@ -140,8 +140,55 @@ export interface DockViewState {
   previewDragEnabled?: boolean;
   dragGestureFloor?: number;
   pointer?: DockPointer;
-  contentKind?: "windows" | "folder";
+  contentKind?: "windows" | "folder" | "media";
   folder?: DockFolderState;
+  media?: MediaViewState;
+}
+export type MediaProvider = "music" | "spotify";
+export interface MediaScope {
+  provider: MediaProvider;
+  process: { pid: number; launchID: string };
+  generation: number;
+  trackEpoch: number;
+  trackID: string;
+}
+export interface MediaSample {
+  provider: MediaProvider;
+  process: { pid: number; launchID: string };
+  generation: number;
+  sequence: number;
+  trackEpoch: number;
+  track: { id: string; title: string; artist: string; album: string; durationMS: number };
+  playback: string;
+  positionMS: number;
+  observedAt: string;
+  status: string;
+  reason: string;
+  capabilities: { play: boolean; pause: boolean; previous: boolean; next: boolean; seek: boolean };
+  artworkToken: string;
+}
+export interface MediaViewState {
+  session: number;
+  revision: number;
+  open: boolean;
+  pinned: boolean;
+  pinnable: boolean;
+  provider: MediaProvider;
+  scope: MediaScope;
+  sample: MediaSample;
+  appearance: Appearance;
+  artwork: { status: string; reason: string; image: string };
+  lyrics: {
+    documentID: string;
+    status: string;
+    reason: string;
+    cues: Array<{ atMs: number; text: string }>;
+    offsetMS: number;
+  };
+  positionMS: number;
+  activeCue: number;
+  error: string;
+  interactionEpoch?: number;
 }
 export interface DockFolderEntry {
   id: string;
@@ -334,7 +381,14 @@ export interface DockSettings {
   appearance: Appearance;
   input: DockInputSettings;
   folderPop: { enabled: boolean };
+  media: DockMediaSettings;
   monitorLock: DockMonitorLockSettings;
+}
+export interface DockMediaSettings {
+  enabled: boolean;
+  musicEnabled: boolean;
+  spotifyEnabled: boolean;
+  remoteArtwork: boolean;
 }
 export interface DockMonitorLockSettings {
   enabled: boolean;
@@ -489,6 +543,7 @@ export const defaultSettings: Settings = {
       aeroShakeAction: "none",
     },
     folderPop: { enabled: false },
+    media: { enabled: false, musicEnabled: false, spotifyEnabled: false, remoteArtwork: false },
     monitorLock: { enabled: false, target: "main", displayUUID: "", bypassModifier: "option" },
   },
 };

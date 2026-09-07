@@ -70,6 +70,28 @@ describe("Settings", () => {
       }),
     );
   });
+  it("keeps media and provider opt-ins independent from Dock previews", () => {
+    const onChange = vi.fn();
+    render(<Settings settings={defaultSettings} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    fireEvent.click(screen.getByLabelText("Enable media controls"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        dock: expect.objectContaining({
+          enabled: false,
+          media: expect.objectContaining({ enabled: true }),
+        }),
+      }),
+    );
+    fireEvent.click(screen.getByLabelText("Enable Apple Music"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        dock: expect.objectContaining({
+          media: expect.objectContaining({ musicEnabled: true, spotifyEnabled: false }),
+        }),
+      }),
+    );
+  });
   it("renders current values", () => {
     render(<Settings settings={defaultSettings} onChange={vi.fn()} />);
     expect(screen.getByLabelText("Visual style thumbnails")).toHaveAttribute(

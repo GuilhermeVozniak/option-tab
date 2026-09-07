@@ -70,7 +70,7 @@ cp "$BIN_DIR/iconfile.icns" "$APP/Contents/Resources/"
 
 # 5. Sign (hardened runtime) when an identity is available.
 if [ -n "${CODESIGN_IDENTITY:-}" ]; then
-  codesign --force --deep --options runtime --timestamp --sign "$CODESIGN_IDENTITY" "$APP"
+  codesign --force --deep --options runtime --entitlements apps/desktop/build/darwin/entitlements.plist --timestamp --sign "$CODESIGN_IDENTITY" "$APP"
   codesign --verify --deep --strict --verbose=2 "$APP"
 else
   echo "==> CODESIGN_IDENTITY unset: skipping codesign"

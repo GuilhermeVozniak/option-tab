@@ -17,6 +17,12 @@ import * as dock$0 from "./internal/dock/models.js";
 import * as domain$0 from "./internal/domain/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as media$0 from "./internal/media/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as platform$0 from "./internal/platform/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as switcher$0 from "./internal/switcher/models.js";
 
 export class DockBounds {
@@ -271,6 +277,13 @@ export class DockViewState {
              */
             this["folder"] = undefined;
         }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {MediaViewState | null | undefined}
+             */
+            this["media"] = undefined;
+        }
         if (!("open" in $$source)) {
             /**
              * @member
@@ -373,27 +386,279 @@ export class DockViewState {
      */
     static createFrom($$source = {}) {
         const $$createField1_0 = $$createType2;
-        const $$createField5_0 = $$createType3;
+        const $$createField2_0 = $$createType4;
         const $$createField6_0 = $$createType5;
-        const $$createField8_0 = $$createType6;
-        const $$createField11_0 = $$createType8;
+        const $$createField7_0 = $$createType7;
+        const $$createField9_0 = $$createType8;
+        const $$createField12_0 = $$createType10;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("folder" in $$parsedSource) {
             $$parsedSource["folder"] = $$createField1_0($$parsedSource["folder"]);
         }
+        if ("media" in $$parsedSource) {
+            $$parsedSource["media"] = $$createField2_0($$parsedSource["media"]);
+        }
         if ("item" in $$parsedSource) {
-            $$parsedSource["item"] = $$createField5_0($$parsedSource["item"]);
+            $$parsedSource["item"] = $$createField6_0($$parsedSource["item"]);
         }
         if ("entries" in $$parsedSource) {
-            $$parsedSource["entries"] = $$createField6_0($$parsedSource["entries"]);
+            $$parsedSource["entries"] = $$createField7_0($$parsedSource["entries"]);
         }
         if ("appearance" in $$parsedSource) {
-            $$parsedSource["appearance"] = $$createField8_0($$parsedSource["appearance"]);
+            $$parsedSource["appearance"] = $$createField9_0($$parsedSource["appearance"]);
         }
         if ("pointer" in $$parsedSource) {
-            $$parsedSource["pointer"] = $$createField11_0($$parsedSource["pointer"]);
+            $$parsedSource["pointer"] = $$createField12_0($$parsedSource["pointer"]);
         }
         return new DockViewState(/** @type {Partial<DockViewState>} */($$parsedSource));
+    }
+}
+
+export class MediaArtworkView {
+    /**
+     * Creates a new MediaArtworkView instance.
+     * @param {Partial<MediaArtworkView>} [$$source = {}] - The source object to create the MediaArtworkView.
+     */
+    constructor($$source = {}) {
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["reason"] = "";
+        }
+        if (!("image" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["image"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MediaArtworkView instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MediaArtworkView}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new MediaArtworkView(/** @type {Partial<MediaArtworkView>} */($$parsedSource));
+    }
+}
+
+export class MediaLyricsView {
+    /**
+     * Creates a new MediaLyricsView instance.
+     * @param {Partial<MediaLyricsView>} [$$source = {}] - The source object to create the MediaLyricsView.
+     */
+    constructor($$source = {}) {
+        if (!("documentID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["documentID"] = "";
+        }
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["reason"] = "";
+        }
+        if (!("cues" in $$source)) {
+            /**
+             * @member
+             * @type {media$0.Cue[]}
+             */
+            this["cues"] = [];
+        }
+        if (!("offsetMS" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["offsetMS"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MediaLyricsView instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MediaLyricsView}
+     */
+    static createFrom($$source = {}) {
+        const $$createField3_0 = $$createType12;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("cues" in $$parsedSource) {
+            $$parsedSource["cues"] = $$createField3_0($$parsedSource["cues"]);
+        }
+        return new MediaLyricsView(/** @type {Partial<MediaLyricsView>} */($$parsedSource));
+    }
+}
+
+export class MediaViewState {
+    /**
+     * Creates a new MediaViewState instance.
+     * @param {Partial<MediaViewState>} [$$source = {}] - The source object to create the MediaViewState.
+     */
+    constructor($$source = {}) {
+        if (!("interactionEpoch" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["interactionEpoch"] = 0;
+        }
+        if (!("session" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["session"] = 0;
+        }
+        if (!("revision" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["revision"] = 0;
+        }
+        if (!("open" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["open"] = false;
+        }
+        if (!("pinned" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["pinned"] = false;
+        }
+        if (!("pinnable" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["pinnable"] = false;
+        }
+        if (!("provider" in $$source)) {
+            /**
+             * @member
+             * @type {platform$0.MediaProvider}
+             */
+            this["provider"] = platform$0.MediaProvider.$zero;
+        }
+        if (!("scope" in $$source)) {
+            /**
+             * @member
+             * @type {platform$0.MediaScope}
+             */
+            this["scope"] = (new platform$0.MediaScope());
+        }
+        if (!("sample" in $$source)) {
+            /**
+             * @member
+             * @type {platform$0.MediaSample}
+             */
+            this["sample"] = (new platform$0.MediaSample());
+        }
+        if (!("appearance" in $$source)) {
+            /**
+             * @member
+             * @type {config$0.Appearance}
+             */
+            this["appearance"] = (new config$0.Appearance());
+        }
+        if (!("artwork" in $$source)) {
+            /**
+             * @member
+             * @type {MediaArtworkView}
+             */
+            this["artwork"] = (new MediaArtworkView());
+        }
+        if (!("lyrics" in $$source)) {
+            /**
+             * @member
+             * @type {MediaLyricsView}
+             */
+            this["lyrics"] = (new MediaLyricsView());
+        }
+        if (!("positionMS" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["positionMS"] = 0;
+        }
+        if (!("activeCue" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["activeCue"] = 0;
+        }
+        if (!("error" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["error"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new MediaViewState instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {MediaViewState}
+     */
+    static createFrom($$source = {}) {
+        const $$createField7_0 = $$createType13;
+        const $$createField8_0 = $$createType14;
+        const $$createField9_0 = $$createType8;
+        const $$createField10_0 = $$createType15;
+        const $$createField11_0 = $$createType16;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("scope" in $$parsedSource) {
+            $$parsedSource["scope"] = $$createField7_0($$parsedSource["scope"]);
+        }
+        if ("sample" in $$parsedSource) {
+            $$parsedSource["sample"] = $$createField8_0($$parsedSource["sample"]);
+        }
+        if ("appearance" in $$parsedSource) {
+            $$parsedSource["appearance"] = $$createField9_0($$parsedSource["appearance"]);
+        }
+        if ("artwork" in $$parsedSource) {
+            $$parsedSource["artwork"] = $$createField10_0($$parsedSource["artwork"]);
+        }
+        if ("lyrics" in $$parsedSource) {
+            $$parsedSource["lyrics"] = $$createField11_0($$parsedSource["lyrics"]);
+        }
+        return new MediaViewState(/** @type {Partial<MediaViewState>} */($$parsedSource));
     }
 }
 
@@ -401,9 +666,17 @@ export class DockViewState {
 const $$createType0 = DockBounds.createFrom;
 const $$createType1 = dock$0.FolderState.createFrom;
 const $$createType2 = $Create.Nullable($$createType1);
-const $$createType3 = DockItemView.createFrom;
-const $$createType4 = switcher$0.Entry.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = config$0.Appearance.createFrom;
-const $$createType7 = DockPointer.createFrom;
-const $$createType8 = $Create.Nullable($$createType7);
+const $$createType3 = MediaViewState.createFrom;
+const $$createType4 = $Create.Nullable($$createType3);
+const $$createType5 = DockItemView.createFrom;
+const $$createType6 = switcher$0.Entry.createFrom;
+const $$createType7 = $Create.Array($$createType6);
+const $$createType8 = config$0.Appearance.createFrom;
+const $$createType9 = DockPointer.createFrom;
+const $$createType10 = $Create.Nullable($$createType9);
+const $$createType11 = media$0.Cue.createFrom;
+const $$createType12 = $Create.Array($$createType11);
+const $$createType13 = platform$0.MediaScope.createFrom;
+const $$createType14 = platform$0.MediaSample.createFrom;
+const $$createType15 = MediaArtworkView.createFrom;
+const $$createType16 = MediaLyricsView.createFrom;

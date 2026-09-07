@@ -297,3 +297,67 @@ func TestDockPanelWheelRejectsReorderedFrontendRevision(t *testing.T) {
 		t.Fatalf("old geometry replaced revision: %+v", policy)
 	}
 }
+
+func TestDockPanelWheelRejectsMediaEvenWithEmptyRegions(t *testing.T) {
+	input := config.Default().Dock.Input
+	input.SwipeNext = config.PointerClose
+	a, _, wheel := wheelApp(t, input)
+	a.viewMu.Lock()
+	a.dockState.ContentKind = "media"
+	a.dockState.Windows = nil
+	a.viewMu.Unlock()
+	if err := a.SetDockPreviewRegions(7, 4, nil); !errors.Is(err, errStaleDockSession) {
+		t.Fatalf("media accepted wheel policy: %v", err)
+	}
+	if wheel.snapshot().Session != 0 {
+		t.Fatal("media installed native window wheel policy")
+	}
+	if a.currentDockWheelPresentation(7, a.dockState.AdmissionEpoch) {
+		t.Fatal("media remained eligible after publication")
+	}
+}
+
+func TestDockPanelWheelSettingsPublishedDuringValidatorRetiresWindowAction(t *testing.T) {
+	for _, disable := range []bool{false, true} {
+		name := "media enabled"
+		if disable {
+			name = "window previews disabled"
+		}
+		t.Run(name, func(t *testing.T) {
+			input := config.Default().Dock.Input
+			input.SwipeNext = config.PointerClose
+			a, p, wheel := wheelApp(t, input)
+			a.viewMu.Lock()
+			a.dockState.Item.BundleID = "com.apple.Music"
+			a.viewMu.Unlock()
+			wheel.validateEntered, wheel.validateRelease = make(chan struct{}, 1), make(chan struct{})
+			if err := a.SetDockPreviewRegions(7, 1, region101()); err != nil {
+				t.Fatal(err)
+			}
+			policy := wheel.snapshot()
+			wheel.send(platform.DockPanelWheelEvent{Session: 7, Revision: policy.Revision, Sequence: 1, GestureID: 27, Timestamp: time.Now(), WindowID: 101, AppID: 10, DeltaX: 90, Owned: true, Precise: true, Phase: "changed"})
+			<-wheel.validateEntered
+			a.settingsMu.Lock()
+			a.settings.Dock.Media = config.DockMediaSettings{Enabled: true, MusicEnabled: !disable, SpotifyEnabled: true}
+			if disable {
+				a.settings.Dock.Enabled = false
+			}
+			a.settingsMu.Unlock()
+			close(wheel.validateRelease)
+			select {
+			case <-wheel.completed:
+			case <-time.After(time.Second):
+				t.Fatal("action not acknowledged")
+			}
+			if len(p.CloseCalls) != 0 {
+				t.Fatal("window action survived current media/window-disabled settings")
+			}
+			if a.currentDockWheelPresentation(7, a.dockState.AdmissionEpoch) {
+				t.Fatal("stale window presentation still admitted")
+			}
+			if err := a.SetDockPreviewRegions(7, 2, nil); !errors.Is(err, errStaleDockSession) {
+				t.Fatalf("stale content published new policy: %v", err)
+			}
+		})
+	}
+}

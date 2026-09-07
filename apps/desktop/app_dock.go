@@ -36,6 +36,7 @@ type DockItemView struct {
 type DockViewState struct {
 	ContentKind        string            `json:"contentKind"`
 	Folder             *dock.FolderState `json:"folder,omitempty"`
+	Media              *MediaViewState   `json:"media,omitempty"`
 	Open               bool              `json:"open"`
 	Revision           uint64            `json:"revision"`
 	Session            uint64            `json:"session"`
@@ -132,7 +133,7 @@ func (a *App) dockAllowedLocked() bool {
 	default:
 	}
 	s := a.settingsSnapshot()
-	return (s.Dock.Enabled || s.Dock.FolderPop.Enabled) && !s.Behavior.Paused && !a.switcherVisible && !a.prefsOpen && !a.sessionInactive
+	return (s.Dock.Enabled || s.Dock.FolderPop.Enabled || (s.Dock.Media.Enabled && (s.Dock.Media.MusicEnabled || s.Dock.Media.SpotifyEnabled))) && !s.Behavior.Paused && !a.switcherVisible && !a.prefsOpen && !a.sessionInactive
 }
 
 func (a *App) dockItemAllowedLocked(item dock.Item) bool {
@@ -144,7 +145,7 @@ func (a *App) dockItemAllowedLocked(item dock.Item) bool {
 	case "folder":
 		return s.Dock.FolderPop.Enabled
 	case "", "app":
-		return s.Dock.Enabled
+		return s.Dock.Enabled || dock.MediaProviderForItem(item, s.Dock.Media) != ""
 	default:
 		return false
 	}
@@ -171,14 +172,20 @@ func (a *App) showDock(st dock.State, first bool) {
 	}
 	st.Windows = slices.Clone(st.Windows)
 	st.Folder = cloneDockFolder(st.Folder)
-	if st.Item.Kind == "folder" {
-		st.ContentKind = "folder"
+	if st.ContentKind == "" {
+		st.ContentKind = "windows"
+	}
+	if st.Item.Kind == "folder" || st.ContentKind == "media" {
+		if st.Item.Kind == "folder" {
+			st.ContentKind = "folder"
+		}
 		st.Windows = nil
 		st.SelectedWindowID = 0
 		a.captures.Hide()
 		a.captureDockSession.Store(0)
 	}
 	a.dockState = st
+	a.syncMediaHoverLocked(st)
 	a.dockLastSession = st.Session
 	a.dockRevision++
 	dto := dockStateView(st)
@@ -186,13 +193,19 @@ func (a *App) showDock(st dock.State, first bool) {
 	dto.Revision = a.dockRevision
 	dto.Pointer = a.dockViewState.Pointer
 	dto.Error = a.dockInputError
-	if st.Item.Kind == "folder" {
+	if st.Item.Kind == "folder" || st.ContentKind == "media" {
 		dto.Error = ""
 		if previous := a.dockViewState.Folder; previous != nil && st.Folder != nil && previous.Revision == st.Folder.Revision && previous.FolderIdentity == st.Folder.FolderIdentity {
 			dto.Error = a.dockViewState.Error
 		}
 	}
-	dto.PreviewDragEnabled = st.Item.Kind != "folder" && a.settingsSnapshot().Dock.Input.PreviewDrag
+	dto.PreviewDragEnabled = st.ContentKind == "windows" && a.settingsSnapshot().Dock.Input.PreviewDrag
+	if a.media != nil && st.ContentKind == "media" {
+		if p := a.media.panels[a.media.hover]; p != nil {
+			s := a.mediaViewLocked(p)
+			dto.Media = &s
+		}
+	}
 	dto.DragGestureFloor = a.dockDragFloor(st.Session)
 	icons := switcher.State{Entries: dto.Entries, Appearance: st.Appearance}
 	a.enrichIcons(&icons)
@@ -206,7 +219,7 @@ func (a *App) showDock(st dock.State, first bool) {
 	if a.dockWindow != nil {
 		a.dockWindow.show(st.Bounds)
 	}
-	if st.Item.Kind == "folder" {
+	if st.Item.Kind == "folder" || st.ContentKind == "media" {
 		return
 	}
 	ids := make([]domain.WindowID, 0, len(st.Windows))
@@ -232,6 +245,9 @@ func dockStateView(st dock.State) DockViewState {
 		contentKind = "folder"
 		item.Path = ""
 	}
+	if st.ContentKind == "media" {
+		contentKind = "media"
+	}
 	entries := make([]switcher.Entry, 0, len(st.Windows))
 	for _, w := range st.Windows {
 		entries = append(entries, switcher.Entry{WindowID: w.ID, AppID: w.AppID, Title: w.Title, AppName: w.AppName, BundleID: w.BundleID, SpaceID: w.SpaceID, Minimized: w.Minimized, Hidden: w.Hidden, Fullscreen: w.Fullscreen})
@@ -250,6 +266,12 @@ func (a *App) GetDockState() *DockViewState {
 	}
 	state.Entries = slices.Clone(state.Entries)
 	state.Folder = cloneDockFolder(state.Folder)
+	if a.media != nil && state.ContentKind == "media" {
+		if p := a.media.panels[a.media.hover]; p != nil {
+			s := a.mediaViewLocked(p)
+			state.Media = &s
+		}
+	}
 	state.DragGestureFloor = a.dockDragFloor(state.Session)
 	if state.Pointer != nil {
 		pointer := *state.Pointer
@@ -278,6 +300,7 @@ func (a *App) dismissDockLocked() {
 		return
 	}
 	a.captures.Hide()
+	a.retireMediaHoverLocked()
 	a.captureDockSession.Store(0)
 	a.dockState = dock.State{}
 	a.retireDockWheelState()
@@ -300,6 +323,7 @@ func (a *App) syncDockSuspensionLocked() {
 	a.syncDockShakeLocked()
 	a.syncDockFolderGrantLocked()
 	a.syncDockMonitorLockLocked()
+	a.syncMediaLocked()
 }
 
 func (a *App) setSessionInactive(inactive bool) {
@@ -355,7 +379,7 @@ var errStaleDockSession = errors.New("dock preview session is no longer active")
 func (a *App) validateDockTarget(session uint64, windowID domain.WindowID, appID domain.AppID, windowRequired bool) error {
 	a.viewMu.Lock()
 	defer a.viewMu.Unlock()
-	if session == 0 || session != a.dockState.Session || !a.dockItemAllowedLocked(a.dockState.Item) || a.dockState.Item.Kind == "folder" {
+	if session == 0 || session != a.dockState.Session || !a.dockItemAllowedLocked(a.dockState.Item) || a.dockState.Item.Kind == "folder" || a.dockState.ContentKind == "media" {
 		return errStaleDockSession
 	}
 	if epoch := a.dockState.AdmissionEpoch; epoch != 0 && a.dockController != nil && epoch != a.dockController.AdmissionEpoch() {

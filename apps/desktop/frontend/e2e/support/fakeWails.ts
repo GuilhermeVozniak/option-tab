@@ -137,6 +137,18 @@ const METHOD = {
   GetDockMonitorLockState: 3014544674,
   PlaceDockOnSelectedMonitor: 1589667255,
   CancelDockPlacement: 2631637315,
+  GetMediaState: 3763583330,
+  GetMediaPermissions: 3673411287,
+  PerformMediaAction: 2082824200,
+  PinMediaPanel: 900489102,
+  CloseMediaPanel: 231734221,
+  SetMediaPanelSize: 143498724,
+  ImportMediaLyrics: 4054143088,
+  CancelMediaLyricsImport: 3785335492,
+  ReloadMediaLyrics: 3208690520,
+  RemoveMediaLyrics: 2634844375,
+  SetMediaLyricsOffset: 3423128546,
+  ConnectMediaProvider: 2624774846,
   SaveSettings: 1949631069,
 } as const;
 
@@ -165,6 +177,10 @@ export async function installFakeWails(page: Page): Promise<void> {
       __dockLockState?: Record<string, unknown>;
       __dockLockDisplays?: unknown[];
       __dockPlacementResult?: Record<string, unknown>;
+      __mediaState?: Record<string, unknown> | null;
+      __mediaPermissions?: Record<string, unknown>;
+      __mediaPinSession?: number;
+      __mediaActionError?: string;
       _wails?: { dispatchWailsEvent?: (ev: { name: string; data: unknown }) => void };
     };
     w.__calls = [];
@@ -172,6 +188,8 @@ export async function installFakeWails(page: Page): Promise<void> {
     w.__actionResult = undefined;
     w.__actionError = undefined;
     w.__dockState = null;
+    w.__mediaState = null;
+    w.__mediaPermissions = {};
     w.__dockLockState = {
       session: 0,
       revision: 0,
@@ -232,6 +250,21 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json(await page.evaluate(() => (window as any).__dockLockState));
       case "GetDockMonitorLockDisplays":
         return json(await page.evaluate(() => (window as any).__dockLockDisplays));
+      case "GetMediaState":
+        return json(await page.evaluate(() => (window as any).__mediaState));
+      case "GetMediaPermissions":
+        return json(await page.evaluate(() => (window as any).__mediaPermissions));
+      case "PinMediaPanel": {
+        const pinned = await page.evaluate(
+          ([n, a]) => {
+            const w = window as any;
+            w.__calls.push([n, ...a]);
+            return w.__mediaPinSession ?? a[0];
+          },
+          [name, args],
+        );
+        return json(pinned);
+      }
       case "PlaceDockOnSelectedMonitor": {
         const result = await page.evaluate(
           ([n, a]) => {
@@ -320,6 +353,26 @@ export async function installFakeWails(page: Page): Promise<void> {
       case "OpenDockFolderEntry": {
         await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
         return json(null);
+      }
+      case "PerformMediaAction":
+      case "CloseMediaPanel":
+      case "SetMediaPanelSize":
+      case "ImportMediaLyrics":
+      case "CancelMediaLyricsImport":
+      case "ReloadMediaLyrics":
+      case "RemoveMediaLyrics":
+      case "SetMediaLyricsOffset":
+      case "ConnectMediaProvider": {
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        if (
+          name === "PerformMediaAction" &&
+          (await page.evaluate(() => (window as any).__mediaActionError))
+        )
+          return route.fulfill({
+            status: 500,
+            body: await page.evaluate(() => (window as any).__mediaActionError),
+          });
+        return json(name === "ConnectMediaProvider" ? { status: "ready", reason: "" } : null);
       }
       case "FocusDockWindow":
       case "PerformDockAction": {

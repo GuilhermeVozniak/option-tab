@@ -91,6 +91,15 @@ export function CancelDockPreviewDrag(session, gesture) {
 }
 
 /**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function CancelMediaLyricsImport(session, revision) {
+    return $Call.ByID(3785335492, session, revision);
+}
+
+/**
  * CancelShortcutCapture disarms a pending shortcut capture (the recorder
  * input lost focus).
  * @returns {$CancellablePromise<void>}
@@ -119,6 +128,15 @@ export function CaptureShortcut() {
  */
 export function CheckForUpdates() {
     return $Call.ByID(2675659504);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function CloseMediaPanel(session, revision) {
+    return $Call.ByID(231734221, session, revision);
 }
 
 /**
@@ -161,6 +179,16 @@ export function ConfirmWindow(id) {
 }
 
 /**
+ * @param {string} provider
+ * @returns {$CancellablePromise<platform$0.MediaPermission>}
+ */
+export function ConnectMediaProvider(provider) {
+    return $Call.ByID(2624774846, provider).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
  * DismissCrashReport discards the pending crash log.
  * @returns {$CancellablePromise<void>}
  */
@@ -176,7 +204,7 @@ export function DismissCrashReport() {
  */
 export function FocusDockWindow(session, windowID, appID) {
     return $Call.ByID(1587026944, session, windowID, appID).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType1($result);
     }));
 }
 
@@ -202,7 +230,7 @@ export function GetCrashReport() {
  */
 export function GetDockMonitorLockDisplays() {
     return $Call.ByID(961307694).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType2($result);
+        return $$createType3($result);
     }));
 }
 
@@ -211,7 +239,7 @@ export function GetDockMonitorLockDisplays() {
  */
 export function GetDockMonitorLockState() {
     return $Call.ByID(3014544674).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType3($result);
+        return $$createType4($result);
     }));
 }
 
@@ -222,7 +250,26 @@ export function GetDockMonitorLockState() {
  */
 export function GetDockState() {
     return $Call.ByID(1033939333).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType6($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<{ [_ in string]?: platform$0.MediaPermission }>}
+ */
+export function GetMediaPermissions() {
+    return $Call.ByID(3673411287).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType7($result);
+    }));
+}
+
+/**
+ * @param {number} session
+ * @returns {$CancellablePromise<$models.MediaViewState | null>}
+ */
+export function GetMediaState(session) {
+    return $Call.ByID(3763583330, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType9($result);
     }));
 }
 
@@ -275,6 +322,15 @@ export function HideSelectedApp() {
  */
 export function HideSession(session) {
     return $Call.ByID(3201711143, session);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function ImportMediaLyrics(session, revision) {
+    return $Call.ByID(4054143088, session, revision);
 }
 
 /**
@@ -349,7 +405,7 @@ export function OpenURL(url) {
  */
 export function PerformAction(kind, windowID, appID) {
     return $Call.ByID(280563800, kind, windowID, appID).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType1($result);
     }));
 }
 
@@ -362,8 +418,33 @@ export function PerformAction(kind, windowID, appID) {
  */
 export function PerformDockAction(session, kind, windowID, appID) {
     return $Call.ByID(1943493959, session, kind, windowID, appID).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType1($result);
     }));
+}
+
+/**
+ * Initial RPC admission uses the rendered revision. Once accepted, native
+ * preparation keeps exact panel and track authority while progress/artwork can
+ * update the view independently. Controller also checks its current owner epoch.
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} kind
+ * @param {number} positionMS
+ * @returns {$CancellablePromise<void>}
+ */
+export function PerformMediaAction(session, revision, kind, positionMS) {
+    return $Call.ByID(2082824200, session, revision, kind, positionMS);
+}
+
+/**
+ * The Wails factory creates only a scheduler here. Its native webview and panel
+ * are constructed later on the UI queue, outside App.viewMu.
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<number>}
+ */
+export function PinMediaPanel(session, revision) {
+    return $Call.ByID(900489102, session, revision);
 }
 
 /**
@@ -376,7 +457,7 @@ export function PerformDockAction(session, kind, windowID, appID) {
  */
 export function PlaceDockOnSelectedMonitor(session, revision, generation) {
     return $Call.ByID(1589667255, session, revision, generation).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType6($result);
+        return $$createType10($result);
     }));
 }
 
@@ -385,6 +466,24 @@ export function PlaceDockOnSelectedMonitor(session, revision, generation) {
  */
 export function QuitSelectedApp() {
     return $Call.ByID(3876391122);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function ReloadMediaLyrics(session, revision) {
+    return $Call.ByID(3208690520, session, revision);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function RemoveMediaLyrics(session, revision) {
+    return $Call.ByID(2634844375, session, revision);
 }
 
 /**
@@ -507,6 +606,27 @@ export function SetDockPreviewRegions(session, revision, regions) {
 }
 
 /**
+ * @param {number} session
+ * @param {number} revision
+ * @param {number} offsetMS
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetMediaLyricsOffset(session, revision, offsetMS) {
+    return $Call.ByID(3423128546, session, revision, offsetMS);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {number} width
+ * @param {number} height
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetMediaPanelSize(session, revision, width, height) {
+    return $Call.ByID(143498724, session, revision, width, height);
+}
+
+/**
  * SetPaused suspends or resumes activation, persists the choice, and reflects it
  * in the menubar. While paused the global hotkey does not open the switcher.
  * @param {boolean} paused
@@ -555,10 +675,14 @@ export function Update(st) {
 }
 
 // Private type creation functions
-const $$createType0 = actions$0.Result.createFrom;
-const $$createType1 = platform$0.DockLockDisplay.createFrom;
-const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = platform$0.DockMonitorLockState.createFrom;
-const $$createType4 = $models.DockViewState.createFrom;
-const $$createType5 = $Create.Nullable($$createType4);
-const $$createType6 = platform$0.DockPlacementResult.createFrom;
+const $$createType0 = platform$0.MediaPermission.createFrom;
+const $$createType1 = actions$0.Result.createFrom;
+const $$createType2 = platform$0.DockLockDisplay.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = platform$0.DockMonitorLockState.createFrom;
+const $$createType5 = $models.DockViewState.createFrom;
+const $$createType6 = $Create.Nullable($$createType5);
+const $$createType7 = $Create.Map($Create.Any, $$createType0);
+const $$createType8 = $models.MediaViewState.createFrom;
+const $$createType9 = $Create.Nullable($$createType8);
+const $$createType10 = platform$0.DockPlacementResult.createFrom;

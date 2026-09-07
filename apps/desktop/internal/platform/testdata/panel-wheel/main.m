@@ -1,3 +1,4 @@
+#import "../../darwin_media_panel.m"
 #import "../../darwin_dock_panel.m"
 #include <assert.h>
 // Property seam exercises actual NSEvent extraction without registering a

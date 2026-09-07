@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -183,5 +184,32 @@ func TestNormalizeDoesNotMutateAppBindings(t *testing.T) {
 	}
 	if s.AppSwitcher.Behavior.ActionBindings["Tab"] != ActionClose {
 		t.Fatal("Normalize mutated app binding input")
+	}
+}
+
+func TestDockMediaDefaultsAndIndependentPersistence(t *testing.T) {
+	s := Default()
+	if s.Dock.Media != (DockMediaSettings{}) {
+		t.Fatal("media must default entirely off")
+	}
+	s.Dock.Media = DockMediaSettings{Enabled: true, MusicEnabled: true, SpotifyEnabled: true, RemoteArtwork: true}
+	data, err := json.Marshal(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored Settings
+	if err = json.Unmarshal(data, &restored); err != nil {
+		t.Fatal(err)
+	}
+	restored = restored.Normalize()
+	if restored.Dock.Media != s.Dock.Media || restored.Dock.Enabled {
+		t.Fatal("media lost or enabled Dock")
+	}
+	var old Settings
+	if err = json.Unmarshal([]byte(`{"dock":{"enabled":true}}`), &old); err != nil {
+		t.Fatal(err)
+	}
+	if old.Normalize().Dock.Media != (DockMediaSettings{}) {
+		t.Fatal("old settings enabled media")
 	}
 }

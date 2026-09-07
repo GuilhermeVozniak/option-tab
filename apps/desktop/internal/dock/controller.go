@@ -34,6 +34,7 @@ type observation struct {
 }
 
 type windowResult struct {
+	provider            platform.MediaProvider
 	session, generation uint64
 	windows             []domain.Window
 	screen              domain.Bounds
@@ -206,7 +207,7 @@ func (l *controllerLoop) run() {
 		case at := <-tick.C:
 			l.step(at)
 		case <-refresh.C:
-			if l.shown && l.state.ContentKind != "folder" {
+			if l.shown && l.state.ContentKind != "folder" && l.state.ContentKind != "media" {
 				l.request()
 			}
 		}
@@ -214,7 +215,7 @@ func (l *controllerLoop) run() {
 }
 
 func (l *controllerLoop) enabled() bool {
-	return (l.settings.Dock.Enabled || l.settings.Dock.FolderPop.Enabled) && !l.settings.Behavior.Paused && !l.suspended
+	return (l.settings.Dock.Enabled || l.settings.Dock.FolderPop.Enabled || mediaEnabled(l.settings.Dock.Media)) && !l.settings.Behavior.Paused && !l.suspended
 }
 
 func (l *controllerLoop) stop() {
@@ -333,7 +334,7 @@ func (l *controllerLoop) observe(event observation) {
 		l.generation = value.Generation
 	}
 	target := platform.DockInputTarget{Generation: value.Generation, DockPID: value.DockPID, ObservedAt: value.ObservedAt, Item: cloneDockItem(value.Item)}
-	if value.Item != nil && (value.Item.Kind == "folder" || !l.settings.Dock.Enabled) {
+	if value.Item != nil && (value.Item.Kind == "folder" || nativeMediaProvider(value.Item, l.settings.Dock.Media) != "" || !l.settings.Dock.Enabled) {
 		target = platform.DockInputTarget{}
 	}
 	l.publishInputTarget(target)
@@ -354,7 +355,7 @@ func (l *controllerLoop) step(at time.Time) {
 	}
 	observed := l.last
 	var item *Item
-	if native := observed.Item; native != nil && ((native.Kind == "folder" && l.settings.Dock.FolderPop.Enabled) || ((native.Kind == "" || native.Kind == "app") && l.settings.Dock.Enabled)) {
+	if native := observed.Item; native != nil && ((native.Kind == "folder" && l.settings.Dock.FolderPop.Enabled) || ((native.Kind == "" || native.Kind == "app") && (l.settings.Dock.Enabled || nativeMediaProvider(native, l.settings.Dock.Media) != ""))) {
 		kind := native.Kind
 		if kind == "" {
 			kind = "app"
@@ -408,7 +409,7 @@ func (l *controllerLoop) step(at time.Time) {
 			l.place()
 			l.publish(false)
 		}
-		if !l.shown || l.state.ContentKind != "folder" {
+		if !l.shown || l.state.ContentKind != "folder" && l.state.ContentKind != "media" {
 			l.request()
 		}
 	}
@@ -445,7 +446,7 @@ func (l *controllerLoop) command(cmd command) {
 		}
 		l.requestFolder(sort)
 	case "refresh":
-		if l.state.ContentKind != "folder" {
+		if l.state.ContentKind != "folder" && l.state.ContentKind != "media" {
 			l.request()
 		}
 	case "select":
@@ -480,7 +481,7 @@ func (l *controllerLoop) request() {
 }
 
 func (l *controllerLoop) query() {
-	if l.querying || !l.dirty || l.candidate == nil || l.candidate.Kind == "folder" || !l.settings.Dock.Enabled || !l.enabled() {
+	if l.querying || !l.dirty || l.candidate == nil || l.candidate.Kind == "folder" || (!l.settings.Dock.Enabled && MediaProviderForItem(*l.candidate, l.settings.Dock.Media) == "") || !l.enabled() {
 		return
 	}
 	l.querying = true
@@ -500,6 +501,9 @@ func (l *controllerLoop) query() {
 }
 
 func queryWindows(deps Deps, settings config.Settings, item Item) windowResult {
+	if provider := MediaProviderForItem(item, settings.Dock.Media); provider != "" {
+		return queryMedia(deps, settings, item, provider)
+	}
 	result := windowResult{}
 	if deps.Env == nil || deps.Windows == nil {
 		result.err = errors.New("dock: window environment unavailable")
@@ -601,13 +605,26 @@ func excludedPinnedApp(item Item, filters config.Filters, self string) bool {
 }
 
 func (l *controllerLoop) accept(result windowResult) {
-	if !l.enabled() || !l.settings.Dock.Enabled || l.admission != l.controller.AdmissionEpoch() || l.candidate == nil || l.candidate.Kind == "folder" || result.session != l.session || result.generation != l.generation {
+	if !l.enabled() || l.admission != l.controller.AdmissionEpoch() || l.candidate == nil || l.candidate.Kind == "folder" || result.session != l.session || result.generation != l.generation {
+		return
+	}
+	provider := MediaProviderForItem(*l.candidate, l.settings.Dock.Media)
+	if result.provider != provider || (provider == "" && !l.settings.Dock.Enabled) {
 		return
 	}
 	if result.err != nil || result.excluded {
 		blocked := copyItem(l.candidate)
 		l.reset()
 		l.blocked = blocked
+		return
+	}
+	if provider != "" {
+		l.screen = result.screen
+		l.state = State{ContentKind: "media", AdmissionEpoch: l.admission, Session: l.session, Item: *l.candidate, Appearance: l.settings.Dock.Appearance, CardSpacingPx: l.settings.Dock.CardSpacingPx}
+		l.place()
+		first := !l.shown
+		l.shown = true
+		l.publish(first)
 		return
 	}
 	selected := l.state.SelectedWindowID
@@ -627,6 +644,9 @@ func (l *controllerLoop) accept(result windowResult) {
 
 func (l *controllerLoop) place() {
 	w, h := panelSize(len(l.state.Windows), l.settings.Dock.Appearance, l.settings.Dock.CardSpacingPx)
+	if l.state.ContentKind == "media" {
+		w, h = 360, 360
+	}
 	if l.state.ContentKind == "folder" {
 		w, h = 360, 180
 		if l.state.Folder != nil {

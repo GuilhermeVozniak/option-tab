@@ -46,6 +46,8 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   GetVersion: vi.fn().mockResolvedValue("1.2.3"),
   InstallUpdate: vi.fn().mockResolvedValue(undefined),
   GetCrashReport: vi.fn().mockResolvedValue(""),
+  GetMediaPermissions: vi.fn().mockResolvedValue({}),
+  ConnectMediaProvider: vi.fn().mockResolvedValue({ status: "ready", reason: "" }),
 }));
 
 import * as AppService from "../bindings/option-tab/app.js";
@@ -59,6 +61,8 @@ beforeEach(() => {
   eventHandlers.clear();
   resetBackendProbeForTests();
   window.location.hash = "";
+  mocked.GetMediaPermissions.mockClear();
+  mocked.ConnectMediaProvider.mockClear();
 });
 
 it("shows persistence errors without unmounting preferences", async () => {
@@ -72,6 +76,8 @@ it("shows persistence errors without unmounting preferences", async () => {
   mocked.SaveSettings.mockRejectedValueOnce(new Error("disk full"));
   render(<App />);
   await act(async () => {});
+  expect(mocked.GetMediaPermissions).toHaveBeenCalledTimes(1);
+  expect(mocked.ConnectMediaProvider).not.toHaveBeenCalled();
   fireEvent.click(screen.getByLabelText("Start at login"));
   await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("disk full"));
   expect(screen.getByText(/Preferences/)).toBeInTheDocument();

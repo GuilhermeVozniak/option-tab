@@ -4,6 +4,7 @@ import { computeLayout, effectiveStyle } from "../lib/layout";
 import { truncateTitle } from "../lib/text";
 import type { DockViewState, WindowAction } from "../lib/types";
 import { FolderPanel, type FolderPanelHandlers } from "./FolderPanel";
+import { MediaPanel, type MediaPanelHandlers } from "./MediaPanel";
 import "./dock.css";
 
 let dockDragGesture = 0;
@@ -33,6 +34,7 @@ export interface DockPanelHandlers {
   onRequestFolderAccess?: FolderPanelHandlers["onRequestAccess"];
   onCancelFolderAccess?: FolderPanelHandlers["onCancelAccess"];
   onOpenFolderEntry?: FolderPanelHandlers["onOpen"];
+  media?: MediaPanelHandlers;
 }
 export interface PreviewDragRequest {
   session: number;
@@ -129,7 +131,7 @@ export function DockPanelView({
   const preview = a.previewSelected ? selected?.preview || selected?.thumbnail : undefined;
   const cardSpacingPx = Math.max(0, Math.min(24, state.cardSpacingPx ?? 7));
   const contentWidth =
-    state.contentKind === "folder"
+    state.contentKind === "folder" || state.contentKind === "media"
       ? 420
       : Math.max(280, columns * (cellWidth + 12) + (columns - 1) * cardSpacingPx);
   const ref = useRef<HTMLDivElement>(null);
@@ -143,7 +145,7 @@ export function DockPanelView({
   useEffect(() => {
     const resolve = () => {
       if (
-        state.contentKind === "folder" ||
+        (state.contentKind !== "windows" && state.contentKind !== undefined) ||
         !nativePointer ||
         nativePointer.session !== state.session
       ) {
@@ -178,7 +180,8 @@ export function DockPanelView({
     state.contentKind,
   ]);
   useLayoutEffect(() => {
-    if (!handlers.onRegions || state.contentKind === "folder") return;
+    if (!handlers.onRegions || (state.contentKind !== "windows" && state.contentKind !== undefined))
+      return;
     const panel = ref.current?.closest<HTMLElement>(".ot-dock-panel");
     const viewport = ref.current?.querySelector<HTMLElement>(".ot-dock-list-viewport");
     if (!panel) return;
@@ -308,8 +311,10 @@ export function DockPanelView({
       }
     >
       <div ref={ref} className="ot-dock-content" style={{ width: contentWidth }}>
-        <header>{state.item.title}</header>
-        {state.contentKind === "folder" && state.folder ? (
+        {state.contentKind !== "media" ? <header>{state.item.title}</header> : null}
+        {state.contentKind === "media" && state.media && handlers.media ? (
+          <MediaPanel state={state.media} handlers={handlers.media} t={t} />
+        ) : state.contentKind === "folder" && state.folder ? (
           <FolderPanel
             key={`${state.session}:${state.folder.folderIdentity}`}
             session={state.session}

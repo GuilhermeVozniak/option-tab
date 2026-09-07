@@ -15,10 +15,12 @@ import { demoStateFor } from "./lib/demo";
 import { type DockPointer, dock, onDockEvent, onDockInputStatus } from "./lib/dock-bridge";
 import { dockLock } from "./lib/dock-lock-bridge";
 import { makeT, resolveLang } from "./lib/i18n";
+import { media, onMediaEvents } from "./lib/media-bridge";
 import type {
   DockLockDisplay,
   DockMonitorLockState,
   DockViewState,
+  MediaViewState,
   VisualStyle,
 } from "./lib/types";
 import {
@@ -45,6 +47,10 @@ function isDemoRoute(): boolean {
 }
 function isDockRoute(): boolean {
   return route() === "dock";
+}
+function mediaRouteSession(): number {
+  const match = route().match(/^media\/(\d+)$/);
+  return match ? Number(match[1]) : 0;
 }
 
 function useRuntimeTranslator() {
@@ -146,6 +152,7 @@ function useSettingsModel() {
 export default function App() {
   if (isSettingsRoute()) return <SettingsRoute />;
   if (isDockRoute()) return <DockRoute />;
+  if (mediaRouteSession()) return <MediaRoute session={mediaRouteSession()} />;
   if (isDemoRoute()) {
     return (
       <div className="ot-demo-backdrop">
@@ -361,36 +368,40 @@ function DockRoute() {
   const actionRevision = useRef(0);
   const pointerSequence = useRef(0);
   const pendingPointer = useRef<DockPointer | null>(null);
-  const acceptShow = useCallback((next: DockViewState) => {
-    if (!next || next.session < currentSession.current || next.session <= retiredSession.current)
-      return;
-    const revision = next.revision ?? 0;
-    if (next.session === currentSession.current && revision < latestRevision.current) return;
-    if (next.session > currentSession.current) {
-      currentSession.current = next.session;
-      ++actionRevision.current;
-      setFrames({});
-      setNativePointer(null);
-      pointerSequence.current = 0;
-    }
-    latestRevision.current = revision;
-    activeSession.current = next.session;
-    setState(next);
-    const pointer =
-      pendingPointer.current?.session === next.session &&
-      (next.pointer?.sequence ?? 0) < pendingPointer.current.sequence
-        ? pendingPointer.current
-        : next.pointer;
-    if (pendingPointer.current?.session === next.session) pendingPointer.current = null;
-    if (pointer?.session === next.session && pointer.sequence > pointerSequence.current) {
-      pointerSequence.current = pointer.sequence;
-      setNativePointer(pointer);
-    }
+  const activeMediaSession = useRef(0);
+  const latestMediaRevision = useRef(0);
+  const retiredMediaSessions = useRef(new Set<number>());
+  const mediaProgressSequence = useRef(0);
+  const acceptEmbeddedMedia = useCallback((next: DockViewState) => {
+    const embedded = next.media;
+    if (embedded && retiredMediaSessions.current.has(embedded.session)) return false;
+    const session = embedded?.session ?? 0;
+    const revision = embedded?.revision ?? 0;
+    if (session !== activeMediaSession.current || revision !== latestMediaRevision.current)
+      mediaProgressSequence.current = 0;
+    activeMediaSession.current = session;
+    latestMediaRevision.current = revision;
+    return true;
   }, []);
-  const acceptUpdate = useCallback((next: DockViewState) => {
-    const revision = next?.revision ?? 0;
-    if (next?.session === activeSession.current && revision >= latestRevision.current) {
+  const acceptShow = useCallback(
+    (next: DockViewState) => {
+      if (!next || next.session < currentSession.current || next.session <= retiredSession.current)
+        return;
+      const revision = next.revision ?? 0;
+      if (next.session === currentSession.current && revision < latestRevision.current) return;
+      if (next.session > currentSession.current) {
+        currentSession.current = next.session;
+        ++actionRevision.current;
+        setFrames({});
+        setNativePointer(null);
+        pointerSequence.current = 0;
+      }
       latestRevision.current = revision;
+      activeSession.current = next.session;
+      if (!acceptEmbeddedMedia(next)) {
+        setState(null);
+        return;
+      }
       setState(next);
       const pointer =
         pendingPointer.current?.session === next.session &&
@@ -402,8 +413,33 @@ function DockRoute() {
         pointerSequence.current = pointer.sequence;
         setNativePointer(pointer);
       }
-    }
-  }, []);
+    },
+    [acceptEmbeddedMedia],
+  );
+  const acceptUpdate = useCallback(
+    (next: DockViewState) => {
+      const revision = next?.revision ?? 0;
+      if (next?.session === activeSession.current && revision >= latestRevision.current) {
+        latestRevision.current = revision;
+        if (!acceptEmbeddedMedia(next)) {
+          setState(null);
+          return;
+        }
+        setState(next);
+        const pointer =
+          pendingPointer.current?.session === next.session &&
+          (next.pointer?.sequence ?? 0) < pendingPointer.current.sequence
+            ? pendingPointer.current
+            : next.pointer;
+        if (pendingPointer.current?.session === next.session) pendingPointer.current = null;
+        if (pointer?.session === next.session && pointer.sequence > pointerSequence.current) {
+          pointerSequence.current = pointer.sequence;
+          setNativePointer(pointer);
+        }
+      }
+    },
+    [acceptEmbeddedMedia],
+  );
   const retire = useCallback((session: number, revision: number) => {
     if (session < currentSession.current) return;
     if (session === currentSession.current && revision < latestRevision.current) return;
@@ -411,6 +447,7 @@ function DockRoute() {
     latestRevision.current = revision;
     retiredSession.current = Math.max(retiredSession.current, session);
     activeSession.current = 0;
+    activeMediaSession.current = 0;
     ++actionRevision.current;
     setState(null);
     setFrames({});
@@ -467,6 +504,49 @@ function DockRoute() {
       off();
     };
   }, [acceptShow, acceptUpdate, retire]);
+  useEffect(
+    () =>
+      onMediaEvents({
+        update: (next) => {
+          if (
+            next.session !== activeMediaSession.current ||
+            next.revision < latestMediaRevision.current
+          )
+            return;
+          latestMediaRevision.current = next.revision;
+          mediaProgressSequence.current = 0;
+          setState((old) =>
+            old && old.media?.session === next.session
+              ? { ...old, media: next, contentKind: "media" }
+              : old,
+          );
+        },
+        hide: (session, revision) => {
+          if (session !== activeMediaSession.current || revision < latestMediaRevision.current)
+            return;
+          activeMediaSession.current = 0;
+          latestMediaRevision.current = revision;
+          retiredMediaSessions.current.add(session);
+          setState(null);
+        },
+        progress: (next) =>
+          setState((old) => {
+            if (
+              !old?.media ||
+              old.media.session !== next.session ||
+              old.media.revision !== next.revision ||
+              next.sequence <= mediaProgressSequence.current
+            )
+              return old;
+            mediaProgressSequence.current = next.sequence;
+            return {
+              ...old,
+              media: { ...old.media, positionMS: next.positionMS, activeCue: next.activeCue },
+            };
+          }),
+      }),
+    [retire],
+  );
   const visible = useMemo(
     () =>
       state
@@ -506,6 +586,33 @@ function DockRoute() {
       }
     },
     [],
+  );
+  const runMedia = useCallback(
+    async <T,>(session: number, revision: number, request: () => Promise<T>) => {
+      try {
+        return await request();
+      } catch (error) {
+        if (session === activeMediaSession.current && revision === latestMediaRevision.current)
+          setState((old) =>
+            old?.media?.session === session && old.media.revision === revision
+              ? {
+                  ...old,
+                  media: {
+                    ...old.media,
+                    error: error instanceof Error ? error.message : String(error),
+                  },
+                }
+              : old,
+          );
+        return undefined;
+      }
+    },
+    [],
+  );
+  const runMediaVoid = useCallback(
+    (session: number, revision: number, request: () => Promise<unknown>): Promise<void> =>
+      runMedia(session, revision, request).then(() => undefined),
+    [runMedia],
   );
   const handlers = useMemo<DockPanelHandlers>(
     () => ({
@@ -555,12 +662,149 @@ function DockRoute() {
         if (session === activeSession.current && revision === latestRevision.current)
           return dock.openFolderEntry(session, revision, itemID);
       },
+      media: {
+        onAction: (session, revision, kind, position) =>
+          session === activeMediaSession.current && revision === latestMediaRevision.current
+            ? runMediaVoid(session, revision, () => media.action(session, revision, kind, position))
+            : undefined,
+        onPin: (session, revision) =>
+          runMedia(session, revision, () => media.pin(session, revision)).then((value) =>
+            typeof value === "number" ? value : 0,
+          ),
+        onClose: (session, revision) =>
+          runMediaVoid(session, revision, () => media.close(session, revision)),
+        onSize: (session, revision, width, height) =>
+          runMediaVoid(session, revision, () => media.size(session, revision, width, height)),
+        onImport: (session, revision) =>
+          runMediaVoid(session, revision, () => media.importLyrics(session, revision)),
+        onCancelImport: (session, revision) =>
+          runMediaVoid(session, revision, () => media.cancelImport(session, revision)),
+        onReload: (session, revision) =>
+          runMediaVoid(session, revision, () => media.reloadLyrics(session, revision)),
+        onRemove: (session, revision) =>
+          runMediaVoid(session, revision, () => media.removeLyrics(session, revision)),
+        onOffset: (session, revision, offset) =>
+          runMediaVoid(session, revision, () => media.offset(session, revision, offset)),
+      },
     }),
-    [run],
+    [run, runMedia, runMediaVoid],
   );
   return visible ? (
     <DockPanelView state={visible} handlers={handlers} nativePointer={nativePointer} t={t} />
   ) : null;
+}
+
+function MediaRoute({ session }: { session: number }) {
+  const t = useRuntimeTranslator();
+  const [state, setState] = useState<MediaViewState | null>(null);
+  const revision = useRef(0),
+    progress = useRef(0),
+    retired = useRef(false);
+  const accept = useCallback(
+    (next: MediaViewState) => {
+      if (next.session !== session || retired.current || next.revision < revision.current) return;
+      if (next.revision > revision.current) progress.current = 0;
+      revision.current = next.revision;
+      setState(next);
+    },
+    [session],
+  );
+  const request = useCallback(
+    async <T,>(atRevision: number, operation: () => Promise<T>): Promise<T | undefined> => {
+      try {
+        return await operation();
+      } catch (error) {
+        if (!retired.current && revision.current === atRevision)
+          setState((old) =>
+            old?.session === session && old.revision === atRevision
+              ? { ...old, error: error instanceof Error ? error.message : String(error) }
+              : old,
+          );
+        return undefined;
+      }
+    },
+    [session],
+  );
+  useEffect(() => {
+    let mounted = true;
+    const off = onMediaEvents({
+      update: accept,
+      hide: (s, r) => {
+        if (s === session && r >= revision.current) {
+          retired.current = true;
+          revision.current = r;
+          setState(null);
+        }
+      },
+      progress: (p) => {
+        if (
+          p.session !== session ||
+          p.revision !== revision.current ||
+          p.sequence <= progress.current ||
+          retired.current
+        )
+          return;
+        progress.current = p.sequence;
+        setState((old) =>
+          old ? { ...old, positionMS: p.positionMS, activeCue: p.activeCue } : old,
+        );
+      },
+    });
+    void media
+      .state(session)
+      .then((s) => {
+        if (mounted && s) accept(s);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+      off();
+    };
+  }, [accept, session]);
+  if (!state?.open) return null;
+  return (
+    <DockPanelView
+      state={{
+        session,
+        revision: state.revision,
+        open: state.open,
+        item: {
+          appId: 0,
+          bundleId: "",
+          path: "",
+          title: "",
+          bounds: { x: 0, y: 0, w: 0, h: 0 },
+          screenId: 0,
+          edge: "",
+          kind: "media",
+        },
+        entries: [],
+        selectedWindowId: 0,
+        appearance: state.appearance,
+        emptyReason: "",
+        contentKind: "media",
+        media: state,
+      }}
+      handlers={{
+        onSelectWindow: () => {},
+        onFocusWindow: () => {},
+        onAction: () => {},
+        onSize: () => {},
+        media: {
+          onAction: (s, r, kind, position) => request(r, () => media.action(s, r, kind, position)),
+          onPin: (s, r) => request(r, () => media.pin(s, r)).then((value) => value ?? 0),
+          onClose: (s, r) => request(r, () => media.close(s, r)),
+          onSize: (s, r, width, height) => request(r, () => media.size(s, r, width, height)),
+          onImport: (s, r) => request(r, () => media.importLyrics(s, r)),
+          onCancelImport: (s, r) => request(r, () => media.cancelImport(s, r)),
+          onReload: (s, r) => request(r, () => media.reloadLyrics(s, r)),
+          onRemove: (s, r) => request(r, () => media.removeLyrics(s, r)),
+          onOffset: (s, r, offset) => request(r, () => media.offset(s, r, offset)),
+        },
+      }}
+      t={t}
+    />
+  );
 }
 
 // SettingsRoute renders the preferences window's contents. The window is a
@@ -579,10 +823,33 @@ function SettingsRoute() {
   const [lockLoadError, setLockLoadError] = useState("");
   const [lockPlacementError, setLockPlacementError] = useState("");
   const [lockPlacePending, setLockPlacePending] = useState(false);
+  const [mediaPermissions, setMediaPermissions] = useState<
+    Record<string, { status: string; reason: string }>
+  >({});
   const lockMark = useRef<[number, number, number]>([0, 0, 0]);
   const lockSeen = useRef(false);
 
   useEffect(() => onPrefsTab(setRequestedTab), []);
+  useEffect(() => {
+    let active = true;
+    void media
+      .permissions()
+      .then((value) => {
+        if (active) setMediaPermissions(value);
+      })
+      .catch(() => {});
+    const off = onMediaEvents({
+      update: () => {},
+      hide: () => {},
+      progress: () => {},
+      permission: (provider, status, reason) =>
+        setMediaPermissions((old) => ({ ...old, [provider]: { status, reason } })),
+    });
+    return () => {
+      active = false;
+      off();
+    };
+  }, []);
   useEffect(() => {
     let active = true;
     void dock.state().then((state) => {
@@ -670,6 +937,20 @@ function SettingsRoute() {
           },
           onCancel: () => {
             void dockLock.cancel().catch((e) => setLockPlacementError(String(e)));
+          },
+        }}
+        media={{
+          permissions: mediaPermissions,
+          onConnect: (provider) => {
+            void media
+              .connect(provider)
+              .then((result) => setMediaPermissions((old) => ({ ...old, [provider]: result })))
+              .catch((error) =>
+                setMediaPermissions((old) => ({
+                  ...old,
+                  [provider]: { status: "unavailable", reason: String(error) },
+                })),
+              );
           },
         }}
       />

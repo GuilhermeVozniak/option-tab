@@ -4,7 +4,15 @@ import "regexp"
 
 // DockSettings controls the optional Dock hover preview surface. Empty Space/
 // Screen scope fields inherit the global filters.
+type DockMediaSettings struct {
+	Enabled        bool `json:"enabled"`
+	MusicEnabled   bool `json:"musicEnabled"`
+	SpotifyEnabled bool `json:"spotifyEnabled"`
+	RemoteArtwork  bool `json:"remoteArtwork"`
+}
+
 type DockSettings struct {
+	Media           DockMediaSettings       `json:"media"`
 	Enabled         bool                    `json:"enabled"`
 	HoverDelayMs    int                     `json:"hoverDelayMs"`
 	DismissDelayMs  int                     `json:"dismissDelayMs"`

@@ -152,3 +152,7 @@ Sources: supplied 2:09 screen recording; [DockDoor Free](https://dockdoor.net/);
 ## Current Folder Pop checkpoint
 
 E01–E03 implementation is available on the feature branch: exact Dock-folder previews, sorting, on-demand access and guarded opening. Automated and disposable native fixtures pass. Visible chooser approval, real default-app opening and distributed-app permission behavior remain acceptance checks; E01–E03 stay unchecked until that evidence is complete. See the [Folder Pop checkpoint report](superpowers/reports/2026-09-06-folder-pop.md). Media, automation, distribution and the optional replacement Dock remain retained work.
+
+## Current media checkpoint
+
+E04–E06 implementation adds independently enabled Music/Spotify panels, typed native transport, bounded artwork, explicit local timestamped lyrics and separate session-only media pins. Provider consent and remote artwork are opt-in. Spotify seek remains unavailable pending runtime unit verification. Automated/native fixture evidence and physical acceptance limits are recorded in the [media checkpoint report](superpowers/reports/2026-09-07-dock-media.md); E04–E06 stay unchecked. Automation, distribution and the optional replacement Dock remain retained work.

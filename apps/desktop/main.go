@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"fmt"
 	"log/slog"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -115,6 +116,28 @@ func main() {
 			return window
 		}
 		app.dockWindow = newDockWindow(application.InvokeAsync, makeDockHost, host)
+	}
+	if host, ok := app.platform.(platform.MediaPanelHost); ok {
+		app.mediaPinFactory = func(session uint64, provider platform.MediaProvider, emit func(platform.MediaPanelEvent)) *dockWindow {
+			var scheduled *dockWindow
+			factory := func() nativeWindow {
+				window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+					Name: fmt.Sprintf("media-%s-%d", provider, session), Title: "Option Tab media", Width: 420, Height: 460,
+					Hidden: true, Frameless: true, DisableResize: true, URL: fmt.Sprintf("/#/media/%d", session),
+					Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
+				})
+				window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
+					if scheduled.markHostClosedIf(window) {
+						go app.mediaPinHostClosed(session, scheduled, window)
+					}
+				})
+				return window
+			}
+			adapter := &mediaPinHostAdapter{source: host, session: session, emit: emit}
+			scheduled = newDockWindow(application.InvokeAsync, factory, adapter)
+			adapter.owner = scheduled
+			return scheduled
+		}
 	}
 
 	// --- Menubar tray ---

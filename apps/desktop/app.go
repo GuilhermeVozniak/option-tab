@@ -102,6 +102,8 @@ type App struct {
 	sessionGeneration         uint64
 	sessionObserveOnce        sync.Once
 	dockController            *dock.Controller
+	media                     *appMediaRuntime
+	mediaPinFactory           func(uint64, platform.MediaProvider, func(platform.MediaPanelEvent)) *dockWindow
 	dockFolders               platform.FolderSource
 	dockFolderGrant           *dockFolderGrantOwner
 	dockInput                 *dock.InputController
@@ -155,7 +157,9 @@ func NewApp() *App {
 	p, _ := platform.New()
 	path, _ := config.DefaultPath()
 	settings := loadStartupSettings(path)
-	return newApp(p, settings, path, platform.NewFolderSource(filepath.Join(filepath.Dir(path), "folder-bookmarks.json")))
+	a := newApp(p, settings, path, platform.NewFolderSource(filepath.Join(filepath.Dir(path), "folder-bookmarks.json")))
+	a.wireMedia(platform.NewMediaSource(), platform.NewMediaLyricsSource(filepath.Join(filepath.Dir(path), "media-lyrics.json")))
+	return a
 }
 
 // loadStartupSettings keeps the app usable when the persisted file cannot be
@@ -269,6 +273,7 @@ func (a *App) startup() {
 	go a.updateLoop()
 	go a.backgroundCaptureLoop()
 	a.startDock()
+	a.startMedia()
 }
 
 func (a *App) emit(name string, data any) {
@@ -294,6 +299,7 @@ func (a *App) stopCapture() {
 	a.switcherVisible = false
 	a.visibleSwitcherSession = 0
 	a.captureStopOnce.Do(func() { close(a.captureStop) })
+	a.syncMediaLocked()
 	a.syncDockFolderGrantLocked()
 	a.syncDockMonitorLockLocked()
 	if a.captures != nil {

@@ -48,6 +48,18 @@ vi.mock("../bindings/option-tab/app.js", () => ({
     .fn()
     .mockResolvedValue({ status: "protected", reason: "", verified: true }),
   CancelDockPlacement: vi.fn().mockResolvedValue(undefined),
+  GetMediaState: vi.fn().mockResolvedValue(null),
+  PerformMediaAction: vi.fn().mockResolvedValue(undefined),
+  PinMediaPanel: vi.fn().mockResolvedValue(0),
+  CloseMediaPanel: vi.fn().mockResolvedValue(undefined),
+  SetMediaPanelSize: vi.fn().mockResolvedValue(undefined),
+  ImportMediaLyrics: vi.fn().mockResolvedValue(undefined),
+  CancelMediaLyricsImport: vi.fn().mockResolvedValue(undefined),
+  ReloadMediaLyrics: vi.fn().mockResolvedValue(undefined),
+  RemoveMediaLyrics: vi.fn().mockResolvedValue(undefined),
+  SetMediaLyricsOffset: vi.fn().mockResolvedValue(undefined),
+  ConnectMediaProvider: vi.fn().mockResolvedValue({ status: "ready", reason: "" }),
+  GetMediaPermissions: vi.fn().mockResolvedValue({}),
   Cancel: vi.fn().mockResolvedValue(undefined),
   Select: vi.fn().mockResolvedValue(undefined),
   SetSearch: vi.fn().mockResolvedValue(undefined),
@@ -88,6 +100,69 @@ function openSwitcherState(overrides: Partial<SwitcherState> = {}): SwitcherStat
   return { ...emptyState, open: true, selected: 0, ...overrides };
 }
 
+function dockMedia(session: number, revision: number, title: string) {
+  return {
+    session,
+    revision,
+    open: true,
+    pinned: false,
+    pinnable: true,
+    provider: "music",
+    scope: {
+      provider: "music",
+      process: { pid: 3, launchID: "x" },
+      generation: 1,
+      trackEpoch: revision,
+      trackID: title,
+    },
+    sample: {
+      provider: "music",
+      process: { pid: 3, launchID: "x" },
+      generation: 1,
+      sequence: 1,
+      trackEpoch: revision,
+      track: { id: title, title, artist: "Artist", album: "Album", durationMS: 1000 },
+      playback: "paused",
+      positionMS: 10,
+      observedAt: "",
+      status: "ready",
+      reason: "",
+      capabilities: { play: true, pause: true, previous: true, next: true, seek: true },
+      artworkToken: "",
+    },
+    appearance: emptyState.appearance,
+    artwork: { status: "missing", reason: "", image: "" },
+    lyrics: { documentID: "", status: "missing", reason: "", cues: [], offsetMS: 0 },
+    positionMS: 10,
+    activeCue: -1,
+    error: "",
+  };
+}
+
+function dockMediaState(revision: number, media: ReturnType<typeof dockMedia>) {
+  return {
+    session: 40,
+    revision,
+    open: true,
+    contentKind: "media",
+    item: {
+      appId: 0,
+      bundleId: "",
+      path: "",
+      title: "Media",
+      bounds: { x: 0, y: 0, w: 40, h: 40 },
+      screenId: 1,
+      edge: "bottom",
+      kind: "media",
+    },
+    entries: [],
+    selectedWindowId: 0,
+    appearance: emptyState.appearance,
+    emptyReason: "",
+    media,
+  };
+}
+
 beforeEach(() => {
   eventHandlers.clear();
   resetBackendProbeForTests();
@@ -95,6 +170,122 @@ beforeEach(() => {
 });
 
 describe("App", () => {
+  it("resets hover progress admission when embedded media scope changes", () => {
+    window.location.hash = "#dock";
+    render(<App />);
+    act(() =>
+      eventHandlers.get("dock:show")?.({ data: dockMediaState(1, dockMedia(70, 2, "First")) }),
+    );
+    act(() =>
+      eventHandlers.get("media:progress")?.({
+        data: { session: 70, revision: 2, sequence: 20, positionMS: 800, activeCue: -1 },
+      }),
+    );
+    act(() =>
+      eventHandlers.get("dock:update")?.({
+        data: dockMediaState(2, dockMedia(70, 3, "Replacement")),
+      }),
+    );
+    act(() =>
+      eventHandlers.get("media:progress")?.({
+        data: { session: 70, revision: 3, sequence: 1, positionMS: 500, activeCue: -1 },
+      }),
+    );
+    expect(screen.getByRole("slider", { name: "Playback position" })).toHaveValue("500");
+  });
+
+  it("tombstones hidden hover media against delayed Dock updates", () => {
+    window.location.hash = "#dock";
+    render(<App />);
+    const retired = dockMedia(71, 4, "Retired");
+    act(() => eventHandlers.get("dock:show")?.({ data: dockMediaState(1, retired) }));
+    act(() => eventHandlers.get("media:hide")?.({ data: { session: 71, revision: 5 } }));
+    act(() => eventHandlers.get("dock:update")?.({ data: dockMediaState(2, retired) }));
+    expect(screen.queryByText("Retired")).toBeNull();
+    act(() =>
+      eventHandlers.get("dock:update")?.({ data: dockMediaState(3, dockMedia(72, 1, "New")) }),
+    );
+    expect(screen.getByText("New")).toBeInTheDocument();
+  });
+
+  it("admits only current pinned media revisions and progress sequences", async () => {
+    const mediaState = {
+      session: 44,
+      revision: 2,
+      open: true,
+      pinned: true,
+      pinnable: false,
+      provider: "music",
+      scope: {
+        provider: "music",
+        process: { pid: 3, launchID: "x" },
+        generation: 1,
+        trackEpoch: 1,
+        trackID: "A",
+      },
+      sample: {
+        provider: "music",
+        process: { pid: 3, launchID: "x" },
+        generation: 1,
+        sequence: 1,
+        trackEpoch: 1,
+        track: {
+          id: "A",
+          title: "Current track",
+          artist: "Artist",
+          album: "Album",
+          durationMS: 1000,
+        },
+        playback: "paused",
+        positionMS: 10,
+        observedAt: "",
+        status: "ready",
+        reason: "",
+        capabilities: { play: true, pause: true, previous: true, next: true, seek: true },
+        artworkToken: "",
+      },
+      appearance: emptyState.appearance,
+      artwork: { status: "missing", reason: "", image: "" },
+      lyrics: {
+        documentID: "",
+        status: "missing",
+        reason: "No synchronized lyrics",
+        cues: [],
+        offsetMS: 0,
+      },
+      positionMS: 10,
+      activeCue: -1,
+      error: "",
+    };
+    (mocked as any).GetMediaState.mockResolvedValueOnce(mediaState);
+    window.location.hash = "#media/44";
+    render(<App />);
+    expect(await screen.findByText("Current track")).toBeInTheDocument();
+    act(() =>
+      eventHandlers.get("media:progress")?.({
+        data: { session: 44, revision: 2, sequence: 3, positionMS: 800, activeCue: -1 },
+      }),
+    );
+    act(() =>
+      eventHandlers.get("media:progress")?.({
+        data: { session: 44, revision: 2, sequence: 2, positionMS: 100, activeCue: -1 },
+      }),
+    );
+    act(() => eventHandlers.get("media:hide")?.({ data: { session: 44, revision: 3 } }));
+    act(() =>
+      eventHandlers.get("media:update")?.({
+        data: {
+          ...mediaState,
+          revision: 4,
+          sample: {
+            ...mediaState.sample,
+            track: { ...mediaState.sample.track, title: "Late track" },
+          },
+        },
+      }),
+    );
+    expect(screen.queryByText("Late track")).toBeNull();
+  });
   it("renders the overlay route (closed) by default", () => {
     const { container } = render(<App />);
     // Overlay renders nothing while closed.
