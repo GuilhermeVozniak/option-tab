@@ -137,6 +137,10 @@ func (c *Controller) ConfiguredItem(scope Scope, id string) (ConfiguredTarget, e
 }
 
 func (c *Controller) PerformConfigured(ctx context.Context, scope Scope, id, action string) error {
+	return c.PerformConfiguredGuarded(ctx, scope, id, action, nil)
+}
+
+func (c *Controller) PerformConfiguredGuarded(ctx context.Context, scope Scope, id, action string, extra func() error) error {
 	if ctx == nil {
 		return ErrRetired
 	}
@@ -169,6 +173,11 @@ func (c *Controller) PerformConfigured(ctx context.Context, scope Scope, id, act
 	c.mu.Unlock()
 	defer func() { c.mu.Lock(); c.actionBusy = false; c.mu.Unlock() }()
 	guard := func() error {
+		if extra != nil {
+			if err := extra(); err != nil {
+				return err
+			}
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}

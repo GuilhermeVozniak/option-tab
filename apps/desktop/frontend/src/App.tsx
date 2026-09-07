@@ -29,6 +29,7 @@ import {
 } from "./lib/dock-bridge";
 import { dockLock } from "./lib/dock-lock-bridge";
 import { makeT, resolveLang } from "./lib/i18n";
+import { launcherBadges } from "./lib/launcher-badge-bridge";
 import {
   launcher,
   onLauncherState,
@@ -36,6 +37,10 @@ import {
   onLauncherWidgets,
   onWidgetPackageStatus,
 } from "./lib/launcher-bridge";
+import {
+  getLauncherInteractionCapabilities,
+  launcherInteractions,
+} from "./lib/launcher-interaction-bridge";
 import { showLauncherItemPanel } from "./lib/launcher-item-panel-bridge";
 import { mutateLauncherItems, relaunchLauncherItem } from "./lib/launcher-item-runtime-bridge";
 import { launcherItemSettings } from "./lib/launcher-items-bridge";
@@ -47,6 +52,7 @@ import type {
   DockMonitorLockState,
   DockViewState,
   LauncherAppChoice,
+  LauncherInteractionCapabilities,
   LauncherStatus,
   MediaViewState,
   VisualStyle,
@@ -133,11 +139,13 @@ function LauncherAppRoute({ session }: { session: number }) {
       t={makeT(resolved)}
       transport={{
         getState: launcher.state,
+        badges: launcherBadges,
         activate: launcher.activate,
         relaunch: relaunchLauncherItem,
         mutate: mutateLauncherItems,
         showPanel: showLauncherItemPanel,
         subscribe: onLauncherState,
+        interactions: launcherInteractions,
         widgets: {
           get: launcher.widgets,
           subscribe: onLauncherWidgets,
@@ -1258,6 +1266,8 @@ function SettingsRoute() {
   const [diagnosticsAvailable, setDiagnosticsAvailable] = useState(false);
   const [launcherStatus, setLauncherStatus] = useState<LauncherStatus>();
   const [launcherAppChoices, setLauncherAppChoices] = useState<LauncherAppChoice[]>([]);
+  const [launcherInteractionCapabilities, setLauncherInteractionCapabilities] =
+    useState<LauncherInteractionCapabilities>();
   const [launcherError, setLauncherError] = useState("");
   const [widgetCatalog, setWidgetCatalog] = useState<WidgetCatalogDescriptor[]>([]);
   const [widgetPackageStatus, setWidgetPackageStatus] = useState<WidgetPackageStatus>({
@@ -1292,6 +1302,20 @@ function SettingsRoute() {
       off();
     };
   }, []);
+  useEffect(() => {
+    let active = true;
+    setLauncherInteractionCapabilities(undefined);
+    void getLauncherInteractionCapabilities()
+      .then((capabilities) => {
+        if (active) setLauncherInteractionCapabilities(capabilities);
+      })
+      .catch(() => {
+        if (active) setLauncherInteractionCapabilities(undefined);
+      });
+    return () => {
+      active = false;
+    };
+  }, [launcherStatus?.epoch, launcherStatus?.status]);
   const refreshWidgetPackages = useCallback(async () => {
     const request = ++widgetPackageLoad.current;
     const [status, catalog] = await Promise.allSettled([
@@ -1525,6 +1549,15 @@ function SettingsRoute() {
             itemActions: launcherItemActions,
             profileTransfer: launcherProfileActions,
             widgetCatalog,
+            interactionCapabilities: launcherInteractionCapabilities
+              ? {
+                  preciseScroll: launcherInteractionCapabilities.gestureAvailable,
+                  pinch: launcherInteractionCapabilities.pinchAvailable,
+                  swipe: launcherInteractionCapabilities.swipeAvailable,
+                  letterNavigation: launcherInteractionCapabilities.letterInputAvailable,
+                  haptics: launcherInteractionCapabilities.hapticsAvailable,
+                }
+              : undefined,
             widgetPackages: {
               status: widgetPackageStatus,
               actions: {

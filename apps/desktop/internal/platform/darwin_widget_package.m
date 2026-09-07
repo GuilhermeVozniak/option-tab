@@ -172,7 +172,6 @@ void *ot_widget_package_start(uintptr_t admission) {
       return;
     }
     panel.allowedContentTypes = @[ UTTypeZIP, widgetType ];
-    panel.prompt = @"Review Widget Package";
     if (widgetPackageCancelled(g)) {
       g.panel = nil;
       widgetPackageFinish(g, widgetPackageError(@"cancelled"));

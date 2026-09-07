@@ -2,6 +2,8 @@
 
 #import "darwin_dock_panel.h"
 #import "darwin_launcher.h"
+#import "darwin_launcher_gestures.h"
+#import "darwin_launcher_keyboard.h"
 #import "darwin_media_panel.h"
 #import "darwin_material_effect.h"
 #import <Cocoa/Cocoa.h>
@@ -9,12 +11,15 @@
 
 @class OTDockPanel;
 static BOOL handlePanelWheel(OTDockPanel *, NSEvent *);
+static BOOL handleLauncherGesture(OTDockPanel *, NSEvent *);
 @interface OTDockPanel : NSPanel
 @property uint64_t panelToken;
 @end
 @implementation OTDockPanel
 - (void)sendEvent:(NSEvent *)event {
+  if (OTLauncherKeyboardEvent(self.panelToken,event)) return;
   if (OTMediaHeaderEvent(self.panelToken,event)) return;
+  if (handleLauncherGesture(self,event)) return;
   if (event.type == NSEventTypeScrollWheel && handlePanelWheel(self, event))
     return;
   [super sendEvent:event];
@@ -23,7 +28,11 @@ static BOOL handlePanelWheel(OTDockPanel *, NSEvent *);
   return NO;
 }
 - (BOOL)canBecomeKeyWindow {
-  return NO;
+  return OTLauncherKeyboardCanKey(self.panelToken);
+}
+- (void)resignKeyWindow {
+  OTLauncherKeyboardResigned(self.panelToken);
+  [super resignKeyWindow];
 }
 @end
 @interface OTPanelWheelMailbox : NSObject {
@@ -300,6 +309,19 @@ static BOOL handlePanelWheel(OTDockPanel *panel, NSEvent *event) {
   return admitWheel(r, input);
 }
 
+static BOOL handleLauncherGesture(OTDockPanel *panel,NSEvent *event){
+ OTDockPanelRecord *r=panelRecords()[@(panel.panelToken)];
+ if(!r||!r.launcherDisplay||!r.panel.visible||!r.panel.onActiveSpace)return NO;
+ return OTLauncherGestureHandle(panel.panelToken,event,r.content);
+}
+int OTLauncherGestureHost(uint64_t token,const char*display){
+ OTDockPanelRecord*r=panelRecords()[@(token)];
+ return r&&r.launcherDisplay&&display&&[r.launcherDisplay isEqualToString:[NSString stringWithUTF8String:display]]&&r.panel.visible&&r.panel.onActiveSpace&&!r.panel.miniaturized&&(r.panel.occlusionState&NSWindowOcclusionStateVisible)&&r.launcherSpace&&r.launcherSpace==ot_launcher_space_id(display);
+}
+NSWindow *OTLauncherKeyboardPanel(uint64_t token,const char *display){
+ return OTLauncherGestureHost(token,display)?panelRecords()[@(token)].panel:nil;
+}
+NSView *OTLauncherKeyboardContent(uint64_t token){return panelRecords()[@(token)].content;}
 static void destroyPanel(uint64_t token, BOOL restore) {
   OTDockPanelRecord *r = panelRecords()[@(token)];
   if (!r)
@@ -307,6 +329,8 @@ static void destroyPanel(uint64_t token, BOOL restore) {
   if (!restore)
     [retiredPanelHosts() addObject:r.host];
   OTMediaDestroy(token,!restore);
+  OTLauncherKeyboardRetire(token,YES);
+  OTLauncherGestureRetire(token,YES);
   cancelWheel(r, 3);
   r.wheelVisible = NO;
   if (r.wheelMailbox && r.wheelMailbox->count)
@@ -466,6 +490,8 @@ int ot_dock_panel_hide(uint64_t token) {
     OTDockPanelRecord *r = panelRecords()[@(token)];
     if (r) {
       OTMediaHide(token);
+      OTLauncherKeyboardRetire(token,NO);
+      OTLauncherGestureRetire(token,NO);
       cancelWheel(r, 2);
       r.wheelVisible = NO;
       [r.panel orderOut:nil];

@@ -642,6 +642,343 @@ export class LauncherAppChoice {
     }
 }
 
+export class LauncherBadgeViewEntry {
+    /**
+     * Creates a new LauncherBadgeViewEntry instance.
+     * @param {Partial<LauncherBadgeViewEntry>} [$$source = {}] - The source object to create the LauncherBadgeViewEntry.
+     */
+    constructor($$source = {}) {
+        if (!("itemID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["itemID"] = "";
+        }
+        if (!("state" in $$source)) {
+            /**
+             * @member
+             * @type {platform$0.LauncherBadgeState}
+             */
+            this["state"] = platform$0.LauncherBadgeState.$zero;
+        }
+        if (!("kind" in $$source)) {
+            /**
+             * @member
+             * @type {platform$0.LauncherBadgeKind}
+             */
+            this["kind"] = platform$0.LauncherBadgeKind.$zero;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {number | null | undefined}
+             */
+            this["count"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherBadgeViewEntry instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherBadgeViewEntry}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LauncherBadgeViewEntry(/** @type {Partial<LauncherBadgeViewEntry>} */($$parsedSource));
+    }
+}
+
+export class LauncherBadgeViewState {
+    /**
+     * Creates a new LauncherBadgeViewState instance.
+     * @param {Partial<LauncherBadgeViewState>} [$$source = {}] - The source object to create the LauncherBadgeViewState.
+     */
+    constructor($$source = {}) {
+        if (!("epoch" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["epoch"] = 0;
+        }
+        if (!("displayUUID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["displayUUID"] = "";
+        }
+        if (!("session" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["session"] = 0;
+        }
+        if (!("presentationRevision" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["presentationRevision"] = 0;
+        }
+        if (!("owner" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["owner"] = 0;
+        }
+        if (!("sequence" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["sequence"] = 0;
+        }
+        if (!("visible" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["visible"] = false;
+        }
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {platform$0.LauncherBadgeStatus}
+             */
+            this["status"] = platform$0.LauncherBadgeStatus.$zero;
+        }
+        if (!("entries" in $$source)) {
+            /**
+             * @member
+             * @type {LauncherBadgeViewEntry[]}
+             */
+            this["entries"] = [];
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherBadgeViewState instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherBadgeViewState}
+     */
+    static createFrom($$source = {}) {
+        const $$createField8_0 = $$createType14;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("entries" in $$parsedSource) {
+            $$parsedSource["entries"] = $$createField8_0($$parsedSource["entries"]);
+        }
+        return new LauncherBadgeViewState(/** @type {Partial<LauncherBadgeViewState>} */($$parsedSource));
+    }
+}
+
+export class LauncherInteractionCapabilities {
+    /**
+     * Creates a new LauncherInteractionCapabilities instance.
+     * @param {Partial<LauncherInteractionCapabilities>} [$$source = {}] - The source object to create the LauncherInteractionCapabilities.
+     */
+    constructor($$source = {}) {
+        if (!("gestureAvailable" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["gestureAvailable"] = false;
+        }
+        if (!("pinchAvailable" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["pinchAvailable"] = false;
+        }
+        if (!("swipeAvailable" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["swipeAvailable"] = false;
+        }
+        if (!("letterInputAvailable" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["letterInputAvailable"] = false;
+        }
+        if (!("hapticsAvailable" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hapticsAvailable"] = false;
+        }
+        if (!("reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["reason"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherInteractionCapabilities instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherInteractionCapabilities}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LauncherInteractionCapabilities(/** @type {Partial<LauncherInteractionCapabilities>} */($$parsedSource));
+    }
+}
+
+export class LauncherInteractionState {
+    /**
+     * Creates a new LauncherInteractionState instance.
+     * @param {Partial<LauncherInteractionState>} [$$source = {}] - The source object to create the LauncherInteractionState.
+     */
+    constructor($$source = {}) {
+        if (!("configured" in $$source)) {
+            /**
+             * @member
+             * @type {config$0.LauncherInteractions}
+             */
+            this["configured"] = (new config$0.LauncherInteractions());
+        }
+        if (!("epoch" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["epoch"] = 0;
+        }
+        if (!("displayUUID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["displayUUID"] = "";
+        }
+        if (!("session" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["session"] = 0;
+        }
+        if (!("presentationRevision" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["presentationRevision"] = 0;
+        }
+        if (!("admission" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["admission"] = 0;
+        }
+        if (!("sequence" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["sequence"] = 0;
+        }
+        if (!("visible" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["visible"] = false;
+        }
+        if (!("selectedItemID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["selectedItemID"] = "";
+        }
+        if (!("keyboardMode" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["keyboardMode"] = false;
+        }
+        if (!("gestureAvailable" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["gestureAvailable"] = false;
+        }
+        if (!("pinchAvailable" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["pinchAvailable"] = false;
+        }
+        if (!("swipeAvailable" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["swipeAvailable"] = false;
+        }
+        if (!("letterInputAvailable" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["letterInputAvailable"] = false;
+        }
+        if (!("hapticsAvailable" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hapticsAvailable"] = false;
+        }
+        if (!("reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["reason"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherInteractionState instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherInteractionState}
+     */
+    static createFrom($$source = {}) {
+        const $$createField0_0 = $$createType15;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("configured" in $$parsedSource) {
+            $$parsedSource["configured"] = $$createField0_0($$parsedSource["configured"]);
+        }
+        return new LauncherInteractionState(/** @type {Partial<LauncherInteractionState>} */($$parsedSource));
+    }
+}
+
 export class LauncherItemFolderState {
     /**
      * Creates a new LauncherItemFolderState instance.
@@ -714,8 +1051,8 @@ export class LauncherItemFolderState {
      * @returns {LauncherItemFolderState}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType14;
-        const $$createField5_0 = $$createType15;
+        const $$createField4_0 = $$createType17;
+        const $$createField5_0 = $$createType18;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("entries" in $$parsedSource) {
             $$parsedSource["entries"] = $$createField4_0($$parsedSource["entries"]);
@@ -876,9 +1213,9 @@ export class LauncherItemPanelState {
      * @returns {LauncherItemPanelState}
      */
     static createFrom($$source = {}) {
-        const $$createField10_0 = $$createType16;
-        const $$createField11_0 = $$createType18;
-        const $$createField12_0 = $$createType20;
+        const $$createField10_0 = $$createType19;
+        const $$createField11_0 = $$createType21;
+        const $$createField12_0 = $$createType23;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("bounds" in $$parsedSource) {
             $$parsedSource["bounds"] = $$createField10_0($$parsedSource["bounds"]);
@@ -945,8 +1282,8 @@ export class LauncherItemSettings {
      */
     static createFrom($$source = {}) {
         const $$createField0_0 = $$createType5;
-        const $$createField3_0 = $$createType22;
-        const $$createField4_0 = $$createType24;
+        const $$createField3_0 = $$createType25;
+        const $$createField4_0 = $$createType27;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("iconIDs" in $$parsedSource) {
             $$parsedSource["iconIDs"] = $$createField0_0($$parsedSource["iconIDs"]);
@@ -1254,7 +1591,7 @@ export class LauncherStatus {
      * @returns {LauncherStatus}
      */
     static createFrom($$source = {}) {
-        const $$createField6_0 = $$createType26;
+        const $$createField6_0 = $$createType29;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("displays" in $$parsedSource) {
             $$parsedSource["displays"] = $$createField6_0($$parsedSource["displays"]);
@@ -1293,7 +1630,7 @@ export class LauncherWidgetChoice {
      * @returns {LauncherWidgetChoice}
      */
     static createFrom($$source = {}) {
-        const $$createField1_0 = $$createType27;
+        const $$createField1_0 = $$createType30;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("name" in $$parsedSource) {
             $$parsedSource["name"] = $$createField1_0($$parsedSource["name"]);
@@ -1367,9 +1704,9 @@ export class LauncherWidgetSlot {
      * @returns {LauncherWidgetSlot}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType27;
-        const $$createField3_0 = $$createType30;
-        const $$createField6_0 = $$createType32;
+        const $$createField2_0 = $$createType30;
+        const $$createField3_0 = $$createType33;
+        const $$createField6_0 = $$createType35;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("name" in $$parsedSource) {
             $$parsedSource["name"] = $$createField2_0($$parsedSource["name"]);
@@ -1449,7 +1786,7 @@ export class LauncherWidgetState {
      * @returns {LauncherWidgetState}
      */
     static createFrom($$source = {}) {
-        const $$createField6_0 = $$createType34;
+        const $$createField6_0 = $$createType37;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("slots" in $$parsedSource) {
             $$parsedSource["slots"] = $$createField6_0($$parsedSource["slots"]);
@@ -1551,7 +1888,7 @@ export class MediaLyricsView {
      * @returns {MediaLyricsView}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType36;
+        const $$createField3_0 = $$createType39;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cues" in $$parsedSource) {
             $$parsedSource["cues"] = $$createField3_0($$parsedSource["cues"]);
@@ -1681,11 +2018,11 @@ export class MediaViewState {
      * @returns {MediaViewState}
      */
     static createFrom($$source = {}) {
-        const $$createField7_0 = $$createType37;
-        const $$createField8_0 = $$createType38;
+        const $$createField7_0 = $$createType40;
+        const $$createField8_0 = $$createType41;
         const $$createField9_0 = $$createType2;
-        const $$createField10_0 = $$createType39;
-        const $$createField11_0 = $$createType40;
+        const $$createField10_0 = $$createType42;
+        const $$createField11_0 = $$createType43;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("scope" in $$parsedSource) {
             $$parsedSource["scope"] = $$createField7_0($$parsedSource["scope"]);
@@ -1824,11 +2161,11 @@ export class WidgetCatalogItem {
      * @returns {WidgetCatalogItem}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType27;
-        const $$createField4_0 = $$createType27;
+        const $$createField3_0 = $$createType30;
+        const $$createField4_0 = $$createType30;
         const $$createField5_0 = $$createType5;
         const $$createField6_0 = $$createType5;
-        const $$createField7_0 = $$createType42;
+        const $$createField7_0 = $$createType45;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("name" in $$parsedSource) {
             $$parsedSource["name"] = $$createField3_0($$parsedSource["name"]);
@@ -1900,7 +2237,7 @@ export class WidgetPackageReview {
      * @returns {WidgetPackageReview}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType43;
+        const $$createField2_0 = $$createType46;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("package" in $$parsedSource) {
             $$parsedSource["package"] = $$createField2_0($$parsedSource["package"]);
@@ -1965,39 +2302,42 @@ const $$createType9 = $Create.Nullable($$createType8);
 const $$createType10 = DockItemView.createFrom;
 const $$createType11 = DockPointer.createFrom;
 const $$createType12 = $Create.Nullable($$createType11);
-const $$createType13 = platform$0.FolderEntry.createFrom;
+const $$createType13 = LauncherBadgeViewEntry.createFrom;
 const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = platform$0.FolderSort.createFrom;
-const $$createType16 = domain$0.Bounds.createFrom;
-const $$createType17 = LauncherItemFolderState.createFrom;
-const $$createType18 = $Create.Nullable($$createType17);
-const $$createType19 = AutomationPreviewViewState.createFrom;
-const $$createType20 = $Create.Nullable($$createType19);
-const $$createType21 = config$0.LauncherItem.createFrom;
-const $$createType22 = $Create.Array($$createType21);
-const $$createType23 = LauncherReferenceView.createFrom;
-const $$createType24 = $Create.Array($$createType23);
-const $$createType25 = launcher$0.DisplayState.createFrom;
-const $$createType26 = $Create.Array($$createType25);
-var $$createType27 = /** @type {(...args: any[]) => any} */(function $$initCreateType27(...args) {
-    if ($$createType27 === $$initCreateType27) {
-        $$createType27 = $$createType28;
+const $$createType15 = config$0.LauncherInteractions.createFrom;
+const $$createType16 = platform$0.FolderEntry.createFrom;
+const $$createType17 = $Create.Array($$createType16);
+const $$createType18 = platform$0.FolderSort.createFrom;
+const $$createType19 = domain$0.Bounds.createFrom;
+const $$createType20 = LauncherItemFolderState.createFrom;
+const $$createType21 = $Create.Nullable($$createType20);
+const $$createType22 = AutomationPreviewViewState.createFrom;
+const $$createType23 = $Create.Nullable($$createType22);
+const $$createType24 = config$0.LauncherItem.createFrom;
+const $$createType25 = $Create.Array($$createType24);
+const $$createType26 = LauncherReferenceView.createFrom;
+const $$createType27 = $Create.Array($$createType26);
+const $$createType28 = launcher$0.DisplayState.createFrom;
+const $$createType29 = $Create.Array($$createType28);
+var $$createType30 = /** @type {(...args: any[]) => any} */(function $$initCreateType30(...args) {
+    if ($$createType30 === $$initCreateType30) {
+        $$createType30 = $$createType31;
     }
-    return $$createType27(...args);
+    return $$createType30(...args);
 });
-const $$createType28 = $Create.Map($Create.Any, $Create.Any);
-const $$createType29 = LauncherWidgetChoice.createFrom;
-const $$createType30 = $Create.Array($$createType29);
-const $$createType31 = widgets$0.InstanceState.createFrom;
-const $$createType32 = $Create.Nullable($$createType31);
-const $$createType33 = LauncherWidgetSlot.createFrom;
-const $$createType34 = $Create.Array($$createType33);
-const $$createType35 = media$0.Cue.createFrom;
-const $$createType36 = $Create.Array($$createType35);
-const $$createType37 = platform$0.MediaScope.createFrom;
-const $$createType38 = platform$0.MediaSample.createFrom;
-const $$createType39 = MediaArtworkView.createFrom;
-const $$createType40 = MediaLyricsView.createFrom;
-const $$createType41 = widgets$0.Setting.createFrom;
-const $$createType42 = $Create.Array($$createType41);
-const $$createType43 = WidgetCatalogItem.createFrom;
+const $$createType31 = $Create.Map($Create.Any, $Create.Any);
+const $$createType32 = LauncherWidgetChoice.createFrom;
+const $$createType33 = $Create.Array($$createType32);
+const $$createType34 = widgets$0.InstanceState.createFrom;
+const $$createType35 = $Create.Nullable($$createType34);
+const $$createType36 = LauncherWidgetSlot.createFrom;
+const $$createType37 = $Create.Array($$createType36);
+const $$createType38 = media$0.Cue.createFrom;
+const $$createType39 = $Create.Array($$createType38);
+const $$createType40 = platform$0.MediaScope.createFrom;
+const $$createType41 = platform$0.MediaSample.createFrom;
+const $$createType42 = MediaArtworkView.createFrom;
+const $$createType43 = MediaLyricsView.createFrom;
+const $$createType44 = widgets$0.Setting.createFrom;
+const $$createType45 = $Create.Array($$createType44);
+const $$createType46 = WidgetCatalogItem.createFrom;

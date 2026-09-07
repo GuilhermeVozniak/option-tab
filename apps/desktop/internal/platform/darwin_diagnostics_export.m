@@ -202,9 +202,6 @@ void *ot_diagnostics_save_start(const void *bytes, size_t length,
       NSSavePanel *panel = OT_DIAGNOSTIC_MAKE_PANEL();
       g.panel = panel;
       panel.nameFieldStringValue = @"option-tab-diagnostics.json";
-      panel.title = @"Save diagnostic report";
-      panel.message =
-          @"Choose a new filename. Existing files will not be replaced.";
       panel.allowedContentTypes = @[ UTTypeJSON ];
       panel.canCreateDirectories = YES;
       if (diagnosticCancelled(g)) {

@@ -144,7 +144,9 @@ H17 profile transfer now exports structural layout/items/widget settings and imp
 
 H06 spring magnification is implemented with per-profile scale/reach, resolved native bounds, stable hitboxes, reduced-motion handling and conservative scroll-edge behavior. Automated Go, unit, browser and build gates pass; physical smoothness and native pointer/display acceptance remain open. See the [magnification checkpoint](superpowers/reports/2026-09-07-launcher-magnification.md).
 
-H05 runtime dragging and keyboard grouping are implemented with exact presentation/native admission and revision-aware Settings saves. Reopening Preferences refreshes the canonical model before edits resume; stale full-settings saves cannot overwrite runtime pin changes. See the [runtime reordering checkpoint](superpowers/reports/2026-09-07-launcher-runtime-reorder.md) for verification and native acceptance limits. Gestures/navigation and supported badges remain retained follow-ups.
+H05 runtime dragging and keyboard grouping are implemented with exact presentation/native admission and revision-aware Settings saves. Reopening Preferences refreshes the canonical model before edits resume; stale full-settings saves cannot overwrite runtime pin changes. See the [runtime reordering checkpoint](superpowers/reports/2026-09-07-launcher-runtime-reorder.md) for verification and native acceptance limits.
+
+H15 adds per-profile gesture reduction, selection haptics and explicit keyboard-mode navigation, with exact native ownership and compact controls on all four edges. Production pinch, swipe and letter input remain gated on physical delivery acceptance. H16 adds optional native-Dock status badges with exact application matching, typed counts/indicators, shared observation and serial recovery. Unknown values stay hidden. See the [input and badge checkpoint](superpowers/reports/2026-09-08-launcher-input-badges.md) for combined verification and the remaining native acceptance limits. This completes the planned implementation areas in H; their physical acceptance checkboxes remain open.
 
 ## Current input checkpoint
 

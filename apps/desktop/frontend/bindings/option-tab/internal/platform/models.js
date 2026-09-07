@@ -392,6 +392,51 @@ export class FolderSort {
     }
 }
 
+/**
+ * @readonly
+ * @enum {string}
+ */
+export const LauncherBadgeKind = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    BadgeAbsent: "absent",
+    BadgeCount: "count",
+    BadgeIndicator: "indicator",
+};
+
+/**
+ * @readonly
+ * @enum {string}
+ */
+export const LauncherBadgeState = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    BadgeKnown: "known",
+    BadgeUnavailable: "unavailable",
+    BadgeUnsupported: "unsupported",
+};
+
+/**
+ * @readonly
+ * @enum {string}
+ */
+export const LauncherBadgeStatus = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    BadgeReady: "ready",
+    BadgeSourceUnavailable: "unavailable",
+    BadgeSourceUnsupported: "unsupported",
+};
+
 export class MaterialStatus {
     /**
      * Creates a new MaterialStatus instance.

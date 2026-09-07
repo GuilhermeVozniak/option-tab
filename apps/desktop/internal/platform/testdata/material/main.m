@@ -13,6 +13,7 @@ static void (^fadeDone)(void);
     effect.alphaValue = 0;                                                     \
     fadeDone = [(__VA_ARGS__) copy];                                           \
   } while (0)
+#include "../../darwin_launcher_gestures.m"
 #include "../../darwin_dock_panel.m"
 #include "../../darwin_material.m"
 #include "../../darwin_media_panel.m"
@@ -132,3 +133,7 @@ int main(void) {
          "cancellation, exact cleanup and policy refusal; inert views only");
   }
 }
+
+int ot_go_launcher_gesture_policy_current(uintptr_t handle) { return 0; }
+#import "../../darwin_launcher_keyboard.m"
+int ot_go_launcher_keyboard_current(uintptr_t handle) { return 0; }

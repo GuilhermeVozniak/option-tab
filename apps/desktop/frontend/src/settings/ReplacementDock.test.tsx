@@ -219,6 +219,84 @@ describe("ReplacementDock", () => {
     expect(screen.getByText(scale)).toBeVisible();
   });
 
+  it("keeps launcher interactions off and unavailable capabilities honest", () => {
+    const onChange = vi.fn();
+    render(<ReplacementDock value={value} t={makeT("en")} onChange={onChange} />);
+    expect(screen.getByLabelText("Enable launcher interactions")).not.toBeChecked();
+    expect(screen.getByLabelText("Precise trackpad scrolling")).toBeDisabled();
+    expect(screen.getByLabelText("Pinch gestures")).toBeDisabled();
+    expect(screen.getByLabelText("Swipe gestures")).toBeDisabled();
+    expect(screen.getByLabelText("Keyboard navigation")).toBeDisabled();
+    expect(screen.getAllByText(/Unavailable on this device/)).toHaveLength(5);
+    fireEvent.click(screen.getByLabelText("Enable launcher interactions"));
+    expect(onChange.mock.calls.at(-1)?.[0].profiles[0].interactions).toEqual({
+      enabled: true,
+      preciseScroll: false,
+      pinch: false,
+      swipe: false,
+      primaryAction: "next",
+      towardAction: "showPreview",
+      pinchAction: "showPreview",
+      haptics: false,
+      letterNavigation: false,
+      enterActivates: false,
+    });
+  });
+
+  it("preserves interaction choices while disabled and gates accepted capabilities", () => {
+    const onChange = vi.fn();
+    const configured: ReplacementDockSettings = {
+      ...value,
+      profiles: [
+        {
+          ...value.profiles[0],
+          interactions: {
+            enabled: true,
+            preciseScroll: true,
+            pinch: false,
+            swipe: false,
+            primaryAction: "previous",
+            towardAction: "hidePreview",
+            pinchAction: "showPreview",
+            haptics: true,
+            letterNavigation: true,
+            enterActivates: true,
+          },
+        },
+      ],
+    };
+    render(
+      <ReplacementDock
+        value={configured}
+        t={makeT("en")}
+        onChange={onChange}
+        interactionCapabilities={{ preciseScroll: true, letterNavigation: true, haptics: true }}
+      />,
+    );
+    expect(screen.getByLabelText("Precise trackpad scrolling")).toBeEnabled();
+    expect(screen.getByLabelText("Keyboard navigation")).toBeEnabled();
+    expect(screen.getByLabelText("Pinch gestures")).toBeDisabled();
+    expect(screen.getByLabelText("Launcher haptic feedback")).toBeEnabled();
+    fireEvent.click(screen.getByLabelText("Enable launcher interactions"));
+    expect(onChange.mock.calls.at(-1)?.[0].profiles[0].interactions).toMatchObject({
+      enabled: false,
+      preciseScroll: true,
+      primaryAction: "previous",
+      towardAction: "hidePreview",
+      letterNavigation: true,
+      enterActivates: true,
+    });
+  });
+
+  it.each([
+    ["pt-BR" as const, "Trackpad e teclado", "Indisponível neste dispositivo"],
+    ["es" as const, "Trackpad y teclado", "No disponible en este dispositivo"],
+  ])("renders localized interaction controls in %s", (language, heading, unavailable) => {
+    render(<ReplacementDock value={value} t={makeT(language)} onChange={() => {}} />);
+    expect(screen.getByText(heading)).toBeVisible();
+    expect(screen.getAllByText(new RegExp(unavailable))).toHaveLength(5);
+  });
+
   it("offers permanent native Dock recovery and shows runtime refusal", () => {
     const recover = vi.fn();
     render(
@@ -433,5 +511,15 @@ it("runtime reordering is opt-in and updates only the selected profile", () => {
   expect(control).not.toBeChecked();
   fireEvent.click(control);
   expect(onChange.mock.calls.at(-1)?.[0].profiles[0].runtimeReorder).toBe(true);
+  expect(onChange.mock.calls.at(-1)?.[0].enabled).toBe(false);
+});
+
+it("Dock badge observation is opt-in and keeps the Dock disabled", () => {
+  const onChange = vi.fn();
+  render(<ReplacementDock value={value} onChange={onChange} t={(s) => s} />);
+  const control = screen.getByLabelText("Show replacement Dock badges");
+  expect(control).not.toBeChecked();
+  fireEvent.click(control);
+  expect(onChange.mock.calls.at(-1)?.[0].profiles[0].showBadges).toBe(true);
   expect(onChange.mock.calls.at(-1)?.[0].enabled).toBe(false);
 });

@@ -94,7 +94,6 @@ void *ot_lyrics_choose_start(void) {
         panel.allowsMultipleSelection = NO;
         panel.canCreateDirectories = NO;
         panel.allowedContentTypes = @[[UTType typeWithFilenameExtension:@"lrc"] ?: UTTypePlainText];
-        panel.prompt = @"Choose Lyrics";
         [panel beginWithCompletionHandler:^(NSModalResponse response) {
             NSURL *selected = panel.URL;
             owner.panel = nil;

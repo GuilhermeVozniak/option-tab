@@ -198,6 +198,13 @@ const METHOD = {
   GetSettingsState: 620781575,
   SaveSettingsAtRevision: 1896415605,
   MutateLauncherItems: 3805544533,
+  GetLauncherInteractionState: 59755958,
+  GetLauncherInteractionCapabilities: 447462271,
+  SetLauncherKeyboardMode: 2605124801,
+  CommitLauncherLetter: 3590058620,
+  ActivateLauncherSelection: 4123151142,
+  SetLauncherReorderTarget: 1107160523,
+  GetLauncherBadges: 3953438223,
   SaveSettings: 1949631069,
 } as const;
 
@@ -242,6 +249,7 @@ export async function installFakeWails(page: Page): Promise<void> {
       __diagnosticsSaveResult?: Record<string, unknown>;
       __diagnosticsError?: Record<string, string>;
       __launcherState?: Record<string, unknown> | null;
+      __launcherInteractionState?: Record<string, unknown> | null;
       __launcherStatus?: Record<string, unknown>;
       __launcherAppChoices?: Array<{ name: string; bundleID: string }>;
       __launcherWidgets?: Record<string, unknown>;
@@ -266,6 +274,7 @@ export async function installFakeWails(page: Page): Promise<void> {
     w.__mediaPermissions = {};
     w.__automationPreviewState = null;
     w.__launcherState = null;
+    w.__launcherInteractionState = null;
     w.__launcherWidgets = { visible: false, revision: 0, slots: [] };
     w.__widgetCatalog = [
       {
@@ -375,12 +384,17 @@ export async function installFakeWails(page: Page): Promise<void> {
     const evaluate = (fn: (arg: unknown) => void, arg?: unknown) => page.evaluate(fn, arg);
 
     switch (name) {
+      case "GetLauncherBadges": {
+        await evaluate((n) => (window as any).__calls.push([n]), name);
+        return json(await page.evaluate(() => (window as any).__launcherBadges ?? { entries: [] }));
+      }
       case "GetVersion":
         return json("0.0.0-e2e");
       case "GetSettingsState":
         return json(
           await page.evaluate(() => {
             const w = window as any;
+            w.__calls.push(["GetSettingsState"]);
             return { revision: w.__settingsRevision, json: w.__settingsJSON };
           }),
         );
@@ -406,6 +420,17 @@ export async function installFakeWails(page: Page): Promise<void> {
       }
       case "GetLauncherState":
         return json(await page.evaluate(() => (window as any).__launcherState));
+      case "GetLauncherInteractionState":
+        return json(await page.evaluate(() => (window as any).__launcherInteractionState));
+      case "GetLauncherInteractionCapabilities":
+        return json({
+          gestureAvailable: true,
+          pinchAvailable: false,
+          swipeAvailable: false,
+          letterInputAvailable: false,
+          hapticsAvailable: true,
+          reason: "deliveryUnverified",
+        });
       case "GetLauncherItemPanelState":
         return json(await page.evaluate(() => (window as any).__launcherItemPanelState));
       case "GetLauncherItemSettings":
@@ -472,6 +497,10 @@ export async function installFakeWails(page: Page): Promise<void> {
       case "PerformLauncherWindowAction":
       case "PerformWidgetAction":
       case "MutateLauncherItems":
+      case "SetLauncherKeyboardMode":
+      case "CommitLauncherLetter":
+      case "ActivateLauncherSelection":
+      case "SetLauncherReorderTarget":
       case "SelectLauncherWidget":
       case "CancelWidgetPackageReview":
       case "RemoveWidgetPackage":

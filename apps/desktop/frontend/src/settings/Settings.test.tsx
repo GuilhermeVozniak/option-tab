@@ -1152,7 +1152,11 @@ it("edits every Dock input gesture independently", () => {
     target: { value: "minimizeOthers" },
   });
   expect(current.dock.input.aeroShakeAction).toBe("minimizeOthers");
-  expect(screen.getByText(/Precise trackpad scrolling/)).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "Precise trackpad scrolling powers preview swipes. macOS does not reliably expose the number of fingers.",
+    ),
+  ).toBeInTheDocument();
 });
 
 it("shows retained native Dock input failures without opening a preview", () => {

@@ -1,4 +1,5 @@
 .ot-launcher-shell {
+  position: relative;
   display: flex;
   box-sizing: border-box;
   align-items: center;
@@ -358,6 +359,33 @@
   pointer-events: none;
   transform-origin: center;
 }
+.ot-launcher-badge {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border: 1px solid #fff9;
+  border-radius: 999px;
+  background: #c92e3c;
+  color: #fff;
+  font:
+    700 9px / 1 system-ui,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.ot-launcher-badge.is-indicator {
+  min-width: 9px;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+}
 .ot-launcher-strip.is-magnified {
   box-sizing: border-box;
   padding: var(--ot-mag-cross) var(--ot-mag-primary);
@@ -372,6 +400,40 @@
 
 .ot-launcher-item {
   position: relative;
+}
+.ot-launcher-app.is-key-selected {
+  outline: 2px solid var(--ot-accent, #78a8ff);
+  outline-offset: 1px;
+}
+.ot-launcher-keyboard-toggle,
+.ot-launcher-letter-input {
+  box-sizing: border-box;
+  flex: 0 0 24px;
+  width: 24px;
+  max-width: 24px;
+  max-height: 100%;
+  min-width: 0;
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 7px;
+  color: inherit;
+  background: color-mix(in srgb, var(--ot-launcher-surface, #172033) 76%, transparent);
+}
+.ot-launcher-shell:is(.edge-left, .edge-right)
+  :is(.ot-launcher-keyboard-toggle, .ot-launcher-letter-input) {
+  width: 24px;
+}
+.ot-launcher-interaction-error {
+  position: absolute;
+  z-index: 4;
+  inset-inline-end: 3px;
+  inset-block-end: 3px;
+  box-sizing: border-box;
+  max-width: calc(100% - 6px);
+  max-height: 100%;
+  overflow: auto;
+  margin: 0;
+  font-size: 11px;
 }
 .ot-launcher-reorder-handle {
   position: absolute;

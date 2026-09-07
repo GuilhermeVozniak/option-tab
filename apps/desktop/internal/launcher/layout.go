@@ -77,7 +77,11 @@ func layoutAtMagnification(p config.LauncherProfile, d platform.LauncherDisplay,
 		}
 	}
 	n := max(min(count, 144), 1)
-	length := float64(n*p.IconPx) + float64(n-1)*spacing + 24
+	keyboardExtent := 0.0
+	if p.Interactions != nil && p.Interactions.Enabled && p.Interactions.LetterNavigation {
+		keyboardExtent = 28
+	}
+	length := float64(n*p.IconPx) + float64(n-1)*spacing + 24 + keyboardExtent
 	length += float64(visibleWidgetSlots(p)) * (160 + spacing)
 	if scale > 1 {
 		length += 2*(magnification.PrimaryInset-12) + groupPadding
@@ -87,7 +91,11 @@ func layoutAtMagnification(p config.LauncherProfile, d platform.LauncherDisplay,
 	} else {
 		length = math.Min(length, math.Min(available, available*p.MaxLengthFraction))
 	}
-	if length < 48 || (scale > 1 && length < 2*magnification.PrimaryInset+float64(p.IconPx)) {
+	minimumLength := 48.0
+	if keyboardExtent > 0 {
+		minimumLength = keyboardExtent + 24 + float64(p.IconPx)
+	}
+	if length < minimumLength || (scale > 1 && length < keyboardExtent+2*magnification.PrimaryInset+float64(p.IconPx)) {
 		return fail
 	}
 	along := alongStart

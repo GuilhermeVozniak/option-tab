@@ -51,8 +51,10 @@ func DefaultLauncherAppearance() LauncherAppearance {
 }
 
 type LauncherProfile struct {
+	ShowBadges        bool                   `json:"showBadges,omitempty"`
 	RuntimeReorder    bool                   `json:"runtimeReorder,omitempty"`
 	Magnification     *LauncherMagnification `json:"magnification,omitempty"`
+	Interactions      *LauncherInteractions  `json:"interactions,omitempty"`
 	Alignment         string                 `json:"alignment"`
 	Appearance        LauncherAppearance     `json:"appearance"`
 	ID                string                 `json:"id"`
@@ -91,7 +93,7 @@ type WidgetStack struct {
 }
 
 func DefaultReplacementDock() ReplacementDockSettings {
-	return ReplacementDockSettings{Version: 2, Profiles: []LauncherProfile{{Magnification: DefaultLauncherMagnification(), ID: "default", Name: "Default", Alignment: "center", Appearance: DefaultLauncherAppearance(), Edge: "bottom", Layout: "floating", IconPx: 40, ThicknessPx: 64, MaxLengthFraction: .8, InsetPx: 16, Widgets: []WidgetInstance{{ID: "clock", PackageID: BuiltinClockPackage, Digest: BuiltinClockDigest, Grants: []string{}}}}}, Bindings: []LauncherBinding{{ID: "main", Target: "main", ProfileID: "default"}}}
+	return ReplacementDockSettings{Version: 2, Profiles: []LauncherProfile{{Magnification: DefaultLauncherMagnification(), Interactions: DefaultLauncherInteractions(), ID: "default", Name: "Default", Alignment: "center", Appearance: DefaultLauncherAppearance(), Edge: "bottom", Layout: "floating", IconPx: 40, ThicknessPx: 64, MaxLengthFraction: .8, InsetPx: 16, Widgets: []WidgetInstance{{ID: "clock", PackageID: BuiltinClockPackage, Digest: BuiltinClockDigest, Grants: []string{}}}}}, Bindings: []LauncherBinding{{ID: "main", Target: "main", ProfileID: "default"}}}
 }
 
 func CloneReplacementDock(s ReplacementDockSettings) ReplacementDockSettings {
@@ -102,6 +104,10 @@ func CloneReplacementDock(s ReplacementDockSettings) ReplacementDockSettings {
 		if s.Profiles[i].Magnification != nil {
 			m := *s.Profiles[i].Magnification
 			s.Profiles[i].Magnification = &m
+		}
+		if s.Profiles[i].Interactions != nil {
+			v := *s.Profiles[i].Interactions
+			s.Profiles[i].Interactions = &v
 		}
 		s.Profiles[i].Widgets = slices.Clone(s.Profiles[i].Widgets)
 		for j := range s.Profiles[i].Widgets {
@@ -135,7 +141,7 @@ func ValidateReplacementDock(s ReplacementDockSettings) error {
 	}
 	profiles := map[string]bool{}
 	for _, p := range s.Profiles {
-		if !validLauncherMagnification(p.Magnification) || !launcherID.MatchString(p.ID) || profiles[p.ID] || !utf8.ValidString(p.Name) || utf8.RuneCountInString(p.Name) < 1 || utf8.RuneCountInString(p.Name) > 80 || !slices.Contains([]string{"bottom", "top", "left", "right"}, p.Edge) || !slices.Contains([]string{"floating", "fullWidth"}, p.Layout) || !slices.Contains([]string{"start", "center", "end"}, p.Alignment) || !validLauncherAppearance(p.Appearance) || p.IconPx < 24 || p.IconPx > 64 || p.ThicknessPx < 48 || p.ThicknessPx > 112 || p.ThicknessPx < p.IconPx+8 || math.IsNaN(p.MaxLengthFraction) || math.IsInf(p.MaxLengthFraction, 0) || p.MaxLengthFraction < .25 || p.MaxLengthFraction > .9 || p.InsetPx < 12 || p.InsetPx > 64 || len(p.Widgets) > 16 || !validLauncherItems(p.Items) {
+		if !validLauncherMagnification(p.Magnification) || !validLauncherInteractions(p.Interactions) || !launcherID.MatchString(p.ID) || profiles[p.ID] || !utf8.ValidString(p.Name) || utf8.RuneCountInString(p.Name) < 1 || utf8.RuneCountInString(p.Name) > 80 || !slices.Contains([]string{"bottom", "top", "left", "right"}, p.Edge) || !slices.Contains([]string{"floating", "fullWidth"}, p.Layout) || !slices.Contains([]string{"start", "center", "end"}, p.Alignment) || !validLauncherAppearance(p.Appearance) || p.IconPx < 24 || p.IconPx > 64 || p.ThicknessPx < 48 || p.ThicknessPx > 112 || p.ThicknessPx < p.IconPx+8 || math.IsNaN(p.MaxLengthFraction) || math.IsInf(p.MaxLengthFraction, 0) || p.MaxLengthFraction < .25 || p.MaxLengthFraction > .9 || p.InsetPx < 12 || p.InsetPx > 64 || len(p.Widgets) > 16 || !validLauncherItems(p.Items) {
 			return bad
 		}
 		profiles[p.ID] = true
@@ -255,20 +261,44 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 		return s, bad
 	}
 	for i, fields := range profileFields.Profiles {
-		present := false
+		magnificationPresent := false
+		interactionsPresent := false
 		for key, value := range fields {
-			if strings.EqualFold(key, "runtimeReorder") && (s.Version == 1 || (string(value) != "true" && string(value) != "false")) {
+			if (strings.EqualFold(key, "runtimeReorder") || strings.EqualFold(key, "showBadges")) && (s.Version == 1 || (string(value) != "true" && string(value) != "false")) {
 				return s, bad
 			}
 			if strings.EqualFold(key, "magnification") {
-				present = true
+				magnificationPresent = true
 				if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
 					return s, bad
 				}
 			}
+			if strings.EqualFold(key, "interactions") {
+				interactionsPresent = true
+				if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+					return s, bad
+				}
+				var interactionFields map[string]json.RawMessage
+				if err := json.Unmarshal(value, &interactionFields); err != nil {
+					return s, bad
+				}
+				defaults := DefaultLauncherInteractions()
+				if !rawFieldPresent(interactionFields, "primaryAction") {
+					s.Profiles[i].Interactions.PrimaryAction = defaults.PrimaryAction
+				}
+				if !rawFieldPresent(interactionFields, "towardAction") {
+					s.Profiles[i].Interactions.TowardAction = defaults.TowardAction
+				}
+				if !rawFieldPresent(interactionFields, "pinchAction") {
+					s.Profiles[i].Interactions.PinchAction = defaults.PinchAction
+				}
+			}
 		}
-		if !present {
+		if !magnificationPresent {
 			s.Profiles[i].Magnification = DefaultLauncherMagnification()
+		}
+		if !interactionsPresent {
+			s.Profiles[i].Interactions = DefaultLauncherInteractions()
 		}
 	}
 	if s.Version == 1 {
@@ -299,7 +329,7 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 				return s, bad
 			}
 			for key := range legacy.Profiles[i] {
-				if strings.EqualFold(key, "stacks") || strings.EqualFold(key, "items") || strings.EqualFold(key, "magnification") {
+				if strings.EqualFold(key, "stacks") || strings.EqualFold(key, "items") || strings.EqualFold(key, "magnification") || strings.EqualFold(key, "interactions") {
 					return s, bad
 				}
 			}
@@ -314,4 +344,13 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 		s.Version = 2
 	}
 	return s, ValidateReplacementDock(s)
+}
+
+func rawFieldPresent(fields map[string]json.RawMessage, wanted string) bool {
+	for key := range fields {
+		if strings.EqualFold(key, wanted) {
+			return true
+		}
+	}
+	return false
 }

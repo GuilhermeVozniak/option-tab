@@ -494,6 +494,7 @@ export interface LauncherItemStatus {
 }
 
 export interface LauncherProfile {
+  showBadges?: boolean;
   runtimeReorder?: boolean;
   id: string;
   name: string;
@@ -510,11 +511,24 @@ export interface LauncherProfile {
   stacks?: LauncherWidgetStack[];
   items?: LauncherItem[];
   magnification?: LauncherProfileMagnification;
+  interactions?: LauncherInteractions;
 }
 export interface LauncherProfileMagnification {
   enabled: boolean;
   scale: number;
   reach: number;
+}
+export interface LauncherInteractions {
+  enabled: boolean;
+  preciseScroll: boolean;
+  pinch: boolean;
+  swipe: boolean;
+  primaryAction: "none" | "previous" | "next";
+  towardAction: "none" | "showPreview" | "hidePreview";
+  pinchAction: "none" | "showPreview" | "hidePreview";
+  haptics: boolean;
+  letterNavigation: boolean;
+  enterActivates: boolean;
 }
 export interface LauncherAppearance {
   theme: "system" | "light" | "dark";
@@ -597,6 +611,33 @@ export interface LauncherPresentation {
     status: string;
     root: LauncherWidgetNode;
   }>;
+}
+export interface LauncherInteractionState {
+  epoch: number;
+  displayUUID: string;
+  session: number;
+  presentationRevision: number;
+  admission: number;
+  sequence: number;
+  visible: boolean;
+  selectedItemID: string;
+  keyboardMode: boolean;
+  gestureAvailable: boolean;
+  pinchAvailable: boolean;
+  swipeAvailable: boolean;
+  letterInputAvailable: boolean;
+  hapticsAvailable: boolean;
+  configured: LauncherInteractions;
+  reason: string;
+}
+
+export interface LauncherInteractionCapabilities {
+  gestureAvailable: boolean;
+  pinchAvailable: boolean;
+  swipeAvailable: boolean;
+  letterInputAvailable: boolean;
+  hapticsAvailable: boolean;
+  reason: string;
 }
 export interface LauncherStatus {
   epoch: number;

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { LauncherBadgeEntry } from "../lib/launcher-badge-types";
 import type { LauncherMutateCommand } from "../lib/launcher-item-runtime-bridge";
 import type { LauncherPresentation, LauncherPresentationItem } from "../lib/types";
 import { type LauncherItemMutation, reorderable, reorderChoices } from "./reorder";
@@ -20,6 +21,9 @@ export function LauncherItemStrip({
   onRelaunch,
   onShowPanel,
   onMutate,
+  selectedItemID,
+  onReorderTarget,
+  badges,
   t,
 }: {
   presentation: LauncherPresentation;
@@ -27,6 +31,9 @@ export function LauncherItemStrip({
   onRelaunch?: LauncherItemCommand;
   onShowPanel?: LauncherItemCommand;
   onMutate?: LauncherMutateCommand;
+  selectedItemID?: string;
+  onReorderTarget?: (itemID: string) => void;
+  badges?: ReadonlyMap<string, LauncherBadgeEntry>;
   t: (text: string) => string;
 }) {
   const [group, setGroup] = useState("");
@@ -73,6 +80,26 @@ export function LauncherItemStrip({
     vertical: presentation.edge === "left" || presentation.edge === "right",
     perform: performMutation,
   });
+  const reportedReorderTarget = useRef("");
+  useEffect(() => {
+    const parent = presentation.items.find((item) =>
+      item.members?.some((member) => member.id === selectedItemID),
+    );
+    if (parent) setGroup(parent.id);
+  }, [presentation.items, selectedItemID]);
+  useEffect(() => {
+    if (!selectedItemID) return;
+    const item = [
+      ...(strip.current?.querySelectorAll<HTMLElement>("[data-launcher-item-id]") ?? []),
+    ].find((candidate) => candidate.dataset.launcherItemId === selectedItemID);
+    item?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [selectedItemID, group]);
+  useEffect(() => {
+    const target = reorder.target?.targetID ?? "";
+    if (target === reportedReorderTarget.current) return;
+    reportedReorderTarget.current = target;
+    onReorderTarget?.(target);
+  }, [onReorderTarget, reorder.target?.targetID]);
   const currentItems = admittedItems === itemsKey;
   const invoke = (command: LauncherItemCommand, id: string) => {
     setContextItem("");
@@ -99,6 +126,15 @@ export function LauncherItemStrip({
     }
     const isGroup = kind === "group" && !member;
     const ready = !item.status || item.status === "ready";
+    const badge = ready && kind === "app" ? badges?.get(item.id) : undefined;
+    const badgeText =
+      badge?.state === "known"
+        ? badge.kind === "count" && badge.count !== undefined
+          ? `${t("Dock badge count")}: ${badge.count}`
+          : badge.kind === "indicator"
+            ? t("Dock badge indicator")
+            : ""
+        : "";
     const canRelaunch =
       kind === "app" && ready && item.running && !!item.referenceRevision && !!onRelaunch;
     const status = ready
@@ -117,11 +153,13 @@ export function LauncherItemStrip({
         <button
           type="button"
           aria-label={item.name}
-          className="ot-launcher-app"
+          className={`ot-launcher-app${selectedItemID === item.id ? " is-key-selected" : ""}`}
+          data-launcher-item-id={item.id}
+          aria-current={selectedItemID === item.id ? "true" : undefined}
           data-reorder-target={item.id}
           disabled={!ready && !isGroup}
-          aria-description={status}
-          title={`${item.name} · ${status}`}
+          aria-description={badgeText ? `${status} · ${badgeText}` : status}
+          title={`${item.name} · ${status}${badgeText ? ` · ${badgeText}` : ""}`}
           aria-expanded={
             isGroup
               ? currentItems && group === item.id
@@ -157,6 +195,14 @@ export function LauncherItemStrip({
           }}
         >
           <span className="ot-launcher-visual">
+            {badgeText ? (
+              <span
+                className={`ot-launcher-badge${badge?.kind === "indicator" ? " is-indicator" : ""}`}
+                aria-hidden="true"
+              >
+                {badge?.kind === "count" ? (badge.count! > 99 ? "99+" : badge.count) : ""}
+              </span>
+            ) : null}
             {item.icon.startsWith("data:image/png;base64,") ? (
               <img alt="" draggable={false} src={item.icon} />
             ) : (

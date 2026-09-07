@@ -238,8 +238,12 @@ func (c *Controller) currentLocked(scope Scope, id string) bool {
 }
 
 func (c *Controller) Activate(ctx context.Context, scope Scope, id string) error {
+	return c.ActivateGuarded(ctx, scope, id, nil)
+}
+
+func (c *Controller) ActivateGuarded(ctx context.Context, scope Scope, id string, extra func() error) error {
 	if strings.HasPrefix(id, "pin:") {
-		return c.PerformConfigured(ctx, scope, id, "open")
+		return c.PerformConfiguredGuarded(ctx, scope, id, "open", extra)
 	}
 	if ctx == nil {
 		return ErrRetired
@@ -266,6 +270,11 @@ func (c *Controller) Activate(ctx context.Context, scope Scope, id string) error
 	c.mu.Unlock()
 	defer func() { c.mu.Lock(); c.actionBusy = false; c.mu.Unlock() }()
 	guard := func() error {
+		if extra != nil {
+			if err := extra(); err != nil {
+				return err
+			}
+		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}

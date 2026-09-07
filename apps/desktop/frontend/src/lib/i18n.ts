@@ -43,6 +43,11 @@ const PT: Record<string, string> = {
   "The launcher changed. Try again.": "O Dock mudou. Tente novamente.",
   "The item could not be rearranged.": "Não foi possível reorganizar o item.",
   "Reorder items on the Dock": "Reordenar itens no Dock",
+  "Show Dock badges": "Mostrar indicadores do Dock",
+  "Use available badges from the macOS Dock. Some apps and macOS versions may not provide them.":
+    "Usar os indicadores disponíveis no Dock do macOS. Alguns apps e versões do macOS podem não fornecê-los.",
+  "Dock badge count": "Contagem do indicador do Dock",
+  "Dock badge indicator": "Indicador do Dock",
   "Use item handles to rearrange pins or create application groups.":
     "Use as alças dos itens para reordenar fixados ou criar grupos de aplicativos.",
 
@@ -78,6 +83,28 @@ const PT: Record<string, string> = {
   "Magnification reach": "Alcance da ampliação",
   "Enlarge nearby launcher items as the pointer moves across them.":
     "Amplie itens próximos do Dock conforme o ponteiro passa por eles.",
+  "Trackpad and keyboard": "Trackpad e teclado",
+  "Trackpad gesture availability depends on macOS and your hardware.":
+    "A disponibilidade dos gestos do trackpad depende do macOS e do seu hardware.",
+  "Enable launcher interactions": "Ativar interações do Dock substituto",
+  "Precise trackpad scrolling": "Rolagem precisa do trackpad",
+  "Pinch gestures": "Gestos de pinça",
+  "Swipe gestures": "Gestos de deslizar",
+  "Keyboard navigation": "Navegação pelo teclado",
+  "Type a letter": "Digite uma letra",
+  "Interaction delivery is not verified": "A entrega da interação não foi verificada",
+  "The launcher is busy. Try again.": "O Dock está ocupado. Tente novamente.",
+  "Launcher interaction unavailable": "Interação do Dock indisponível",
+  "Unavailable on this device": "Indisponível neste dispositivo",
+  "Primary gesture action": "Ação do gesto principal",
+  "Toward gesture action": "Ação do gesto em direção ao Dock",
+  "Pinch gesture action": "Ação do gesto de pinça",
+  "Previous item": "Item anterior",
+  "Next item": "Próximo item",
+  "Show selected preview": "Mostrar prévia selecionada",
+  "Hide selected preview": "Ocultar prévia selecionada",
+  "Haptic feedback": "Resposta tátil",
+  "Enter activates the selected item": "Enter ativa o item selecionado",
   "Launcher items": "Itens do Dock substituto",
   Running: "Em execução",
   "Open folder": "Abrir pasta",
@@ -147,6 +174,8 @@ const PT: Record<string, string> = {
   "Stop recording": "Parar gravação",
   "Clear diagnostics": "Limpar diagnóstico",
   "Save report…": "Salvar relatório…",
+  "Choose a new filename. Existing files will not be replaced.":
+    "Escolha um novo nome de arquivo. Os arquivos existentes não serão substituídos.",
   "Recording stops automatically after 10 minutes.":
     "A gravação para automaticamente após 10 minutos.",
   "Recording is off.": "A gravação está desativada.",
@@ -617,6 +646,11 @@ const ES: Record<string, string> = {
   "The launcher changed. Try again.": "El Dock cambió. Inténtalo de nuevo.",
   "The item could not be rearranged.": "No se pudo reorganizar el elemento.",
   "Reorder items on the Dock": "Reordenar elementos en el Dock",
+  "Show Dock badges": "Mostrar indicadores del Dock",
+  "Use available badges from the macOS Dock. Some apps and macOS versions may not provide them.":
+    "Usar los indicadores disponibles en el Dock de macOS. Algunas apps y versiones de macOS pueden no proporcionarlos.",
+  "Dock badge count": "Recuento del indicador del Dock",
+  "Dock badge indicator": "Indicador del Dock",
   "Use item handles to rearrange pins or create application groups.":
     "Usa los controles de los elementos para reordenar los fijados o crear grupos de aplicaciones.",
 
@@ -652,6 +686,28 @@ const ES: Record<string, string> = {
   "Magnification reach": "Alcance de la ampliación",
   "Enlarge nearby launcher items as the pointer moves across them.":
     "Amplía elementos cercanos del Dock al mover el puntero sobre ellos.",
+  "Trackpad and keyboard": "Trackpad y teclado",
+  "Trackpad gesture availability depends on macOS and your hardware.":
+    "La disponibilidad de los gestos del trackpad depende de macOS y del hardware.",
+  "Enable launcher interactions": "Activar interacciones del Dock sustituto",
+  "Precise trackpad scrolling": "Desplazamiento preciso del trackpad",
+  "Pinch gestures": "Gestos de pellizco",
+  "Swipe gestures": "Gestos de deslizamiento",
+  "Keyboard navigation": "Navegación con teclado",
+  "Type a letter": "Escribe una letra",
+  "Interaction delivery is not verified": "La entrega de la interacción no está verificada",
+  "The launcher is busy. Try again.": "El Dock está ocupado. Inténtalo de nuevo.",
+  "Launcher interaction unavailable": "Interacción del Dock no disponible",
+  "Unavailable on this device": "No disponible en este dispositivo",
+  "Primary gesture action": "Acción del gesto principal",
+  "Toward gesture action": "Acción del gesto hacia el Dock",
+  "Pinch gesture action": "Acción del gesto de pellizco",
+  "Previous item": "Elemento anterior",
+  "Next item": "Elemento siguiente",
+  "Show selected preview": "Mostrar vista previa seleccionada",
+  "Hide selected preview": "Ocultar vista previa seleccionada",
+  "Haptic feedback": "Respuesta háptica",
+  "Enter activates the selected item": "Intro activa el elemento seleccionado",
   "Launcher items": "Elementos del Dock sustituto",
   Running: "En ejecución",
   "Open folder": "Abrir carpeta",
@@ -722,6 +778,8 @@ const ES: Record<string, string> = {
   "Stop recording": "Detener grabación",
   "Clear diagnostics": "Borrar diagnóstico",
   "Save report…": "Guardar informe…",
+  "Choose a new filename. Existing files will not be replaced.":
+    "Elige un nombre de archivo nuevo. Los archivos existentes no se reemplazarán.",
   "Recording stops automatically after 10 minutes.":
     "La grabación se detiene automáticamente después de 10 minutos.",
   "Recording is off.": "La grabación está desactivada.",

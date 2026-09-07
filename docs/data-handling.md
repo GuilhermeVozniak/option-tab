@@ -57,6 +57,22 @@ Metadata and image replies go to the requesting script. A script can subsequentl
 save or transmit them, so consider what the script requests before running it.
 Diagnostics reports exclude these images and app/window identities.
 
+## Replacement-Dock badges
+
+Badge display is off by default for each replacement-Dock profile. When enabled
+on a visible Dock, Option Tab reads available status labels from the native macOS
+Dock through Accessibility. It matches exact application identities locally; it
+does not read Notification Center or notification message bodies. App and macOS
+support varies, and an unavailable value is not treated as a zero count.
+
+Labels are immediately reduced to a bounded numeric count, a generic indicator,
+or no badge. Raw label text is not retained, logged or sent to the interface.
+Application paths and process identities remain in the native/Go observation
+layer. The interface receives only its existing opaque item ID and typed badge
+value. Values stay in memory; this feature writes no badge history and makes no
+network request. Disabling the profile option or retiring its Dock cancels its
+observation and prevents late results from returning to that Dock session.
+
 ## Music, Spotify and artwork
 
 Media previews, each player adapter, and remote artwork are off by default. Enabled

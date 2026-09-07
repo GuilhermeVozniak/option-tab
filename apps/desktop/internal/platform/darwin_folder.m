@@ -195,7 +195,6 @@ void *ot_folder_grant_start(const char *path) {
         panel.allowsMultipleSelection = NO;
         panel.canCreateDirectories = NO;
         panel.directoryURL = requested;
-        panel.prompt = @"Allow Folder Access";
         [panel beginWithCompletionHandler:^(NSModalResponse response) {
           @autoreleasepool {
             [g.lock lock];

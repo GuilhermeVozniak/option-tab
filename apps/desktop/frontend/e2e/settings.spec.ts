@@ -62,7 +62,11 @@ test.describe("preferences (#settings route)", () => {
     await expect(page.getByLabel("Swipe toward Dock")).toHaveValue("fullscreen");
     await page.getByLabel("Aero Shake action").selectOption("closeOthers");
     await expect(page.getByLabel("Aero Shake action")).toHaveValue("closeOthers");
-    await expect(page.getByText(/Precise trackpad scrolling/)).toBeVisible();
+    await expect(
+      page.getByText(
+        "Precise trackpad scrolling powers preview swipes. macOS does not reliably expose the number of fingers.",
+      ),
+    ).toBeVisible();
   });
 
   test("adds a keyboard shortcut (lowest free id)", async ({ page }) => {

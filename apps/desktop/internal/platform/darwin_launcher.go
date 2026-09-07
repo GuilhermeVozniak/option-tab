@@ -107,7 +107,11 @@ func (*darwinPlatform) ObserveLauncherEnvironment(ctx context.Context, emit func
 	}}, 50*time.Millisecond)
 }
 
-type darwinLauncherPanel struct{ *dockPanel }
+type darwinLauncherPanel struct {
+	*dockPanel
+	gestures *launcherGestureWorker
+	keyboard *launcherKeyboardOwner
+}
 
 func (p *darwinLauncherPanel) LauncherToken() uint64 { return p.token }
 
@@ -148,7 +152,7 @@ func (*darwinPlatform) CreateLauncherPanel(host unsafe.Pointer, display string) 
 	if token == 0 {
 		return nil, ErrDockPanelHostClosed
 	}
-	return &darwinLauncherPanel{newDockPanel(token, darwinDockPanelNative{})}, nil
+	return &darwinLauncherPanel{dockPanel: newDockPanel(token, darwinDockPanelNative{}), gestures: newLauncherGestureWorker(token, darwinLauncherGestureNative{}), keyboard: newLauncherKeyboardOwner(token, darwinLauncherKeyboardNative{})}, nil
 }
 
 type launcherFinalGuard struct {

@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState } from "react";
+import type { LauncherBadgeTransport } from "../lib/launcher-badge-types";
 import type { LauncherPresentation } from "../lib/types";
 import type { LauncherWidgetState, WidgetActions } from "../lib/widget-types";
 import { LauncherView } from "./LauncherView";
 import type { LauncherItemMutation } from "./reorder";
+import { useLauncherBadges } from "./useLauncherBadges";
+import type { LauncherInteractionTransport } from "./useLauncherInteractions";
 
 export interface LauncherTransport {
+  badges?: LauncherBadgeTransport;
   getState(session: number): Promise<LauncherPresentation | null>;
   activate(
     epoch: number,
@@ -39,6 +43,7 @@ export interface LauncherTransport {
       instanceID: string,
     ): Promise<void>;
   };
+  interactions?: LauncherInteractionTransport;
 }
 
 export function LauncherRoute({
@@ -53,6 +58,7 @@ export function LauncherRoute({
   language?: string;
 }) {
   const [state, setState] = useState<LauncherPresentation | null>(null);
+  const badges = useLauncherBadges(state, transport.badges);
   const [widgetState, setWidgetState] = useState<LauncherWidgetState | null>(null);
   const widgetStateRef = useRef<LauncherWidgetState | null>(null);
   const [widgetError, setWidgetError] = useState("");
@@ -175,6 +181,7 @@ export function LauncherRoute({
   return state && state.session === session ? (
     <>
       <LauncherView
+        badges={badges}
         presentation={state}
         onActivate={(...args) => performItem(transport.activate, args)}
         onRelaunch={relaunch ? (...args) => performItem(relaunch, args) : undefined}
@@ -211,6 +218,7 @@ export function LauncherRoute({
         widgetActions={widgetActions}
         language={language}
         t={t}
+        interactionTransport={transport.interactions}
         onSelectWidget={(stackID, instanceID) => {
           if (!widgetState || !transport.widgets) return;
           const widgets = transport.widgets;

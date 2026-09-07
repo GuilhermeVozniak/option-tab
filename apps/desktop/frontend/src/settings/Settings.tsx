@@ -67,6 +67,9 @@ interface SettingsProps {
     status?: LauncherStatus;
     error?: string;
     appChoices?: LauncherAppChoice[];
+    interactionCapabilities?: Partial<
+      Record<"preciseScroll" | "pinch" | "swipe" | "letterNavigation" | "haptics", boolean>
+    >;
     widgetCatalog?: WidgetCatalogDescriptor[];
     itemActions?: LauncherItemSettingsActions;
     profileTransfer?: LauncherProfileTransferActions;

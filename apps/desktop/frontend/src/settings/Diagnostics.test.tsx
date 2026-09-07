@@ -29,6 +29,9 @@ it("does nothing until explicit review and saves the exact immutable token", asy
   expect(await screen.findByLabelText("Diagnostics report preview")).toHaveTextContent(
     '{"schemaVersion":1}',
   );
+  expect(
+    screen.getByText("Choose a new filename. Existing files will not be replaced."),
+  ).toBeVisible();
   (api.review as ReturnType<typeof vi.fn>).mockResolvedValue(
     snapshot("review-2", '{"schemaVersion":2}'),
   );
@@ -91,4 +94,26 @@ it("keeps cancellation neutral and offers a fresh review after token expiry", as
   );
   fireEvent.click(screen.getAllByRole("button", { name: "Refresh preview" }).at(-1)!);
   await waitFor(() => expect(api.review).toHaveBeenCalledTimes(2));
+});
+
+it.each([
+  [
+    "pt-BR",
+    "Diagnóstico",
+    "Revisar diagnóstico",
+    "Escolha um novo nome de arquivo. Os arquivos existentes não serão substituídos.",
+  ],
+  [
+    "es",
+    "Diagnóstico",
+    "Revisar diagnóstico",
+    "Elige un nombre de archivo nuevo. Los archivos existentes no se reemplazarán.",
+  ],
+] as const)("explains new-file-only saving before opening the native chooser in %s", async (locale, title, review, hint) => {
+  const api = client();
+  render(<Diagnostics t={makeT(locale)} client={api} />);
+  fireEvent.click(screen.getByText(title));
+  fireEvent.click(screen.getByRole("button", { name: review }));
+  expect(await screen.findByText(hint)).toBeVisible();
+  expect(api.save).not.toHaveBeenCalled();
 });

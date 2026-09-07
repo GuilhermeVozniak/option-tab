@@ -320,6 +320,97 @@ export class LauncherAppearance {
     }
 }
 
+export class LauncherInteractions {
+    /**
+     * Creates a new LauncherInteractions instance.
+     * @param {Partial<LauncherInteractions>} [$$source = {}] - The source object to create the LauncherInteractions.
+     */
+    constructor($$source = {}) {
+        if (!("enabled" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["enabled"] = false;
+        }
+        if (!("preciseScroll" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["preciseScroll"] = false;
+        }
+        if (!("pinch" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["pinch"] = false;
+        }
+        if (!("swipe" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["swipe"] = false;
+        }
+        if (!("primaryAction" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["primaryAction"] = "";
+        }
+        if (!("towardAction" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["towardAction"] = "";
+        }
+        if (!("pinchAction" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["pinchAction"] = "";
+        }
+        if (!("haptics" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["haptics"] = false;
+        }
+        if (!("letterNavigation" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["letterNavigation"] = false;
+        }
+        if (!("enterActivates" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["enterActivates"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherInteractions instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherInteractions}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LauncherInteractions(/** @type {Partial<LauncherInteractions>} */($$parsedSource));
+    }
+}
+
 export class LauncherItem {
     /**
      * Creates a new LauncherItem instance.

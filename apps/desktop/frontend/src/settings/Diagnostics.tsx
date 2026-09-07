@@ -128,6 +128,9 @@ export function Diagnostics({
               </Button>
             </div>
             <p className={HINT}>
+              {t("Choose a new filename. Existing files will not be replaced.")}
+            </p>
+            <p className={HINT}>
               {review.recording
                 ? t("Recording stops automatically after 10 minutes.")
                 : t("Recording is off.")}{" "}

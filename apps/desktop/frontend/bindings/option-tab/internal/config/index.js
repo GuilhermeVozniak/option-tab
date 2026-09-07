@@ -6,6 +6,7 @@ export {
     ActionKind,
     Appearance,
     LauncherAppearance,
+    LauncherInteractions,
     LauncherItem,
     LauncherItemMutation,
     LayoutDirection,

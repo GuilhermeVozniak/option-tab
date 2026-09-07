@@ -32,6 +32,7 @@ export function ReplacementDock({
   language = "",
   widgetPackages,
   profileTransfer,
+  interactionCapabilities = {},
 }: {
   value: ReplacementDockSettings;
   t: Translate;
@@ -49,6 +50,9 @@ export function ReplacementDock({
     onRefresh: () => void;
   };
   profileTransfer?: LauncherProfileTransferActions;
+  interactionCapabilities?: Partial<
+    Record<"preciseScroll" | "pinch" | "swipe" | "letterNavigation" | "haptics", boolean>
+  >;
 }) {
   const [profileID, setProfileID] = useState(value.profiles[0]?.id ?? "");
   const [replacementID, setReplacementID] = useState("");
@@ -67,6 +71,18 @@ export function ReplacementDock({
   useEffect(() => setReplacementID(""), [profileID]);
   const profile = value.profiles.find((profile) => profile.id === profileID) ?? value.profiles[0];
   const magnification = profile?.magnification ?? { enabled: false, scale: 1.35, reach: 2 };
+  const interactions = profile?.interactions ?? {
+    enabled: false,
+    preciseScroll: false,
+    pinch: false,
+    swipe: false,
+    primaryAction: "next" as const,
+    towardAction: "showPreview" as const,
+    pinchAction: "showPreview" as const,
+    haptics: false,
+    letterNavigation: false,
+    enterActivates: false,
+  };
   const rules = value.rules ?? [];
   const patchRules = (next: LauncherProfileRule[]) => onChange({ ...value, rules: next });
   const patchRule = (id: string, partial: Partial<LauncherProfileRule>) =>
@@ -492,6 +508,19 @@ export function ReplacementDock({
             </label>
             <div className="col-span-2 mt-1 border-t border-white/10 pt-2">
               <label className={ROW}>
+                <span>{t("Show Dock badges")}</span>
+                <Checkbox
+                  aria-label="Show replacement Dock badges"
+                  checked={profile.showBadges ?? false}
+                  onChange={(event) => patchProfile({ showBadges: event.target.checked })}
+                />
+              </label>
+              <p className={HINT}>
+                {t(
+                  "Use available badges from the macOS Dock. Some apps and macOS versions may not provide them.",
+                )}
+              </p>
+              <label className={ROW}>
                 <span>{t("Reorder items on the Dock")}</span>
                 <Checkbox
                   aria-label="Enable runtime launcher reordering"
@@ -549,6 +578,138 @@ export function ReplacementDock({
                 onChange={(event) =>
                   patchProfile({
                     magnification: { ...magnification, reach: Number(event.target.value) },
+                  })
+                }
+              />
+            </label>
+            <div className="col-span-2 mt-1 border-t border-white/10 pt-2">
+              <strong className="text-sm">{t("Trackpad and keyboard")}</strong>
+              <p className={HINT}>
+                {t("Trackpad gesture availability depends on macOS and your hardware.")}
+              </p>
+            </div>
+            <label className={`${ROW} col-span-2`}>
+              <span>{t("Enable launcher interactions")}</span>
+              <Checkbox
+                aria-label="Enable launcher interactions"
+                checked={interactions.enabled}
+                onChange={(event) =>
+                  patchProfile({
+                    interactions: { ...interactions, enabled: event.target.checked },
+                  })
+                }
+              />
+            </label>
+            {(
+              [
+                ["preciseScroll", "Precise trackpad scrolling"],
+                ["pinch", "Pinch gestures"],
+                ["swipe", "Swipe gestures"],
+                ["letterNavigation", "Keyboard navigation"],
+              ] as const
+            ).map(([key, label]) => (
+              <label className={ROW} key={key}>
+                <span>
+                  {t(label)}
+                  {!interactionCapabilities[key] ? ` · ${t("Unavailable on this device")}` : ""}
+                </span>
+                <Checkbox
+                  aria-label={label}
+                  checked={interactions[key]}
+                  disabled={!interactions.enabled || !interactionCapabilities[key]}
+                  onChange={(event) =>
+                    patchProfile({
+                      interactions: { ...interactions, [key]: event.target.checked },
+                    })
+                  }
+                />
+              </label>
+            ))}
+            <label>
+              <span>{t("Primary gesture action")}</span>
+              <Select
+                aria-label="Primary gesture action"
+                disabled={!interactions.enabled}
+                value={interactions.primaryAction}
+                onChange={(event) =>
+                  patchProfile({
+                    interactions: {
+                      ...interactions,
+                      primaryAction: event.target.value as typeof interactions.primaryAction,
+                    },
+                  })
+                }
+              >
+                <option value="none">{t("None")}</option>
+                <option value="previous">{t("Previous item")}</option>
+                <option value="next">{t("Next item")}</option>
+              </Select>
+            </label>
+            <label>
+              <span>{t("Toward gesture action")}</span>
+              <Select
+                aria-label="Toward gesture action"
+                disabled={!interactions.enabled}
+                value={interactions.towardAction}
+                onChange={(event) =>
+                  patchProfile({
+                    interactions: {
+                      ...interactions,
+                      towardAction: event.target.value as typeof interactions.towardAction,
+                    },
+                  })
+                }
+              >
+                <option value="none">{t("None")}</option>
+                <option value="showPreview">{t("Show selected preview")}</option>
+                <option value="hidePreview">{t("Hide selected preview")}</option>
+              </Select>
+            </label>
+            <label>
+              <span>{t("Pinch gesture action")}</span>
+              <Select
+                aria-label="Pinch gesture action"
+                disabled={!interactions.enabled || !interactions.pinch}
+                value={interactions.pinchAction}
+                onChange={(event) =>
+                  patchProfile({
+                    interactions: {
+                      ...interactions,
+                      pinchAction: event.target.value as typeof interactions.pinchAction,
+                    },
+                  })
+                }
+              >
+                <option value="none">{t("None")}</option>
+                <option value="showPreview">{t("Show selected preview")}</option>
+                <option value="hidePreview">{t("Hide selected preview")}</option>
+              </Select>
+            </label>
+            <label className={ROW}>
+              <span>
+                {t("Haptic feedback")}
+                {!interactionCapabilities.haptics ? ` · ${t("Unavailable on this device")}` : ""}
+              </span>
+              <Checkbox
+                aria-label="Launcher haptic feedback"
+                checked={interactions.haptics}
+                disabled={!interactions.enabled || !interactionCapabilities.haptics}
+                onChange={(event) =>
+                  patchProfile({
+                    interactions: { ...interactions, haptics: event.target.checked },
+                  })
+                }
+              />
+            </label>
+            <label className={`${ROW} col-span-2`}>
+              <span>{t("Enter activates the selected item")}</span>
+              <Checkbox
+                aria-label="Enter activates the selected item"
+                checked={interactions.enterActivates}
+                disabled={!interactions.enabled || !interactions.letterNavigation}
+                onChange={(event) =>
+                  patchProfile({
+                    interactions: { ...interactions, enterActivates: event.target.checked },
                   })
                 }
               />

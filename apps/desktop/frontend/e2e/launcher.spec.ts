@@ -27,6 +27,148 @@ const presentation = (revision: number, name: string, visible = true) => ({
   widgets: [],
 });
 
+test("keyboard navigation is explicitly admitted and selects without activating", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 520, height: 80 });
+  await installFakeWails(page);
+  const launcher = {
+    ...presentation(2, ""),
+    items: [
+      {
+        id: "group",
+        name: "Work",
+        icon: "",
+        kind: "group",
+        members: [{ id: "notes", name: "Notes", icon: "", kind: "app" }],
+      },
+      { id: "mail", name: "Mail", icon: "", kind: "app" },
+    ],
+  };
+  const configured = {
+    enabled: true,
+    preciseScroll: true,
+    pinch: false,
+    swipe: false,
+    primaryAction: "next",
+    towardAction: "showPreview",
+    pinchAction: "showPreview",
+    haptics: true,
+    letterNavigation: true,
+    enterActivates: false,
+  };
+  const interaction = {
+    epoch: 7,
+    displayUUID: "display-main",
+    session: 41,
+    presentationRevision: 2,
+    admission: 5,
+    sequence: 1,
+    visible: true,
+    selectedItemID: "notes",
+    keyboardMode: false,
+    gestureAvailable: true,
+    pinchAvailable: false,
+    swipeAvailable: false,
+    letterInputAvailable: true,
+    hapticsAvailable: true,
+    configured,
+    reason: "",
+  };
+  await page.addInitScript(
+    ([state, input]) => {
+      (window as any).__launcherState = state;
+      (window as any).__launcherInteractionState = input;
+    },
+    [launcher, interaction],
+  );
+  await page.goto("/#/launcher/41");
+  await expect(page.getByRole("button", { name: "Notes" })).toHaveAttribute("aria-current", "true");
+  await page.getByRole("button", { name: "Keyboard navigation" }).click();
+  await expect
+    .poll(() => getCallRecords(page))
+    .toContainEqual(["SetLauncherKeyboardMode", 7, "display-main", 41, 2, 5, true]);
+  await page.evaluate(
+    (state) =>
+      (window as any)._wails.dispatchWailsEvent({
+        name: "launcher:interaction",
+        data: { ...state, admission: 6, sequence: 1, keyboardMode: true },
+      }),
+    interaction,
+  );
+  await page.getByRole("textbox", { name: "Type a letter" }).fill("m");
+  await expect
+    .poll(() => getCallRecords(page))
+    .toContainEqual(["CommitLauncherLetter", 7, "display-main", 41, 2, 6, 2, "m", 0, false]);
+  expect((await getCallRecords(page)).some(([name]) => name === "ActivateLauncherSelection")).toBe(
+    false,
+  );
+});
+
+for (const edge of ["bottom", "top", "left", "right"] as const) {
+  test(`one-item ${edge} launcher keeps its item usable beside keyboard mode`, async ({ page }) => {
+    const vertical = edge === "left" || edge === "right";
+    await page.setViewportSize(vertical ? { width: 32, height: 76 } : { width: 76, height: 32 });
+    await installFakeWails(page);
+    const state = {
+      ...presentation(2, "Mail"),
+      edge,
+      iconPx: 24,
+      bounds: { x: 0, y: 0, w: vertical ? 32 : 76, h: vertical ? 76 : 32 },
+    };
+    await page.addInitScript((launcher) => {
+      (window as any).__launcherState = launcher;
+      (window as any).__launcherInteractionState = {
+        epoch: launcher.epoch,
+        displayUUID: launcher.displayUUID,
+        session: launcher.session,
+        presentationRevision: launcher.revision,
+        admission: 2,
+        sequence: 1,
+        visible: true,
+        selectedItemID: "opaque-Mail",
+        keyboardMode: true,
+        gestureAvailable: true,
+        pinchAvailable: false,
+        swipeAvailable: false,
+        letterInputAvailable: true,
+        hapticsAvailable: false,
+        configured: {
+          enabled: true,
+          preciseScroll: true,
+          pinch: false,
+          swipe: false,
+          primaryAction: "next",
+          towardAction: "showPreview",
+          pinchAction: "showPreview",
+          haptics: false,
+          letterNavigation: true,
+          enterActivates: false,
+        },
+        reason: "",
+      };
+    }, state);
+    await page.goto("/#/launcher/41");
+    const item = page.getByRole("button", { name: "Mail" });
+    await expect(item).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Type a letter" })).toBeVisible();
+    const geometry = await item.evaluate((node) => {
+      const item = node.getBoundingClientRect();
+      const shell = node.closest("main")!.getBoundingClientRect();
+      return {
+        width: item.width,
+        height: item.height,
+        inside:
+          item.left >= shell.left &&
+          item.right <= shell.right &&
+          item.top >= shell.top &&
+          item.bottom <= shell.bottom,
+      };
+    });
+    expect(geometry).toEqual({ width: 24, height: 24, inside: true });
+  });
+}
+
 test("pinned groups retain choices across clock updates and relaunch the exact current item", async ({
   page,
 }) => {
@@ -116,8 +258,44 @@ for (const edge of ["bottom", "top", "left", "right"] as const) {
         },
       ],
     };
+    many.items[0] = {
+      id: "group",
+      name: "Work",
+      icon: "",
+      kind: "group",
+      members: [{ id: "selected-member", name: "Selected", icon: "", kind: "app" }],
+    } as any;
     await page.addInitScript((state) => {
       (window as any).__launcherState = state;
+      (window as any).__launcherInteractionState = {
+        epoch: state.epoch,
+        displayUUID: state.displayUUID,
+        session: state.session,
+        presentationRevision: state.revision,
+        admission: 2,
+        sequence: 1,
+        visible: true,
+        selectedItemID: "selected-member",
+        keyboardMode: true,
+        gestureAvailable: true,
+        pinchAvailable: false,
+        swipeAvailable: false,
+        letterInputAvailable: true,
+        hapticsAvailable: false,
+        configured: {
+          enabled: true,
+          preciseScroll: true,
+          pinch: false,
+          swipe: false,
+          primaryAction: "next",
+          towardAction: "showPreview",
+          pinchAction: "showPreview",
+          haptics: false,
+          letterNavigation: true,
+          enterActivates: false,
+        },
+        reason: "",
+      };
       (window as any).__launcherWidgets = {
         epoch: state.epoch,
         displayUUID: state.displayUUID,
@@ -151,6 +329,11 @@ for (const edge of ["bottom", "top", "left", "right"] as const) {
       };
     }, many);
     await page.goto("/#/launcher/41");
+    await expect(page.getByRole("button", { name: "Selected" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+    await expect(page.getByRole("textbox", { name: "Type a letter" })).toBeVisible();
     const geometry = await page.getByLabel("Option Tab launcher").evaluate((node, isVertical) => {
       const shell = node.getBoundingClientRect();
       const strip = node.querySelector("ul") as HTMLElement;
@@ -309,8 +492,17 @@ test("settings keeps launcher opt-in separate and offers native Dock recovery", 
   await expect
     .poll(() => getCallRecords(page))
     .toContainEqual(["InstallReviewedWidget", "review-e2e"]);
+  const settingsReads = (await getCallRecords(page)).filter(
+    (call) => call[0] === "GetSettingsState",
+  ).length;
   await page.getByRole("button", { name: "Use native Dock" }).click();
   await expect.poll(() => getCallRecords(page)).toContainEqual(["UseNativeDock"]);
+  await expect
+    .poll(
+      async () =>
+        (await getCallRecords(page)).filter((call) => call[0] === "GetSettingsState").length,
+    )
+    .toBeGreaterThan(settingsReads);
 });
 
 test("folder fan-out preserves explicit root open across parent clock ticks", async ({ page }) => {

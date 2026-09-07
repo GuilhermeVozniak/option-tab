@@ -99,6 +99,14 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   SetAutomationPreviewSize: vi.fn().mockResolvedValue(undefined),
   CloseAutomationPreview: vi.fn().mockResolvedValue(undefined),
   GetLauncherState: vi.fn().mockResolvedValue(null),
+  GetLauncherInteractionCapabilities: vi.fn().mockResolvedValue({
+    gestureAvailable: true,
+    pinchAvailable: false,
+    swipeAvailable: false,
+    letterInputAvailable: false,
+    hapticsAvailable: true,
+    reason: "deliveryUnverified",
+  }),
   GetLauncherStatus: vi.fn().mockResolvedValue({
     epoch: 0,
     revision: 0,

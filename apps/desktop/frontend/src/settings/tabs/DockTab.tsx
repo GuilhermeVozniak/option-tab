@@ -48,6 +48,9 @@ export function DockTab({
     status?: LauncherStatus;
     error?: string;
     appChoices?: LauncherAppChoice[];
+    interactionCapabilities?: Partial<
+      Record<"preciseScroll" | "pinch" | "swipe" | "letterNavigation" | "haptics", boolean>
+    >;
     widgetCatalog?: WidgetCatalogDescriptor[];
     itemActions?: LauncherItemSettingsActions;
     profileTransfer?: LauncherProfileTransferActions;
@@ -94,6 +97,7 @@ export function DockTab({
         error={launcher?.error}
         onUseNativeDock={launcher?.onUseNativeDock}
         appChoices={launcher?.appChoices}
+        interactionCapabilities={launcher?.interactionCapabilities}
         widgetCatalog={launcher?.widgetCatalog}
         itemActions={launcher?.itemActions}
         profileTransfer={launcher?.profileTransfer}

@@ -30,13 +30,21 @@ type LauncherStatus struct {
 }
 
 type appLauncherHost struct {
-	window       *dockWindow
-	presentation launcher.Presentation
+	interaction        *launcherInteractionOwner
+	interactionDrain   <-chan struct{}
+	interactionRetryAt time.Time
+	window             *dockWindow
+	presentation       launcher.Presentation
 }
 
 // Mutable fields are protected by App.viewMu; native work never runs under it.
 type appLauncherRuntime struct {
+	interactionCapabilities   func() LauncherInteractionCapabilities
+	nextInteraction           uint64
+	interactionDrains         map[string]<-chan struct{}
+	interactionOwners         map[*launcherInteractionOwner]struct{}
 	core                      *launcher.Controller
+	badges                    *appLauncherBadges
 	once                      sync.Once
 	started, available, ready bool
 	recovery, pointerOwned    bool
@@ -68,6 +76,7 @@ func (a *App) wireLauncher() {
 		SelfAppID:         domain.AppID(os.Getpid()), SelfBundleID: selfBundleID, Eligible: a.launcherAppEligible,
 	})
 	a.launcher = r
+	r.badges = a.newLauncherBadges(r)
 	r.core.Suspend(true)
 	r.configuration = a.settingsSnapshot().ReplacementDock
 	if err := r.core.Configure(r.configuration); err != nil {
@@ -91,6 +100,7 @@ func (a *App) startLauncher() {
 		a.viewMu.Lock()
 		a.launcher.started = true
 		a.launcher.cancel = cancel
+		go a.launcher.badges.worker.run(ctx)
 		a.syncLauncherLocked()
 		a.viewMu.Unlock()
 		go func() {
@@ -135,6 +145,7 @@ func (a *App) retireLauncherHostLocked(session uint64) {
 	if h == nil {
 		return
 	}
+	a.retireLauncherInteractionLocked(h)
 	delete(a.launcher.hosts, session)
 	p := h.presentation
 	p.Visible = false
@@ -143,6 +154,7 @@ func (a *App) retireLauncherHostLocked(session uint64) {
 	h.window.close()
 	a.emit("launcher:state", p)
 	a.syncWidgetsLocked()
+	a.syncLauncherBadgesLocked()
 }
 
 func (a *App) stopLauncherAdmissionLocked() {
@@ -174,7 +186,9 @@ func (a *App) syncLauncherLocked() {
 	}
 	if r.ready {
 		a.syncLauncherItemPanelsLocked()
+		a.syncLauncherInteractionsLocked()
 		r.core.Suspend(false)
+		a.syncLauncherBadgesLocked()
 		return
 	}
 	if r.drainCancel != nil {
@@ -349,6 +363,8 @@ func (a *App) publishLauncher(state launcher.State) {
 	a.syncNativeHoverForLauncherLocked()
 	a.syncWidgetsLocked()
 	a.syncLauncherItemPanelsLocked()
+	a.syncLauncherInteractionsLocked()
+	a.syncLauncherBadgesLocked()
 	a.emitLauncherStatusLocked()
 }
 
