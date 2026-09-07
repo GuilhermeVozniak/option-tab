@@ -134,3 +134,9 @@ func (darwinMediaTransport) artwork(ctx context.Context, scope MediaScope, token
 	}
 	return normalizeMediaArtworkPNG(data)
 }
+
+func readRemoteMediaArtwork(ctx context.Context, rawURL string) ([]byte, error) {
+	client := newMediaArtworkClient(nil, nil)
+	defer client.CloseIdleConnections()
+	return fetchMediaArtwork(ctx, client, rawURL)
+}

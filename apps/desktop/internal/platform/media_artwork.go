@@ -118,12 +118,6 @@ func newMediaArtworkClient(lookup func(context.Context, string) ([]netip.Addr, e
 	}}
 }
 
-func readRemoteMediaArtwork(ctx context.Context, rawURL string) ([]byte, error) {
-	client := newMediaArtworkClient(nil, nil)
-	defer client.CloseIdleConnections()
-	return fetchMediaArtwork(ctx, client, rawURL)
-}
-
 func fetchMediaArtwork(ctx context.Context, client *http.Client, rawURL string) ([]byte, error) {
 	if ctx == nil {
 		return nil, errors.New("artwork context is required")
