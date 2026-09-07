@@ -31,6 +31,7 @@ func (a *App) settingsSnapshot() config.Settings {
 	s.Behavior.ActionBindings = maps.Clone(s.Behavior.ActionBindings)
 	s.AppSwitcher.Behavior.ActionBindings = maps.Clone(s.AppSwitcher.Behavior.ActionBindings)
 	s.Filters.AppBlacklist = slices.Clone(s.Filters.AppBlacklist)
+	s.ReplacementDock = config.CloneReplacementDock(s.ReplacementDock)
 	return s
 }
 
@@ -70,6 +71,7 @@ func (a *App) saveSettingsLocked(s config.Settings) error {
 	a.settingsMu.Unlock()
 	a.controller.SetSettings(s)
 	a.configureDock(s)
+	a.configureLauncher(previous, s)
 	a.reRegisterHotkeys()
 	a.syncTray()
 	return nil

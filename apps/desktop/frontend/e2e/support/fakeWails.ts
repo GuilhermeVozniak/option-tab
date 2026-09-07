@@ -160,6 +160,10 @@ const METHOD = {
   StopDiagnosticsRecording: 76990490,
   ClearDiagnostics: 2969743170,
   SaveDiagnosticsReport: 1276106854,
+  ActivateLauncherItem: 529143415,
+  GetLauncherState: 1942731528,
+  GetLauncherStatus: 3297738801,
+  UseNativeDock: 421143656,
   SaveSettings: 1949631069,
 } as const;
 
@@ -198,6 +202,8 @@ export async function installFakeWails(page: Page): Promise<void> {
       __diagnosticsReview?: Record<string, unknown>;
       __diagnosticsSaveResult?: Record<string, unknown>;
       __diagnosticsError?: Record<string, string>;
+      __launcherState?: Record<string, unknown> | null;
+      __launcherStatus?: Record<string, unknown>;
       _wails?: { dispatchWailsEvent?: (ev: { name: string; data: unknown }) => void };
     };
     w.__calls = [];
@@ -208,6 +214,18 @@ export async function installFakeWails(page: Page): Promise<void> {
     w.__mediaState = null;
     w.__mediaPermissions = {};
     w.__automationPreviewState = null;
+    w.__launcherState = null;
+    w.__launcherStatus = {
+      epoch: 0,
+      revision: 0,
+      enabled: false,
+      status: "disabled",
+      reason: "",
+      recoveryLatched: false,
+      displays: [],
+      clockPackageID: "org.optiontab.clock",
+      clockDigest: "sha256:c2504147560285311f61886cae7a1f1396781443c9db52a85a04fbe669b2ded7d",
+    };
     w.__diagnosticsReview = {
       token: "diagnostics-review-1",
       json: '{"schemaVersion":1,"recording":false}',
@@ -286,6 +304,15 @@ export async function installFakeWails(page: Page): Promise<void> {
       case "GetDiagnosticsReview": {
         await evaluate((n) => (window as any).__calls.push([n]), name);
         return json(await page.evaluate(() => (window as any).__diagnosticsReview));
+      }
+      case "GetLauncherState":
+        return json(await page.evaluate(() => (window as any).__launcherState));
+      case "GetLauncherStatus":
+        return json(await page.evaluate(() => (window as any).__launcherStatus));
+      case "ActivateLauncherItem":
+      case "UseNativeDock": {
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        return json(null);
       }
       case "PinMediaPanel": {
         const pinned = await page.evaluate(

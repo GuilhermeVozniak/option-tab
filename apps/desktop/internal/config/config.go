@@ -458,15 +458,16 @@ type Behavior struct {
 
 // Settings is the full persisted configuration.
 type Settings struct {
-	Version     int             `json:"version"`
-	Shortcuts   []Shortcut      `json:"shortcuts"`
-	Appearance  Appearance      `json:"appearance"`
-	Filters     Filters         `json:"filters"`
-	Order       OrderMode       `json:"order"`
-	Placement   Placement       `json:"placement"`
-	Behavior    Behavior        `json:"behavior"`
-	AppSwitcher ModePreferences `json:"appSwitcher"`
-	Dock        DockSettings    `json:"dock"`
+	Version         int                     `json:"version"`
+	Shortcuts       []Shortcut              `json:"shortcuts"`
+	Appearance      Appearance              `json:"appearance"`
+	Filters         Filters                 `json:"filters"`
+	Order           OrderMode               `json:"order"`
+	Placement       Placement               `json:"placement"`
+	Behavior        Behavior                `json:"behavior"`
+	AppSwitcher     ModePreferences         `json:"appSwitcher"`
+	Dock            DockSettings            `json:"dock"`
+	ReplacementDock ReplacementDockSettings `json:"replacementDock"`
 }
 
 // Default returns the AltTab-like default settings.
@@ -526,6 +527,7 @@ func Default() Settings {
 	}
 	s.AppSwitcher = appPreferencesFrom(s.Appearance, s.Behavior, s.Order, s.Placement)
 	s.Dock = dockDefaults(s.Appearance)
+	s.ReplacementDock = DefaultReplacementDock()
 	return s
 }
 
@@ -546,6 +548,9 @@ func defaultAppearance() Appearance {
 // Validate reports whether the settings are internally consistent. It is strict;
 // use Normalize to coerce a loaded document into a valid one.
 func (s Settings) Validate() error {
+	if err := ValidateReplacementDock(s.ReplacementDock); err != nil {
+		return err
+	}
 	if len(s.Shortcuts) == 0 {
 		return errors.New("config: at least one shortcut is required")
 	}
@@ -662,6 +667,7 @@ func clampFloat(v, lo, hi float64) float64 {
 // Normalize returns a copy coerced into a valid, in-range configuration,
 // falling back to defaults for any invalid enum and clamping numeric ranges.
 func (s Settings) Normalize() Settings {
+	s.ReplacementDock = CloneReplacementDock(s.ReplacementDock)
 	d := Default()
 	out := s
 
@@ -887,8 +893,9 @@ func Load(r io.Reader) (Settings, error) {
 		Behavior struct {
 			ActionBindings json.RawMessage `json:"actionBindings"`
 		} `json:"behavior"`
-		AppSwitcher json.RawMessage `json:"appSwitcher"`
-		Dock        json.RawMessage `json:"dock"`
+		AppSwitcher     json.RawMessage `json:"appSwitcher"`
+		Dock            json.RawMessage `json:"dock"`
+		ReplacementDock json.RawMessage `json:"replacementDock"`
 	}
 	if err := json.Unmarshal(raw, &presence); err == nil && presence.Behavior.ActionBindings != nil {
 		s.Behavior.ActionBindings = map[string]ActionKind{}
@@ -902,6 +909,13 @@ func Load(r io.Reader) (Settings, error) {
 		if err := json.Unmarshal(presence.AppSwitcher, &appPresence); err == nil && appPresence.Behavior.ActionBindings != nil {
 			s.AppSwitcher.Behavior.ActionBindings = map[string]ActionKind{}
 		}
+	}
+	if presence.ReplacementDock != nil {
+		replacement, err := decodeReplacement(presence.ReplacementDock)
+		if err != nil {
+			return Settings{}, err
+		}
+		s.ReplacementDock = replacement
 	}
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return Settings{}, fmt.Errorf("config: parse: %w", err)

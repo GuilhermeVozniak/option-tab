@@ -64,9 +64,10 @@ type App struct {
 
 	// tray, trayMenu and pauseItem are the Wails v3 menubar pieces; nil until
 	// setTray runs (and on stub/fake test paths).
-	tray      *application.SystemTray
-	trayMenu  *application.Menu
-	pauseItem *application.MenuItem
+	tray           *application.SystemTray
+	trayMenu       *application.Menu
+	pauseItem      *application.MenuItem
+	nativeDockItem *application.MenuItem
 
 	platform     platform.Platform
 	controller   *switcher.Controller
@@ -106,6 +107,8 @@ type App struct {
 	media                     *appMediaRuntime
 	automation                *appAutomationRuntime
 	diagnostics               *diagnostics.Service
+	launcher                  *appLauncherRuntime
+	launcherFactory           func(uint64, string, func()) *dockWindow
 	mediaPinFactory           func(uint64, platform.MediaProvider, func(platform.MediaPanelEvent)) *dockWindow
 	dockFolders               platform.FolderSource
 	dockFolderGrant           *dockFolderGrantOwner
@@ -212,6 +215,7 @@ func newApp(p platform.Platform, settings config.Settings, settingsPath string, 
 	a.wireDockInput()
 	a.wireDockShake()
 	a.wireDockMonitorLock()
+	a.wireLauncher()
 	return a
 }
 
@@ -281,6 +285,7 @@ func (a *App) startup() {
 	a.startDock()
 	a.startMedia()
 	a.startAutomation()
+	a.startLauncher()
 }
 
 func (a *App) emit(name string, data any) {
@@ -312,6 +317,10 @@ func (a *App) stopCapture() {
 	a.switcherVisible = false
 	a.visibleSwitcherSession = 0
 	a.captureStopOnce.Do(func() { close(a.captureStop) })
+	a.stopLauncherAdmissionLocked()
+	if a.launcher != nil && a.launcher.cancel != nil {
+		a.launcher.cancel()
+	}
 	a.syncMediaLocked()
 	a.syncDockFolderGrantLocked()
 	a.syncDockMonitorLockLocked()

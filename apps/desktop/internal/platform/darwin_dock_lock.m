@@ -131,10 +131,10 @@ static CGRect bounds(AXUIElementRef node, double deadline) {
     CFRelease(b);
   return ok ? CGRectMake(p.x, p.y, s.width, s.height) : CGRectZero;
 }
-char *ot_lock_snapshot(void *owner) {
+static char *lockReadSnapshot(BOOL includeDisplays) {
   @autoreleasepool {
     uint64_t gen = ot_lock_generation();
-    NSArray *screens = displays();
+    NSArray *screens = includeDisplays ? displays() : @[];
     NSMutableDictionary *out = [@{
       @"generation" : @(gen),
       @"displays" : screens ?: @[],
@@ -230,6 +230,8 @@ char *ot_lock_snapshot(void *owner) {
     return json(out);
   }
 }
+char *ot_lock_snapshot(void *owner) { return lockReadSnapshot(YES); }
+char *ot_lock_read_container(void) { return lockReadSnapshot(NO); }
 int ot_lock_buttons(void) {
   for (unsigned i = 0; i < 32; i++)
     if (CGEventSourceButtonState(kCGEventSourceStateCombinedSessionState,

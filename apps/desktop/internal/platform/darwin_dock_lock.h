@@ -35,3 +35,6 @@ int ot_lock_foreground(void);
 uint64_t ot_lock_delivery_probe(void);
 int ot_lock_carriers_seen(void *);
 #endif
+
+// Read-only AX helper; does not create any owner, input tap or placement.
+char *ot_lock_read_container(void);

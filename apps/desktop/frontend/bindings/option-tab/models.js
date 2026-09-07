@@ -17,6 +17,9 @@ import * as dock$0 from "./internal/dock/models.js";
 import * as domain$0 from "./internal/domain/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as launcher$0 from "./internal/launcher/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as media$0 from "./internal/media/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -601,6 +604,94 @@ export class DockViewState {
     }
 }
 
+export class LauncherStatus {
+    /**
+     * Creates a new LauncherStatus instance.
+     * @param {Partial<LauncherStatus>} [$$source = {}] - The source object to create the LauncherStatus.
+     */
+    constructor($$source = {}) {
+        if (!("epoch" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["epoch"] = 0;
+        }
+        if (!("revision" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["revision"] = 0;
+        }
+        if (!("enabled" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["enabled"] = false;
+        }
+        if (!("status" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["status"] = "";
+        }
+        if (!("reason" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["reason"] = "";
+        }
+        if (!("recoveryLatched" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["recoveryLatched"] = false;
+        }
+        if (!("displays" in $$source)) {
+            /**
+             * @member
+             * @type {launcher$0.DisplayState[]}
+             */
+            this["displays"] = [];
+        }
+        if (!("clockPackageID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["clockPackageID"] = "";
+        }
+        if (!("clockDigest" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["clockDigest"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherStatus instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherStatus}
+     */
+    static createFrom($$source = {}) {
+        const $$createField6_0 = $$createType14;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("displays" in $$parsedSource) {
+            $$parsedSource["displays"] = $$createField6_0($$parsedSource["displays"]);
+        }
+        return new LauncherStatus(/** @type {Partial<LauncherStatus>} */($$parsedSource));
+    }
+}
+
 export class MediaArtworkView {
     /**
      * Creates a new MediaArtworkView instance.
@@ -694,7 +785,7 @@ export class MediaLyricsView {
      * @returns {MediaLyricsView}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType14;
+        const $$createField3_0 = $$createType16;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cues" in $$parsedSource) {
             $$parsedSource["cues"] = $$createField3_0($$parsedSource["cues"]);
@@ -824,11 +915,11 @@ export class MediaViewState {
      * @returns {MediaViewState}
      */
     static createFrom($$source = {}) {
-        const $$createField7_0 = $$createType15;
-        const $$createField8_0 = $$createType16;
+        const $$createField7_0 = $$createType17;
+        const $$createField8_0 = $$createType18;
         const $$createField9_0 = $$createType2;
-        const $$createField10_0 = $$createType17;
-        const $$createField11_0 = $$createType18;
+        const $$createField10_0 = $$createType19;
+        const $$createField11_0 = $$createType20;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("scope" in $$parsedSource) {
             $$parsedSource["scope"] = $$createField7_0($$parsedSource["scope"]);
@@ -863,9 +954,11 @@ const $$createType9 = $Create.Nullable($$createType8);
 const $$createType10 = DockItemView.createFrom;
 const $$createType11 = DockPointer.createFrom;
 const $$createType12 = $Create.Nullable($$createType11);
-const $$createType13 = media$0.Cue.createFrom;
+const $$createType13 = launcher$0.DisplayState.createFrom;
 const $$createType14 = $Create.Array($$createType13);
-const $$createType15 = platform$0.MediaScope.createFrom;
-const $$createType16 = platform$0.MediaSample.createFrom;
-const $$createType17 = MediaArtworkView.createFrom;
-const $$createType18 = MediaLyricsView.createFrom;
+const $$createType15 = media$0.Cue.createFrom;
+const $$createType16 = $Create.Array($$createType15);
+const $$createType17 = platform$0.MediaScope.createFrom;
+const $$createType18 = platform$0.MediaSample.createFrom;
+const $$createType19 = MediaArtworkView.createFrom;
+const $$createType20 = MediaLyricsView.createFrom;

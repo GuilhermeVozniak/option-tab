@@ -1,6 +1,7 @@
 //go:build darwin
 
 #import "darwin_dock_panel.h"
+#import "darwin_launcher.h"
 #import "darwin_media_panel.h"
 #import <Cocoa/Cocoa.h>
 
@@ -40,6 +41,8 @@ static BOOL handlePanelWheel(OTDockPanel *, NSEvent *);
 @property int wheelApp;
 @property BOOL wheelEnabled, wheelVisible, wheelEnded, wheelBypass;
 @property double wheelLastTime;
+@property NSString *launcherDisplay;
+@property uint64_t launcherSpace;
 @property NSWindow *host;
 @property id hostDelegate;
 @property NSView *content;
@@ -323,7 +326,7 @@ static void destroyPanel(uint64_t token, BOOL restore) {
     [r.host orderOut:nil];
   [r.panel close];
 }
-uint64_t ot_dock_panel_create(void *pointer) {
+static uint64_t createPanel(void *pointer, NSString *launcherDisplay) {
   __block uint64_t result = 0;
   panelMain(^{
     // Pointer comparison against live NSApp windows avoids dereferencing an
@@ -346,6 +349,7 @@ uint64_t ot_dock_panel_create(void *pointer) {
     uint64_t token = ++nextToken;
     OTDockPanelRecord *r = [OTDockPanelRecord new];
     r.host = host;
+    r.launcherDisplay = launcherDisplay;
     r.hostDelegate = host.delegate;
     r.content = host.contentView;
     r.originalFrame = r.content.frame;
@@ -369,6 +373,9 @@ uint64_t ot_dock_panel_create(void *pointer) {
     r.panel.becomesKeyOnlyIfNeeded = YES;
     r.panel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces |
                                  NSWindowCollectionBehaviorFullScreenAuxiliary;
+    if (launcherDisplay) {
+      r.panel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorTransient;
+    }
     r.panel.movableByWindowBackground = NO;
     r.panel.opaque = NO;
     r.panel.backgroundColor = NSColor.clearColor;
@@ -388,12 +395,47 @@ uint64_t ot_dock_panel_create(void *pointer) {
   });
   return result;
 }
+uint64_t ot_dock_panel_create(void *pointer) { return createPanel(pointer, nil); }
+uint64_t ot_launcher_panel_create(void *pointer, const char *display) {
+  if (!display) return 0;
+  NSString *uuid = [NSString stringWithUTF8String:display];
+  if (![[NSUUID alloc] initWithUUIDString:uuid]) return 0;
+  return createPanel(pointer, uuid);
+}
+uint64_t ot_launcher_panel_space(uint64_t token) {
+  __block uint64_t space=0;
+  panelMain(^{space=panelRecords()[@(token)].launcherSpace;});
+  return space;
+}
+int ot_launcher_panel_visible(uint64_t token, const char *display) {
+  __block int visible = 0;
+  panelMain(^{
+    OTDockPanelRecord *r = panelRecords()[@(token)];
+    visible = r && r.launcherDisplay && [r.launcherDisplay isEqualToString:[NSString stringWithUTF8String:display]] && r.panel.visible && r.panel.onActiveSpace && !r.panel.miniaturized && (r.panel.occlusionState & NSWindowOcclusionStateVisible);
+  });
+  return visible;
+}
 int ot_dock_panel_show(uint64_t token, double x, double y, double w, double h) {
   __block int ok = 0;
   panelMain(^{
     OTDockPanelRecord *r = panelRecords()[@(token)];
     if (!r)
       return;
+    if (r.launcherDisplay) {
+      BOOL found = NO;
+      for (NSScreen *screen in NSScreen.screens) {
+        CGDirectDisplayID id = [screen.deviceDescription[@"NSScreenNumber"] unsignedIntValue];
+        CFUUIDRef raw = CGDisplayCreateUUIDFromDisplayID(id);
+        NSString *uuid = raw ? CFBridgingRelease(CFUUIDCreateString(NULL, raw)) : nil;
+        if (raw) CFRelease(raw);
+        if ([uuid isEqual:r.launcherDisplay] && !CGDisplayIsInMirrorSet(id)) {
+          CGRect frame = CGDisplayBounds(id);
+          found = CGRectContainsRect(frame, CGRectMake(x,y,w,h));
+        }
+      }
+      r.launcherSpace = ot_launcher_space_id(r.launcherDisplay.UTF8String);
+      if (!found || !r.launcherSpace) { [r.panel orderOut:nil]; return; }
+    }
     CGFloat top = NSMaxY(NSScreen.screens.firstObject.frame);
     NSRect frame = OTMediaPrepare(token,NSMakeRect(x, top - y - h, w, h));
 

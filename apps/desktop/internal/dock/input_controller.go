@@ -38,13 +38,14 @@ type inputConfiguration struct {
 // the old source before starting its replacement. Execute must invoke its guard
 // again after any external lookup, immediately before native dispatch.
 type InputController struct {
-	deps   InputControllerDeps
-	mu     sync.Mutex
-	state  inputConfiguration
-	closed bool
-	cancel context.CancelFunc
-	wake   chan struct{}
-	once   sync.Once
+	deps       InputControllerDeps
+	mu         sync.Mutex
+	state      inputConfiguration
+	closed     bool
+	cancel     context.CancelFunc
+	sourceDone <-chan struct{}
+	wake       chan struct{}
+	once       sync.Once
 }
 
 func NewInputController(deps InputControllerDeps) *InputController {
@@ -67,6 +68,27 @@ func (c *InputController) Configure(enabled bool, policy platform.DockInputPolic
 		cancel()
 	}
 	c.notify()
+}
+
+// RetireSource closes admission immediately. Its receipt covers the exact
+// native source already admitted under mu, including one still starting.
+// A later Configure may enable a fresh source only after this owner joins.
+func (c *InputController) RetireSource() <-chan struct{} {
+	c.mu.Lock()
+	c.state.epoch++
+	c.state.enabled = false
+	cancel, done := c.cancel, c.sourceDone
+	c.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	c.notify()
+	if done == nil {
+		ready := make(chan struct{})
+		close(ready)
+		return ready
+	}
+	return done
 }
 
 func (c *InputController) Target(target platform.DockInputTarget) {
@@ -151,6 +173,7 @@ func (c *InputController) run(ctx context.Context) {
 		targets = nil
 		c.mu.Lock()
 		c.cancel = nil
+		c.sourceDone = nil
 		c.mu.Unlock()
 	}
 	defer func() { c.mu.Lock(); c.closed = true; c.state.epoch++; c.mu.Unlock(); retire() }()
@@ -169,6 +192,13 @@ func (c *InputController) run(ctx context.Context) {
 			return
 		}
 		if stop == nil && time.Since(lastAttempt) >= time.Second {
+			// Publish startup and its receipt under the same lock as retirement.
+			// A stale pre-lock snapshot may never start even a cancelled source.
+			c.mu.Lock()
+			if c.state.epoch != configuration || !c.state.enabled || c.closed || ctx.Err() != nil {
+				c.mu.Unlock()
+				return
+			}
 			lastAttempt = time.Now()
 			sourceID++
 			id := sourceID
@@ -179,20 +209,19 @@ func (c *InputController) run(ctx context.Context) {
 			targets = make(chan platform.DockInputTarget, 1)
 			in := targets
 			reducer = NewInputReducer(state.policy, c.deps.SelfAppID)
-			c.mu.Lock()
-			if c.state.epoch == configuration && !c.closed {
-				c.cancel = cancel
-			} else {
-				cancel()
-			}
+			joined := make(chan struct{})
+			c.sourceDone = joined
+			c.cancel = cancel
 			c.mu.Unlock()
 			go func() {
-				completion <- c.deps.Source.ObserveDockInput(child, state.policy, in, func(event platform.DockInputEvent) {
+				err := c.deps.Source.ObserveDockInput(child, state.policy, in, func(event platform.DockInputEvent) {
 					select {
 					case events <- inputDelivery{source: id, event: event}:
 					case <-child.Done():
 					}
 				})
+				close(joined)
+				completion <- err
 			}()
 		}
 		if reducer != nil {
@@ -234,6 +263,7 @@ func (c *InputController) run(ctx context.Context) {
 			targets = nil
 			c.mu.Lock()
 			c.cancel = nil
+			c.sourceDone = nil
 			c.mu.Unlock()
 			state := c.snapshot()
 			if sourceErr != nil && !errors.Is(sourceErr, context.Canceled) && ctx.Err() == nil && state.enabled && state.epoch == configuration && sourceErr.Error() != lastSourceError {

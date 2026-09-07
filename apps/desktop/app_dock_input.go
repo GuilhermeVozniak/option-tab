@@ -58,7 +58,7 @@ func (a *App) syncDockInputLocked() {
 		return
 	}
 	s := a.settingsSnapshot()
-	enabled := dockInputEnabled(s) && !a.switcherVisible && !a.prefsOpen && !a.sessionInactive
+	enabled := dockInputEnabled(s) && !a.switcherVisible && !a.prefsOpen && !a.sessionInactive && !a.launcherWantedLocked()
 	a.dockInput.Configure(enabled, dockInputPolicy(s))
 	if !dockInputEnabled(s) {
 		a.setDockInputErrorLocked(nil)
@@ -97,7 +97,7 @@ func (a *App) executeDockInput(action dock.InputAction, nativeGuard func() error
 		a.viewMu.Lock()
 		defer a.viewMu.Unlock()
 		s := a.settingsSnapshot()
-		if dock.MediaProviderForItem(dock.Item{Kind: action.Item.Kind, BundleID: action.Item.BundleID}, s.Dock.Media) != "" || !dockInputEnabled(s) || dockInputPolicy(s) != policy || !a.dockAllowedLocked() || a.dockController != controller || (controller != nil && controller.AdmissionEpoch() != admission) {
+		if a.launcherWantedLocked() || dock.MediaProviderForItem(dock.Item{Kind: action.Item.Kind, BundleID: action.Item.BundleID}, s.Dock.Media) != "" || !dockInputEnabled(s) || dockInputPolicy(s) != policy || !a.dockAllowedLocked() || a.dockController != controller || (controller != nil && controller.AdmissionEpoch() != admission) {
 			return dock.ErrInputRetired
 		}
 		return nil

@@ -22,6 +22,7 @@ type dockWindow struct {
 	queued, visible, closed bool
 	bounds                  domain.Bounds
 	current                 *dockWindowResources
+	onFailure               func()
 }
 type dockWindowResources struct {
 	incarnation, mediaSequence uint64
@@ -184,6 +185,9 @@ func (d *dockWindow) failed(r *dockWindowResources, err error) {
 	}
 	dlog("dock panel: %v", err)
 	d.dispose(r)
+	if d.onFailure != nil {
+		d.onFailure()
+	}
 }
 
 func (d *dockWindow) dispose(r *dockWindowResources) {

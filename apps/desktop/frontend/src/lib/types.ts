@@ -434,6 +434,82 @@ export interface DockMonitorLockState {
   displays: DockLockDisplay[];
   placementAvailable?: boolean;
 }
+
+export interface LauncherWidgetInstance {
+  id: string;
+  packageID: string;
+  digest: string;
+  enabled: boolean;
+  grants: string[];
+}
+export interface LauncherProfile {
+  id: string;
+  name: string;
+  edge: "bottom";
+  layout: "floating";
+  iconPx: number;
+  thicknessPx: number;
+  maxLengthFraction: number;
+  insetPx: number;
+  autoHide: boolean;
+  widgets: LauncherWidgetInstance[];
+}
+export interface LauncherBinding {
+  id: string;
+  target: "main" | "display";
+  displayUUID: string;
+  profileID: string;
+}
+export interface ReplacementDockSettings {
+  version: number;
+  enabled: boolean;
+  profiles: LauncherProfile[];
+  bindings: LauncherBinding[];
+}
+export interface LauncherWidgetNode {
+  kind: "row" | "text";
+  text?: string;
+  children?: LauncherWidgetNode[];
+}
+export interface LauncherPresentation {
+  epoch: number;
+  displayUUID: string;
+  session: number;
+  revision: number;
+  visible: boolean;
+  reason: string;
+  profileID: string;
+  bounds: Bounds;
+  iconPx: number;
+  items: Array<{ id: string; name: string; icon: string }>;
+  widgets: Array<{
+    id: string;
+    packageID: string;
+    digest: string;
+    status: string;
+    root: LauncherWidgetNode;
+  }>;
+}
+export interface LauncherStatus {
+  epoch: number;
+  revision: number;
+  enabled: boolean;
+  status: string;
+  reason: string;
+  recoveryLatched: boolean;
+  displays: Array<{
+    uuid: string;
+    name: string;
+    main: boolean;
+    bindingID: string;
+    profileID: string;
+    spaceKind: string;
+    status: string;
+    reason: string;
+  }>;
+  clockPackageID: string;
+  clockDigest: string;
+}
 export interface DockInputSettings {
   clickToHide: boolean;
   scrollShowHide: boolean;
@@ -456,6 +532,7 @@ export interface Settings {
   behavior: Behavior;
   appSwitcher: ModePreferences;
   dock: DockSettings;
+  replacementDock: ReplacementDockSettings;
 }
 
 const DEFAULT_ACTION_BINDINGS: Record<string, WindowAction> = {
@@ -527,6 +604,33 @@ export const defaultSettings: Settings = {
     },
     order: "recent",
     placement: "cursorScreen",
+  },
+  replacementDock: {
+    version: 1,
+    enabled: false,
+    profiles: [
+      {
+        id: "default",
+        name: "Default",
+        edge: "bottom",
+        layout: "floating",
+        iconPx: 40,
+        thicknessPx: 64,
+        maxLengthFraction: 0.8,
+        insetPx: 16,
+        autoHide: false,
+        widgets: [
+          {
+            id: "clock",
+            packageID: "org.optiontab.clock",
+            digest: "sha256:c2504147560285311f61886cae7a1f1396781443c9db52a85a04fbe669b2ded7d",
+            enabled: false,
+            grants: [],
+          },
+        ],
+      },
+    ],
+    bindings: [{ id: "main", target: "main", displayUUID: "", profileID: "default" }],
   },
   dock: {
     enabled: false,

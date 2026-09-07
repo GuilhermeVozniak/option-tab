@@ -1,6 +1,8 @@
 #import "../../darwin_media_panel.m"
 #import "../../darwin_dock_panel.m"
 #include <assert.h>
+// This wheel-only fixture must never query launcher Space authority.
+uint64_t ot_launcher_space_id(const char *display) { abort(); }
 // Property seam exercises actual NSEvent extraction without registering a
 // window, installing a tap, showing UI, or moving the desktop pointer.
 @interface OTWheelEventFixture : NSEvent

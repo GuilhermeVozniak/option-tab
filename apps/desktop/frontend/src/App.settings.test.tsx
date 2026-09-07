@@ -48,6 +48,20 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   GetCrashReport: vi.fn().mockResolvedValue(""),
   GetMediaPermissions: vi.fn().mockResolvedValue({}),
   ConnectMediaProvider: vi.fn().mockResolvedValue({ status: "ready", reason: "" }),
+  GetLauncherState: vi.fn().mockResolvedValue(null),
+  GetLauncherStatus: vi.fn().mockResolvedValue({
+    epoch: 0,
+    revision: 0,
+    enabled: false,
+    status: "disabled",
+    reason: "",
+    recoveryLatched: false,
+    displays: [],
+    clockPackageID: "org.optiontab.clock",
+    clockDigest: "digest",
+  }),
+  ActivateLauncherItem: vi.fn().mockResolvedValue(undefined),
+  UseNativeDock: vi.fn().mockResolvedValue(undefined),
 }));
 
 import * as AppService from "../bindings/option-tab/app.js";

@@ -169,6 +169,28 @@ func main() {
 		}
 	}
 
+	if host, ok := app.platform.(platform.LauncherPanelHost); ok {
+		app.launcherFactory = func(session uint64, uuid string, failed func()) *dockWindow {
+			var scheduled *dockWindow
+			factory := func() nativeWindow {
+				window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+					Name: fmt.Sprintf("launcher-%d", session), Title: "Option Tab Dock", Width: 400, Height: 64,
+					Hidden: true, Frameless: true, DisableResize: true, URL: fmt.Sprintf("/#/launcher/%d", session),
+					Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
+				})
+				window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
+					if scheduled.markHostClosedIf(window) {
+						go failed()
+					}
+				})
+				return window
+			}
+			scheduled = newDockWindow(application.InvokeAsync, factory, launcherPanelHostAdapter{source: host, uuid: uuid})
+			scheduled.onFailure = func() { go failed() }
+			return scheduled
+		}
+	}
+
 	// --- Menubar tray ---
 	// Menu accelerators are display-only on macOS (a status-item menu is outside
 	// the key-equivalent responder chain); the CGEventTap in internal/platform
@@ -179,6 +201,9 @@ func main() {
 		app.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
 	})
 	pauseItem := menu.Add("Pause").OnClick(func(*application.Context) { app.TogglePause() })
+	app.nativeDockItem = menu.Add(nativeDockRecoveryLabel(app.settingsSnapshot().Behavior.Language)).OnClick(func(*application.Context) {
+		go func() { _ = app.UseNativeDock() }()
+	})
 	menu.AddSeparator()
 	menu.Add("Settings…").SetAccelerator("CmdOrCtrl+,").OnClick(func(*application.Context) { app.OpenPreferences() })
 	menu.Add("Check for updates…").OnClick(func(*application.Context) { app.CheckForUpdates() })

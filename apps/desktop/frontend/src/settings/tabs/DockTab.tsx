@@ -7,9 +7,11 @@ import type {
   DockInputSettings,
   DockLockDisplay,
   DockMonitorLockState,
+  LauncherStatus,
   PointerAction,
 } from "../../lib/types";
 import { DockMonitorLock } from "../DockMonitorLock";
+import { ReplacementDock } from "../ReplacementDock";
 import { HINT, type PermissionsControl, ROW, type TabContext } from "../shared";
 import { AppearanceTab } from "./AppearanceTab";
 
@@ -19,6 +21,7 @@ export function DockTab({
   inputError,
   monitorLock,
   media,
+  launcher,
 }: {
   ctx: TabContext;
   permissions?: PermissionsControl;
@@ -36,6 +39,7 @@ export function DockTab({
     permissions: Record<string, { status: string; reason: string }>;
     onConnect: (provider: "music" | "spotify") => void;
   };
+  launcher?: { status?: LauncherStatus; error?: string; onUseNativeDock: () => void };
 }) {
   const { settings, t, patch } = ctx;
   const d = settings.dock;
@@ -64,6 +68,14 @@ export function DockTab({
   };
   return (
     <>
+      <ReplacementDock
+        value={settings.replacementDock}
+        t={t}
+        onChange={(replacementDock) => patch({ replacementDock })}
+        status={launcher?.status}
+        error={launcher?.error}
+        onUseNativeDock={launcher?.onUseNativeDock}
+      />
       <Card>
         <CardHeader>
           <CardTitle>{t("Dock previews")}</CardTitle>

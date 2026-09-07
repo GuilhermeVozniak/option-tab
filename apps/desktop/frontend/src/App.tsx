@@ -3,6 +3,7 @@ import { AppSwitcher } from "./app-switcher/AppSwitcher";
 import { AutomationPreviewRoute } from "./automation/AutomationPreviewRoute";
 import { type DockPanelHandlers, DockPanelView } from "./dock/DockPanelView";
 import { useAbout, useCrash, usePermissions } from "./hooks/useBridge";
+import { LauncherRoute } from "./launcher/LauncherRoute";
 import { automationPreview, onAutomationPreviewEvents } from "./lib/automation-preview-bridge";
 import {
   hasBackend,
@@ -17,11 +18,13 @@ import { demoStateFor } from "./lib/demo";
 import { type DockPointer, dock, onDockEvent, onDockInputStatus } from "./lib/dock-bridge";
 import { dockLock } from "./lib/dock-lock-bridge";
 import { makeT, resolveLang } from "./lib/i18n";
+import { launcher, onLauncherState, onLauncherStatus } from "./lib/launcher-bridge";
 import { media, onMediaEvents } from "./lib/media-bridge";
 import type {
   DockLockDisplay,
   DockMonitorLockState,
   DockViewState,
+  LauncherStatus,
   MediaViewState,
   VisualStyle,
 } from "./lib/types";
@@ -56,6 +59,10 @@ function mediaRouteSession(): number {
 }
 function automationRouteSession(): number {
   const match = route().match(/^automation\/(\d+)$/);
+  return match ? Number(match[1]) : 0;
+}
+function launcherRouteSession(): number {
+  const match = route().match(/^launcher\/(\d+)$/);
   return match ? Number(match[1]) : 0;
 }
 
@@ -148,7 +155,14 @@ function useSettingsModel() {
     queue.current = imported.catch(() => {});
     return imported;
   }, []);
-  return { settings, onChange, onImport, saveError, importing };
+  const reload = useCallback(async () => {
+    const next = await loadSettings();
+    if (next?.behavior) {
+      ++revision.current;
+      setSettings(next);
+    }
+  }, []);
+  return { settings, onChange, onImport, saveError, importing, reload };
 }
 
 // App is the desktop frontend shell. Two Wails windows load it: the overlay
@@ -160,6 +174,17 @@ export default function App() {
   if (isDockRoute()) return <DockRoute />;
   if (automationRouteSession()) return <AutomationRoute session={automationRouteSession()} />;
   if (mediaRouteSession()) return <MediaRoute session={mediaRouteSession()} />;
+  if (launcherRouteSession())
+    return (
+      <LauncherRoute
+        session={launcherRouteSession()}
+        transport={{
+          getState: launcher.state,
+          activate: launcher.activate,
+          subscribe: onLauncherState,
+        }}
+      />
+    );
   if (isDemoRoute()) {
     return (
       <div className="ot-demo-backdrop">
@@ -833,7 +858,7 @@ function MediaRoute({ session }: { session: number }) {
 // regular titled window (its own Wails window since the Wails v3 migration);
 // the menubar can deep-link a tab via the "prefs:tab" event.
 function SettingsRoute() {
-  const { settings, onChange, onImport, saveError, importing } = useSettingsModel();
+  const { settings, onChange, onImport, saveError, importing, reload } = useSettingsModel();
   const perms = usePermissions();
   const about = useAbout();
   const crash = useCrash();
@@ -849,10 +874,34 @@ function SettingsRoute() {
     Record<string, { status: string; reason: string }>
   >({});
   const [diagnosticsAvailable, setDiagnosticsAvailable] = useState(false);
+  const [launcherStatus, setLauncherStatus] = useState<LauncherStatus>();
+  const [launcherError, setLauncherError] = useState("");
   const lockMark = useRef<[number, number, number]>([0, 0, 0]);
   const lockSeen = useRef(false);
 
   useEffect(() => onPrefsTab(setRequestedTab), []);
+  useEffect(() => {
+    let active = true;
+    const accept = (status: LauncherStatus) => {
+      if (active)
+        setLauncherStatus((old) =>
+          !old ||
+          status.epoch > old.epoch ||
+          (status.epoch === old.epoch && status.revision >= old.revision)
+            ? status
+            : old,
+        );
+    };
+    const off = onLauncherStatus(accept);
+    void launcher
+      .status()
+      .then(accept)
+      .catch((error) => active && setLauncherError(String(error)));
+    return () => {
+      active = false;
+      off();
+    };
+  }, []);
   useEffect(() => {
     let active = true;
     void hasBackend().then((available) => {
@@ -986,6 +1035,25 @@ function SettingsRoute() {
           },
         }}
         diagnostics={diagnosticsAvailable}
+        launcher={{
+          status: launcherStatus,
+          error: launcherError,
+          onUseNativeDock: () => {
+            setLauncherError("");
+            void launcher
+              .useNativeDock()
+              .then(async () => {
+                await reload();
+                setLauncherStatus(await launcher.status());
+              })
+              .catch(async (error: unknown) => {
+                setLauncherError(String(error));
+                try {
+                  setLauncherStatus(await launcher.status());
+                } catch {}
+              });
+          },
+        }}
       />
     </fieldset>
   );

@@ -22,6 +22,9 @@ import * as actions$0 from "./internal/actions/models.js";
 import * as domain$0 from "./internal/domain/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as launcher$0 from "./internal/launcher/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as platform$0 from "./internal/platform/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -37,6 +40,18 @@ import * as $models from "./models.js";
  */
 export function ActionFailed(message) {
     return $Call.ByID(2458319746, message);
+}
+
+/**
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} itemID
+ * @returns {$CancellablePromise<void>}
+ */
+export function ActivateLauncherItem(epoch, displayUUID, session, revision, itemID) {
+    return $Call.ByID(529143415, epoch, displayUUID, session, revision, itemID);
 }
 
 /**
@@ -293,11 +308,30 @@ export function GetDockState() {
 }
 
 /**
+ * @param {number} session
+ * @returns {$CancellablePromise<launcher$0.Presentation>}
+ */
+export function GetLauncherState(session) {
+    return $Call.ByID(1942731528, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType10($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<$models.LauncherStatus>}
+ */
+export function GetLauncherStatus() {
+    return $Call.ByID(3297738801).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType11($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<{ [_ in string]?: platform$0.MediaPermission }>}
  */
 export function GetMediaPermissions() {
     return $Call.ByID(3673411287).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType10($result);
+        return $$createType12($result);
     }));
 }
 
@@ -307,7 +341,7 @@ export function GetMediaPermissions() {
  */
 export function GetMediaState(session) {
     return $Call.ByID(3763583330, session).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType12($result);
+        return $$createType14($result);
     }));
 }
 
@@ -507,7 +541,7 @@ export function PinMediaPanel(session, revision) {
  */
 export function PlaceDockOnSelectedMonitor(session, revision, generation) {
     return $Call.ByID(1589667255, session, revision, generation).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType13($result);
+        return $$createType15($result);
     }));
 }
 
@@ -585,7 +619,7 @@ export function Reverse() {
  */
 export function SaveDiagnosticsReport(token) {
     return $Call.ByID(1276106854, token).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType14($result);
+        return $$createType16($result);
     }));
 }
 
@@ -779,6 +813,15 @@ export function Update(st) {
     return $Call.ByID(4141298428, st);
 }
 
+/**
+ * Recovery changes runtime admission before persistence. A failed save leaves
+ * the launcher disabled until recovery succeeds and the user enables it again.
+ * @returns {$CancellablePromise<void>}
+ */
+export function UseNativeDock() {
+    return $Call.ByID(421143656);
+}
+
 // Private type creation functions
 const $$createType0 = platform$0.MediaPermission.createFrom;
 const $$createType1 = actions$0.Result.createFrom;
@@ -790,8 +833,10 @@ const $$createType6 = $Create.Array($$createType5);
 const $$createType7 = platform$0.DockMonitorLockState.createFrom;
 const $$createType8 = $models.DockViewState.createFrom;
 const $$createType9 = $Create.Nullable($$createType8);
-const $$createType10 = $Create.Map($Create.Any, $$createType0);
-const $$createType11 = $models.MediaViewState.createFrom;
-const $$createType12 = $Create.Nullable($$createType11);
-const $$createType13 = platform$0.DockPlacementResult.createFrom;
-const $$createType14 = platform$0.DiagnosticExportResult.createFrom;
+const $$createType10 = launcher$0.Presentation.createFrom;
+const $$createType11 = $models.LauncherStatus.createFrom;
+const $$createType12 = $Create.Map($Create.Any, $$createType0);
+const $$createType13 = $models.MediaViewState.createFrom;
+const $$createType14 = $Create.Nullable($$createType13);
+const $$createType15 = platform$0.DockPlacementResult.createFrom;
+const $$createType16 = platform$0.DiagnosticExportResult.createFrom;

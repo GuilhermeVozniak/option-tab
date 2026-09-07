@@ -134,7 +134,7 @@ func (a *App) dockAllowedLocked() bool {
 	default:
 	}
 	s := a.settingsSnapshot()
-	return (s.Dock.Enabled || s.Dock.FolderPop.Enabled || (s.Dock.Media.Enabled && (s.Dock.Media.MusicEnabled || s.Dock.Media.SpotifyEnabled))) && !s.Behavior.Paused && !a.switcherVisible && !a.prefsOpen && !a.sessionInactive
+	return (s.Dock.Enabled || s.Dock.FolderPop.Enabled || (s.Dock.Media.Enabled && (s.Dock.Media.MusicEnabled || s.Dock.Media.SpotifyEnabled))) && !s.Behavior.Paused && !a.switcherVisible && !a.prefsOpen && !a.sessionInactive && (a.launcher == nil || !a.launcher.pointerOwned)
 }
 
 func (a *App) dockItemAllowedLocked(item dock.Item) bool {
@@ -319,12 +319,8 @@ func (a *App) dismissDockLocked() {
 }
 
 func (a *App) syncDockSuspensionLocked() {
-	if a.dockController != nil {
-		a.dockController.Suspend(a.switcherVisible || a.prefsOpen || a.sessionInactive)
-	}
-	if !a.dockItemAllowedLocked(a.dockState.Item) {
-		a.dismissDockLocked()
-	}
+	a.syncLauncherLocked()
+	a.syncNativeHoverForLauncherLocked()
 	a.syncDockInputLocked()
 	a.syncDockShakeLocked()
 	a.syncDockFolderGrantLocked()

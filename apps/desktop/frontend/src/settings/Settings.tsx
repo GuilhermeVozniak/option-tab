@@ -6,6 +6,7 @@ import { makeT, resolveLang } from "../lib/i18n";
 import type {
   DockLockDisplay,
   DockMonitorLockState,
+  LauncherStatus,
   Settings as SettingsModel,
   SwitcherMode,
 } from "../lib/types";
@@ -57,6 +58,7 @@ interface SettingsProps {
     onConnect: (provider: "music" | "spotify") => void;
   };
   diagnostics?: boolean;
+  launcher?: { status?: LauncherStatus; error?: string; onUseNativeDock: () => void };
 }
 
 const TABS = [
@@ -89,6 +91,7 @@ export function Settings({
   monitorLock,
   media,
   diagnostics,
+  launcher,
 }: SettingsProps) {
   const [tab, setTab] = useState<Tab>("General");
   const [mode, setMode] = useState<SwitcherMode>("windows");
@@ -308,6 +311,7 @@ export function Settings({
             inputError={dockInputError}
             monitorLock={monitorLock}
             media={media}
+            launcher={launcher}
           />
         </section>
         <section hidden={tab !== "About"} aria-label="About" className="space-y-4">

@@ -146,6 +146,9 @@ func (a *App) syncTray() {
 	paused := a.controller.Paused()
 	glyph := trayGlyph(settings.Behavior.MenubarIconStyle)
 	application.InvokeAsync(func() {
+		if a.nativeDockItem != nil {
+			a.nativeDockItem.SetLabel(nativeDockRecoveryLabel(settings.Behavior.Language))
+		}
 		if a.pauseItem != nil {
 			label := "Pause"
 			if paused {
@@ -163,4 +166,15 @@ func (a *App) syncTray() {
 			a.tray.Hide()
 		}
 	})
+}
+
+func nativeDockRecoveryLabel(language string) string {
+	switch language {
+	case "pt-BR", "pt":
+		return "Usar o Dock nativo"
+	case "es":
+		return "Usar el Dock nativo"
+	default:
+		return "Use native Dock"
+	}
 }

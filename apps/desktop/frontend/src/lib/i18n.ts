@@ -272,6 +272,24 @@ const PT: Record<string, string> = {
   "Window switcher": "Alternador de janelas",
   "App switcher": "Alternador de apps",
   "Dock previews": "Prévias do Dock",
+  "Replacement Dock": "Dock substituto",
+  "A floating launcher that coexists with the native Dock.":
+    "Um lançador flutuante que convive com o Dock nativo.",
+  "Enable replacement Dock": "Ativar Dock substituto",
+  "The native Dock remains available. Use the menu command to return permanently.":
+    "O Dock nativo continua disponível. Use o comando do menu para voltar permanentemente.",
+  "Show clock": "Mostrar relógio",
+  "The clock reads local time only while its explicit clock.read grant is enabled.":
+    "O relógio lê a hora local somente enquanto a permissão explícita clock.read está ativa.",
+  "Display bindings": "Vínculos de telas",
+  "Icon size": "Tamanho dos ícones",
+  "Dock thickness": "Espessura do Dock",
+  "Screen inset": "Recuo da tela",
+  "Auto-hide": "Ocultar automaticamente",
+  "Auto-hide replacement Dock": "Ocultar o Dock substituto automaticamente",
+  "Add {display}": "Adicionar {display}",
+  "Replacement Dock unavailable": "Dock substituto indisponível",
+  "Use native Dock": "Usar Dock nativo",
   "Dock input unavailable": "Entrada do Dock indisponível",
   "Show an app’s windows when the pointer rests on its Dock icon.":
     "Mostra as janelas de um app ao repousar o ponteiro sobre seu ícone no Dock.",
@@ -641,6 +659,24 @@ const ES: Record<string, string> = {
   "Window switcher": "Conmutador de ventanas",
   "App switcher": "Conmutador de apps",
   "Dock previews": "Vistas previas del Dock",
+  "Replacement Dock": "Dock sustituto",
+  "A floating launcher that coexists with the native Dock.":
+    "Un lanzador flotante que convive con el Dock nativo.",
+  "Enable replacement Dock": "Activar Dock sustituto",
+  "The native Dock remains available. Use the menu command to return permanently.":
+    "El Dock nativo sigue disponible. Usa el comando del menú para volver permanentemente.",
+  "Show clock": "Mostrar reloj",
+  "The clock reads local time only while its explicit clock.read grant is enabled.":
+    "El reloj lee la hora local solo mientras esté activo el permiso explícito clock.read.",
+  "Display bindings": "Asignaciones de pantallas",
+  "Icon size": "Tamaño de los iconos",
+  "Dock thickness": "Grosor del Dock",
+  "Screen inset": "Margen de la pantalla",
+  "Auto-hide": "Ocultar automáticamente",
+  "Auto-hide replacement Dock": "Ocultar el Dock sustituto automáticamente",
+  "Add {display}": "Añadir {display}",
+  "Replacement Dock unavailable": "Dock sustituto no disponible",
+  "Use native Dock": "Usar Dock nativo",
   "Dock input unavailable": "Entrada del Dock no disponible",
   "Show an app’s windows when the pointer rests on its Dock icon.":
     "Muestra las ventanas de una app al posar el puntero sobre su icono del Dock.",

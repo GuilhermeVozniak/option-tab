@@ -31,6 +31,8 @@ type MonitorLockController struct {
 	stop                             context.CancelFunc
 	placement                        context.CancelFunc
 	placementDone                    chan struct{}
+	sourceDone                       <-chan struct{}
+	retirement                       <-chan struct{}
 }
 
 func NewMonitorLockController(deps MonitorLockControllerDeps) *MonitorLockController {
@@ -78,6 +80,43 @@ func (c *MonitorLockController) Snapshot() platform.DockMonitorLockState {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return copyMonitorState(c.state)
+}
+
+// RetireSource includes both the native observer and any admitted placement.
+// Repeated retirement shares one receipt until a fresh source is started.
+func (c *MonitorLockController) RetireSource() <-chan struct{} {
+	c.mu.Lock()
+	c.enabled = false
+	c.policy.Revision++
+	c.state = platform.DockMonitorLockState{Session: c.session, Revision: c.policy.Revision, Sequence: 1, Status: "disabled"}
+	if c.stop != nil {
+		c.stop()
+	}
+	if c.placement != nil {
+		c.placement()
+	}
+	if c.retirement == nil {
+		joined := make(chan struct{})
+		c.retirement = joined
+		source, placement := c.sourceDone, c.placementDone
+		if source == nil && placement == nil {
+			close(joined)
+		} else {
+			go func() {
+				if source != nil {
+					<-source
+				}
+				if placement != nil {
+					<-placement
+				}
+				close(joined)
+			}()
+		}
+	}
+	receipt := c.retirement
+	c.mu.Unlock()
+	c.signal()
+	return receipt
 }
 
 func (c *MonitorLockController) CancelPlacement() {
@@ -139,6 +178,9 @@ func (c *MonitorLockController) run(ctx context.Context) {
 		if waitPlacement != nil {
 			<-waitPlacement
 		}
+		c.mu.Lock()
+		c.sourceDone = nil
+		c.mu.Unlock()
 	}
 	defer func() {
 		c.mu.Lock()
@@ -178,6 +220,9 @@ func (c *MonitorLockController) run(ctx context.Context) {
 				child, stop := context.WithCancel(ctx)
 				c.active = child
 				c.stop = stop
+				joined := make(chan struct{})
+				c.sourceDone = joined
+				c.retirement = nil
 				c.nativeSequence = 0
 				c.state = platform.DockMonitorLockState{Session: p.Session, Revision: p.Revision, Sequence: 1, Status: "starting"}
 				done = make(chan error, 1)
@@ -185,6 +230,7 @@ func (c *MonitorLockController) run(ctx context.Context) {
 				go func() {
 					err := c.deps.Source.ObserveDockMonitorLock(child, p, func(s platform.DockMonitorLockState) { c.observe(child, p, s) })
 					stop()
+					close(joined)
 					completion <- err
 				}()
 			}

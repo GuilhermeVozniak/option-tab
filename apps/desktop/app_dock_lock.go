@@ -42,7 +42,7 @@ func (a *App) dockMonitorLockAllowedLocked() bool {
 	default:
 	}
 	s := a.settingsSnapshot()
-	return s.Dock.MonitorLock.Enabled && !s.Behavior.Paused && !a.sessionInactive
+	return s.Dock.MonitorLock.Enabled && !s.Behavior.Paused && !a.sessionInactive && !a.launcherWantedLocked()
 }
 
 // Monitor protection remains independent of hover panels, preferences and the
