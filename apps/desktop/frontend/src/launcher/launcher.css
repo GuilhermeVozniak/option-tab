@@ -88,12 +88,12 @@
   background: rgb(255 255 255 / 12%);
 }
 .ot-launcher-app img,
-.ot-launcher-app > span {
+.ot-launcher-icon-fallback {
   width: var(--ot-launcher-icon);
   height: var(--ot-launcher-icon);
   border-radius: 10px;
 }
-.ot-launcher-app > span {
+.ot-launcher-icon-fallback {
   display: grid;
   place-items: center;
   background: rgb(255 255 255 / 14%);
@@ -345,4 +345,27 @@
 }
 .ot-launcher-child-view button[aria-pressed="true"] {
   outline: 1px solid var(--ot-accent, #78a8ff);
+}
+
+/* Insets are the backend's resolved host-to-icon envelope minus the shell's
+   existing3px padding+1px border. Stable buttons never receive a transform. */
+.ot-launcher-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--ot-launcher-icon);
+  height: var(--ot-launcher-icon);
+  pointer-events: none;
+  transform-origin: center;
+}
+.ot-launcher-strip.is-magnified {
+  box-sizing: border-box;
+  padding: var(--ot-mag-cross) var(--ot-mag-primary);
+  min-width: calc(var(--ot-launcher-icon) + 2 * var(--ot-mag-primary));
+}
+.ot-launcher-shell.edge-left .ot-launcher-strip.is-magnified,
+.ot-launcher-shell.edge-right .ot-launcher-strip.is-magnified {
+  padding: var(--ot-mag-primary) var(--ot-mag-cross);
+  min-width: 0;
+  min-height: calc(var(--ot-launcher-icon) + 2 * var(--ot-mag-primary));
 }

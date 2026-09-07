@@ -124,6 +124,7 @@ func (c *Controller) reconcileLocked() {
 		}
 		geometry := Layout(profile, d, len(p.Items), protected)
 		p.Bounds = geometry.Bounds
+		p.Magnification = geometry.Magnification
 		if reason == "" && geometry.Status != "ready" {
 			reason = "layoutUnavailable"
 		}

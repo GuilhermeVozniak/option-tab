@@ -51,20 +51,21 @@ func DefaultLauncherAppearance() LauncherAppearance {
 }
 
 type LauncherProfile struct {
-	Alignment         string             `json:"alignment"`
-	Appearance        LauncherAppearance `json:"appearance"`
-	ID                string             `json:"id"`
-	Name              string             `json:"name"`
-	Edge              string             `json:"edge"`
-	Layout            string             `json:"layout"`
-	IconPx            int                `json:"iconPx"`
-	ThicknessPx       int                `json:"thicknessPx"`
-	MaxLengthFraction float64            `json:"maxLengthFraction"`
-	InsetPx           int                `json:"insetPx"`
-	AutoHide          bool               `json:"autoHide"`
-	Widgets           []WidgetInstance   `json:"widgets"`
-	Stacks            []WidgetStack      `json:"stacks,omitempty"`
-	Items             []LauncherItem     `json:"items,omitempty"`
+	Magnification     *LauncherMagnification `json:"magnification,omitempty"`
+	Alignment         string                 `json:"alignment"`
+	Appearance        LauncherAppearance     `json:"appearance"`
+	ID                string                 `json:"id"`
+	Name              string                 `json:"name"`
+	Edge              string                 `json:"edge"`
+	Layout            string                 `json:"layout"`
+	IconPx            int                    `json:"iconPx"`
+	ThicknessPx       int                    `json:"thicknessPx"`
+	MaxLengthFraction float64                `json:"maxLengthFraction"`
+	InsetPx           int                    `json:"insetPx"`
+	AutoHide          bool                   `json:"autoHide"`
+	Widgets           []WidgetInstance       `json:"widgets"`
+	Stacks            []WidgetStack          `json:"stacks,omitempty"`
+	Items             []LauncherItem         `json:"items,omitempty"`
 }
 type LauncherBinding struct {
 	ID          string `json:"id"`
@@ -89,7 +90,7 @@ type WidgetStack struct {
 }
 
 func DefaultReplacementDock() ReplacementDockSettings {
-	return ReplacementDockSettings{Version: 2, Profiles: []LauncherProfile{{ID: "default", Name: "Default", Alignment: "center", Appearance: DefaultLauncherAppearance(), Edge: "bottom", Layout: "floating", IconPx: 40, ThicknessPx: 64, MaxLengthFraction: .8, InsetPx: 16, Widgets: []WidgetInstance{{ID: "clock", PackageID: BuiltinClockPackage, Digest: BuiltinClockDigest, Grants: []string{}}}}}, Bindings: []LauncherBinding{{ID: "main", Target: "main", ProfileID: "default"}}}
+	return ReplacementDockSettings{Version: 2, Profiles: []LauncherProfile{{Magnification: DefaultLauncherMagnification(), ID: "default", Name: "Default", Alignment: "center", Appearance: DefaultLauncherAppearance(), Edge: "bottom", Layout: "floating", IconPx: 40, ThicknessPx: 64, MaxLengthFraction: .8, InsetPx: 16, Widgets: []WidgetInstance{{ID: "clock", PackageID: BuiltinClockPackage, Digest: BuiltinClockDigest, Grants: []string{}}}}}, Bindings: []LauncherBinding{{ID: "main", Target: "main", ProfileID: "default"}}}
 }
 
 func CloneReplacementDock(s ReplacementDockSettings) ReplacementDockSettings {
@@ -97,6 +98,10 @@ func CloneReplacementDock(s ReplacementDockSettings) ReplacementDockSettings {
 	s.Bindings = slices.Clone(s.Bindings)
 	s.Rules = slices.Clone(s.Rules)
 	for i := range s.Profiles {
+		if s.Profiles[i].Magnification != nil {
+			m := *s.Profiles[i].Magnification
+			s.Profiles[i].Magnification = &m
+		}
 		s.Profiles[i].Widgets = slices.Clone(s.Profiles[i].Widgets)
 		for j := range s.Profiles[i].Widgets {
 			s.Profiles[i].Widgets[j].Grants = slices.Clone(s.Profiles[i].Widgets[j].Grants)
@@ -129,7 +134,7 @@ func ValidateReplacementDock(s ReplacementDockSettings) error {
 	}
 	profiles := map[string]bool{}
 	for _, p := range s.Profiles {
-		if !launcherID.MatchString(p.ID) || profiles[p.ID] || !utf8.ValidString(p.Name) || utf8.RuneCountInString(p.Name) < 1 || utf8.RuneCountInString(p.Name) > 80 || !slices.Contains([]string{"bottom", "top", "left", "right"}, p.Edge) || !slices.Contains([]string{"floating", "fullWidth"}, p.Layout) || !slices.Contains([]string{"start", "center", "end"}, p.Alignment) || !validLauncherAppearance(p.Appearance) || p.IconPx < 24 || p.IconPx > 64 || p.ThicknessPx < 48 || p.ThicknessPx > 112 || p.ThicknessPx < p.IconPx+8 || math.IsNaN(p.MaxLengthFraction) || math.IsInf(p.MaxLengthFraction, 0) || p.MaxLengthFraction < .25 || p.MaxLengthFraction > .9 || p.InsetPx < 12 || p.InsetPx > 64 || len(p.Widgets) > 16 || !validLauncherItems(p.Items) {
+		if !validLauncherMagnification(p.Magnification) || !launcherID.MatchString(p.ID) || profiles[p.ID] || !utf8.ValidString(p.Name) || utf8.RuneCountInString(p.Name) < 1 || utf8.RuneCountInString(p.Name) > 80 || !slices.Contains([]string{"bottom", "top", "left", "right"}, p.Edge) || !slices.Contains([]string{"floating", "fullWidth"}, p.Layout) || !slices.Contains([]string{"start", "center", "end"}, p.Alignment) || !validLauncherAppearance(p.Appearance) || p.IconPx < 24 || p.IconPx > 64 || p.ThicknessPx < 48 || p.ThicknessPx > 112 || p.ThicknessPx < p.IconPx+8 || math.IsNaN(p.MaxLengthFraction) || math.IsInf(p.MaxLengthFraction, 0) || p.MaxLengthFraction < .25 || p.MaxLengthFraction > .9 || p.InsetPx < 12 || p.InsetPx > 64 || len(p.Widgets) > 16 || !validLauncherItems(p.Items) {
 			return bad
 		}
 		profiles[p.ID] = true
@@ -242,6 +247,26 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 	if err := d.Decode(&s); err != nil {
 		return s, bad
 	}
+	var profileFields struct {
+		Profiles []map[string]json.RawMessage `json:"profiles"`
+	}
+	if err := json.Unmarshal(raw, &profileFields); err != nil {
+		return s, bad
+	}
+	for i, fields := range profileFields.Profiles {
+		present := false
+		for key, value := range fields {
+			if strings.EqualFold(key, "magnification") {
+				present = true
+				if bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
+					return s, bad
+				}
+			}
+		}
+		if !present {
+			s.Profiles[i].Magnification = DefaultLauncherMagnification()
+		}
+	}
 	if s.Version == 1 {
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(raw, &fields); err != nil {
@@ -270,7 +295,7 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 				return s, bad
 			}
 			for key := range legacy.Profiles[i] {
-				if strings.EqualFold(key, "stacks") || strings.EqualFold(key, "items") {
+				if strings.EqualFold(key, "stacks") || strings.EqualFold(key, "items") || strings.EqualFold(key, "magnification") {
 					return s, bad
 				}
 			}

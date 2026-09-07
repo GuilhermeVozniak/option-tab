@@ -66,6 +66,7 @@ export function ReplacementDock({
   }, [profileID, value.profiles]);
   useEffect(() => setReplacementID(""), [profileID]);
   const profile = value.profiles.find((profile) => profile.id === profileID) ?? value.profiles[0];
+  const magnification = profile?.magnification ?? { enabled: false, scale: 1.35, reach: 2 };
   const rules = value.rules ?? [];
   const patchRules = (next: LauncherProfileRule[]) => onChange({ ...value, rules: next });
   const patchRule = (id: string, partial: Partial<LauncherProfileRule>) =>
@@ -487,6 +488,58 @@ export function ReplacementDock({
                 aria-label="Auto-hide replacement Dock"
                 checked={profile.autoHide}
                 onChange={(event) => patchProfile({ autoHide: event.target.checked })}
+              />
+            </label>
+            <div className="col-span-2 mt-1 border-t border-white/10 pt-2">
+              <strong className="text-sm">{t("Magnification")}</strong>
+              <p className={HINT}>
+                {t("Enlarge nearby launcher items as the pointer moves across them.")}
+              </p>
+            </div>
+            <label className={`${ROW} col-span-2`}>
+              <span>{t("Enable magnification")}</span>
+              <Checkbox
+                aria-label="Enable launcher magnification"
+                checked={magnification.enabled}
+                onChange={(event) =>
+                  patchProfile({
+                    magnification: { ...magnification, enabled: event.target.checked },
+                  })
+                }
+              />
+            </label>
+            <label>
+              <span>{t("Magnification scale")}</span>
+              <Input
+                aria-label="Magnification scale"
+                type="number"
+                min={1}
+                max={2}
+                step={0.05}
+                disabled={!magnification.enabled}
+                value={magnification.scale}
+                onChange={(event) =>
+                  patchProfile({
+                    magnification: { ...magnification, scale: Number(event.target.value) },
+                  })
+                }
+              />
+            </label>
+            <label>
+              <span>{t("Magnification reach")}</span>
+              <Input
+                aria-label="Magnification reach"
+                type="number"
+                min={0}
+                max={4}
+                step={1}
+                disabled={!magnification.enabled}
+                value={magnification.reach}
+                onChange={(event) =>
+                  patchProfile({
+                    magnification: { ...magnification, reach: Number(event.target.value) },
+                  })
+                }
               />
             </label>
           </div>

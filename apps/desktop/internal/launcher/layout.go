@@ -11,6 +11,7 @@ import (
 type Geometry struct {
 	Bounds, RevealBand domain.Bounds
 	Status             string
+	Magnification      ResolvedMagnification
 }
 
 func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
@@ -32,7 +33,7 @@ func expand(b domain.Bounds, n float64) domain.Bounds {
 
 // Layout uses global top-left logical points. Reserving each physical edge keeps
 // native Dock access available even when its orientation changes between samples.
-func Layout(p config.LauncherProfile, d platform.LauncherDisplay, count int, protected []domain.Bounds) Geometry {
+func layoutAtMagnification(p config.LauncherProfile, d platform.LauncherDisplay, count int, protected []domain.Bounds, scale float64, reach int) Geometry {
 	fail := Geometry{Status: "unavailable"}
 	if !validBounds(d.Frame) || !validBounds(d.UsableFrame) || !finite(d.Scale) || d.Scale <= 0 || count < 0 || len(protected) > 32 {
 		return fail
@@ -56,20 +57,37 @@ func Layout(p config.LauncherProfile, d platform.LauncherDisplay, count int, pro
 		alongStart, available = top, bottom-top
 	}
 	thickness := float64(p.ThicknessPx)
+	magnification := ResolvedMagnification{Scale: 1, Reach: reach}
+	if scale > 1 {
+		magnification = ResolvedMagnification{Enabled: true, Scale: scale, Reach: reach, PrimaryInset: 12 + math.Ceil(float64(p.IconPx)*(scale-1)*float64(2*reach+1)/2), CrossInset: math.Max((thickness-float64(p.IconPx))/2, 4+math.Ceil(float64(p.IconPx)*(scale-1)/2))}
+		thickness = float64(p.IconPx) + 2*magnification.CrossInset
+	}
 	if available < 48 || right-left < thickness || bottom-top < thickness {
 		return fail
 	}
 	spacing := float64(p.Appearance.ItemSpacingPx)
 	count = min(count, 144) // 128 running applications plus 16 configured records.
-	n := max(count, 1)
+	groupPadding := 0.0
+	if scale > 1 {
+		for _, item := range p.Items {
+			if item.Kind == "group" {
+				count += len(item.Members)
+				groupPadding += 9
+			}
+		}
+	}
+	n := max(min(count, 144), 1)
 	length := float64(n*p.IconPx) + float64(n-1)*spacing + 24
 	length += float64(visibleWidgetSlots(p)) * (160 + spacing)
+	if scale > 1 {
+		length += 2*(magnification.PrimaryInset-12) + groupPadding
+	}
 	if p.Layout == "fullWidth" {
 		length = available
 	} else {
 		length = math.Min(length, math.Min(available, available*p.MaxLengthFraction))
 	}
-	if length < 48 {
+	if length < 48 || (scale > 1 && length < 2*magnification.PrimaryInset+float64(p.IconPx)) {
 		return fail
 	}
 	along := alongStart
@@ -137,7 +155,7 @@ func Layout(p config.LauncherProfile, d platform.LauncherDisplay, count int, pro
 		reveal.X = b.X + b.W - 8
 		reveal.W = 8
 	}
-	return Geometry{Bounds: b, RevealBand: reveal, Status: "ready"}
+	return Geometry{Bounds: b, RevealBand: reveal, Status: "ready", Magnification: magnification}
 }
 
 func visibleWidgetSlots(p config.LauncherProfile) int {

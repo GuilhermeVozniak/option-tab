@@ -140,7 +140,9 @@ The branch now implements persistent app/folder/file/link pins, exact running-ap
 
 H09 folder list/grid fan-out and H11 show-all window children are now implemented, with explicit root-folder opening, exact window actions, independent capture lifetimes and parent/Space retirement. Automated Go, browser and build checks pass; physical native acceptance remains open. See the [launcher child-panel checkpoint](superpowers/reports/2026-09-07-launcher-item-panels.md).
 
-H17 profile transfer now exports structural layout/items/widget settings and imports a reviewed document as a new unassigned profile. Private selections and widget access must be restored locally. The full Go, unit, browser and build gates pass; native WebKit file selection/download acceptance remains open. See the [profile transfer checkpoint](superpowers/reports/2026-09-07-launcher-profile-transfer.md). Runtime Dock dragging, magnification, gestures/navigation and supported badges remain retained follow-ups.
+H17 profile transfer now exports structural layout/items/widget settings and imports a reviewed document as a new unassigned profile. Private selections and widget access must be restored locally. The full Go, unit, browser and build gates pass; native WebKit file selection/download acceptance remains open. See the [profile transfer checkpoint](superpowers/reports/2026-09-07-launcher-profile-transfer.md).
+
+H06 spring magnification is implemented with per-profile scale/reach, resolved native bounds, stable hitboxes, reduced-motion handling and conservative scroll-edge behavior. Automated Go, unit, browser and build gates pass; physical smoothness and native pointer/display acceptance remain open. See the [magnification checkpoint](superpowers/reports/2026-09-07-launcher-magnification.md). Runtime Dock dragging, gestures/navigation and supported badges remain retained follow-ups.
 
 ## Current input checkpoint
 

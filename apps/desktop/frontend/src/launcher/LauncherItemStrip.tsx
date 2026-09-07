@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LauncherPresentation, LauncherPresentationItem } from "../lib/types";
+
+import { useMagnification } from "./useMagnification";
 
 export type LauncherItemCommand = (
   epoch: number,
@@ -31,6 +33,18 @@ export function LauncherItemStrip({
     setContextItem("");
     setAdmittedItems(itemsKey);
   }, [itemsKey]);
+  const strip = useRef<HTMLUListElement>(null);
+  const m = presentation.magnification;
+  const magnified = !!m?.enabled && m.scale > 1;
+  useMagnification(strip, {
+    enabled: magnified,
+    scale: m?.scale ?? 1,
+    reach: m?.reach ?? 0,
+    iconPx: presentation.iconPx,
+    vertical: presentation.edge === "left" || presentation.edge === "right",
+    owner: `${presentation.epoch}:${presentation.displayUUID}:${presentation.session}:${presentation.profileID}`,
+    itemsKey: `${itemsKey}:${group}`,
+  });
   const currentItems = admittedItems === itemsKey;
   const invoke = (command: LauncherItemCommand, id: string) => {
     setContextItem("");
@@ -101,28 +115,30 @@ export function LauncherItemStrip({
             }
           }}
         >
-          {item.icon.startsWith("data:image/png;base64,") ? (
-            <img alt="" draggable={false} src={item.icon} />
-          ) : (
-            <span aria-hidden="true">
-              {isGroup
-                ? "▦"
-                : kind === "folder"
-                  ? "▱"
-                  : kind === "link"
-                    ? "↗"
-                    : item.name.slice(0, 1)}
-            </span>
-          )}
-          <small className={presentation.appearance.showLabels ? "" : "ot-launcher-label-hidden"}>
-            {item.name}
-          </small>
-          {item.running ? <i className="ot-launcher-running" aria-hidden="true" /> : null}
-          {!ready ? (
-            <i className="ot-launcher-item-warning" aria-hidden="true">
-              !
-            </i>
-          ) : null}
+          <span className="ot-launcher-visual">
+            {item.icon.startsWith("data:image/png;base64,") ? (
+              <img alt="" draggable={false} src={item.icon} />
+            ) : (
+              <span className="ot-launcher-icon-fallback" aria-hidden="true">
+                {isGroup
+                  ? "▦"
+                  : kind === "folder"
+                    ? "▱"
+                    : kind === "link"
+                      ? "↗"
+                      : item.name.slice(0, 1)}
+              </span>
+            )}
+            <small className={presentation.appearance.showLabels ? "" : "ot-launcher-label-hidden"}>
+              {item.name}
+            </small>
+            {item.running ? <i className="ot-launcher-running" aria-hidden="true" /> : null}
+            {!ready ? (
+              <i className="ot-launcher-item-warning" aria-hidden="true">
+                !
+              </i>
+            ) : null}
+          </span>
         </button>
         {showContext ? (
           <div
@@ -162,7 +178,19 @@ export function LauncherItemStrip({
     );
   };
   return (
-    <ul className="ot-launcher-strip" aria-label={t("Launcher items")}>
+    <ul
+      ref={strip}
+      className={`ot-launcher-strip${magnified ? " is-magnified" : ""}`}
+      style={
+        magnified
+          ? ({
+              "--ot-mag-primary": `${Math.max(0, m!.primaryInset - 4)}px`,
+              "--ot-mag-cross": `${Math.max(0, m!.crossInset - 4)}px`,
+            } as React.CSSProperties)
+          : undefined
+      }
+      aria-label={t("Launcher items")}
+    >
       {presentation.items.map((item) => renderItem(item))}
     </ul>
   );

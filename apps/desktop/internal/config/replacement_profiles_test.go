@@ -26,6 +26,7 @@ func legacyReplacement(t *testing.T) map[string]any {
 		p := v.(map[string]any)
 		delete(p, "alignment")
 		delete(p, "appearance")
+		delete(p, "magnification")
 	}
 	return raw
 }

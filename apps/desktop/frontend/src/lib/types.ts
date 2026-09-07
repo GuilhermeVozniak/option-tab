@@ -508,6 +508,12 @@ export interface LauncherProfile {
   widgets: LauncherWidgetInstance[];
   stacks?: LauncherWidgetStack[];
   items?: LauncherItem[];
+  magnification?: LauncherProfileMagnification;
+}
+export interface LauncherProfileMagnification {
+  enabled: boolean;
+  scale: number;
+  reach: number;
 }
 export interface LauncherAppearance {
   theme: "system" | "light" | "dark";
@@ -559,7 +565,15 @@ export interface LauncherPresentationItem {
   members?: LauncherPresentationItem[];
   referenceRevision?: number;
 }
+export interface LauncherMagnification {
+  enabled: boolean;
+  scale: number;
+  reach: number;
+  primaryInset: number;
+  crossInset: number;
+}
 export interface LauncherPresentation {
+  magnification?: LauncherMagnification;
   epoch: number;
   displayUUID: string;
   session: number;

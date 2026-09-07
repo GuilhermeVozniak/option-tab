@@ -59,6 +59,12 @@ const PT: Record<string, string> = {
   "Profile transfer is unavailable right now.":
     "A transferência de perfil não está disponível agora.",
   "The imported profile could not be saved.": "Não foi possível salvar o perfil importado.",
+  Magnification: "Ampliação",
+  "Enable magnification": "Ativar ampliação",
+  "Magnification scale": "Escala de ampliação",
+  "Magnification reach": "Alcance da ampliação",
+  "Enlarge nearby launcher items as the pointer moves across them.":
+    "Amplie itens próximos do Dock conforme o ponteiro passa por eles.",
   "Launcher items": "Itens do Dock substituto",
   Running: "Em execução",
   "Open folder": "Abrir pasta",
@@ -614,6 +620,12 @@ const ES: Record<string, string> = {
   "Profile transfer is unavailable right now.":
     "La transferencia de perfil no está disponible ahora.",
   "The imported profile could not be saved.": "No se pudo guardar el perfil importado.",
+  Magnification: "Ampliación",
+  "Enable magnification": "Activar ampliación",
+  "Magnification scale": "Escala de ampliación",
+  "Magnification reach": "Alcance de la ampliación",
+  "Enlarge nearby launcher items as the pointer moves across them.":
+    "Amplía elementos cercanos del Dock al mover el puntero sobre ellos.",
   "Launcher items": "Elementos del Dock sustituto",
   Running: "En ejecución",
   "Open folder": "Abrir carpeta",

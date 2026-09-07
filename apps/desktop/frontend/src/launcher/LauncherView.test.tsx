@@ -207,3 +207,19 @@ it("retains explicit folder root open with the latest clock revision", () => {
   fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
   expect(activate).toHaveBeenCalledWith(9, "display-main", 12, 5, "docs");
 });
+
+it("uses the resolved backend envelope without transforming action hitboxes", () => {
+  const { container } = render(
+    <LauncherView
+      presentation={{
+        ...presentation,
+        magnification: { enabled: true, scale: 2, reach: 2, primaryInset: 112, crossInset: 24 },
+      }}
+      onActivate={() => {}}
+    />,
+  );
+  const strip = container.querySelector<HTMLElement>(".ot-launcher-strip")!;
+  expect(strip.style.getPropertyValue("--ot-mag-primary")).toBe("108px");
+  expect(strip.querySelector(".ot-launcher-visual")).not.toBeNull();
+  expect(strip.querySelector<HTMLElement>("button")!.style.transform).toBe("");
+});

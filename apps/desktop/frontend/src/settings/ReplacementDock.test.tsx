@@ -148,6 +148,77 @@ describe("ReplacementDock", () => {
     );
   });
 
+  it("keeps magnification scale and reach while the feature is disabled", () => {
+    const onChange = vi.fn();
+    const configured: ReplacementDockSettings = {
+      ...value,
+      profiles: [
+        {
+          ...value.profiles[0],
+          magnification: { enabled: false, scale: 1.6, reach: 3 },
+        },
+      ],
+    };
+    const { rerender } = render(
+      <ReplacementDock value={configured} t={makeT("en")} onChange={onChange} />,
+    );
+    expect(screen.getByLabelText("Enable launcher magnification")).not.toBeChecked();
+    expect(screen.getByLabelText("Magnification scale")).toHaveValue(1.6);
+    expect(screen.getByLabelText("Magnification reach")).toHaveValue(3);
+
+    fireEvent.click(screen.getByLabelText("Enable launcher magnification"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        profiles: [
+          expect.objectContaining({
+            magnification: { enabled: true, scale: 1.6, reach: 3 },
+          }),
+        ],
+      }),
+    );
+    const enabled = onChange.mock.calls.at(-1)?.[0] as ReplacementDockSettings;
+    rerender(<ReplacementDock value={enabled} t={makeT("en")} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText("Magnification scale"), { target: { value: "1.8" } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        profiles: [
+          expect.objectContaining({ magnification: { enabled: true, scale: 1.8, reach: 3 } }),
+        ],
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Magnification reach"), { target: { value: "0" } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        profiles: [
+          expect.objectContaining({ magnification: { enabled: true, scale: 1.6, reach: 0 } }),
+        ],
+      }),
+    );
+  });
+
+  it("uses off defaults when a legacy profile has no magnification object", () => {
+    const onChange = vi.fn();
+    render(<ReplacementDock value={value} t={makeT("en")} onChange={onChange} />);
+    expect(screen.getByLabelText("Enable launcher magnification")).not.toBeChecked();
+    expect(screen.getByLabelText("Magnification scale")).toHaveValue(1.35);
+    expect(screen.getByLabelText("Magnification reach")).toHaveValue(2);
+    fireEvent.click(screen.getByLabelText("Enable launcher magnification"));
+    expect(onChange.mock.calls.at(-1)?.[0].profiles[0].magnification).toEqual({
+      enabled: true,
+      scale: 1.35,
+      reach: 2,
+    });
+  });
+
+  it.each([
+    ["pt-BR" as const, "Ativar ampliação", "Escala de ampliação"],
+    ["es" as const, "Activar ampliación", "Escala de ampliación"],
+  ])("renders localized magnification controls in %s", (language, enable, scale) => {
+    render(<ReplacementDock value={value} t={makeT(language)} onChange={() => {}} />);
+    expect(screen.getByText(enable)).toBeVisible();
+    expect(screen.getByText(scale)).toBeVisible();
+  });
+
   it("offers permanent native Dock recovery and shows runtime refusal", () => {
     const recover = vi.fn();
     render(

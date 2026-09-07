@@ -184,6 +184,13 @@ export class Presentation {
      * @param {Partial<Presentation>} [$$source = {}] - The source object to create the Presentation.
      */
     constructor($$source = {}) {
+        if (!("magnification" in $$source)) {
+            /**
+             * @member
+             * @type {ResolvedMagnification}
+             */
+            this["magnification"] = (new ResolvedMagnification());
+        }
         if (!("edge" in $$source)) {
             /**
              * @member
@@ -292,24 +299,90 @@ export class Presentation {
      * @returns {Presentation}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType2;
-        const $$createField10_0 = $$createType3;
-        const $$createField12_0 = $$createType1;
-        const $$createField13_0 = $$createType5;
+        const $$createField0_0 = $$createType2;
+        const $$createField3_0 = $$createType3;
+        const $$createField11_0 = $$createType4;
+        const $$createField13_0 = $$createType1;
+        const $$createField14_0 = $$createType6;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("magnification" in $$parsedSource) {
+            $$parsedSource["magnification"] = $$createField0_0($$parsedSource["magnification"]);
+        }
         if ("appearance" in $$parsedSource) {
-            $$parsedSource["appearance"] = $$createField2_0($$parsedSource["appearance"]);
+            $$parsedSource["appearance"] = $$createField3_0($$parsedSource["appearance"]);
         }
         if ("bounds" in $$parsedSource) {
-            $$parsedSource["bounds"] = $$createField10_0($$parsedSource["bounds"]);
+            $$parsedSource["bounds"] = $$createField11_0($$parsedSource["bounds"]);
         }
         if ("items" in $$parsedSource) {
-            $$parsedSource["items"] = $$createField12_0($$parsedSource["items"]);
+            $$parsedSource["items"] = $$createField13_0($$parsedSource["items"]);
         }
         if ("widgets" in $$parsedSource) {
-            $$parsedSource["widgets"] = $$createField13_0($$parsedSource["widgets"]);
+            $$parsedSource["widgets"] = $$createField14_0($$parsedSource["widgets"]);
         }
         return new Presentation(/** @type {Partial<Presentation>} */($$parsedSource));
+    }
+}
+
+/**
+ * ResolvedMagnification describes a maximum visual envelope, never transient
+ * pointer state. Insets are absolute host-to-stable-icon edges in logical px.
+ * The renderer bounds aggregate extra width by I*(Scale-1)*(2*Reach+1), including
+ * unsettled springs, and centers cumulative displacement within PrimaryInset.
+ */
+export class ResolvedMagnification {
+    /**
+     * Creates a new ResolvedMagnification instance.
+     * @param {Partial<ResolvedMagnification>} [$$source = {}] - The source object to create the ResolvedMagnification.
+     */
+    constructor($$source = {}) {
+        if (!("enabled" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["enabled"] = false;
+        }
+        if (!("scale" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["scale"] = 0;
+        }
+        if (!("reach" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["reach"] = 0;
+        }
+        if (!("primaryInset" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["primaryInset"] = 0;
+        }
+        if (!("crossInset" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["crossInset"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new ResolvedMagnification instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {ResolvedMagnification}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new ResolvedMagnification(/** @type {Partial<ResolvedMagnification>} */($$parsedSource));
     }
 }
 
@@ -364,7 +437,7 @@ export class Widget {
      * @returns {Widget}
      */
     static createFrom($$source = {}) {
-        const $$createField4_0 = $$createType6;
+        const $$createField4_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("root" in $$parsedSource) {
             $$parsedSource["root"] = $$createField4_0($$parsedSource["root"]);
@@ -410,7 +483,7 @@ export class WidgetNode {
      * @returns {WidgetNode}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType7;
+        const $$createField2_0 = $$createType8;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("children" in $$parsedSource) {
             $$parsedSource["children"] = $$createField2_0($$parsedSource["children"]);
@@ -422,9 +495,10 @@ export class WidgetNode {
 // Private type creation functions
 const $$createType0 = Item.createFrom;
 const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = config$0.LauncherAppearance.createFrom;
-const $$createType3 = domain$0.Bounds.createFrom;
-const $$createType4 = Widget.createFrom;
-const $$createType5 = $Create.Array($$createType4);
-const $$createType6 = WidgetNode.createFrom;
-const $$createType7 = $Create.Array($$createType6);
+const $$createType2 = ResolvedMagnification.createFrom;
+const $$createType3 = config$0.LauncherAppearance.createFrom;
+const $$createType4 = domain$0.Bounds.createFrom;
+const $$createType5 = Widget.createFrom;
+const $$createType6 = $Create.Array($$createType5);
+const $$createType7 = WidgetNode.createFrom;
+const $$createType8 = $Create.Array($$createType7);

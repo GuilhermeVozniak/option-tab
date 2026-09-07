@@ -6,6 +6,7 @@ export {
     DisplayState,
     Item,
     Presentation,
+    ResolvedMagnification,
     Widget,
     WidgetNode
 } from "./models.js";
