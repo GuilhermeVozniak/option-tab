@@ -213,7 +213,14 @@ func TestRuntimeProgressDoesNotRetirePreparedActionOrChooser(t *testing.T) {
 
 func TestRuntimeActionAuthorityABADoesNotReviveToken(t *testing.T) {
 	p := &runtimeFakeProvider{runs: make(chan runtimeFakeRun, 2), perform: func(_ context.Context, _ ProviderAction, g func() error) error { return g() }}
-	r := NewRuntime(Deps{Providers: Providers{Audio: p}})
+	published := make(chan InstanceState, 4)
+	releasePublication := make(chan struct{})
+	r := NewRuntime(Deps{Providers: Providers{Audio: p}, Changed: func(states []InstanceState) {
+		if len(states) > 0 && states[0].Root.ActionToken != "" {
+			published <- states[0]
+			<-releasePublication
+		}
+	}})
 	q := runtimeRequest(actionPackage(t))
 	q.Grants = []string{"audio.output.select"}
 	if err := r.Configure([]Request{q}); err != nil {
@@ -223,28 +230,46 @@ func TestRuntimeActionAuthorityABADoesNotReviveToken(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- r.Run(ctx) }()
 	run := runtimeReceive(t, p.runs)
+	defer func() {
+		cancel()
+		close(run.release)
+		close(releasePublication)
+		if err := runtimeReceive(t, done); err != context.Canceled {
+			t.Error(err)
+		}
+	}()
 	a := Sample{Generation: 1, Sequence: 1, ObservedAt: time.Now(), Status: "ready", Actions: map[string]ActionSpec{"selectOutput": {Enabled: true, Options: []ProviderOption{{ID: "a", Label: "A"}}}}}
 	run.emit(a)
-	original := waitRuntime(t, r, func(s InstanceState) bool { return s.Root.ActionToken != "" })
+	original := runtimeReceive(t, published)
+	releasePublication <- struct{}{}
 	b := a
 	b.Sequence = 2
 	b.Actions = map[string]ActionSpec{"selectOutput": {Enabled: true, Options: []ProviderOption{{ID: "b", Label: "B"}}}}
 	run.emit(b)
+	intermediate := runtimeReceive(t, published)
+	if intermediate.Root.ActionToken == original.Root.ActionToken {
+		t.Fatal("B reused A authority")
+	}
+	// Hold the owner at B publication while the source synchronously admits A.
+	// Snapshot is still B; both old authorities must already be retired.
 	a.Sequence = 3
 	run.emit(a)
 	if _, err := r.ActionOptions(ctx, original.Lease, original.Root.ActionToken); err != ErrRetired {
 		t.Fatal("ABA revived old action")
 	}
-	fresh := waitRuntime(t, r, func(s InstanceState) bool {
-		return s.Root.ActionToken != "" && s.Root.ActionToken != original.Root.ActionToken
-	})
-	if _, err := r.ActionOptions(ctx, fresh.Lease, fresh.Root.ActionToken); err != nil {
-		t.Fatal(err)
+	if _, err := r.ActionOptions(ctx, intermediate.Lease, intermediate.Root.ActionToken); err != ErrRetired {
+		t.Fatal("intermediate B remained actionable after final A admission", err)
 	}
-	cancel()
-	close(run.release)
-	if err := runtimeReceive(t, done); err != context.Canceled {
-		t.Fatal(err)
+	// A different token alone could still be the retired B snapshot. Release
+	// B publication and await the final A publication explicitly.
+	releasePublication <- struct{}{}
+	fresh := runtimeReceive(t, published)
+	if fresh.Root.ActionToken == original.Root.ActionToken || fresh.Root.ActionToken == intermediate.Root.ActionToken {
+		t.Fatal("final A reused a previous authority")
+	}
+	options, err := r.ActionOptions(ctx, fresh.Lease, fresh.Root.ActionToken)
+	if err != nil || len(options.Options) != 1 || options.Options[0].Label != "A" {
+		t.Fatal("final A authority not actionable", options, err)
 	}
 }
 
