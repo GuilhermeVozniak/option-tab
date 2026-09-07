@@ -303,12 +303,35 @@ func (e badgeClockEnvironment) ObserveLauncherEnvironment(ctx context.Context, e
 	return e.source.ObserveLauncherEnvironment(ctx, func(v platform.LauncherEnvironment) { v.ObservedAt = e.now(); emit(v) })
 }
 
+type badgeDelayedView struct {
+	app     *App
+	delay   atomic.Bool
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (v *badgeDelayedView) Publish(s launcher.State) {
+	if v.delay.CompareAndSwap(true, false) {
+		close(v.entered)
+		<-v.release
+	}
+	v.app.publishLauncher(s)
+}
+
 func TestLauncherBadgesActualClockTickKeepsObserver(t *testing.T) {
 	a, backend, q, _ := launcherIntegrationApp(t)
 	var tick atomic.Int64
 	base := time.Now().Truncate(time.Minute).Add(59500 * time.Millisecond)
 	now := func() time.Time { return base.Add(time.Duration(tick.Load()) * time.Second) }
-	a.launcher.core = launcher.New(launcher.Deps{Environment: badgeClockEnvironment{backend, now}, Applications: backend, Identities: backend, View: appLauncherView{a}, Now: now})
+	view := &badgeDelayedView{app: a, entered: make(chan struct{}), release: make(chan struct{})}
+	t.Cleanup(func() {
+		select {
+		case <-view.release:
+		default:
+			close(view.release)
+		}
+	})
+	a.launcher.core = launcher.New(launcher.Deps{Environment: badgeClockEnvironment{backend, now}, Applications: backend, Identities: backend, View: view, Now: now})
 	a.settingsMu.Lock()
 	a.settings.ReplacementDock.Profiles[0].Widgets[0].Enabled = true
 	a.settings.ReplacementDock.Profiles[0].Widgets[0].Grants = []string{"clock.read"}
@@ -322,7 +345,19 @@ func TestLauncherBadgesActualClockTickKeepsObserver(t *testing.T) {
 		return len(v.Entries) == 1 && v.Entries[0].Count != nil
 	})
 	before := a.GetLauncherBadges(p.Session)
+	view.delay.Store(true)
 	tick.Store(1)
+	select {
+	case <-view.entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("clock publication not reached")
+	}
+	// Core has advanced; the App host still contains the previous rendered revision.
+	gap := a.GetLauncherBadges(p.Session)
+	if gap.Owner != before.Owner || len(gap.Entries) != 1 || gap.Entries[0].Count == nil {
+		t.Fatal("unpublished clock revision retired badge authority", before, gap)
+	}
+	close(view.release)
 	launcherEventually(t, func() bool { return a.GetLauncherBadges(p.Session).PresentationRevision > before.PresentationRevision })
 	after := a.GetLauncherBadges(p.Session)
 	if after.Owner != before.Owner || source.calls.Load() != 1 || after.Entries[0].Count == nil {

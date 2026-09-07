@@ -2,6 +2,8 @@
 
 H15 adds per-profile gesture, haptic and letter-navigation settings. All are opt-in. Precise scrolling selects an item or opens/closes its existing preview panel according to edge-relative mappings. Native pinch and swipe packets use their own sources and thresholds. Selection starts empty and never activates an app merely from hovering or cycling. Haptics use the existing platform alignment-feedback port and a 40 ms transition limiter.
 
+Disabled profiles do not create a native input owner or perform its physical-readiness polling. Settings capability reporting remains independently available.
+
 Keyboard mode requires an explicit click and exact native key-window permission. Only committed, unmodified Unicode letters cycle current actionable items; an app inside a group reveals that group. Paste, drop, cancelled composition and IME candidate-confirmation Enter do not dispatch actions. Ordinary Enter activation is a separate opt-in. Native Escape, key resignation, hide and close retire keyboard permission. A 28-point layout reservation keeps the compact control and one complete icon inside the host on all four edges, including magnification and protected placement.
 
 Each input owner binds the exact host, native token, display, Space, profile, items and private references. Clock-only content revisions preserve selection and keyboard mode. Native callbacks copy into bounded mailboxes; serial App workers reduce gestures, validate authority and perform any requested action. Replacement owners wait for prior native work to actually finish. Initialization waits for physical panel readiness within two seconds, retires failed owners and limits future retries. There is one authoritative state/error event, and delayed events cannot discard a newer state waiting for its parent presentation.
@@ -25,6 +27,8 @@ The final retained-scope audit found no additional missing feature implementatio
 - Real CGO arm64 and x86_64 builds pass; binary inspection records minimum macOS 14.0 for both. These binaries were neither launched nor distributed.
 
 The initial combined frontend gate exposed an outdated capabilities mock, ambiguous text selectors and a browser test ending before Settings reconciliation. Those fixtures now model the new read-only API, identify the intended explanatory text and await the actual post-action read. The final full suites pass without increased timeouts or skipped tests. No verification hook was bypassed.
+
+Linux CI subsequently exposed two production integration defects. A badge getter could retire an otherwise valid owner while an asynchronous clock presentation was still queued; it now preserves independently validated existing authority without loosening admission for a new owner. Disabled interaction profiles also created an unnecessary native owner, causing unexpected validation callbacks; they now skip that owner entirely. A blocked-publication regression and disabled-profile lifecycle assertions reproduce the failures and pass after the fixes. Existing mutation tests retain their original checks.
 
 ## Acceptance boundaries
 

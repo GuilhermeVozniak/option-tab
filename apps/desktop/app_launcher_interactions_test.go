@@ -109,6 +109,7 @@ func interactionFixture(t *testing.T, cfg func(*config.LauncherInteractions), pr
 	c.Swipe = true
 	c.LetterNavigation = true
 	cfg(c)
+	interactionsEnabled := c.Enabled
 	s.ReplacementDock.Profiles[0].Interactions = c
 	s.ReplacementDock.Profiles[0].Widgets[0].Enabled = true
 	s.ReplacementDock.Profiles[0].Widgets[0].Grants = []string{"clock.read"}
@@ -120,7 +121,9 @@ func interactionFixture(t *testing.T, cfg func(*config.LauncherInteractions), pr
 		t.Fatal(err)
 	}
 	pres := launcherIntegrationVisible(t, a, q)
-	launcherEventually(t, func() bool { panel.mu.Lock(); defer panel.mu.Unlock(); return panel.policy.Admission != 0 })
+	if interactionsEnabled {
+		launcherEventually(t, func() bool { panel.mu.Lock(); defer panel.mu.Unlock(); return panel.policy.Admission != 0 })
+	}
 	t.Cleanup(func() {
 		a.viewMu.Lock()
 		a.stopLauncherAdmissionLocked()
@@ -308,6 +311,16 @@ func (e interactionTestEnvironment) ObserveLauncherEnvironment(ctx context.Conte
 
 func TestLauncherInteractionDisabledHasNoSelectionOrOwnership(t *testing.T) {
 	a, backend, panel, p := interactionFixture(t, func(c *config.LauncherInteractions) { c.Enabled = false })
+	a.viewMu.Lock()
+	host := a.launcher.hosts[p.Session]
+	hasOwner := host != nil && host.interaction != nil
+	a.viewMu.Unlock()
+	if host == nil || !host.presentation.Visible {
+		t.Fatal("disabled interactions retired the launcher presentation")
+	}
+	if hasOwner || panel.physicalChecks.Load() != 0 {
+		t.Fatal("disabled interactions created or physically validated a native input owner")
+	}
 	state := a.GetLauncherInteractionState(p.Session)
 	if state.SelectedItemID != "" || state.KeyboardMode {
 		t.Fatal("default-off presentation selected an item")

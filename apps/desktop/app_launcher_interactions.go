@@ -96,6 +96,9 @@ func (a *App) syncLauncherInteractionsLocked() {
 				cfg = *p.Interactions
 			}
 		}
+		if !cfg.Enabled {
+			continue
+		}
 		authority, err := a.launcher.core.CaptureInteraction(host.presentation.Scope)
 		if err != nil {
 			continue

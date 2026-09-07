@@ -79,6 +79,15 @@ func (a *App) syncLauncherBadgesLocked() {
 	plans := map[uint64]launcherBadgePlan{}
 	if a.launcherAllowedLocked() && r.ready {
 		for session, h := range r.hosts {
+			// Core content may advance before its asynchronous View reaches
+			// this host. Keep existing authority only if the core independently
+			// validates its exact resources, profile and display admission.
+			if old, ok := b.plans[session]; ok && old.host == h && old.refs == a.launcherItems && h.presentation.Visible {
+				if _, err := r.core.ValidateBadges(old.authority); err == nil && a.badgeSettingsCurrent(old.authority) {
+					plans[session] = old
+					continue
+				}
+			}
 			authority, err := r.core.CaptureBadges(h.presentation.Scope)
 			if err != nil || !h.presentation.Visible || len(authority.Items()) == 0 || !a.badgeSettingsCurrent(authority) {
 				continue
