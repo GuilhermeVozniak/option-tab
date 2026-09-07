@@ -1,6 +1,7 @@
 import type { LauncherPresentation, LauncherWidgetNode } from "../lib/types";
 import type { LauncherWidgetState, WidgetActions, WidgetLocalized } from "../lib/widget-types";
 import { WidgetView } from "../widgets/WidgetView";
+import { type LauncherItemCommand, LauncherItemStrip } from "./LauncherItemStrip";
 import "./launcher.css";
 
 function WidgetNode({ node }: { node: LauncherWidgetNode }) {
@@ -18,6 +19,7 @@ function WidgetNode({ node }: { node: LauncherWidgetNode }) {
 export function LauncherView({
   presentation,
   onActivate,
+  onRelaunch,
   widgetState,
   widgetActions,
   onSelectWidget,
@@ -32,6 +34,7 @@ export function LauncherView({
     revision: number,
     itemID: string,
   ) => void;
+  onRelaunch?: LauncherItemCommand;
   widgetState?: LauncherWidgetState | null;
   widgetActions?: WidgetActions;
   onSelectWidget?: (stackID: string, instanceID: string) => void;
@@ -54,37 +57,13 @@ export function LauncherView({
       }
       aria-label="Option Tab launcher"
     >
-      <ul className="ot-launcher-strip" aria-label="Running applications">
-        {presentation.items.map((item) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              aria-label={item.name}
-              className="ot-launcher-app"
-              onClick={() =>
-                onActivate(
-                  presentation.epoch,
-                  presentation.displayUUID,
-                  presentation.session,
-                  presentation.revision,
-                  item.id,
-                )
-              }
-            >
-              {item.icon ? (
-                <img alt="" draggable={false} src={item.icon} />
-              ) : (
-                <span>{item.name[0]}</span>
-              )}
-              <small
-                className={presentation.appearance.showLabels ? "" : "ot-launcher-label-hidden"}
-              >
-                {item.name}
-              </small>
-            </button>
-          </li>
-        ))}
-      </ul>
+      <LauncherItemStrip
+        key={`${presentation.epoch}:${presentation.session}:${presentation.displayUUID}`}
+        presentation={presentation}
+        onActivate={onActivate}
+        onRelaunch={onRelaunch}
+        t={t}
+      />
       {widgetState === undefined
         ? presentation.widgets.map((widget) => (
             <aside className="ot-launcher-widget" key={widget.id} aria-label={widget.packageID}>

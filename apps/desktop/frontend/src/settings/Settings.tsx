@@ -13,6 +13,7 @@ import type {
 } from "../lib/types";
 import type { WidgetCatalogDescriptor, WidgetPackageStatus } from "../lib/widget-types";
 import type { WidgetPackageActions } from "../widgets/WidgetPackages";
+import type { LauncherItemSettingsActions } from "./LauncherItems";
 import { Onboarding } from "./Onboarding";
 import {
   type AboutControl,
@@ -66,6 +67,7 @@ interface SettingsProps {
     error?: string;
     appChoices?: LauncherAppChoice[];
     widgetCatalog?: WidgetCatalogDescriptor[];
+    itemActions?: LauncherItemSettingsActions;
     widgetPackages?: {
       status: WidgetPackageStatus;
       actions: WidgetPackageActions;

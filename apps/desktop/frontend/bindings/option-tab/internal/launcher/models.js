@@ -117,6 +117,48 @@ export class Item {
              */
             this["icon"] = "";
         }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["kind"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["status"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["reason"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {boolean | undefined}
+             */
+            this["running"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {Item[] | undefined}
+             */
+            this["members"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {number | undefined}
+             */
+            this["referenceRevision"] = undefined;
+        }
 
         Object.assign(this, $$source);
     }
@@ -127,7 +169,11 @@ export class Item {
      * @returns {Item}
      */
     static createFrom($$source = {}) {
+        const $$createField7_0 = $$createType1;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("members" in $$parsedSource) {
+            $$parsedSource["members"] = $$createField7_0($$parsedSource["members"]);
+        }
         return new Item(/** @type {Partial<Item>} */($$parsedSource));
     }
 }
@@ -246,9 +292,9 @@ export class Presentation {
      * @returns {Presentation}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType0;
-        const $$createField10_0 = $$createType1;
-        const $$createField12_0 = $$createType3;
+        const $$createField2_0 = $$createType2;
+        const $$createField10_0 = $$createType3;
+        const $$createField12_0 = $$createType1;
         const $$createField13_0 = $$createType5;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("appearance" in $$parsedSource) {
@@ -374,10 +420,10 @@ export class WidgetNode {
 }
 
 // Private type creation functions
-const $$createType0 = config$0.LauncherAppearance.createFrom;
-const $$createType1 = domain$0.Bounds.createFrom;
-const $$createType2 = Item.createFrom;
-const $$createType3 = $Create.Array($$createType2);
+const $$createType0 = Item.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = config$0.LauncherAppearance.createFrom;
+const $$createType3 = domain$0.Bounds.createFrom;
 const $$createType4 = Widget.createFrom;
 const $$createType5 = $Create.Array($$createType4);
 const $$createType6 = WidgetNode.createFrom;

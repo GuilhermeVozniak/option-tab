@@ -14,6 +14,7 @@ import type {
 import type { WidgetCatalogDescriptor, WidgetPackageStatus } from "../lib/widget-types";
 import { type WidgetPackageActions, WidgetPackages } from "../widgets/WidgetPackages";
 import { WidgetSettings } from "../widgets/WidgetSettings";
+import { type LauncherItemSettingsActions, LauncherItems } from "./LauncherItems";
 import { HINT, ROW } from "./shared";
 
 export function ReplacementDock({
@@ -25,6 +26,7 @@ export function ReplacementDock({
   onUseNativeDock,
   appChoices = [],
   widgetCatalog = [],
+  itemActions,
   language = "",
   widgetPackages,
 }: {
@@ -36,6 +38,7 @@ export function ReplacementDock({
   onUseNativeDock?: () => void;
   appChoices?: LauncherAppChoice[];
   widgetCatalog?: WidgetCatalogDescriptor[];
+  itemActions?: LauncherItemSettingsActions;
   language?: string;
   widgetPackages?: {
     status: WidgetPackageStatus;
@@ -205,6 +208,14 @@ export function ReplacementDock({
         <p className={HINT}>
           {t("The native Dock remains available. Use the menu command to return permanently.")}
         </p>
+        {profile && itemActions ? (
+          <LauncherItems
+            key={`items-${profile.id}`}
+            profileID={profile.id}
+            t={t}
+            actions={itemActions}
+          />
+        ) : null}
         {profile ? (
           <WidgetSettings
             key={profile.id}

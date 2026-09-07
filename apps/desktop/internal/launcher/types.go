@@ -24,9 +24,16 @@ type Scope struct {
 	Revision    uint64 `json:"revision"`
 }
 type Item struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Icon string `json:"icon"`
+	reference         platform.LauncherReference
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	Icon              string `json:"icon"`
+	Kind              string `json:"kind,omitempty"`
+	Status            string `json:"status,omitempty"`
+	Reason            string `json:"reason,omitempty"`
+	Running           bool   `json:"running,omitempty"`
+	Members           []Item `json:"members,omitempty"`
+	ReferenceRevision uint64 `json:"referenceRevision,omitempty"`
 }
 type WidgetNode struct {
 	Kind     string       `json:"kind"`
@@ -77,15 +84,19 @@ type (
 		ProcessIdentity(domain.AppID) (platform.ProcessIdentity, error)
 	}
 	Deps struct {
-		SelfAppID    domain.AppID
-		SelfBundleID string
-		Eligible     func(domain.App) bool
-		Environment  platform.LauncherEnvironmentSource
-		Applications platform.ApplicationSource
-		Identities   Identities
-		View         View
-		Now          func() time.Time
-		Activate     func(context.Context, Scope, platform.LauncherAppTarget, func() error) error
+		SelfAppID         domain.AppID
+		SelfBundleID      string
+		Eligible          func(domain.App) bool
+		EligibleReference func(platform.LauncherReference) bool
+		Environment       platform.LauncherEnvironmentSource
+		Applications      platform.ApplicationSource
+		Identities        Identities
+		View              View
+		Now               func() time.Time
+		Activate          func(context.Context, Scope, platform.LauncherAppTarget, func() error) error
+		ResolveReference  func(context.Context, string) (platform.LauncherReference, error)
+		ReadItemIcon      func(context.Context, string) ([]byte, error)
+		PerformItem       func(context.Context, Scope, ConfiguredTarget, string, func() error) error
 	}
 )
 
@@ -102,7 +113,7 @@ func cloneState(s State) State {
 	s.Presentations = append([]Presentation{}, s.Presentations...)
 	for i := range s.Presentations {
 		p := &s.Presentations[i]
-		p.Items = append([]Item{}, p.Items...)
+		p.Items = cloneItems(p.Items)
 		p.Widgets = append([]Widget{}, p.Widgets...)
 		for j := range p.Widgets {
 			p.Widgets[j].Root = cloneNode(p.Widgets[j].Root)

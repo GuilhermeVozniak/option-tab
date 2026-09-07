@@ -14,6 +14,7 @@ import type {
 import type { WidgetCatalogDescriptor, WidgetPackageStatus } from "../../lib/widget-types";
 import type { WidgetPackageActions } from "../../widgets/WidgetPackages";
 import { DockMonitorLock } from "../DockMonitorLock";
+import type { LauncherItemSettingsActions } from "../LauncherItems";
 import { ReplacementDock } from "../ReplacementDock";
 import { HINT, type PermissionsControl, ROW, type TabContext } from "../shared";
 import { AppearanceTab } from "./AppearanceTab";
@@ -47,6 +48,7 @@ export function DockTab({
     error?: string;
     appChoices?: LauncherAppChoice[];
     widgetCatalog?: WidgetCatalogDescriptor[];
+    itemActions?: LauncherItemSettingsActions;
     widgetPackages?: {
       status: WidgetPackageStatus;
       actions: WidgetPackageActions;
@@ -91,6 +93,7 @@ export function DockTab({
         onUseNativeDock={launcher?.onUseNativeDock}
         appChoices={launcher?.appChoices}
         widgetCatalog={launcher?.widgetCatalog}
+        itemActions={launcher?.itemActions}
         language={settings.behavior.language}
         widgetPackages={launcher?.widgetPackages}
       />

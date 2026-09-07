@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { AppSwitcher } from "./app-switcher/AppSwitcher";
 import { AutomationPreviewRoute } from "./automation/AutomationPreviewRoute";
 import { type DockPanelHandlers, DockPanelView } from "./dock/DockPanelView";
@@ -32,6 +33,8 @@ import {
   onLauncherWidgets,
   onWidgetPackageStatus,
 } from "./lib/launcher-bridge";
+import { relaunchLauncherItem } from "./lib/launcher-item-runtime-bridge";
+import { launcherItemSettings } from "./lib/launcher-items-bridge";
 import { admitMaterialStatus, type MaterialStatus } from "./lib/material";
 import { media, onMediaEvents } from "./lib/media-bridge";
 import type {
@@ -116,6 +119,7 @@ function LauncherAppRoute({ session }: { session: number }) {
       transport={{
         getState: launcher.state,
         activate: launcher.activate,
+        relaunch: relaunchLauncherItem,
         subscribe: onLauncherState,
         widgets: {
           get: launcher.widgets,
@@ -162,6 +166,7 @@ function useSettingsModel() {
   const revision = useRef(0);
   const pendingImports = useRef(0);
   const [importing, setImporting] = useState(false);
+  const [settingsStale, setSettingsStale] = useState(false);
   useEffect(() => {
     let active = true;
     const initialRevision = revision.current;
@@ -172,19 +177,22 @@ function useSettingsModel() {
       active = false;
     };
   }, []);
-  const onChange = useCallback((next: SettingsModel) => {
-    if (pendingImports.current > 0) return;
-    const current = ++revision.current;
-    setSettings(next);
-    queue.current = queue.current.then(async () => {
-      try {
-        await saveSettings(next);
-        if (revision.current === current) setSaveError(null);
-      } catch (error) {
-        setSaveError(`Could not save settings: ${String(error)}`);
-      }
-    });
-  }, []);
+  const onChange = useCallback(
+    (next: SettingsModel) => {
+      if (pendingImports.current > 0 || settingsStale) return;
+      const current = ++revision.current;
+      setSettings(next);
+      queue.current = queue.current.then(async () => {
+        try {
+          await saveSettings(next);
+          if (revision.current === current) setSaveError(null);
+        } catch (error) {
+          setSaveError(`Could not save settings: ${String(error)}`);
+        }
+      });
+    },
+    [settingsStale],
+  );
   const onImport = useCallback((text: string): Promise<void> => {
     ++revision.current;
     ++pendingImports.current;
@@ -205,14 +213,68 @@ function useSettingsModel() {
     queue.current = imported.catch(() => {});
     return imported;
   }, []);
+  const mutateSettings = useCallback(
+    <T,>(
+      operation: () => Promise<T>,
+      recover?: (settings: SettingsModel, value: T) => SettingsModel,
+    ): Promise<T> => {
+      ++revision.current;
+      ++pendingImports.current;
+      setImporting(true);
+      let value: T;
+      let succeeded = false;
+      const mutation = queue.current
+        .then(async () => {
+          try {
+            value = await operation();
+            succeeded = true;
+            setSaveError(null);
+            return value;
+          } finally {
+            // Reload even when the mutation reports a failure: a native operation
+            // may have committed private-reference cleanup before returning it.
+            const canonical = await loadSettings();
+            if (canonical?.behavior) {
+              setSettings(canonical);
+              setSettingsStale(false);
+            } else if (succeeded && recover) {
+              setSettings((current) => recover(current, value));
+            } else {
+              setSettingsStale(true);
+              setSaveError("Settings changed, but the latest settings could not be reloaded.");
+            }
+          }
+        })
+        .finally(() => {
+          --pendingImports.current;
+          setImporting(pendingImports.current > 0);
+        });
+      queue.current = mutation.then(
+        () => undefined,
+        () => undefined,
+      );
+      return mutation;
+    },
+    [],
+  );
   const reload = useCallback(async () => {
     const next = await loadSettings();
     if (next?.behavior) {
       ++revision.current;
       setSettings(next);
+      setSettingsStale(false);
     }
   }, []);
-  return { settings, onChange, onImport, saveError, importing, reload };
+  return {
+    settings,
+    onChange,
+    onImport,
+    mutateSettings,
+    saveError,
+    importing,
+    settingsStale,
+    reload,
+  };
 }
 
 // App is the desktop frontend shell. Two Wails windows load it: the overlay
@@ -963,7 +1025,16 @@ function MediaRoute({ session }: { session: number }) {
 // regular titled window (its own Wails window since the Wails v3 migration);
 // the menubar can deep-link a tab via the "prefs:tab" event.
 function SettingsRoute() {
-  const { settings, onChange, onImport, saveError, importing, reload } = useSettingsModel();
+  const {
+    settings,
+    onChange,
+    onImport,
+    mutateSettings,
+    saveError,
+    importing,
+    settingsStale,
+    reload,
+  } = useSettingsModel();
   const perms = usePermissions();
   const about = useAbout();
   const crash = useCrash();
@@ -1130,88 +1201,125 @@ function SettingsRoute() {
     };
   }, []);
 
-  return (
-    <fieldset disabled={importing} aria-busy={importing} className="m-0 min-w-0 border-0 p-0">
-      <Settings
-        settings={settings}
-        onChange={onChange}
-        onImport={onImport}
-        saveError={saveError}
-        permissions={perms}
-        about={about}
-        crash={crash}
-        requestedTab={requestedTab}
-        dockInputError={dockInputError}
-        monitorLock={{
-          state: lockState,
-          displays: lockDisplays,
-          error: lockPlacementError || lockLoadError,
-          pending: lockPlacePending,
-          onEnable: () => {
-            if (perms && perms.state.accessibility !== "granted") perms.onRequest("accessibility");
-          },
-          onPlace: (session, revision, generation) => {
-            setLockPlacementError("");
-            setLockPlacePending(true);
-            void dockLock
-              .place(session, revision, generation)
-              .then((r) => {
-                if (!r.verified) setLockPlacementError(r.reason || r.status);
-              })
-              .catch((e) => setLockPlacementError(String(e)))
-              .finally(() => setLockPlacePending(false));
-          },
-          onCancel: () => {
-            void dockLock.cancel().catch((e) => setLockPlacementError(String(e)));
-          },
-        }}
-        media={{
-          permissions: mediaPermissions,
-          onConnect: (provider) => {
-            void media
-              .connect(provider)
-              .then((result) => setMediaPermissions((old) => ({ ...old, [provider]: result })))
-              .catch((error) =>
-                setMediaPermissions((old) => ({
-                  ...old,
-                  [provider]: { status: "unavailable", reason: String(error) },
-                })),
-              );
-          },
-        }}
-        diagnostics={diagnosticsAvailable}
-        launcher={{
-          status: launcherStatus,
-          error: launcherError,
-          appChoices: launcherAppChoices,
-          widgetCatalog,
-          widgetPackages: {
-            status: widgetPackageStatus,
-            actions: {
-              review: launcher.reviewPackage,
-              install: launcher.installPackage,
-              cancel: launcher.cancelPackageReview,
-              remove: launcher.removePackage,
+  const launcherItemActions = useMemo(
+    () => ({
+      ...launcherItemSettings,
+      save: (
+        profileID: string,
+        itemRevision: string,
+        items: Parameters<typeof launcherItemSettings.save>[2],
+      ) =>
+        mutateSettings(
+          () => launcherItemSettings.save(profileID, itemRevision, items),
+          (current, result) => ({
+            ...current,
+            replacementDock: {
+              ...current.replacementDock,
+              profiles: current.replacementDock.profiles.map((profile) =>
+                profile.id === profileID ? { ...profile, items: result.items } : profile,
+              ),
             },
-            onRefresh: () => void refreshWidgetPackages(),
-          },
-          onUseNativeDock: () => {
-            setLauncherError("");
-            void launcher
-              .useNativeDock()
-              .then(async () => {
-                await reload();
-                setLauncherStatus(await launcher.status());
-              })
-              .catch(async (error: unknown) => {
-                setLauncherError(String(error));
-                try {
+          }),
+        ),
+    }),
+    [mutateSettings],
+  );
+
+  return (
+    <>
+      {settingsStale ? (
+        <Button type="button" onClick={() => void reload()}>
+          Reload settings
+        </Button>
+      ) : null}
+      <fieldset
+        disabled={importing || settingsStale}
+        aria-busy={importing}
+        className="m-0 min-w-0 border-0 p-0"
+      >
+        <Settings
+          settings={settings}
+          onChange={onChange}
+          onImport={onImport}
+          saveError={saveError}
+          permissions={perms}
+          about={about}
+          crash={crash}
+          requestedTab={requestedTab}
+          dockInputError={dockInputError}
+          monitorLock={{
+            state: lockState,
+            displays: lockDisplays,
+            error: lockPlacementError || lockLoadError,
+            pending: lockPlacePending,
+            onEnable: () => {
+              if (perms && perms.state.accessibility !== "granted")
+                perms.onRequest("accessibility");
+            },
+            onPlace: (session, revision, generation) => {
+              setLockPlacementError("");
+              setLockPlacePending(true);
+              void dockLock
+                .place(session, revision, generation)
+                .then((r) => {
+                  if (!r.verified) setLockPlacementError(r.reason || r.status);
+                })
+                .catch((e) => setLockPlacementError(String(e)))
+                .finally(() => setLockPlacePending(false));
+            },
+            onCancel: () => {
+              void dockLock.cancel().catch((e) => setLockPlacementError(String(e)));
+            },
+          }}
+          media={{
+            permissions: mediaPermissions,
+            onConnect: (provider) => {
+              void media
+                .connect(provider)
+                .then((result) => setMediaPermissions((old) => ({ ...old, [provider]: result })))
+                .catch((error) =>
+                  setMediaPermissions((old) => ({
+                    ...old,
+                    [provider]: { status: "unavailable", reason: String(error) },
+                  })),
+                );
+            },
+          }}
+          diagnostics={diagnosticsAvailable}
+          launcher={{
+            status: launcherStatus,
+            error: launcherError,
+            appChoices: launcherAppChoices,
+            itemActions: launcherItemActions,
+            widgetCatalog,
+            widgetPackages: {
+              status: widgetPackageStatus,
+              actions: {
+                review: launcher.reviewPackage,
+                install: launcher.installPackage,
+                cancel: launcher.cancelPackageReview,
+                remove: launcher.removePackage,
+              },
+              onRefresh: () => void refreshWidgetPackages(),
+            },
+            onUseNativeDock: () => {
+              setLauncherError("");
+              void launcher
+                .useNativeDock()
+                .then(async () => {
+                  await reload();
                   setLauncherStatus(await launcher.status());
-                } catch {}
-              });
-          },
-        }}
-      />
-    </fieldset>
+                })
+                .catch(async (error: unknown) => {
+                  setLauncherError(String(error));
+                  try {
+                    setLauncherStatus(await launcher.status());
+                  } catch {}
+                });
+            },
+          }}
+        />
+      </fieldset>
+    </>
   );
 }

@@ -62,7 +62,10 @@ func (a *App) wireLauncher() {
 	r.core = launcher.New(launcher.Deps{
 		Environment: environment, Applications: apps, Identities: identities,
 		View: appLauncherView{a}, Activate: a.activateLauncherTarget,
-		SelfAppID: domain.AppID(os.Getpid()), SelfBundleID: selfBundleID, Eligible: a.launcherAppEligible,
+		ResolveReference: a.resolveLauncherItemReference, ReadItemIcon: a.readLauncherItemIcon,
+		EligibleReference: a.launcherReferenceEligible,
+		PerformItem:       a.performConfiguredLauncherItem,
+		SelfAppID:         domain.AppID(os.Getpid()), SelfBundleID: selfBundleID, Eligible: a.launcherAppEligible,
 	})
 	a.launcher = r
 	r.core.Suspend(true)
@@ -79,6 +82,7 @@ func (a *App) wireLauncher() {
 func (a *App) startLauncher() {
 	a.startWidgets()
 	a.startWidgetPackages()
+	a.startLauncherItems()
 	if a.launcher == nil {
 		return
 	}
@@ -369,11 +373,15 @@ func (a *App) launcherHostFailed(session uint64, window *dockWindow) {
 }
 
 func (a *App) launcherAppEligible(app domain.App) bool {
-	if app.ID <= 0 || app.ID == domain.AppID(os.Getpid()) || app.BundleID == selfBundleID {
+	return app.ID > 0 && a.launcherReferenceEligible(platform.LauncherReference{Kind: "app", Process: platform.ProcessIdentity{PID: app.ID}, BundleID: app.BundleID, Label: app.Name})
+}
+
+func (a *App) launcherReferenceEligible(ref platform.LauncherReference) bool {
+	if ref.Kind != "app" || ref.BundleID == "" || ref.Process.PID == domain.AppID(os.Getpid()) || ref.BundleID == selfBundleID {
 		return false
 	}
 	for _, entry := range a.settingsSnapshot().Filters.AppBlacklist {
-		if entry.Hide == config.HideAlways && entry.Match != "" && (strings.EqualFold(app.BundleID, entry.Match) || strings.EqualFold(app.Name, entry.Match)) {
+		if entry.Hide == config.HideAlways && entry.Match != "" && (strings.EqualFold(ref.BundleID, entry.Match) || strings.EqualFold(ref.Label, entry.Match)) {
 			return false
 		}
 	}

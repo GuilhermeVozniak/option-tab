@@ -134,6 +134,10 @@ The feature branch now contains the replacement-Dock host/recovery foundation, p
 - [ ] H16 Notification badges where a supported source is available.
 - [ ] H17 Export/import Dock profiles, items and widget settings.
 
+## Current launcher item checkpoint
+
+The branch now implements persistent app/folder/file/link pins, exact running-app deduplication, groups and decorative items, custom PNG icons, internal reordering/grouping in Settings, and explicit app relaunch. Item saves share the Preferences persistence queue and retain private references independently of portable configuration. Folder-root opening is implemented; H09 fan-out and H11 show-all child previews continue next. Native acceptance remains open. See the [launcher item checkpoint](superpowers/reports/2026-09-07-launcher-items.md).
+
 ## Current input checkpoint
 
 D09–D14 implementation and C04 card spacing are available on the feature branch. Automated suites and disposable native role/action fixtures pass; physical gesture and off-panel drag acceptance remain open. See the [input/drag checkpoint report](superpowers/reports/2026-09-06-dock-input-and-preview-drag.md) for behavior, evidence and exact limitations. The roadmap's unchecked items are not promises of universal AX or device support.

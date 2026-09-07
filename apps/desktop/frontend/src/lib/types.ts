@@ -449,6 +449,50 @@ export interface LauncherWidgetStack {
   members: string[];
   activeID: string;
 }
+export type LauncherItemKind =
+  | "app"
+  | "folder"
+  | "file"
+  | "link"
+  | "group"
+  | "spacer"
+  | "separator";
+export interface LauncherItem {
+  id: string;
+  kind: LauncherItemKind;
+  label: string;
+  referenceID?: string;
+  url?: string;
+  iconID?: string;
+  members?: string[];
+  folderView?: "list" | "grid";
+}
+export interface LauncherReferenceView {
+  id: string;
+  kind: string;
+  label: string;
+  bundleID: string;
+  state: string;
+  reason: string;
+  revision: number;
+}
+export interface LauncherItemSettings {
+  profileID: string;
+  revision: string;
+  items: LauncherItem[];
+  references: LauncherReferenceView[];
+  iconIDs?: string[];
+}
+export interface LauncherItemIcon {
+  id: string;
+  dataURL: string;
+}
+export interface LauncherItemStatus {
+  available: boolean;
+  busy: boolean;
+  reason: string;
+}
+
 export interface LauncherProfile {
   id: string;
   name: string;
@@ -463,6 +507,7 @@ export interface LauncherProfile {
   autoHide: boolean;
   widgets: LauncherWidgetInstance[];
   stacks?: LauncherWidgetStack[];
+  items?: LauncherItem[];
 }
 export interface LauncherAppearance {
   theme: "system" | "light" | "dark";
@@ -503,6 +548,17 @@ export interface LauncherWidgetNode {
   text?: string;
   children?: LauncherWidgetNode[];
 }
+export interface LauncherPresentationItem {
+  id: string;
+  name: string;
+  icon: string;
+  kind?: string;
+  status?: string;
+  reason?: string;
+  running?: boolean;
+  members?: LauncherPresentationItem[];
+  referenceRevision?: number;
+}
 export interface LauncherPresentation {
   epoch: number;
   displayUUID: string;
@@ -516,7 +572,7 @@ export interface LauncherPresentation {
   edge: "bottom" | "left" | "right" | "top";
   layout: "floating" | "fullWidth";
   appearance: LauncherAppearance;
-  items: Array<{ id: string; name: string; icon: string }>;
+  items: LauncherPresentationItem[];
   widgets: Array<{
     id: string;
     packageID: string;

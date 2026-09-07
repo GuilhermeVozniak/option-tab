@@ -12,6 +12,7 @@ export interface LauncherTransport {
     revision: number,
     itemID: string,
   ): Promise<void>;
+  relaunch?: LauncherTransport["activate"];
   subscribe(handler: (state: LauncherPresentation) => void): () => void;
   widgets?: {
     get(session: number): Promise<LauncherWidgetState>;
@@ -45,10 +46,23 @@ export function LauncherRoute({
   const [widgetState, setWidgetState] = useState<LauncherWidgetState | null>(null);
   const widgetStateRef = useRef<LauncherWidgetState | null>(null);
   const [widgetError, setWidgetError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const stateRef = useRef<LauncherPresentation | null>(null);
+  const actionSequence = useRef(0);
+
   const revision = useRef(0);
   const retired = useRef(false);
+  const ownerSession = useRef<number | null>(null);
   useEffect(() => {
     let active = true;
+    if (ownerSession.current !== session) {
+      ownerSession.current = session;
+      revision.current = 0;
+      retired.current = false;
+    }
+    stateRef.current = null;
+    setState(null);
+    setActionError("");
     const accept = (next: LauncherPresentation) => {
       if (
         !active ||
@@ -59,12 +73,28 @@ export function LauncherRoute({
         return;
       revision.current = next.revision;
       if (!next.visible) retired.current = true;
-      setState(next.visible ? next : null);
+      const previous = stateRef.current;
+      if (
+        !previous ||
+        previous.revision !== next.revision ||
+        previous.epoch !== next.epoch ||
+        !next.visible
+      )
+        setActionError("");
+      stateRef.current = next.visible ? next : null;
+      setState(stateRef.current);
     };
     const unsubscribe = transport.subscribe(accept);
-    void transport.getState(session).then((next) => next && accept(next));
+    void transport
+      .getState(session)
+      .then((next) => next && accept(next))
+      .catch((error) => {
+        if (active && !retired.current && !stateRef.current)
+          setActionError(String(error).slice(0, 240));
+      });
     return () => {
       active = false;
+      stateRef.current = null;
       unsubscribe();
     };
   }, [session, transport]);
@@ -113,11 +143,31 @@ export function LauncherRoute({
         asset: transport.widgets.asset,
       }
     : undefined;
-  return state ? (
+  const performItem = (
+    command: LauncherTransport["activate"],
+    args: Parameters<LauncherTransport["activate"]>,
+  ) => {
+    const admitted = stateRef.current;
+    if (!admitted || admitted.session !== session) return;
+    const operation = ++actionSequence.current;
+    setActionError("");
+    const failed = (error: unknown) => {
+      if (stateRef.current === admitted && actionSequence.current === operation)
+        setActionError(String(error).slice(0, 240));
+    };
+    try {
+      void Promise.resolve(command(...args)).catch(failed);
+    } catch (error) {
+      failed(error);
+    }
+  };
+  const relaunch = transport.relaunch;
+  return state && state.session === session ? (
     <>
       <LauncherView
         presentation={state}
-        onActivate={(...args) => void transport.activate(...args)}
+        onActivate={(...args) => performItem(transport.activate, args)}
+        onRelaunch={relaunch ? (...args) => performItem(relaunch, args) : undefined}
         widgetState={transport.widgets ? widgetState : undefined}
         widgetActions={widgetActions}
         language={language}
@@ -140,7 +190,20 @@ export function LauncherRoute({
             });
         }}
       />
-      {widgetError ? <p role="alert">{widgetError}</p> : null}
+      {actionError ? (
+        <p className="ot-launcher-action-error" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+      {widgetError ? (
+        <p className="ot-launcher-action-error" role="alert">
+          {widgetError}
+        </p>
+      ) : null}
     </>
+  ) : actionError && !retired.current ? (
+    <p className="ot-launcher-action-error" role="alert">
+      {actionError}
+    </p>
   ) : null;
 }

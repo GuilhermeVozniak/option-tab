@@ -72,6 +72,29 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   CancelWidgetPackageReview: vi.fn().mockResolvedValue(undefined),
   RemoveWidgetPackage: vi.fn().mockResolvedValue(undefined),
   GetLauncherAppChoices: vi.fn().mockResolvedValue([]),
+  GetLauncherItemSettings: vi.fn().mockResolvedValue({
+    profileID: "default",
+    revision: "r1",
+    items: [],
+    references: [],
+    iconIDs: [],
+  }),
+  SetLauncherItems: vi.fn().mockResolvedValue({
+    profileID: "default",
+    revision: "r2",
+    items: [],
+    references: [],
+    iconIDs: [],
+  }),
+  GetLauncherItemStatus: vi.fn().mockResolvedValue({ available: false, busy: false, reason: "" }),
+  ChooseLauncherItemReference: vi.fn().mockResolvedValue({}),
+  RelinkLauncherItemReference: vi.fn().mockResolvedValue({}),
+  CancelLauncherItemSelection: vi.fn().mockResolvedValue(undefined),
+  ChooseLauncherItemIcon: vi.fn().mockResolvedValue({}),
+  RemoveUnusedLauncherReference: vi.fn().mockResolvedValue(undefined),
+  RemoveUnusedLauncherIcon: vi.fn().mockResolvedValue(undefined),
+  GetLauncherItemIcon: vi.fn().mockResolvedValue({}),
+  RelaunchLauncherItem: vi.fn().mockResolvedValue(undefined),
   ActivateLauncherItem: vi.fn().mockResolvedValue(undefined),
   UseNativeDock: vi.fn().mockResolvedValue(undefined),
 }));
@@ -95,6 +118,14 @@ beforeEach(() => {
   mocked.GetWidgetCatalog.mockResolvedValue([]);
   mocked.GetWidgetPackageStatus.mockReset();
   mocked.GetWidgetPackageStatus.mockResolvedValue({ available: false, busy: false, reason: "" });
+  mocked.GetLauncherItemStatus.mockResolvedValue({ available: false, busy: false, reason: "" });
+  mocked.GetLauncherItemSettings.mockResolvedValue({
+    profileID: "default",
+    revision: "r1",
+    items: [],
+    references: [],
+    iconIDs: [],
+  });
 });
 
 it("loads exact launcher app choices only for the settings editor", async () => {
@@ -188,6 +219,62 @@ it("serializes rapid preference saves", async () => {
   });
   await waitFor(() => expect(mocked.SaveSettings).toHaveBeenCalledTimes(2));
   expect(JSON.parse(mocked.SaveSettings.mock.calls[1][0]).behavior.startAtLogin).toBe(false);
+});
+
+it("queues launcher item CAS saves behind settings writes and reloads the canonical settings", async () => {
+  mocked.SaveSettings.mockReset();
+  mocked.SaveSettings.mockResolvedValue(undefined);
+  mocked.SetLauncherItems.mockClear();
+  window.location.hash = "#settings";
+  const initial = {
+    ...defaultSettings,
+    behavior: { ...defaultSettings.behavior, onboarded: true },
+  };
+  mocked.GetSettings.mockResolvedValueOnce(JSON.stringify(initial));
+  mocked.GetLauncherItemStatus.mockResolvedValue({ available: true, busy: false, reason: "" });
+  let finishSave: () => void = () => {};
+  mocked.SaveSettings.mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => (finishSave = resolve)) as ReturnType<
+        typeof AppService.SaveSettings
+      >,
+  );
+  mocked.SetLauncherItems.mockResolvedValueOnce({
+    profileID: "default",
+    revision: "r2",
+    items: [
+      {
+        id: "spacer-1",
+        kind: "spacer",
+        label: "",
+        referenceID: "",
+        url: "",
+        iconID: "",
+        members: [],
+        folderView: "",
+      },
+    ],
+    references: [],
+    iconIDs: [],
+  });
+  render(<App />);
+  await act(async () => {});
+  fireEvent.click(screen.getByLabelText("Start at login"));
+  fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add spacer" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save launcher items" }));
+  expect(mocked.SetLauncherItems).not.toHaveBeenCalled();
+  mocked.GetSettings.mockRejectedValueOnce(new Error("reload failed"));
+  await act(async () => finishSave());
+  await waitFor(() => expect(mocked.SetLauncherItems).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(mocked.GetSettings.mock.calls.length).toBeGreaterThanOrEqual(2));
+  expect(mocked.SaveSettings).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole("tab", { name: "General" }));
+  fireEvent.click(screen.getByLabelText("Start at login"));
+  await waitFor(() => expect(mocked.SaveSettings).toHaveBeenCalledTimes(2));
+  expect(
+    JSON.parse(mocked.SaveSettings.mock.calls[1][0]).replacementDock.profiles[0].items,
+  ).toEqual([expect.objectContaining({ id: "spacer-1" })]);
 });
 
 it("publishes a successful import even if the next queued import fails", async () => {

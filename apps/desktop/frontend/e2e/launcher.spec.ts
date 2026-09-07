@@ -27,6 +27,69 @@ const presentation = (revision: number, name: string, visible = true) => ({
   widgets: [],
 });
 
+test("pinned groups retain choices across clock updates and relaunch the exact current item", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 720, height: 80 });
+  await installFakeWails(page);
+  const state = {
+    ...presentation(2, ""),
+    items: [
+      { id: "pin:gap", name: "", icon: "", kind: "spacer", status: "ready" },
+      { id: "pin:line", name: "", icon: "", kind: "separator", status: "ready" },
+      {
+        id: "pin:tools",
+        name: "Tools",
+        icon: "",
+        kind: "group",
+        status: "ready",
+        members: [
+          {
+            id: "pin:editor",
+            name: "Editor",
+            icon: "",
+            kind: "app",
+            status: "ready",
+            running: true,
+            referenceRevision: 9,
+          },
+          { id: "pin:missing", name: "Missing", icon: "", kind: "app", status: "needsSelection" },
+        ],
+      },
+    ],
+  };
+  await page.addInitScript((value) => {
+    (window as any).__launcherState = value;
+  }, state);
+  await page.goto("/#/launcher/41");
+  await page.getByRole("button", { name: "Tools", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Missing", exact: true })).toBeDisabled();
+  expect(
+    (await getCallRecords(page)).filter(([name]) => name === "ActivateLauncherItem"),
+  ).toHaveLength(0);
+  await page.evaluate(
+    (value) => (window as any)._wails.dispatchWailsEvent({ name: "launcher:state", data: value }),
+    { ...state, revision: 3 },
+  );
+  const editor = page.getByRole("button", { name: "Editor", exact: true });
+  await expect(editor).toBeVisible();
+  await editor.click({ button: "right" });
+  await page.getByRole("button", { name: "Relaunch", exact: true }).click();
+  await expect
+    .poll(() => getCallRecords(page))
+    .toContainEqual(["RelaunchLauncherItem", 7, "display-main", 41, 3, "pin:editor"]);
+  await editor.click();
+  await expect
+    .poll(() => getCallRecords(page))
+    .toContainEqual(["ActivateLauncherItem", 7, "display-main", 41, 3, "pin:editor"]);
+  const cross = await page.getByLabel("Option Tab launcher").evaluate((node) => ({
+    height: node.getBoundingClientRect().height,
+    documentHeight: document.documentElement.scrollHeight,
+  }));
+  expect(cross.height).toBeLessThanOrEqual(80);
+  expect(cross.documentHeight).toBeLessThanOrEqual(80);
+});
+
 for (const edge of ["bottom", "top", "left", "right"] as const) {
   test(`launcher fits 64px icons and clock at minimum ${edge} cross-axis`, async ({ page }) => {
     const vertical = edge === "left" || edge === "right";

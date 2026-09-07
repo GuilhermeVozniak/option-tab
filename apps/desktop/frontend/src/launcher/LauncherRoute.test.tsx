@@ -157,3 +157,32 @@ describe("LauncherRoute", () => {
     expect(screen.queryByText("Speakers")).toBeNull();
   });
 });
+
+it("reports action refusal only for its current presentation", async () => {
+  const t = transport(state(8, 2));
+  let refuse: (error: Error) => void = () => {};
+  t.api.activate = vi.fn(
+    () =>
+      new Promise<void>((_, reject) => {
+        refuse = reject;
+      }),
+  );
+  render(<LauncherRoute session={8} transport={t.api} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Current" }));
+  await act(async () => refuse(new Error("Open refused")));
+  expect(screen.getByRole("alert")).toHaveTextContent("Open refused");
+  fireEvent.click(screen.getByRole("button", { name: "Current" }));
+  t.update(state(8, 3, "New owner"));
+  await act(async () => refuse(new Error("Old refusal")));
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("keeps a hidden session retired when a parent replaces the transport object", async () => {
+  const t = transport(state(8, 2));
+  const { rerender } = render(<LauncherRoute session={8} transport={t.api} />);
+  await screen.findByRole("button", { name: "Current" });
+  t.hide(8, 3);
+  const replacement = transport(state(8, 4, "Obsolete"));
+  await act(async () => rerender(<LauncherRoute session={8} transport={replacement.api} />));
+  expect(screen.queryByRole("button", { name: "Obsolete" })).toBeNull();
+});

@@ -113,6 +113,7 @@ type App struct {
 	launcher                  *appLauncherRuntime
 	widgets                   *appWidgetsRuntime
 	widgetPackages            *appWidgetPackageManager
+	launcherItems             *appLauncherItems
 	launcherFactory           func(uint64, string, platform.LauncherPanelStyle, func()) *dockWindow
 	mediaPinFactory           func(uint64, platform.MediaProvider, func(platform.MediaPanelEvent)) *dockWindow
 	dockFolders               platform.FolderSource
@@ -172,6 +173,9 @@ func NewApp() *App {
 	a.wireMedia(platform.NewMediaSource(), platform.NewMediaLyricsSource(filepath.Join(filepath.Dir(path), "media-lyrics.json")))
 	a.wireProductionWidgets()
 	_ = a.wireWidgetPackages(platform.NewWidgetPackageSource(), filepath.Join(filepath.Dir(path), "widgets"))
+	launcherRefs, _ := platform.NewLauncherReferenceSource(filepath.Join(filepath.Dir(path), "launcher-references"))
+	launcherIcons, _ := platform.NewLauncherIconSource(filepath.Join(filepath.Dir(path), "launcher-icons"))
+	a.wireLauncherItems(launcherRefs, launcherIcons)
 	a.wireAutomation(platform.NewAutomationServer())
 	a.wireDiagnostics(platform.NewDiagnosticExportSource())
 	return a
@@ -334,6 +338,7 @@ func (a *App) stopCapture() {
 		a.widgets.cancel()
 	}
 	a.stopWidgetPackagesLocked()
+	a.stopLauncherItemsLocked()
 	a.syncMediaLocked()
 	a.syncDockFolderGrantLocked()
 	a.syncDockMonitorLockLocked()

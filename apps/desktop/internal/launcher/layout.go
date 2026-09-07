@@ -60,7 +60,7 @@ func Layout(p config.LauncherProfile, d platform.LauncherDisplay, count int, pro
 		return fail
 	}
 	spacing := float64(p.Appearance.ItemSpacingPx)
-	count = min(count, 128)
+	count = min(count, 144) // 128 running applications plus 16 configured records.
 	n := max(count, 1)
 	length := float64(n*p.IconPx) + float64(n-1)*spacing + 24
 	length += float64(visibleWidgetSlots(p)) * (160 + spacing)

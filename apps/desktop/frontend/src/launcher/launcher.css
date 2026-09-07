@@ -179,3 +179,125 @@
   font-size: 13px;
   font-weight: 650;
 }
+
+.ot-launcher-item,
+.ot-launcher-group-members,
+.ot-launcher-item-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: var(--ot-launcher-gap);
+}
+.ot-launcher-group-members {
+  margin: 0;
+  padding: 0 4px;
+  list-style: none;
+  border-inline-start: 1px solid currentColor;
+}
+.ot-launcher-spacer,
+.ot-launcher-separator {
+  flex: 0 0 calc(var(--ot-launcher-icon) / 2);
+  align-self: stretch;
+}
+.ot-launcher-separator::after {
+  display: block;
+  width: 1px;
+  height: 70%;
+  margin: 15% auto;
+  background: color-mix(in srgb, currentColor 28%, transparent);
+  content: "";
+}
+.ot-launcher-running {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  top: 2px;
+  right: 2px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 45%);
+}
+.ot-launcher-app:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ot-launcher-item-warning {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+.ot-launcher-item-actions {
+  gap: 2px;
+  padding-inline: 3px;
+}
+.ot-launcher-item-actions button {
+  min-height: 26px;
+  padding: 3px 6px;
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  color: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.ot-launcher-item-actions button:focus-visible,
+.ot-launcher-app:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+.ot-launcher-action-error {
+  position: fixed;
+  inset: auto 4px 2px;
+  z-index: 2;
+  margin: 0;
+  padding: 3px 6px;
+  overflow: hidden;
+  max-height: 34px;
+  border-radius: 5px;
+  background: #321e22;
+  color: #fff0f0;
+  font-size: 11px;
+  line-height: 14px;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.ot-launcher-shell.edge-left .ot-launcher-item,
+.ot-launcher-shell.edge-right .ot-launcher-item,
+.ot-launcher-shell.edge-left .ot-launcher-group-members,
+.ot-launcher-shell.edge-right .ot-launcher-group-members {
+  flex-direction: column;
+}
+.ot-launcher-shell.edge-left .ot-launcher-item-actions,
+.ot-launcher-shell.edge-right .ot-launcher-item-actions {
+  flex-direction: column;
+  gap: 1px;
+}
+.ot-launcher-shell.edge-left .ot-launcher-group-members,
+.ot-launcher-shell.edge-right .ot-launcher-group-members {
+  border-inline-start: 0;
+  border-top: 1px solid currentColor;
+  padding: 4px 0;
+}
+.ot-launcher-shell.edge-left .ot-launcher-item-actions,
+.ot-launcher-shell.edge-right .ot-launcher-item-actions {
+  max-width: var(--ot-launcher-icon);
+  padding-inline: 0;
+}
+.ot-launcher-shell.edge-left .ot-launcher-item-actions button,
+.ot-launcher-shell.edge-right .ot-launcher-item-actions button {
+  box-sizing: border-box;
+  width: var(--ot-launcher-icon);
+  padding-inline: 1px;
+  font-size: 10px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ot-launcher-shell.edge-left .ot-launcher-separator::after,
+.ot-launcher-shell.edge-right .ot-launcher-separator::after {
+  width: 70%;
+  height: 1px;
+  margin: 6px auto;
+}

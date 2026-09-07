@@ -164,6 +164,9 @@ const METHOD = {
   ClearDiagnostics: 2969743170,
   SaveDiagnosticsReport: 1276106854,
   ActivateLauncherItem: 529143415,
+  RelaunchLauncherItem: 3869413604,
+  GetLauncherItemSettings: 1300445933,
+  GetLauncherItemStatus: 117720418,
   GetLauncherState: 1942731528,
   GetLauncherStatus: 3297738801,
   GetLauncherAppChoices: 1561877478,
@@ -373,6 +376,16 @@ export async function installFakeWails(page: Page): Promise<void> {
       }
       case "GetLauncherState":
         return json(await page.evaluate(() => (window as any).__launcherState));
+      case "GetLauncherItemSettings":
+        return json({
+          profileID: args[0],
+          revision: "fixture-empty",
+          items: [],
+          references: [],
+          iconIDs: [],
+        });
+      case "GetLauncherItemStatus":
+        return json({ available: true, busy: false, reason: "" });
       case "GetLauncherStatus":
         return json(await page.evaluate(() => (window as any).__launcherStatus));
       case "GetLauncherAppChoices":
@@ -397,6 +410,7 @@ export async function installFakeWails(page: Page): Promise<void> {
         await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
         return json("");
       case "ActivateLauncherItem":
+      case "RelaunchLauncherItem":
       case "PerformWidgetAction":
       case "SelectLauncherWidget":
       case "CancelWidgetPackageReview":

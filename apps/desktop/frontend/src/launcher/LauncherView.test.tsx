@@ -66,3 +66,102 @@ describe("LauncherView", () => {
     expect(container.querySelector("img[src='x']")).toBeNull();
   });
 });
+
+it("keeps decorations unfocusable and opens group members individually", () => {
+  const activate = vi.fn();
+  const value = {
+    ...presentation,
+    items: [
+      { id: "space", name: "Space", icon: "", kind: "spacer" },
+      { id: "line", name: "Line", icon: "", kind: "separator" },
+      {
+        id: "group",
+        name: "Work",
+        icon: "",
+        kind: "group",
+        status: "ready",
+        members: [{ id: "member", name: "Editor", icon: "", kind: "app", status: "ready" }],
+      },
+      { id: "missing", name: "Moved file", icon: "", kind: "file", status: "moved" },
+    ],
+  };
+  render(<LauncherView presentation={value} onActivate={activate} />);
+  expect(screen.queryByRole("button", { name: "Space" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Line" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Moved file" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Work" }));
+  expect(activate).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Editor" }));
+  expect(activate).toHaveBeenCalledExactlyOnceWith(9, "display-main", 12, 4, "member");
+});
+
+it("offers relaunch only for an exact pinned running application", () => {
+  const relaunch = vi.fn();
+  render(
+    <LauncherView
+      presentation={{
+        ...presentation,
+        items: [
+          {
+            id: "pin",
+            name: "Editor",
+            icon: "",
+            kind: "app",
+            status: "ready",
+            running: true,
+            referenceRevision: 10,
+          },
+        ],
+      }}
+      onActivate={() => {}}
+      onRelaunch={relaunch}
+    />,
+  );
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Editor" }));
+  expect(relaunch).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Relaunch" }));
+  expect(relaunch).toHaveBeenCalledExactlyOnceWith(9, "display-main", 12, 4, "pin");
+});
+
+it("keeps a group open through clock revisions and dispatches the latest scope", () => {
+  const activate = vi.fn();
+  const items = [
+    {
+      id: "group",
+      name: "Work",
+      icon: "",
+      kind: "group",
+      status: "ready",
+      members: [
+        {
+          id: "editor",
+          name: "Editor",
+          icon: "",
+          kind: "app",
+          status: "ready",
+          referenceRevision: 10,
+        },
+      ],
+    },
+  ];
+  const { rerender } = render(
+    <LauncherView presentation={{ ...presentation, items }} onActivate={activate} />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Work" }));
+  rerender(
+    <LauncherView presentation={{ ...presentation, revision: 5, items }} onActivate={activate} />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Editor" }));
+  expect(activate).toHaveBeenCalledExactlyOnceWith(9, "display-main", 12, 5, "editor");
+  rerender(
+    <LauncherView
+      presentation={{
+        ...presentation,
+        revision: 6,
+        items: [{ ...items[0], members: [{ ...items[0].members[0], referenceRevision: 11 }] }],
+      }}
+      onActivate={activate}
+    />,
+  );
+  expect(screen.queryByRole("button", { name: "Editor" })).toBeNull();
+});

@@ -104,7 +104,7 @@ func (c *Controller) reconcileLocked() {
 		profile := profiles[profileID]
 		ds.BindingID = b.ID
 		ds.ProfileID = profileID
-		p := Presentation{Scope: Scope{Epoch: c.epoch, DisplayUUID: d.UUID}, ProfileID: profileID, Edge: profile.Edge, Layout: profile.Layout, Appearance: profile.Appearance, IconPx: profile.IconPx, Items: append([]Item{}, c.items...), Widgets: []Widget{}}
+		p := Presentation{Scope: Scope{Epoch: c.epoch, DisplayUUID: d.UUID}, ProfileID: profileID, Edge: profile.Edge, Layout: profile.Layout, Appearance: profile.Appearance, IconPx: profile.IconPx, Items: c.composeItemsLocked(profile), Widgets: []Widget{}}
 		prior := previous[d.UUID]
 		p.Session = prior.Session
 		p.Revision = prior.Revision

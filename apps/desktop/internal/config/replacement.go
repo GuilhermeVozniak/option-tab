@@ -64,6 +64,7 @@ type LauncherProfile struct {
 	AutoHide          bool               `json:"autoHide"`
 	Widgets           []WidgetInstance   `json:"widgets"`
 	Stacks            []WidgetStack      `json:"stacks,omitempty"`
+	Items             []LauncherItem     `json:"items,omitempty"`
 }
 type LauncherBinding struct {
 	ID          string `json:"id"`
@@ -102,6 +103,10 @@ func CloneReplacementDock(s ReplacementDockSettings) ReplacementDockSettings {
 			s.Profiles[i].Widgets[j].Settings = cloneWidgetSettings(s.Profiles[i].Widgets[j].Settings)
 		}
 		s.Profiles[i].Stacks = slices.Clone(s.Profiles[i].Stacks)
+		s.Profiles[i].Items = slices.Clone(s.Profiles[i].Items)
+		for j := range s.Profiles[i].Items {
+			s.Profiles[i].Items[j].Members = slices.Clone(s.Profiles[i].Items[j].Members)
+		}
 		for j := range s.Profiles[i].Stacks {
 			s.Profiles[i].Stacks[j].Members = slices.Clone(s.Profiles[i].Stacks[j].Members)
 		}
@@ -124,7 +129,7 @@ func ValidateReplacementDock(s ReplacementDockSettings) error {
 	}
 	profiles := map[string]bool{}
 	for _, p := range s.Profiles {
-		if !launcherID.MatchString(p.ID) || profiles[p.ID] || !utf8.ValidString(p.Name) || utf8.RuneCountInString(p.Name) < 1 || utf8.RuneCountInString(p.Name) > 80 || !slices.Contains([]string{"bottom", "top", "left", "right"}, p.Edge) || !slices.Contains([]string{"floating", "fullWidth"}, p.Layout) || !slices.Contains([]string{"start", "center", "end"}, p.Alignment) || !validLauncherAppearance(p.Appearance) || p.IconPx < 24 || p.IconPx > 64 || p.ThicknessPx < 48 || p.ThicknessPx > 112 || p.ThicknessPx < p.IconPx+8 || math.IsNaN(p.MaxLengthFraction) || math.IsInf(p.MaxLengthFraction, 0) || p.MaxLengthFraction < .25 || p.MaxLengthFraction > .9 || p.InsetPx < 12 || p.InsetPx > 64 || len(p.Widgets) > 16 {
+		if !launcherID.MatchString(p.ID) || profiles[p.ID] || !utf8.ValidString(p.Name) || utf8.RuneCountInString(p.Name) < 1 || utf8.RuneCountInString(p.Name) > 80 || !slices.Contains([]string{"bottom", "top", "left", "right"}, p.Edge) || !slices.Contains([]string{"floating", "fullWidth"}, p.Layout) || !slices.Contains([]string{"start", "center", "end"}, p.Alignment) || !validLauncherAppearance(p.Appearance) || p.IconPx < 24 || p.IconPx > 64 || p.ThicknessPx < 48 || p.ThicknessPx > 112 || p.ThicknessPx < p.IconPx+8 || math.IsNaN(p.MaxLengthFraction) || math.IsInf(p.MaxLengthFraction, 0) || p.MaxLengthFraction < .25 || p.MaxLengthFraction > .9 || p.InsetPx < 12 || p.InsetPx > 64 || len(p.Widgets) > 16 || !validLauncherItems(p.Items) {
 			return bad
 		}
 		profiles[p.ID] = true
@@ -265,7 +270,7 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 				return s, bad
 			}
 			for key := range legacy.Profiles[i] {
-				if strings.EqualFold(key, "stacks") {
+				if strings.EqualFold(key, "stacks") || strings.EqualFold(key, "items") {
 					return s, bad
 				}
 			}

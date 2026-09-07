@@ -16,10 +16,12 @@ import (
 
 type (
 	inventory struct {
-		epoch   uint64
-		items   []Item
-		targets map[string]platform.LauncherAppTarget
-		ok      bool
+		epoch      uint64
+		items      []Item
+		targets    map[string]platform.LauncherAppTarget
+		references map[string]platform.LauncherReference
+		icons      map[string]string
+		ok         bool
 	}
 	hideDeadline struct{ enter, leave time.Time }
 	Controller   struct {
@@ -32,8 +34,11 @@ type (
 		env                                    platform.LauncherEnvironment
 		items                                  []Item
 		targets                                map[string]platform.LauncherAppTarget
+		references                             map[string]platform.LauncherReference
+		itemIcons                              map[string]string
 		inventoryReady                         bool
 		sourceCancel                           context.CancelFunc
+		inventoryCancel                        context.CancelFunc
 		activeSourceEpoch                      uint64
 		failed                                 map[string]time.Time
 		spaces                                 map[string]uint64
@@ -57,6 +62,9 @@ func (c *Controller) notify() {
 }
 
 func (c *Controller) retireLocked() {
+	if c.inventoryCancel != nil {
+		c.inventoryCancel()
+	}
 	c.epoch++
 	c.state.Epoch = c.epoch
 	c.state.PointerOwned = false
@@ -80,6 +88,8 @@ func (c *Controller) retireLocked() {
 	c.inventoryReady = false
 	c.items = nil
 	c.targets = map[string]platform.LauncherAppTarget{}
+	c.references = nil
+	c.itemIcons = nil
 	c.failed = map[string]time.Time{}
 	c.hide = map[string]hideDeadline{}
 }
@@ -219,6 +229,9 @@ func (c *Controller) currentLocked(scope Scope, id string) bool {
 }
 
 func (c *Controller) Activate(ctx context.Context, scope Scope, id string) error {
+	if strings.HasPrefix(id, "pin:") {
+		return c.PerformConfigured(ctx, scope, id, "open")
+	}
 	if ctx == nil {
 		return ErrRetired
 	}
@@ -315,6 +328,7 @@ func (c *Controller) inventoryWorker(ctx context.Context, requests <-chan uint64
 					}
 				}
 			}
+			c.readConfiguredInventory(ctx, &out)
 			select {
 			case results <- out:
 			case <-ctx.Done():
@@ -434,6 +448,8 @@ func (c *Controller) Run(ctx context.Context) error {
 				c.inventoryReady = out.ok
 				c.items = out.items
 				c.targets = out.targets
+				c.references = out.references
+				c.itemIcons = out.icons
 			}
 			c.mu.Unlock()
 		case <-sourceDone:

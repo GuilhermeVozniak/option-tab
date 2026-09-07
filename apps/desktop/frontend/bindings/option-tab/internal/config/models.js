@@ -320,6 +320,87 @@ export class LauncherAppearance {
     }
 }
 
+export class LauncherItem {
+    /**
+     * Creates a new LauncherItem instance.
+     * @param {Partial<LauncherItem>} [$$source = {}] - The source object to create the LauncherItem.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("kind" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["kind"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["label"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["referenceID"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["url"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["iconID"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string[] | undefined}
+             */
+            this["members"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["folderView"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherItem instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherItem}
+     */
+    static createFrom($$source = {}) {
+        const $$createField6_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("members" in $$parsedSource) {
+            $$parsedSource["members"] = $$createField6_0($$parsedSource["members"]);
+        }
+        return new LauncherItem(/** @type {Partial<LauncherItem>} */($$parsedSource));
+    }
+}
+
 /**
  * @readonly
  * @enum {string}
@@ -448,3 +529,6 @@ export const VisualStyle = {
     StyleAppIcons: "appIcons",
     StyleTitles: "titles",
 };
+
+// Private type creation functions
+const $$createType0 = $Create.Array($Create.Any);
