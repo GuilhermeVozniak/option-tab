@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { makeT } from "../lib/i18n";
-import type { ReplacementDockSettings } from "../lib/types";
+import type { LauncherStatus, ReplacementDockSettings } from "../lib/types";
+import type { LauncherItemSettingsActions } from "./LauncherItems";
 import { ReplacementDock } from "./ReplacementDock";
 
 const value: ReplacementDockSettings = {
@@ -336,9 +337,174 @@ describe("ReplacementDock", () => {
       target: { value: created.profiles[1].id },
     });
     fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "Work" } });
+    fireEvent.blur(screen.getByLabelText("Profile name"));
     expect(onChange.mock.calls.at(-1)?.[0].profiles[1].name).toBe("Work");
     fireEvent.click(screen.getByRole("button", { name: "Duplicate profile" }));
     expect(onChange.mock.calls.at(-1)?.[0].profiles).toHaveLength(3);
+  });
+
+  it("keeps a cleared profile name local until a valid rename is committed", () => {
+    const onChange = vi.fn();
+    render(<ReplacementDock value={value} t={makeT("en")} onChange={onChange} />);
+    const name = screen.getByLabelText("Profile name");
+    fireEvent.change(name, { target: { value: "" } });
+    expect(name).toHaveValue("");
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.change(name, { target: { value: "Writing" } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.blur(name);
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange.mock.calls[0][0].profiles[0].name).toBe("Writing");
+  });
+
+  it("restores the saved profile name when an empty rename loses focus", () => {
+    const onChange = vi.fn();
+    render(<ReplacementDock value={value} t={makeT("en")} onChange={onChange} />);
+    const name = screen.getByLabelText("Profile name");
+    fireEvent.change(name, { target: { value: "" } });
+    fireEvent.blur(name);
+    expect(name).toHaveValue("Default");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("commits a profile name on Enter only once when focus subsequently leaves", () => {
+    const onChange = vi.fn();
+    render(<ReplacementDock value={value} t={makeT("en")} onChange={onChange} />);
+    const name = screen.getByLabelText("Profile name");
+    fireEvent.change(name, { target: { value: "Writing" } });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(name, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange.mock.calls[0][0].profiles[0].name).toBe("Writing");
+    fireEvent.blur(name);
+    expect(onChange).toHaveBeenCalledOnce();
+  });
+
+  it("cancels a draft profile name with Escape", () => {
+    const onChange = vi.fn();
+    render(<ReplacementDock value={value} t={makeT("en")} onChange={onChange} />);
+    const name = screen.getByLabelText("Profile name");
+    fireEvent.change(name, { target: { value: "Discard this" } });
+    fireEvent.keyDown(name, { key: "Escape" });
+    expect(name).toHaveValue("Default");
+    fireEvent.blur(name);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it.each(["Enter", "Escape"])("leaves %s to the active input method", (key) => {
+    const onChange = vi.fn();
+    render(<ReplacementDock value={value} t={makeT("en")} onChange={onChange} />);
+    const name = screen.getByLabelText("Profile name");
+    fireEvent.change(name, { target: { value: "書く" } });
+    expect(fireEvent.keyDown(name, { key, isComposing: true })).toBe(true);
+    expect(name).toHaveValue("書く");
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(name, { key: "Enter", isComposing: false });
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange.mock.calls[0][0].profiles[0].name).toBe("書く");
+  });
+
+  it("leaves WebKit's composition-confirming Enter unhandled when isComposing is false", () => {
+    const onChange = vi.fn();
+    render(<ReplacementDock value={value} t={makeT("en")} onChange={onChange} />);
+    const name = screen.getByLabelText("Profile name");
+    fireEvent.change(name, { target: { value: "書く" } });
+    expect(fireEvent.keyDown(name, { key: "Enter", isComposing: false, keyCode: 229 })).toBe(true);
+    expect(name).toHaveValue("書く");
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(name, { key: "Enter", isComposing: false, keyCode: 13 });
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange.mock.calls[0][0].profiles[0].name).toBe("書く");
+  });
+
+  it("recovers new-profile item controls when the saved launcher epoch arrives", async () => {
+    const itemActions: LauncherItemSettingsActions = {
+      load: vi
+        .fn()
+        .mockRejectedValueOnce(new Error("launcher items: profileMissing"))
+        .mockResolvedValue({
+          profileID: "default",
+          revision: "saved",
+          items: [],
+          references: [],
+          iconIDs: [],
+        }),
+      save: vi.fn(),
+      chooseReference: vi.fn(),
+      relinkReference: vi.fn(),
+      cancelSelection: vi.fn(),
+      chooseIcon: vi.fn(),
+      removeReference: vi.fn(),
+      removeIcon: vi.fn(),
+    };
+    const status: LauncherStatus = {
+      epoch: 1,
+      revision: 1,
+      enabled: false,
+      status: "disabled",
+      reason: "",
+      recoveryLatched: false,
+      displays: [],
+      clockPackageID: "org.optiontab.clock",
+      clockDigest: "digest-final",
+    };
+    const { rerender } = render(
+      <ReplacementDock
+        value={value}
+        t={makeT("en")}
+        onChange={() => {}}
+        itemActions={itemActions}
+        status={status}
+      />,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("profileMissing");
+    expect(screen.getByRole("button", { name: "Add application" })).toBeDisabled();
+    rerender(
+      <ReplacementDock
+        value={value}
+        t={makeT("en")}
+        onChange={() => {}}
+        itemActions={itemActions}
+        status={{ ...status, epoch: 2 }}
+      />,
+    );
+    await screen.findByText("No launcher items yet.");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "Add application" })).toBeEnabled();
+  });
+
+  it("preserves a draft on unrelated refreshes and hydrates a newly selected profile", () => {
+    const configured = {
+      ...value,
+      profiles: [...value.profiles, { ...value.profiles[0], id: "second", name: "Second" }],
+    };
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <ReplacementDock value={configured} t={makeT("en")} onChange={onChange} />,
+    );
+    fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "Draft" } });
+    rerender(
+      <ReplacementDock
+        value={{ ...configured, enabled: true }}
+        t={makeT("en")}
+        onChange={onChange}
+        status={{
+          epoch: 5,
+          revision: 2,
+          enabled: true,
+          status: "ready",
+          reason: "",
+          recoveryLatched: false,
+          displays: [],
+          clockPackageID: "org.optiontab.clock",
+          clockDigest: "digest-final",
+        }}
+      />,
+    );
+    expect(screen.getByLabelText("Profile name")).toHaveValue("Draft");
+    fireEvent.change(screen.getByLabelText("Profile"), { target: { value: "second" } });
+    expect(screen.getByLabelText("Profile name")).toHaveValue("Second");
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("clears an invalid delete replacement when the selected profile changes", () => {

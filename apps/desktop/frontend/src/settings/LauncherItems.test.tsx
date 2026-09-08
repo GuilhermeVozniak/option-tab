@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { makeT } from "../lib/i18n";
+import type { LauncherItemStatus } from "../lib/types";
 import type { LauncherItemSettingsActions } from "./LauncherItems";
 import { LauncherItems } from "./LauncherItems";
 
@@ -35,6 +36,197 @@ function actions(): LauncherItemSettingsActions {
 }
 
 describe("LauncherItems", () => {
+  it.each([
+    "availability",
+    "busy completion",
+    "profile persistence",
+  ] as const)("recovers the saved draft after an initial rejected read on %s", async (recovery) => {
+    const a = actions();
+    const iconID = "d".repeat(64);
+    const initial =
+      recovery === "busy completion" ? { available: true, busy: true, reason: "" } : undefined;
+    let publish = (_status: LauncherItemStatus) => {};
+    a.status = () => new Promise(() => {});
+    a.subscribe = (listener) => {
+      publish = listener;
+      return () => {};
+    };
+    const initialError =
+      recovery === "profile persistence"
+        ? "launcher items: profileMissing"
+        : "launcher items: unavailable";
+    a.load = vi
+      .fn()
+      .mockRejectedValueOnce(new Error(initialError))
+      .mockResolvedValue({
+        profileID: "work",
+        revision: "saved-revision",
+        references: [],
+        iconIDs: [iconID],
+        items: [
+          { id: "guide", kind: "link", label: "Saved guide", url: "https://example.com", iconID },
+        ],
+      });
+    a.getIcon = async (id) => ({ id, dataURL: "data:image/png;base64,AA==" });
+    const t = makeT("en");
+    const { rerender } = render(
+      <LauncherItems profileID="work" actions={a} status={initial} refreshKey={1} t={t} />,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(initialError);
+    expect(screen.getByRole("button", { name: "Add application" })).toBeDisabled();
+    if (recovery === "availability") {
+      act(() => publish({ available: false, busy: false, reason: "" }));
+    }
+    if (recovery === "profile persistence") {
+      rerender(
+        <LauncherItems profileID="work" actions={a} status={initial} refreshKey={2} t={t} />,
+      );
+    } else {
+      act(() => publish({ available: true, busy: false, reason: "" }));
+    }
+    await screen.findByText("Saved guide");
+    expect(await screen.findByAltText("Custom icon")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "Add application" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Save launcher items" }));
+    await waitFor(() =>
+      expect(a.save).toHaveBeenCalledWith("work", "saved-revision", [
+        { id: "guide", kind: "link", label: "Saved guide", url: "https://example.com", iconID },
+      ]),
+    );
+  });
+  it("preserves an unsaved draft when a completed chooser refreshes metadata", async () => {
+    const a = actions();
+    let publish = (_status: LauncherItemStatus) => {};
+    a.status = () => new Promise(() => {});
+    a.subscribe = (listener) => {
+      publish = listener;
+      return () => {};
+    };
+    a.load = vi
+      .fn()
+      .mockResolvedValueOnce({
+        profileID: "work",
+        revision: "draft-base",
+        iconIDs: [],
+        references: [],
+        items: [{ id: "guide", kind: "link", label: "Saved guide", url: "https://example.com" }],
+      })
+      .mockResolvedValue({
+        profileID: "work",
+        revision: "new-revision",
+        iconIDs: [],
+        items: [],
+        references: [
+          {
+            id: "e".repeat(32),
+            kind: "file",
+            label: "New selection",
+            bundleID: "",
+            state: "ready",
+            reason: "",
+            revision: 1,
+          },
+        ],
+      });
+    const t = makeT("en");
+    const { rerender } = render(
+      <LauncherItems profileID="work" actions={a} refreshKey={1} t={t} />,
+    );
+    await screen.findByText("Saved guide");
+    fireEvent.click(screen.getByRole("button", { name: "Add spacer" }));
+    rerender(<LauncherItems profileID="work" actions={a} refreshKey={2} t={t} />);
+    act(() => publish({ available: false, busy: false, reason: "" }));
+    act(() => publish({ available: true, busy: false, reason: "" }));
+    act(() => publish({ available: true, busy: true, reason: "" }));
+    act(() => publish({ available: true, busy: false, reason: "" }));
+    await screen.findByRole("button", { name: "Remove unused reference" });
+    expect(screen.getAllByTestId("launcher-item")).toHaveLength(2);
+    expect(screen.getByText("Saved guide")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Save launcher items" }));
+    await waitFor(() =>
+      expect(a.save).toHaveBeenCalledWith("work", "draft-base", [
+        { id: "guide", kind: "link", label: "Saved guide", url: "https://example.com" },
+        expect.objectContaining({ kind: "spacer" }),
+      ]),
+    );
+  });
+  it("ignores a late failed read after a newer profile snapshot succeeds", async () => {
+    const a = actions();
+    let rejectInitial = (_error: Error) => {};
+    a.load = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectInitial = reject;
+          }),
+      )
+      .mockResolvedValue({
+        profileID: "work",
+        revision: "saved",
+        iconIDs: [],
+        references: [],
+        items: [{ id: "guide", kind: "link", label: "Saved guide", url: "https://example.com" }],
+      });
+    const t = makeT("en");
+    const { rerender } = render(
+      <LauncherItems profileID="work" actions={a} refreshKey={1} t={t} />,
+    );
+    rerender(<LauncherItems profileID="work" actions={a} refreshKey={2} t={t} />);
+    await screen.findByText("Saved guide");
+    await act(async () => rejectInitial(new Error("launcher items: profileMissing")));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("Saved guide")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add application" })).toBeEnabled();
+  });
+  it("keeps local additions pending until the saved snapshot loads without losing typed link fields", async () => {
+    const a = actions();
+    let rejectInitial = (_error: Error) => {};
+    a.load = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectInitial = reject;
+          }),
+      )
+      .mockResolvedValue({
+        profileID: "work",
+        revision: "saved",
+        iconIDs: [],
+        references: [],
+        items: [{ id: "guide", kind: "link", label: "Saved guide", url: "https://example.com" }],
+      });
+    const t = makeT("en");
+    const { rerender } = render(
+      <LauncherItems profileID="work" actions={a} refreshKey={1} t={t} />,
+    );
+    fireEvent.change(screen.getByLabelText("Link label"), { target: { value: "Typed guide" } });
+    fireEvent.change(screen.getByLabelText("Web address"), {
+      target: { value: "https://example.com/typed" },
+    });
+    for (const name of ["Add spacer", "Add separator", "Add link"]) {
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name }));
+    }
+    await act(async () => rejectInitial(new Error("launcher items: unavailable")));
+    expect(screen.getByRole("alert")).toHaveTextContent("launcher items: unavailable");
+    for (const name of ["Add spacer", "Add separator", "Add link"]) {
+      expect(screen.getByRole("button", { name })).toBeDisabled();
+    }
+    rerender(<LauncherItems profileID="work" actions={a} refreshKey={2} t={t} />);
+    await screen.findByText("Saved guide");
+    expect(screen.getByLabelText("Link label")).toHaveValue("Typed guide");
+    expect(screen.getByLabelText("Web address")).toHaveValue("https://example.com/typed");
+    for (const name of ["Add spacer", "Add separator", "Add link"]) {
+      expect(screen.getByRole("button", { name })).toBeEnabled();
+      fireEvent.click(screen.getByRole("button", { name }));
+    }
+    expect(screen.getAllByTestId("launcher-item")).toHaveLength(4);
+    expect(screen.getByText("Saved guide")).toBeInTheDocument();
+    expect(screen.getByText("Typed guide")).toBeInTheDocument();
+  });
   it("adds every supported item class without opening anything until an explicit chooser", async () => {
     const a = actions();
     render(<LauncherItems profileID="work" actions={a} t={makeT("en")} />);
@@ -163,7 +355,8 @@ describe("LauncherItems", () => {
         status={{ available: true, busy: true, reason: "" }}
       />,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Remove unused reference" }));
+    const removeUnused = await screen.findByRole("button", { name: "Remove unused reference" });
+    await act(async () => fireEvent.click(removeUnused));
     expect(a.removeReference).toHaveBeenCalledWith("e".repeat(32));
     fireEvent.click(screen.getByRole("button", { name: "Cancel selection" }));
     expect(a.cancelSelection).toHaveBeenCalled();

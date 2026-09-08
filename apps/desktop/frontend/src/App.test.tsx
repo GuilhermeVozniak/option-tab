@@ -1333,7 +1333,9 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Dock" }));
     const name = screen.getByLabelText("Profile name");
     fireEvent.change(name, { target: { value: "First stale draft" } });
+    fireEvent.blur(name);
     fireEvent.change(name, { target: { value: "Second stale draft" } });
+    fireEvent.blur(name);
     await waitFor(() => expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(1));
     expect(mocked.SaveSettingsAtRevision.mock.calls[0][1]).toBe(8);
     await act(async () => {
@@ -1360,12 +1362,14 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("tab", { name: "Dock" }));
     const loadsBefore = mocked.GetSettingsState.mock.calls.length;
     fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "Old draft" } });
+    fireEvent.blur(screen.getByLabelText("Profile name"));
     await waitFor(() => expect(mocked.GetSettingsState).toHaveBeenCalledTimes(loadsBefore + 1));
     const savesDuringRecovery = mocked.SaveSettingsAtRevision.mock.calls.length;
     expect(screen.getByLabelText("Profile name")).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Profile name"), {
       target: { value: "Must not overwrite" },
     });
+    fireEvent.blur(screen.getByLabelText("Profile name"));
     expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(savesDuringRecovery);
     const winner = {
       ...initial,
@@ -1444,6 +1448,7 @@ describe("App", () => {
     render(<App />);
     fireEvent.click(await screen.findByRole("tab", { name: "Dock" }));
     fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "Changed" } });
+    fireEvent.blur(screen.getByLabelText("Profile name"));
     const file = new File(["{}"], "profile.json", { type: "application/json" });
     fireEvent.change(screen.getByLabelText("Import profile file"), { target: { files: [file] } });
     fireEvent.click(await screen.findByRole("button", { name: "Import reviewed profile" }));

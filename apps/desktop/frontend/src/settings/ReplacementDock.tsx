@@ -19,6 +19,62 @@ import { type LauncherItemSettingsActions, LauncherItems } from "./LauncherItems
 import { LauncherProfileTransfer } from "./LauncherProfileTransfer";
 import { HINT, ROW } from "./shared";
 
+function ProfileNameInput({
+  value,
+  t,
+  onCommit,
+}: {
+  value: string;
+  t: Translate;
+  onCommit: (name: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const dirty = useRef(false);
+  useEffect(() => {
+    setDraft(value);
+    dirty.current = false;
+  }, [value]);
+  const restore = () => {
+    dirty.current = false;
+    setDraft(value);
+  };
+  const commit = () => {
+    if (!dirty.current) return;
+    if (!draft || Array.from(draft).length > 80) {
+      restore();
+      return;
+    }
+    dirty.current = false;
+    if (draft !== value) onCommit(draft);
+  };
+  return (
+    <label>
+      <span>{t("Profile name")}</span>
+      <Input
+        aria-label="Profile name"
+        maxLength={80}
+        value={draft}
+        onChange={(event) => {
+          dirty.current = true;
+          setDraft(event.target.value);
+        }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          // Older WebKit ends composition before delivering its confirming Enter.
+          if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            restore();
+          }
+        }}
+      />
+    </label>
+  );
+}
+
 export function ReplacementDock({
   value,
   t,
@@ -206,15 +262,12 @@ export function ReplacementDock({
           ) : null}
         </div>
         {profile ? (
-          <label>
-            <span>{t("Profile name")}</span>
-            <Input
-              aria-label="Profile name"
-              maxLength={80}
-              value={profile.name}
-              onChange={(event) => patchProfile({ name: event.target.value })}
-            />
-          </label>
+          <ProfileNameInput
+            key={`name-${profile.id}`}
+            value={profile.name}
+            t={t}
+            onCommit={(name) => patchProfile({ name })}
+          />
         ) : null}
         {profile && profileTransfer ? (
           <LauncherProfileTransfer
@@ -258,6 +311,7 @@ export function ReplacementDock({
             profileID={profile.id}
             t={t}
             actions={itemActions}
+            refreshKey={status?.epoch}
           />
         ) : null}
         {profile ? (

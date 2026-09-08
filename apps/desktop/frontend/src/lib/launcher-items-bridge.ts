@@ -23,6 +23,7 @@ export const launcherItemSettings = {
     AppService.RelinkLauncherItemReference(id) as Promise<LauncherReferenceView>,
   cancelSelection: () => AppService.CancelLauncherItemSelection(),
   chooseIcon: () => AppService.ChooseLauncherItemIcon() as Promise<LauncherItemIcon>,
+  getIcon: (id: string) => AppService.GetLauncherItemIcon(id) as Promise<LauncherItemIcon>,
   removeReference: (id: string) => AppService.RemoveUnusedLauncherReference(id),
   removeIcon: (id: string) => AppService.RemoveUnusedLauncherIcon(id),
   status: () => AppService.GetLauncherItemStatus() as Promise<LauncherItemStatus>,

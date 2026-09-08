@@ -41,3 +41,20 @@ Two test-only tools support native acceptance. The controlled badge fixture chan
 The isolated badge run on macOS 26.6.2 arm64 established known count 7, known indicator and removal clearing to unavailable with no kind/count through the actual production source. It did not establish known absence or zero. The test requires fresh phase observations and exact fixture identity, and its observer, owned process and protocol cleanup joined. Foundation shortened the fixture path through a macOS filesystem alias; the test driver now preserves the native path while independently resolving it to the owned bundle. Production behavior was unchanged. Live launcher rendering, permission recovery, other applications and displays remain unverified.
 
 An isolated packaged Wails probe on the same OS reached native-panel readiness and expired after 15 seconds with zero gesture or committed-input events. Panel, gesture worker and environment cleanup joined before the owned process exited. A prior attempt refused display readiness before creating a panel; its cause remains unproven, and the probe now records coarse readiness diagnostics. This establishes startup/retirement of the test host, not physical input, key-mode behavior, foreground preservation or production launcher rendering.
+
+## Native Settings acceptance update
+
+Hands-on Settings testing exposed four integration issues, now covered by focused regressions:
+
+- Launcher items retry a missing initial snapshot when hidden preferences become available or a successfully configured profile publishes a new launcher epoch. Loaded drafts and their save revision remain intact.
+- Profile names remain local drafts until blur or Enter commits a valid name. Empty edits and Escape restore the current name; IME composition and WebKit's composition-confirming key code do not commit or intercept Enter.
+- The real Settings bridge now loads persisted custom icons, matching the component's existing icon support.
+- Cancelling a native item/reference/icon chooser leaves the draft unchanged without an error. Cancelled writes and other failures still report errors.
+
+The fresh desktop unit suite passes all 439 tests, the clean arm64 app builds with a macOS 14 minimum, and independent review found no remaining issue in these changes. All 30 targeted Chromium checks pass for Settings, profile transfer and launcher behavior. The first browser attempt could not launch because the pinned browser was absent; installing that test dependency allowed the unchanged checks to run.
+
+The clean local app exposed available item controls at startup. A saved test folder survived an app restart, and chooser Cancel produced no error. Renaming the second profile passed in the probe build. The test profile and unused test reference were subsequently removed through the UI.
+
+Diagnostics new-file Save and Cancel passed earlier native checks. A traced attempt to overwrite an existing file correctly refused the destination, showed the translated error, re-enabled the controls and preserved the file's SHA checksum. The earlier reported busy state was not reproduced; this is not evidence of a busy-state fix.
+
+The new binary still reports denied Accessibility and Screen Recording permissions. Broader physical input, preview, display and permission acceptance gates remain unchanged. This Settings checkpoint does not establish completion of the retained feature scope or create a release.

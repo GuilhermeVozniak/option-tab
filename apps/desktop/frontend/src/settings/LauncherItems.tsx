@@ -34,12 +34,14 @@ export function LauncherItems({
   profileID,
   actions = launcherItemSettings,
   status: initialStatus,
+  refreshKey,
   t,
   onSaved,
 }: {
   profileID: string;
   actions?: LauncherItemSettingsActions;
   status?: LauncherItemStatus;
+  refreshKey?: number;
   t: Translate;
   onSaved?: (items: LauncherItem[]) => void;
 }) {
@@ -54,8 +56,10 @@ export function LauncherItems({
     [members, setMembers] = useState<string[]>([]),
     [icons, setIcons] = useState<Record<string, LauncherItemIcon>>({});
   const loadEpoch = useRef(0);
+  const loadRequest = useRef(0);
   const operationEpoch = useRef(0);
   const transientIcons = useRef(new Set<string>());
+  const snapshotLoaded = useRef(false);
   const wasBusy = useRef(initialStatus?.busy ?? false);
   useEffect(() => {
     if (!actions.status || !actions.subscribe) return;
@@ -73,18 +77,36 @@ export function LauncherItems({
     };
   }, [actions]);
   useEffect(() => {
-    const epoch = ++loadEpoch.current;
+    loadEpoch.current++;
     operationEpoch.current++;
+    snapshotLoaded.current = false;
     setSnapshot(null);
     setItems([]);
     setError("");
     transientIcons.current.clear();
+    return () => {
+      loadEpoch.current++;
+      operationEpoch.current++;
+    };
+  }, [profileID, actions]);
+  useEffect(() => {
+    const completed = wasBusy.current && status?.busy === false;
+    wasBusy.current = status?.busy ?? false;
+    // The hidden settings webview can mount before preferences admit reads.
+    // Retry its first snapshot when admission or a saved profile returns,
+    // without resetting a draft.
+    if (status?.available === false || (snapshotLoaded.current && !completed)) return;
+    const epoch = loadEpoch.current;
+    const request = ++loadRequest.current;
     void actions
       .load(profileID)
       .then((next) => {
-        if (epoch === loadEpoch.current) {
+        if (request !== loadRequest.current || epoch !== loadEpoch.current) return;
+        if (!snapshotLoaded.current) {
+          snapshotLoaded.current = true;
           setSnapshot(next);
           setItems(next.items ?? []);
+          setError("");
           for (const id of new Set(
             (next.items ?? []).flatMap((item) => (item.iconID ? [item.iconID] : [])),
           )) {
@@ -95,39 +117,33 @@ export function LauncherItems({
               })
               .catch(() => {});
           }
+        } else {
+          // A completed chooser refreshes private metadata, retaining the draft
+          // and its base revision until the user explicitly saves it.
+          setSnapshot((old) =>
+            old ? { ...old, references: next.references, iconIDs: next.iconIDs } : next,
+          );
         }
       })
       .catch((e) => {
-        if (epoch === loadEpoch.current) setError(String(e instanceof Error ? e.message : e));
+        if (
+          request === loadRequest.current &&
+          epoch === loadEpoch.current &&
+          !snapshotLoaded.current
+        )
+          setError(String(e instanceof Error ? e.message : e));
       });
-    return () => {
-      loadEpoch.current++;
-      operationEpoch.current++;
-    };
-  }, [profileID, actions]);
-  useEffect(() => {
-    const completed = wasBusy.current && status?.busy === false;
-    wasBusy.current = status?.busy ?? false;
-    if (!completed) return;
-    const epoch = loadEpoch.current;
-    void actions
-      .load(profileID)
-      .then((next) => {
-        if (epoch !== loadEpoch.current) return;
-        // A background chooser may change private references and icons. Refresh
-        // that metadata without replacing the user's unsaved item draft.
-        setSnapshot((old) =>
-          old ? { ...old, references: next.references, iconIDs: next.iconIDs } : next,
-        );
-      })
-      .catch(() => {});
-  }, [actions, profileID, status?.busy]);
+  }, [actions, profileID, status?.available, status?.busy, refreshKey]);
   const refs = useMemo(
     () => new Map((snapshot?.references ?? []).map((r) => [r.id, r])),
     [snapshot],
   );
   const usedRefs = new Set(items.flatMap((x) => (x.referenceID ? [x.referenceID] : [])));
-  const run = async <T,>(fn: () => Promise<T>, done: (v: T) => void) => {
+  const run = async <T,>(
+    fn: () => Promise<T>,
+    done: (v: T) => void,
+    kind: "selection" | "update" = "update",
+  ) => {
     const epoch = operationEpoch.current;
     setWorking(true);
     setError("");
@@ -135,7 +151,14 @@ export function LauncherItems({
       const value = await fn();
       if (epoch === operationEpoch.current) done(value);
     } catch (e) {
-      if (epoch === operationEpoch.current) setError(String(e instanceof Error ? e.message : e));
+      const message = String(e instanceof Error ? e.message : e);
+      // Native chooser Cancel is returned through Wails as Go context.Canceled.
+      // It leaves the draft unchanged; cancelled writes still need an error.
+      if (
+        epoch === operationEpoch.current &&
+        !(kind === "selection" && message === "context canceled")
+      )
+        setError(message);
     } finally {
       if (epoch === operationEpoch.current) setWorking(false);
     }
@@ -171,6 +194,7 @@ export function LauncherItems({
           },
         ]);
       },
+      "selection",
     );
   const move = (index: number, by: number) => {
     const next = [...items],
@@ -209,7 +233,7 @@ export function LauncherItems({
         </Button>
         <Button
           type="button"
-          disabled={full}
+          disabled={!snapshot || full}
           onClick={() =>
             setItems((x) => [...x, { id: newID("spacer"), kind: "spacer", label: "" }])
           }
@@ -218,7 +242,7 @@ export function LauncherItems({
         </Button>
         <Button
           type="button"
-          disabled={full}
+          disabled={!snapshot || full}
           onClick={() =>
             setItems((x) => [...x, { id: newID("separator"), kind: "separator", label: "" }])
           }
@@ -245,7 +269,7 @@ export function LauncherItems({
         />
         <Button
           type="button"
-          disabled={!linkLabel || !linkURL || full}
+          disabled={!snapshot || !linkLabel || !linkURL || full}
           onClick={() => {
             setItems((x) => [
               ...x,
@@ -341,6 +365,7 @@ export function LauncherItems({
                                   ),
                                 );
                               },
+                              "selection",
                             )
                           : run(
                               () => actions.relinkReference(ref.id),
@@ -355,6 +380,7 @@ export function LauncherItems({
                                       }
                                     : old,
                                 ),
+                              "selection",
                             ))
                       }
                     >
@@ -388,6 +414,7 @@ export function LauncherItems({
                                 old.map((i) => (i.id === x.id ? { ...i, iconID: v.id } : i)),
                               );
                             },
+                            "selection",
                           )
                         }
                       >
