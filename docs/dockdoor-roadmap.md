@@ -150,6 +150,8 @@ H15 adds per-profile gesture reduction, selection haptics and explicit keyboard-
 
 The controlled H16 fixture has verified actual source count/indicator changes and clearing to unavailable on macOS 26.6.2 arm64, with exact identity and joined cleanup. Known absence, live launcher rendering, permission recovery and the broader display/application matrix remain unverified; H16 stays open for that acceptance.
 
+A packaged H15 port probe reached native/Wails readiness and joined cleanup in a bounded run with no input. Physical gestures, keyboard mode and focus preservation remain unverified; H15 stays open.
+
 ## Current input checkpoint
 
 D09–D14 implementation and C04 card spacing are available on the feature branch. Automated suites and disposable native role/action fixtures pass; physical gesture and off-panel drag acceptance remain open. See the [input/drag checkpoint report](superpowers/reports/2026-09-06-dock-input-and-preview-drag.md) for behavior, evidence and exact limitations. The roadmap's unchecked items are not promises of universal AX or device support.

@@ -25,6 +25,10 @@ import (
 )
 
 type (
+	readinessDiagnostic struct {
+		Complete, StatusReady, AnyDisplays, RequestedDisplayPresent bool
+		SpaceKnown, OrdinarySpace, NonzeroSpace, DockKnown          bool
+	}
 	request struct {
 		kind    string
 		enabled bool
@@ -123,12 +127,34 @@ func main() {
 				fmt.Println("REFUSED environment")
 				return
 			}
+			ax := native.Accessibility()
+			var diagnostic atomic.Pointer[readinessDiagnostic]
+			var observerReturned, observerFailed atomic.Bool
+			reportReadiness := func() {
+				d := diagnostic.Load()
+				seen := d != nil
+				if d == nil {
+					d = &readinessDiagnostic{}
+				}
+				fmt.Printf("READINESS axKnown=%t axGranted=%t sampleSeen=%t complete=%t statusReady=%t anyDisplays=%t requestedDisplayPresent=%t spaceKnown=%t ordinarySpace=%t nonzeroSpace=%t dockKnown=%t observerReturned=%t observerFailed=%t contextCancelled=%t\n", ax != platform.PermUnknown, ax == platform.PermGranted, seen, d.Complete, d.StatusReady, d.AnyDisplays, d.RequestedDisplayPresent, d.SpaceKnown, d.OrdinarySpace, d.NonzeroSpace, d.DockKnown, observerReturned.Load(), observerFailed.Load(), ctx.Err() != nil)
+			}
 			envReady := make(chan platform.LauncherDisplay, 1)
 			envDone := make(chan struct{})
 			watchCtx, watchCancel := context.WithCancel(ctx)
 			go func() {
 				defer close(envDone)
-				_ = source.ObserveLauncherEnvironment(watchCtx, func(e platform.LauncherEnvironment) {
+				observeErr := source.ObserveLauncherEnvironment(watchCtx, func(e platform.LauncherEnvironment) {
+					diag := &readinessDiagnostic{Complete: e.Complete, StatusReady: e.Status == "ready", AnyDisplays: len(e.Displays) != 0, DockKnown: e.NativeDock.Confidence == "known"}
+					for _, candidate := range e.Displays {
+						if candidate.UUID == *display {
+							diag.RequestedDisplayPresent = true
+							diag.SpaceKnown = candidate.SpaceStatus == "known"
+							diag.OrdinarySpace = candidate.SpaceKind == "ordinary"
+							diag.NonzeroSpace = candidate.SpaceID != 0
+							break
+						}
+					}
+					diagnostic.Store(diag)
 					var found *platform.LauncherDisplay
 					if e.NativeDock.Confidence == "known" {
 						dock := e.NativeDock.Bounds
@@ -162,6 +188,8 @@ func main() {
 						}
 					}
 				})
+				observerFailed.Store(observeErr != nil && watchCtx.Err() == nil)
+				observerReturned.Store(true)
 				cancel()
 			}()
 			defer func() { watchCancel(); <-envDone; fmt.Println("CLEANUP environmentJoined=true") }()
@@ -170,9 +198,11 @@ func main() {
 			case d = <-envReady:
 			case <-ctx.Done():
 				fmt.Println("REFUSED ordinary display")
+				reportReadiness()
 				return
 			case <-time.After(5 * time.Second):
 				fmt.Println("REFUSED display readiness")
+				reportReadiness()
 				return
 			}
 			p.bound.Store(&d)

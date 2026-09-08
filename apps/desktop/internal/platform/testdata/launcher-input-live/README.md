@@ -1,4 +1,4 @@
-# Manual launcher-input port probe — prepared, never automatically run
+# Manual launcher-input port probe
 
 This test-only Wails app uses a real hidden host and production LauncherPanel,
 LauncherGestureSource, and LauncherKeyboardSource. It is deliberately an interior
@@ -40,6 +40,8 @@ cancels when its identity, bounds, scale or Space changes, becomes unknown, or
 observation is unavailable/stale. A positively observed native Dock overlap also refuses/cancels the interior surface. Native physical panel admission is also checked
 before policy setup and every250ms. A missing permission/unsupported display/failed
 Wails readiness prints coarse REFUSED and cleans up; it never requests consent.
+Readiness refusals include initial Accessibility status and the latest display,
+Space, Dock and observer-state booleans, without identifiers or raw error details.
 
 1. Wait for `READY portProbe=true ...`; confirm the visible surface is unobtrusive.
 2. Manually scroll, pinch and swipe inside it. Output reports packet counts only.
@@ -69,3 +71,9 @@ or justify turning on currently gated public capabilities by itself.
 Focus preservation is **unverified** by this probe and is reported explicitly in its READY marker. The existing `ActiveApp` source intentionally substitutes the previous external application when this process is foreground, so it cannot prove foreground preservation. No new foreground observer is installed. During a separately coordinated manual run, record human observations of the foreground application before Show, after entering keyboard mode, after leaving/blur, and after cleanup; do not infer restoration from key permission or the cleanup marker. The probe never activates or restores another application.
 
 Gesture counters require exact native gesture-token validation, current context/display admission, and fresh physical panel validation. Every fetched packet is acknowledged even when admission refuses it.
+
+## Observed lifecycle — 2026-09-08
+
+An isolated packaged run on macOS 26.6.2 arm64 used the current main display and a 15-second lifetime, with no input supplied. It reached the Wails/native-panel READY marker, recorded zero gesture and committed-input events, and reported joined panel, gesture and environment cleanup before exiting. An earlier attempt refused display readiness and joined its observer before creating a panel; that initial cause remains unproven. No permission request or setting change was made.
+
+This verifies the probe's native startup/retirement path on that run. Physical gesture delivery, keyboard-mode entry, committed text, focus preservation and production launcher rendering remain unverified.
