@@ -37,6 +37,21 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   SelectAppWindow: vi.fn().mockResolvedValue(undefined),
   ConfirmApp: vi.fn().mockResolvedValue(undefined),
   GetDockState: vi.fn().mockResolvedValue(null),
+  GetDockMonitorLockState: vi.fn().mockResolvedValue({
+    session: 0,
+    revision: 0,
+    generation: 0,
+    sequence: 0,
+    observedAtMs: 0,
+    status: "disabled",
+    reason: "",
+    targetUUID: "",
+    actualUUID: "",
+    edge: "",
+    displays: [],
+    placementAvailable: false,
+  }),
+  GetDockMonitorLockDisplays: vi.fn().mockResolvedValue([]),
   SelectDockWindow: vi.fn().mockResolvedValue(undefined),
   FocusDockWindow: vi.fn().mockResolvedValue({ succeeded: 1, failures: [] }),
   PerformDockAction: vi.fn().mockResolvedValue({ succeeded: 1, failures: [] }),
@@ -122,8 +137,82 @@ import * as AppService from "../bindings/option-tab/app.js";
 import App from "./App";
 import { resetBackendProbeForTests } from "./lib/bridge";
 import { defaultSettings } from "./lib/types";
+import type { WidgetCatalogDescriptor } from "./lib/widget-types";
 
 const mocked = vi.mocked(AppService);
+
+it.each([
+  "installation",
+  "failed removal",
+] as const)("reloads disabled widget grants after package %s changes canonical settings", async (operation) => {
+  window.location.hash = "#settings";
+  const pkg: WidgetCatalogDescriptor = {
+    packageID: "org.example.status",
+    digest: "f".repeat(64),
+    version: "1.0.0",
+    name: { en: "Status card" },
+    description: { en: "Local status" },
+    requiredCapabilities: ["network.status.read"],
+    optionalCapabilities: [],
+    settings: [],
+    builtin: false,
+  };
+  const initial = structuredClone(defaultSettings);
+  initial.behavior.onboarded = true;
+  initial.replacementDock.profiles[0].widgets = [
+    {
+      id: "status",
+      packageID: pkg.packageID,
+      digest: pkg.digest,
+      enabled: true,
+      grants: ["network.status.read"],
+    },
+  ];
+  let stored = { revision: 1, json: JSON.stringify(initial) };
+  let installed = operation === "failed removal";
+  mocked.GetSettingsState.mockReset().mockImplementation(() => Promise.resolve(stored) as never);
+  mocked.GetWidgetCatalog.mockImplementation(
+    () => Promise.resolve(installed ? [pkg] : []) as never,
+  );
+  mocked.GetWidgetPackageStatus.mockResolvedValue({ available: true, busy: false, reason: "" });
+  mocked.ReviewLocalWidgetPackage.mockResolvedValue({
+    token: "review",
+    sourceName: "status.otwidget",
+    package: pkg,
+    expiresAt: "2030-01-01T00:00:00Z",
+    alreadyInstalled: false,
+  } as never);
+  const revoke = () => {
+    const next = structuredClone(initial);
+    next.replacementDock.profiles[0].widgets[0].enabled = false;
+    next.replacementDock.profiles[0].widgets[0].grants = [];
+    stored = { revision: 2, json: JSON.stringify(next) };
+  };
+  mocked.InstallReviewedWidget.mockReset().mockImplementation(() => {
+    revoke();
+    installed = true;
+    return Promise.resolve(pkg) as never;
+  });
+  mocked.RemoveWidgetPackage.mockReset().mockImplementation(() => {
+    revoke();
+    return Promise.reject(new Error("package removal failed")) as never;
+  });
+  render(<App />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  expect(
+    screen.getByLabelText(installed ? "Enable Status card" : "Enable org.example.status"),
+  ).toBeChecked();
+  if (operation === "installation") {
+    fireEvent.click(screen.getByRole("button", { name: "Review local package…" }));
+    await screen.findByText("status.otwidget");
+    fireEvent.click(screen.getByRole("button", { name: "Install reviewed package" }));
+  } else fireEvent.click(screen.getByRole("button", { name: "Remove package" }));
+  await waitFor(() => expect(screen.getByLabelText("Enable Status card")).not.toBeChecked());
+  expect(screen.getByLabelText("Required · Network status")).not.toBeChecked();
+  if (operation === "failed removal")
+    expect(screen.getByRole("alert")).toHaveTextContent("package removal failed");
+});
 
 beforeEach(() => {
   eventHandlers.clear();
@@ -173,7 +262,7 @@ it("loads exact launcher app choices only for the settings editor", async () => 
   render(<App />);
   await act(async () => {});
   fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
-  fireEvent.click(screen.getByRole("button", { name: "Add focus rule" }));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Add focus rule" })));
   expect(mocked.GetLauncherAppChoices).toHaveBeenCalledTimes(1);
   expect(mocked.GetWidgetCatalog).toHaveBeenCalledTimes(1);
   expect(mocked.GetWidgetPackageStatus).toHaveBeenCalledTimes(1);

@@ -37,6 +37,42 @@ function actions(): LauncherItemSettingsActions {
 
 describe("LauncherItems", () => {
   it.each([
+    ["needsSelection", "en", "Select again in Settings"],
+    ["needsSelection", "pt-BR", "Selecione novamente nos Ajustes"],
+    ["accessRequired", "es", "Selecciona de nuevo en Ajustes"],
+    ["unknownInternalState", "en", "Item unavailable"],
+  ] as const)("shows product wording for reference status %s in %s", async (state, language, expected) => {
+    const a = actions();
+    a.load = vi.fn().mockResolvedValue({
+      profileID: "work",
+      revision: "r1",
+      iconIDs: [],
+      items: [
+        {
+          id: "folder",
+          kind: "folder",
+          label: "Docs",
+          referenceID: "f".repeat(32),
+          folderView: "list",
+        },
+      ],
+      references: [
+        {
+          id: "f".repeat(32),
+          kind: "folder",
+          label: "Docs",
+          bundleID: "",
+          state,
+          reason: "",
+          revision: 1,
+        },
+      ],
+    });
+    render(<LauncherItems profileID="work" actions={a} t={makeT(language)} />);
+    expect(await screen.findByText(expected)).toBeVisible();
+    expect(screen.queryByText(state)).toBeNull();
+  });
+  it.each([
     "availability",
     "busy completion",
     "profile persistence",
@@ -321,7 +357,7 @@ describe("LauncherItems", () => {
       revision: 2,
     });
     render(<LauncherItems profileID="work" actions={a} t={makeT("en")} />);
-    await screen.findByText("missing");
+    await screen.findByText("Missing — relink in Settings");
     fireEvent.click(screen.getByRole("button", { name: "Relink" }));
     await waitFor(() => expect(a.relinkReference).toHaveBeenCalledWith("f".repeat(32)));
     fireEvent.click(screen.getByRole("button", { name: "Choose custom icon" }));

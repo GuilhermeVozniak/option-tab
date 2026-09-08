@@ -29,6 +29,7 @@ import {
 } from "./lib/dock-bridge";
 import { dockLock } from "./lib/dock-lock-bridge";
 import { makeT, resolveLang } from "./lib/i18n";
+import { saveSettingsExport } from "./lib/json-export-bridge";
 import { launcherBadges } from "./lib/launcher-badge-bridge";
 import {
   launcher,
@@ -384,6 +385,31 @@ function useSettingsModel() {
     queue.current = imported.catch(() => {});
     return imported;
   }, []);
+  // Export reads canonical backend data, so it must wait for earlier edits to
+  // save and retain the same settings authority. It never reloads or mutates
+  // settings when a native save dialog is cancelled.
+  const withSavedSettings = useCallback(<T,>(operation: () => Promise<T>): Promise<T> => {
+    if (admissionBlocked.current)
+      return Promise.reject(new Error("Settings are still refreshing."));
+    const owner = authorityEpoch.current;
+    ++pendingImports.current;
+    setImporting(true);
+    const result = queue.current
+      .then(() => {
+        if (!mounted.current || owner !== authorityEpoch.current || admissionBlocked.current)
+          throw new Error("Settings changed before this export could start.");
+        return operation();
+      })
+      .finally(() => {
+        --pendingImports.current;
+        if (mounted.current) setImporting(pendingImports.current > 0);
+      });
+    queue.current = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }, []);
   const mutateSettings = useCallback(
     <T,>(
       operation: () => Promise<T>,
@@ -481,6 +507,7 @@ function useSettingsModel() {
     settings,
     onChange,
     onImport,
+    withSavedSettings,
     mutateSettings,
     saveError,
     importing: importing || refreshing,
@@ -1243,6 +1270,7 @@ function SettingsRoute() {
     settings,
     onChange,
     onImport,
+    withSavedSettings,
     mutateSettings,
     saveError,
     importing,
@@ -1458,6 +1486,8 @@ function SettingsRoute() {
   const launcherProfileActions = useMemo(
     () => ({
       ...launcherProfileTransfer,
+      exportProfile: (profileID: string) =>
+        withSavedSettings(() => launcherProfileTransfer.exportProfile(profileID)),
       importProfile: (document: string, digest: string, expectedRevision: string) =>
         mutateSettings(
           async () => {
@@ -1478,7 +1508,7 @@ function SettingsRoute() {
           (_current, result) => result.canonical,
         ),
     }),
-    [mutateSettings],
+    [mutateSettings, withSavedSettings],
   );
 
   return (
@@ -1497,6 +1527,7 @@ function SettingsRoute() {
           settings={settings}
           onChange={onChange}
           onImport={onImport}
+          onExport={() => withSavedSettings(saveSettingsExport)}
           saveError={saveError}
           permissions={perms}
           about={about}
@@ -1536,7 +1567,10 @@ function SettingsRoute() {
                 .catch((error) =>
                   setMediaPermissions((old) => ({
                     ...old,
-                    [provider]: { status: "unavailable", reason: String(error) },
+                    [provider]: {
+                      status: "unavailable",
+                      reason: error instanceof Error ? error.message : String(error),
+                    },
                   })),
                 );
             },
@@ -1562,9 +1596,9 @@ function SettingsRoute() {
               status: widgetPackageStatus,
               actions: {
                 review: launcher.reviewPackage,
-                install: launcher.installPackage,
+                install: (token) => mutateSettings(() => launcher.installPackage(token)),
                 cancel: launcher.cancelPackageReview,
-                remove: launcher.removePackage,
+                remove: (digest) => mutateSettings(() => launcher.removePackage(digest)),
               },
               onRefresh: () => void refreshWidgetPackages(),
             },

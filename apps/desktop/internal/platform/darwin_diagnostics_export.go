@@ -13,6 +13,7 @@ import (
 	"context"
 	"runtime/cgo"
 	"time"
+	"unsafe"
 )
 
 type diagnosticExportSource struct{ slot chan struct{} }
@@ -21,10 +22,25 @@ func NewDiagnosticExportSource() DiagnosticExportSource {
 	return &diagnosticExportSource{slot: make(chan struct{}, 1)}
 }
 
+func NewJSONExportSource() JSONExportSource {
+	return &diagnosticExportSource{slot: make(chan struct{}, 1)}
+}
+
+func (s *diagnosticExportSource) SaveJSONExport(ctx context.Context, name string, data []byte) (DiagnosticExportResult, error) {
+	if err := validateJSONExport(ctx, name, data); err != nil {
+		return DiagnosticExportResult{}, err
+	}
+	return s.saveJSON(ctx, name, data)
+}
+
 func (s *diagnosticExportSource) SaveDiagnosticReport(ctx context.Context, name string, data []byte) (DiagnosticExportResult, error) {
 	if err := validateDiagnosticExport(ctx, name, data); err != nil {
 		return DiagnosticExportResult{}, err
 	}
+	return s.saveJSON(ctx, name, data)
+}
+
+func (s *diagnosticExportSource) saveJSON(ctx context.Context, name string, data []byte) (DiagnosticExportResult, error) {
 	if C.ot_diagnostics_main_thread() != 0 {
 		return DiagnosticExportResult{}, &DiagnosticExportError{Code: "unavailable"}
 	}
@@ -39,7 +55,9 @@ func (s *diagnosticExportSource) SaveDiagnosticReport(ctx context.Context, name 
 	admission := cgo.NewHandle(admissionCtx)
 	defer admission.Delete()
 	bytes := C.CBytes(data)
-	handle := C.ot_diagnostics_save_start(bytes, C.size_t(len(data)), C.uintptr_t(admission))
+	nativeName := C.CString(name)
+	handle := C.ot_json_save_start(bytes, C.size_t(len(data)), C.uintptr_t(admission), nativeName)
+	C.free(unsafe.Pointer(nativeName))
 	C.free(bytes)
 	if handle == nil {
 		return DiagnosticExportResult{}, &DiagnosticExportError{Code: "unavailable"}

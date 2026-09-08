@@ -187,9 +187,18 @@ static void diagnosticWrite(OTDiagnosticSave *g, NSURL *selected) {
 int ot_diagnostics_main_thread(void) { return NSThread.isMainThread ? 1 : 0; }
 void *ot_diagnostics_save_start(const void *bytes, size_t length,
                                 uintptr_t admission) {
+  return ot_json_save_start(bytes, length, admission, "option-tab-diagnostics.json");
+}
+void *ot_json_save_start(const void *bytes, size_t length, uintptr_t admission,
+                         const char *filename) {
   @autoreleasepool {
-    if (!bytes || length == 0 || length > 512 * 1024)
+    if (!filename ||
+        (strcmp(filename, "option-tab-diagnostics.json") &&
+         strcmp(filename, "option-tab-launcher-profile.json") &&
+         strcmp(filename, "option-tab-settings.json")) ||
+        !bytes || length == 0 || length > 512 * 1024)
       return NULL;
+    NSString *name = [NSString stringWithUTF8String:filename];
     OTDiagnosticSave *g = [OTDiagnosticSave new];
     g.lock = [NSLock new];
     g.data = [NSData dataWithBytes:bytes length:length];
@@ -201,7 +210,7 @@ void *ot_diagnostics_save_start(const void *bytes, size_t length,
       }
       NSSavePanel *panel = OT_DIAGNOSTIC_MAKE_PANEL();
       g.panel = panel;
-      panel.nameFieldStringValue = @"option-tab-diagnostics.json";
+      panel.nameFieldStringValue = name;
       panel.allowedContentTypes = @[ UTTypeJSON ];
       panel.canCreateDirectories = YES;
       if (diagnosticCancelled(g)) {

@@ -202,8 +202,16 @@ export function DockTab({
                 </label>
                 {d.media?.[field] && media ? (
                   <div className="flex items-center justify-between gap-3">
-                    <small>{media.permissions[provider]?.reason || t("Not connected")}</small>
-                    <button type="button" onClick={() => media.onConnect(provider)}>
+                    <small>
+                      {media.permissions[provider]?.status === "ready"
+                        ? t("Connected")
+                        : t(media.permissions[provider]?.reason || "Not connected")}
+                    </small>
+                    <button
+                      type="button"
+                      disabled={!d.media?.enabled}
+                      onClick={() => media.onConnect(provider)}
+                    >
                       {t("Connect")}
                     </button>
                   </div>

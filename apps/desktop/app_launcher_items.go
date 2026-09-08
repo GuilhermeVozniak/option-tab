@@ -8,6 +8,7 @@ import (
 	"errors"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 
 	"option-tab/internal/config"
@@ -66,6 +67,16 @@ type appLauncherItems struct {
 func launcherItemsError(code string) error { return errors.New("launcher items: " + code) }
 func launcherItemsRevision(items []config.LauncherItem) string {
 	return config.LauncherItemsRevision(items)
+}
+
+// Transferred selections are structural placeholders, never private records.
+func launcherSelectionPlaceholder(id string) bool {
+	suffix, ok := strings.CutPrefix(id, "selection-")
+	if !ok || len(suffix) != 32 {
+		return false
+	}
+	decoded, err := hex.DecodeString(suffix)
+	return err == nil && hex.EncodeToString(decoded) == suffix
 }
 
 func cloneLauncherItems(items []config.LauncherItem) []config.LauncherItem {
@@ -340,6 +351,12 @@ func (a *App) SetLauncherItems(profileID, expectedRevision string, items []confi
 	refs, icons := launcherUsed(s)
 	var cleanupErr error
 	for id := range oldRefs {
+		if _, used := refs[id]; !used && launcherSelectionPlaceholder(id) {
+			a.viewMu.Lock()
+			delete(m.references, id)
+			a.viewMu.Unlock()
+			continue
+		}
 		if _, used := refs[id]; !used && m.refs != nil {
 			if e := m.refs.RemoveLauncherReference(m.ctx, id); e != nil {
 				cleanupErr = e
@@ -491,7 +508,7 @@ func (a *App) removeUnusedLauncherResource(id string, icon bool) error {
 			return launcherItemsError("unavailable")
 		}
 		err = m.icons.RemoveLauncherIcon(j.ctx, id)
-	} else {
+	} else if !launcherSelectionPlaceholder(id) {
 		if m.refs == nil {
 			return launcherItemsError("unavailable")
 		}

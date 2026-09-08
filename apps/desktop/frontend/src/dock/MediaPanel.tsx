@@ -83,7 +83,7 @@ export function MediaPanel({
   const dynamicStart = Math.max(0, Math.max(0, state.activeCue) - 12);
   const cueStart = readingStart ?? dynamicStart;
   const cues = useMemo(() => {
-    if (!state.lyrics.cues.length) return [];
+    if (!state.lyrics.cues?.length) return [];
     return state.lyrics.cues.slice(cueStart, Math.min(state.lyrics.cues.length, cueStart + 25));
   }, [state.lyrics.cues, cueStart]);
   const act = (kind: string, position = 0) =>
@@ -156,17 +156,17 @@ export function MediaPanel({
           <p>{state.sample.track.artist}</p>
           <p>{state.sample.track.album}</p>
           {state.artwork.status !== "ready" && state.artwork.reason ? (
-            <small>{state.artwork.reason}</small>
+            <small>{t(state.artwork.reason)}</small>
           ) : null}
         </div>
       </div>
       {state.error ? (
         <p role="alert" className="ot-media-error">
-          {state.error}
+          {t(state.error)}
         </p>
       ) : null}
       {state.sample.status !== "ready" ? (
-        <p className="ot-media-status">{state.sample.reason || t("Media unavailable")}</p>
+        <p className="ot-media-status">{t(state.sample.reason || "Media unavailable")}</p>
       ) : (
         <>
           <div className="ot-media-transport">
@@ -335,7 +335,7 @@ export function MediaPanel({
           </label>
         </>
       ) : (
-        <p className="ot-media-status">{state.lyrics.reason || t("No synchronized lyrics")}</p>
+        <p className="ot-media-status">{t(state.lyrics.reason || "No synchronized lyrics")}</p>
       )}
     </section>
   );

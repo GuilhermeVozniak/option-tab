@@ -321,6 +321,7 @@ func (a *App) dismissDockLocked() {
 }
 
 func (a *App) syncDockSuspensionLocked() {
+	a.syncJSONExportAdmissionLocked()
 	a.syncWidgetPackageAdmissionLocked()
 	a.syncLauncherItemAdmissionLocked()
 	a.syncLauncherLocked()

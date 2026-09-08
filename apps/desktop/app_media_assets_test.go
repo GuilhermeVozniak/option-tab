@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,6 +15,192 @@ type appLyricsSource struct {
 	platform.MediaLyricsSource
 	load   func(context.Context, platform.MediaLyricsScope) (platform.MediaLyricsFile, error)
 	choose func(context.Context, platform.MediaLyricsScope, func([]byte) error) (platform.MediaLyricsFile, error)
+	remove func(context.Context, platform.MediaLyricsScope) error
+	offset func(context.Context, platform.MediaLyricsScope, int64) error
+}
+
+func TestAppMediaMissingAndInvalidLyricsKeepCueArrayInJSON(t *testing.T) {
+	for _, kind := range []string{"missing", "unreadable", "invalid"} {
+		t.Run(kind, func(t *testing.T) {
+			a, source := newAppMediaFixture(t)
+			a.media.lyrics = appLyricsSource{load: func(_ context.Context, scope platform.MediaLyricsScope) (platform.MediaLyricsFile, error) {
+				switch kind {
+				case "unreadable":
+					return platform.MediaLyricsFile{Scope: scope, Status: "unavailable"}, errors.New("lyric file unavailable")
+				case "invalid":
+					return platform.MediaLyricsFile{Scope: scope, Status: "ready", Data: []byte("no timestamps")}, nil
+				default:
+					return platform.MediaLyricsFile{Scope: scope, Status: "missing"}, nil
+				}
+			}}
+			a.showDock(mediaDockFixture(1), true)
+			id := a.GetDockState().Media.Session
+			emit := mediaReceive(t, source.started)
+			emit(appMediaSample())
+			wantStatus := "unavailable"
+			if kind == "missing" {
+				wantStatus = "missing"
+			}
+			st := waitAppMedia(t, a, id, func(s *MediaViewState) bool { return s.Lyrics.Status == wantStatus && s.Sample.Status == "ready" })
+			data, err := json.Marshal(st)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var wire struct {
+				Lyrics struct {
+					Cues json.RawMessage `json:"cues"`
+				} `json:"lyrics"`
+			}
+			if err := json.Unmarshal(data, &wire); err != nil {
+				t.Fatal(err)
+			}
+			if string(wire.Lyrics.Cues) != "[]" {
+				t.Fatalf("missing lyrics must send an empty cue array to the renderer, got %s", wire.Lyrics.Cues)
+			}
+		})
+	}
+}
+
+func TestAppMediaLyricsChooserCancelKeepsExistingDocumentWithoutError(t *testing.T) {
+	for _, explicit := range []bool{false, true} {
+		name := "native chooser cancel"
+		if explicit {
+			name = "Cancel import button"
+		}
+		t.Run(name, func(t *testing.T) {
+			a, source := newAppMediaFixture(t)
+			entered := make(chan struct{})
+			a.media.lyrics = appLyricsSource{
+				load: func(_ context.Context, scope platform.MediaLyricsScope) (platform.MediaLyricsFile, error) {
+					return platform.MediaLyricsFile{Scope: scope, Status: "ready", DocumentID: "existing", Data: []byte("[00:00.00]Existing lyric")}, nil
+				},
+				choose: func(ctx context.Context, _ platform.MediaLyricsScope, _ func([]byte) error) (platform.MediaLyricsFile, error) {
+					close(entered)
+					if explicit {
+						<-ctx.Done()
+					}
+					return platform.MediaLyricsFile{}, context.Canceled
+				},
+			}
+			a.showDock(mediaDockFixture(1), true)
+			id := a.GetDockState().Media.Session
+			emit := mediaReceive(t, source.started)
+			emit(appMediaSample())
+			st := waitAppMedia(t, a, id, func(s *MediaViewState) bool { return s.Lyrics.Status == "ready" })
+			done := make(chan error, 1)
+			go func() { done <- a.ImportMediaLyrics(id, st.Revision) }()
+			mediaReceive(t, entered)
+			if explicit {
+				if err := a.CancelMediaLyricsImport(id, st.Revision); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := mediaReceive(t, done); err != nil {
+				t.Fatalf("intentional cancellation was reported as a failure: %v", err)
+			}
+			got := a.GetMediaState(id)
+			if got.Error != "" || got.Lyrics.DocumentID != "existing" || len(got.Lyrics.Cues) != 1 || got.Lyrics.Cues[0].Text != "Existing lyric" {
+				t.Fatalf("cancellation changed the existing document or reported an error: %+v", got.Lyrics)
+			}
+		})
+	}
+}
+
+func TestAppMediaSuccessfulLyricReplacementClearsPriorImportError(t *testing.T) {
+	a, source := newAppMediaFixture(t)
+	var imported atomic.Bool
+	a.media.lyrics = appLyricsSource{
+		load: func(_ context.Context, scope platform.MediaLyricsScope) (platform.MediaLyricsFile, error) {
+			if imported.Load() {
+				return platform.MediaLyricsFile{Scope: scope, Status: "ready", DocumentID: "valid", Data: []byte("[00:00.00]Valid lyric")}, nil
+			}
+			return platform.MediaLyricsFile{Scope: scope, Status: "missing"}, nil
+		},
+		choose: func(_ context.Context, scope platform.MediaLyricsScope, _ func([]byte) error) (platform.MediaLyricsFile, error) {
+			if !imported.Swap(true) {
+				return platform.MediaLyricsFile{}, errors.New("LRC file has no usable timestamps")
+			}
+			return platform.MediaLyricsFile{Scope: scope, Status: "ready", DocumentID: "valid"}, nil
+		},
+	}
+	a.showDock(mediaDockFixture(1), true)
+	id := a.GetDockState().Media.Session
+	emit := mediaReceive(t, source.started)
+	emit(appMediaSample())
+	st := waitAppMedia(t, a, id, func(s *MediaViewState) bool { return s.Sample.Status == "ready" && s.Lyrics.Status == "missing" })
+	if err := a.ImportMediaLyrics(id, st.Revision); err == nil {
+		t.Fatal("invalid import was accepted")
+	}
+	st = a.GetMediaState(id)
+	if st.Error == "" {
+		t.Fatal("invalid import error was lost")
+	}
+	if err := a.ImportMediaLyrics(id, st.Revision); err != nil {
+		t.Fatal(err)
+	}
+	st = waitAppMedia(t, a, id, func(s *MediaViewState) bool { return s.Lyrics.Status == "ready" })
+	if st.Error != "" {
+		t.Fatalf("successful replacement retained the previous import error: %s", st.Error)
+	}
+}
+
+func TestAppMediaSuccessfulLyricChangesClearPriorImportError(t *testing.T) {
+	for _, kind := range []string{"reload", "remove", "offset"} {
+		t.Run(kind, func(t *testing.T) {
+			a, source := newAppMediaFixture(t)
+			var removed atomic.Bool
+			var offset atomic.Int64
+			a.media.lyrics = appLyricsSource{
+				load: func(_ context.Context, scope platform.MediaLyricsScope) (platform.MediaLyricsFile, error) {
+					if removed.Load() {
+						return platform.MediaLyricsFile{Scope: scope, Status: "missing"}, nil
+					}
+					return platform.MediaLyricsFile{Scope: scope, Status: "ready", DocumentID: "existing", OffsetMS: offset.Load(), Data: []byte("[00:00.00]Existing lyric")}, nil
+				},
+				choose: func(context.Context, platform.MediaLyricsScope, func([]byte) error) (platform.MediaLyricsFile, error) {
+					return platform.MediaLyricsFile{}, errors.New("LRC file has no usable timestamps")
+				},
+				remove: func(context.Context, platform.MediaLyricsScope) error { removed.Store(true); return nil },
+				offset: func(_ context.Context, _ platform.MediaLyricsScope, value int64) error {
+					offset.Store(value)
+					return nil
+				},
+			}
+			a.showDock(mediaDockFixture(1), true)
+			id := a.GetDockState().Media.Session
+			emit := mediaReceive(t, source.started)
+			emit(appMediaSample())
+			st := waitAppMedia(t, a, id, func(s *MediaViewState) bool { return s.Lyrics.Status == "ready" })
+			if err := a.ImportMediaLyrics(id, st.Revision); err == nil {
+				t.Fatal("invalid replacement was accepted")
+			}
+			st = a.GetMediaState(id)
+			if st.Error == "" {
+				t.Fatal("invalid replacement error was lost")
+			}
+			var err error
+			wantStatus := "ready"
+			switch kind {
+			case "remove":
+				err = a.RemoveMediaLyrics(id, st.Revision)
+				wantStatus = "missing"
+			case "offset":
+				err = a.SetMediaLyricsOffset(id, st.Revision, 500)
+			default:
+				err = a.ReloadMediaLyrics(id, st.Revision)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			st = waitAppMedia(t, a, id, func(s *MediaViewState) bool { return s.Lyrics.Status == wantStatus })
+			if st.Error != "" {
+				t.Fatalf("successful lyric change retained the old replacement failure: %s", st.Error)
+			}
+			if kind == "offset" && st.Lyrics.OffsetMS != 500 {
+				t.Fatal("successful offset was not reflected in the document")
+			}
+		})
+	}
 }
 
 func TestAppMediaRemoteArtworkPolicyPreservesLocalLyrics(t *testing.T) {
@@ -52,6 +240,14 @@ func (s appLyricsSource) LoadMediaLyrics(ctx context.Context, scope platform.Med
 
 func (s appLyricsSource) ChooseMediaLyrics(ctx context.Context, scope platform.MediaLyricsScope, validate func([]byte) error) (platform.MediaLyricsFile, error) {
 	return s.choose(ctx, scope, validate)
+}
+
+func (s appLyricsSource) RemoveMediaLyrics(ctx context.Context, scope platform.MediaLyricsScope) error {
+	return s.remove(ctx, scope)
+}
+
+func (s appLyricsSource) SetMediaLyricsOffset(ctx context.Context, scope platform.MediaLyricsScope, offset int64) error {
+	return s.offset(ctx, scope, offset)
 }
 
 func TestAppMediaImportKeepsOriginalTrackAcrossReplacement(t *testing.T) {

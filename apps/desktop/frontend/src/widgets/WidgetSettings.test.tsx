@@ -50,6 +50,128 @@ const renderEditor = (widgets: WidgetInstanceConfig[] = [], stacks: WidgetStackC
 };
 
 describe("WidgetSettings", () => {
+  it("keeps a time-zone draft local while typing and commits its complete value on blur", () => {
+    const onChange = vi.fn();
+    render(
+      <WidgetSettings
+        instances={[
+          {
+            id: "clock",
+            packageID: clock.packageID,
+            digest: clock.digest,
+            enabled: true,
+            grants: ["clock.read"],
+          },
+        ]}
+        stacks={[]}
+        catalog={[
+          {
+            ...clock,
+            settings: [
+              { id: "timezone", type: "timezone", name: { en: "Time zone" }, defaultText: "Local" },
+            ],
+          },
+        ]}
+        onChange={onChange}
+      />,
+    );
+    const field = screen.getByLabelText("Time zone");
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent.change(field, { target: { value: "E" } });
+    fireEvent.change(field, { target: { value: "Europe/" } });
+    fireEvent.change(field, { target: { value: "Europe/Rome" } });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(field).toHaveValue("Europe/Rome");
+    fireEvent.blur(field);
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange.mock.calls[0][0].widgets[0].settings).toEqual({
+      timezone: { text: "Europe/Rome" },
+    });
+  });
+
+  it("rejects an incomplete time zone locally and supports Enter and Escape without saving prefixes", () => {
+    const onChange = vi.fn();
+    render(
+      <WidgetSettings
+        instances={[
+          {
+            id: "clock",
+            packageID: clock.packageID,
+            digest: clock.digest,
+            enabled: true,
+            grants: ["clock.read"],
+          },
+        ]}
+        stacks={[]}
+        catalog={[
+          {
+            ...clock,
+            settings: [
+              { id: "timezone", type: "timezone", name: { en: "Time zone" }, defaultText: "Local" },
+            ],
+          },
+        ]}
+        onChange={onChange}
+      />,
+    );
+    const field = screen.getByLabelText("Time zone");
+    fireEvent.change(field, { target: { value: "Europe/" } });
+    fireEvent.blur(field);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid value.");
+    fireEvent.keyDown(field, { key: "Escape" });
+    expect(field).toHaveValue("Local");
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.change(field, { target: { value: "UTC" } });
+    fireEvent.keyDown(field, { key: "Enter", isComposing: true });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange.mock.calls[0][0].widgets[0].settings).toEqual({ timezone: { text: "UTC" } });
+  });
+
+  it.each([
+    "+01:00",
+    "-08:30",
+  ])("rejects numeric time zone %s while accepting Etc/GMT+1", (zone) => {
+    const onChange = vi.fn();
+    render(
+      <WidgetSettings
+        instances={[
+          {
+            id: "clock",
+            packageID: clock.packageID,
+            digest: clock.digest,
+            enabled: true,
+            grants: ["clock.read"],
+          },
+        ]}
+        stacks={[]}
+        catalog={[
+          {
+            ...clock,
+            settings: [
+              { id: "timezone", type: "timezone", name: { en: "Time zone" }, defaultText: "Local" },
+            ],
+          },
+        ]}
+        onChange={onChange}
+      />,
+    );
+    const field = screen.getByLabelText("Time zone");
+    fireEvent.change(field, { target: { value: zone } });
+    fireEvent.blur(field);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid value.");
+    fireEvent.change(field, { target: { value: "Etc/GMT+1" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange.mock.calls[0][0].widgets[0].settings).toEqual({
+      timezone: { text: "Etc/GMT+1" },
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("selects an exact package digest when multiple versions share an ID", () => {
     const newer = { ...clock, digest: "d".repeat(64), version: "2.0.0", builtin: false };
     const onChange = vi.fn();

@@ -1,8 +1,28 @@
 #import <Cocoa/Cocoa.h>
 #include <assert.h>
 #define OT_DIAGNOSTIC_CONTEXT_CURRENT(token) (1)
-static NSSavePanel *forbiddenPanel(void) { abort(); }
-#define OT_DIAGNOSTIC_MAKE_PANEL() forbiddenPanel()
+// Stand-in only: this fixture must never construct or present AppKit UI.
+static NSString *expectedName;
+static int panels;
+@interface FixtureSavePanel : NSObject
+@property NSString *nameFieldStringValue;
+@property NSArray *allowedContentTypes;
+@property BOOL canCreateDirectories;
+@property NSURL *URL;
+@end
+@implementation FixtureSavePanel
+- (void)beginWithCompletionHandler:(void (^)(NSModalResponse))completion {
+  assert([self.nameFieldStringValue isEqual:expectedName]);
+  assert(self.allowedContentTypes.count == 1);
+  completion(NSModalResponseCancel);
+}
+- (void)cancel:(id)sender {}
+@end
+static NSSavePanel *fakePanel(void) {
+  panels++;
+  return (NSSavePanel *)[FixtureSavePanel new];
+}
+#define OT_DIAGNOSTIC_MAKE_PANEL() fakePanel()
 static void beforeCommit(void);
 static void afterCommit(void);
 #define OT_DIAGNOSTIC_AFTER_COMMIT(g) afterCommit()
@@ -86,7 +106,21 @@ int main(int argc, char **argv) {
           runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.005]];
     }
     assert(ot_diagnostics_save_poll(pending) == 2);
+    assert(panels == 0);
     ot_diagnostics_save_release(pending);
+    assert(!ot_json_save_start(payload, 2, 0, "../private.json"));
+    assert(!ot_json_save_start(payload, 2, 0, NULL));
+    for (NSString *name in @[@"option-tab-diagnostics.json", @"option-tab-launcher-profile.json", @"option-tab-settings.json"]) {
+      expectedName = name;
+      void *named = ot_json_save_start(payload, 2, 0, name.UTF8String);
+      assert(named);
+      deadline = [NSDate dateWithTimeIntervalSinceNow:1];
+      while (ot_diagnostics_save_poll(named) == 0 && deadline.timeIntervalSinceNow > 0)
+        [NSRunLoop.mainRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.005]];
+      assert(ot_diagnostics_save_poll(named) == 2);
+      ot_diagnostics_save_release(named);
+    }
+    assert(panels == 3);
     assert(argc == 2);
     NSURL *dir = [NSURL fileURLWithPath:@(argv[1]) isDirectory:YES];
     NSURL *ok = [dir URLByAppendingPathComponent:@"ok.json"];

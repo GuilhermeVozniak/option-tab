@@ -1,9 +1,8 @@
-import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { defaultSettings } from "../src/lib/types";
 import { getCallRecords, installFakeWails } from "./support/fakeWails";
 
-test("downloads a sanitized profile and explicitly imports the reviewed bytes", async ({
+test("saves a profile through the native bridge and explicitly imports reviewed bytes", async ({
   page,
 }) => {
   await installFakeWails(page);
@@ -36,9 +35,8 @@ test("downloads a sanitized profile and explicitly imports the reviewed bytes", 
     },
   };
   await page.addInitScript(
-    ({ exportDocument, settingsJSON }) => {
+    ({ settingsJSON }) => {
       const w = window as any;
-      w.__launcherProfileExport = exportDocument;
       w.__launcherProfileImportReview = {
         digest: "digest-e2e",
         revision: "dock-e2e-1",
@@ -49,18 +47,16 @@ test("downloads a sanitized profile and explicitly imports the reviewed bytes", 
       };
       w.__launcherProfileImportResult = { profileID: "profile-imported", settingsJSON };
     },
-    { exportDocument: document, settingsJSON: JSON.stringify(imported) },
+    { settingsJSON: JSON.stringify(imported) },
   );
   await page.goto("/#/settings");
   await page.getByRole("tab", { name: "Dock" }).click();
 
-  const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export profile" }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe("option-tab-launcher-profile.json");
-  expect(JSON.parse(await readFile((await download.path())!, "utf8"))).toEqual(
-    JSON.parse(document),
-  );
+  await expect
+    .poll(() => getCallRecords(page))
+    .toContainEqual(["SaveLauncherProfileExport", "default"]);
+  await expect(page.getByText("Profile exported.")).toBeVisible();
 
   await page.getByLabel("Import profile file").setInputFiles({
     name: "travel.json",

@@ -28,6 +28,7 @@ type mediaImportOwner struct {
 	scope             platform.MediaLyricsScope
 	ctx               context.Context
 	cancel            context.CancelFunc
+	userCancelled     bool
 }
 
 func (a *App) mediaAssetsCurrentLocked(asset *mediaTrackAssets) bool {
@@ -185,11 +186,20 @@ func (a *App) ImportMediaLyrics(session, revision uint64) error {
 	if a.media.importJob == owner {
 		a.media.importJob = nil
 	}
+	if owner.userCancelled {
+		return nil
+	}
 	if ctx.Err() != nil || !a.mediaAllowedLocked(owner.scope.Provider) {
 		return media.ErrRetired
 	}
+	if errors.Is(err, context.Canceled) {
+		return nil
+	}
 	asset := a.media.assets[owner.scope.Provider]
 	if err == nil && asset != nil && asset.scope.TrackID == owner.scope.TrackID && a.mediaAssetsCurrentLocked(asset) {
+		if a.mediaPresentationLocked(session) == p && p.state.Scope.TrackID == owner.scope.TrackID {
+			p.state.Error = ""
+		}
 		a.queueMediaLyricsLocked(asset)
 		a.publishMediaAssetsLocked(asset)
 	}
@@ -210,6 +220,7 @@ func (a *App) CancelMediaLyricsImport(session, revision uint64) error {
 	if owner.session != session || owner.revision != revision {
 		return media.ErrRetired
 	}
+	owner.userCancelled = true
 	owner.cancel()
 	return nil
 }
@@ -225,6 +236,7 @@ func (a *App) ReloadMediaLyrics(session, revision uint64) error {
 	if a.media.lyrics == nil || asset == nil || asset.scope != p.state.Scope || asset.scope.TrackID == "" {
 		return errMediaLyricsUnavailable
 	}
+	p.state.Error = ""
 	a.queueMediaLyricsLocked(asset)
 	a.publishMediaAssetsLocked(asset)
 	return nil
@@ -258,6 +270,7 @@ func (a *App) changeMediaLyrics(session, revision uint64, change func(context.Co
 		p.state.Error = err.Error()
 		a.publishMediaLocked(p)
 	} else {
+		p.state.Error = ""
 		a.queueMediaLyricsLocked(asset)
 		a.publishMediaAssetsLocked(asset)
 	}

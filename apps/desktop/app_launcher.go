@@ -299,7 +299,24 @@ func (a *App) emitLauncherStatusLocked() {
 	if a.launcher != nil {
 		a.launcher.statusRevision++
 	}
-	a.emit("launcher:status", a.launcherStatusLocked())
+	status := a.launcherStatusLocked()
+	if a.launcher != nil && len(status.Displays) == 0 && a.launcherChoicesAllowedLocked() {
+		// Disabled/suspended runtime snapshots need the same static topology as
+		// the initial settings query. Never read AppKit displays under viewMu.
+		go a.refreshLauncherStatusTopology(a.launcher, status, a.sessionGeneration, a.prefsRefreshGeneration)
+		return
+	}
+	a.emit("launcher:status", status)
+}
+
+func (a *App) refreshLauncherStatusTopology(owner *appLauncherRuntime, expected LauncherStatus, session, preferences uint64) {
+	status := a.GetLauncherStatus()
+	a.viewMu.Lock()
+	defer a.viewMu.Unlock()
+	if a.launcher != owner || !a.launcherChoicesAllowedLocked() || a.sessionGeneration != session || a.prefsRefreshGeneration != preferences || owner.statusRevision != expected.Revision || owner.core.Snapshot().Epoch != expected.Epoch {
+		return
+	}
+	a.emit("launcher:status", status)
 }
 
 func (a *App) GetLauncherState(session uint64) launcher.Presentation {

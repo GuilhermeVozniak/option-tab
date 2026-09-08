@@ -50,7 +50,7 @@ int main(int argc,char **argv){@autoreleasepool{
  NSCAssert([[NSData data]writeToURL:url atomically:NO],@"empty fixture");NSCAssert(readCounted(url,0,0,YES)[@"error"],@"empty accepted");
  void *chooser=ot_lyrics_choose_start();ot_lyrics_choose_cancel(chooser);
  char *cancelled=NULL;for(int i=0;i<100&&!cancelled;i++){pump();cancelled=ot_lyrics_choose_poll(chooser);}
- NSCAssert(cancelled,@"pre-start cancellation never completed");free(cancelled);ot_lyrics_choose_release(chooser);
+ NSCAssert(cancelled,@"pre-start cancellation never completed");NSDictionary *cancelReply=[NSJSONSerialization JSONObjectWithData:[NSData dataWithBytes:cancelled length:strlen(cancelled)] options:0 error:nil];NSCAssert([cancelReply[@"cancelled"] boolValue]&&!cancelReply[@"error"],@"chooser cancellation must be typed, not an error");free(cancelled);ot_lyrics_choose_release(chooser);
  chooser=ot_lyrics_choose_start();for(int i=0;i<100&&!activeFixturePanel.completion;i++)pump();
  NSCAssert(activeFixturePanel.completion,@"substituted chooser not started");ot_lyrics_choose_cancel(chooser);
  cancelled=NULL;for(int i=0;i<100&&!cancelled;i++){pump();cancelled=ot_lyrics_choose_poll(chooser);}

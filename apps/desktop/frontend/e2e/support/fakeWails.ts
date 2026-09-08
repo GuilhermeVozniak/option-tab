@@ -181,6 +181,8 @@ const METHOD = {
   GetLauncherStatus: 3297738801,
   GetLauncherAppChoices: 1561877478,
   GetLauncherProfileExport: 2209096222,
+  SaveLauncherProfileExport: 3836223507,
+  SaveSettingsExport: 815358379,
   ImportLauncherProfile: 216581033,
   PreviewLauncherProfileImport: 3977947893,
   GetLauncherWidgets: 1662395444,
@@ -447,6 +449,10 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json(await page.evaluate(() => (window as any).__launcherStatus));
       case "GetLauncherAppChoices":
         return json(await page.evaluate(() => (window as any).__launcherAppChoices));
+      case "SaveLauncherProfileExport":
+      case "SaveSettingsExport":
+        await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
+        return json({ status: "saved" });
       case "GetLauncherProfileExport":
         await evaluate(([n, a]) => (window as any).__calls.push([n, ...a]), [name, args]);
         return json(await page.evaluate(() => (window as any).__launcherProfileExport));

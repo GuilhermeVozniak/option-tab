@@ -64,6 +64,22 @@ const handlers = () => ({
 });
 
 describe("MediaPanel", () => {
+  it.each([
+    "missing",
+    "unavailable",
+  ])("keeps transport usable with a null cue list for %s lyrics", (status) => {
+    const received: MediaViewState = JSON.parse(
+      JSON.stringify({
+        ...state,
+        lyrics: { documentID: "", status, reason: "", cues: null, offsetMS: 0 },
+      }),
+    );
+    render(<MediaPanel state={received} handlers={handlers()} />);
+    expect(screen.getByRole("button", { name: "Play" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Import .lrc" })).toBeEnabled();
+    expect(screen.getByText("No synchronized lyrics")).toBeInTheDocument();
+  });
+
   it("localizes icon-only hover and pinned media controls", () => {
     const h = handlers();
     const first = render(<MediaPanel state={state} handlers={h} t={makeT("pt-BR")} />);
@@ -79,6 +95,36 @@ describe("MediaPanel", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Cerrar panel multimedia" })).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      "pt-BR",
+      "O acesso de Automação foi negado",
+      "O arquivo LRC não contém marcações de tempo válidas",
+      "As capas remotas estão desativadas",
+    ],
+    [
+      "es",
+      "Se ha denegado el acceso de Automatización",
+      "El archivo LRC no contiene marcas de tiempo válidas",
+      "Las carátulas remotas están desactivadas",
+    ],
+  ] as const)("localizes native media, lyric and artwork feedback in %s", (language, permission, lyrics, artwork) => {
+    render(
+      <MediaPanel
+        state={{
+          ...state,
+          sample: { ...state.sample, status: "denied", reason: "Automation access is denied" },
+          error: "LRC file has no usable timestamps",
+        }}
+        handlers={handlers()}
+        t={makeT(language)}
+      />,
+    );
+    expect(screen.getByText(permission)).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent(lyrics);
+    expect(screen.getByText(artwork)).toBeVisible();
   });
 
   it("sends explicit transport and seek requests and renders bounded lyric context", () => {

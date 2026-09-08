@@ -131,6 +131,8 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   RemoveWidgetPackage: vi.fn().mockResolvedValue(undefined),
   GetLauncherAppChoices: vi.fn().mockResolvedValue([]),
   GetLauncherProfileExport: vi.fn().mockResolvedValue("{}"),
+  SaveLauncherProfileExport: vi.fn().mockResolvedValue({ status: "saved" }),
+  SaveSettingsExport: vi.fn().mockResolvedValue({ status: "saved" }),
   PreviewLauncherProfileImport: vi.fn().mockResolvedValue({}),
   ImportLauncherProfile: vi.fn().mockResolvedValue({}),
   GetLauncherItemSettings: vi.fn().mockResolvedValue({
@@ -266,6 +268,34 @@ beforeEach(() => {
 });
 
 describe("App", () => {
+  it.each([
+    ["pt-BR", "media provider command is busy", "Outro comando de mídia está em andamento"],
+    ["es", "context deadline exceeded", "Se ha agotado el tiempo de espera de la operación"],
+  ])("localizes a rejected native media Connect error in %s", async (language, message, expected) => {
+    window.location.hash = "#settings";
+    mocked.GetSettingsState.mockResolvedValueOnce({
+      revision: 1,
+      json: JSON.stringify({
+        ...defaultSettings,
+        behavior: { ...defaultSettings.behavior, onboarded: true, language },
+        dock: {
+          ...defaultSettings.dock,
+          media: { ...defaultSettings.dock.media, enabled: true, musicEnabled: true },
+        },
+      }),
+    } as never);
+    const nativeError = new Error(message);
+    nativeError.name = "RuntimeError";
+    mocked.ConnectMediaProvider.mockRejectedValueOnce(nativeError);
+    render(<App />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    fireEvent.click(screen.getByRole("button", { name: "Conectar" }));
+    await waitFor(() => expect(mocked.ConnectMediaProvider).toHaveBeenCalledWith("music"));
+    expect(await screen.findByText(expected)).toBeVisible();
+    expect(screen.queryByText(`RuntimeError: ${message}`)).not.toBeInTheDocument();
+  });
+
   it("admits scoped automation preview updates, frames, controls, and terminal hide", async () => {
     const preview = {
       open: true,
@@ -1406,6 +1436,103 @@ describe("App", () => {
     view.unmount();
     expect(eventHandlers.has("prefs:settings")).toBe(false);
     expect(eventHandlers.has("prefs:settings-loading")).toBe(false);
+  });
+
+  it.each([
+    "settings",
+    "profile",
+  ])("queues %s export behind the profile name save", async (kind) => {
+    window.location.hash = "#settings";
+    let finishSave!: (value: { revision: number; json: string }) => void;
+    mocked.SaveSettingsAtRevision.mockReturnValueOnce(
+      new Promise((resolve) => (finishSave = resolve)) as never,
+    );
+    render(<App />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "Exported name" } });
+    fireEvent.blur(screen.getByLabelText("Profile name"));
+    if (kind === "settings") fireEvent.click(screen.getByRole("tab", { name: "General" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: kind === "settings" ? "Export settings" : "Export profile",
+      }),
+    );
+    await waitFor(() => expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(1));
+    const save = kind === "settings" ? mocked.SaveSettingsExport : mocked.SaveLauncherProfileExport;
+    expect(save).not.toHaveBeenCalled();
+    const document = mocked.SaveSettingsAtRevision.mock.calls[0][0];
+    expect(JSON.parse(document).replacementDock.profiles[0].name).toBe("Exported name");
+    await act(async () => finishSave({ revision: 2, json: document }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByText(kind === "settings" ? "Settings exported." : "Profile exported."),
+    ).toBeVisible();
+  });
+
+  it.each([
+    "settings",
+    "profile",
+  ])("retires queued %s export when the preceding settings save fails", async (kind) => {
+    window.location.hash = "#settings";
+    let failSave!: (error: Error) => void;
+    mocked.SaveSettingsAtRevision.mockReturnValueOnce(
+      new Promise((_resolve, reject) => (failSave = reject)) as never,
+    );
+    render(<App />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "Unsaved name" } });
+    fireEvent.blur(screen.getByLabelText("Profile name"));
+    if (kind === "settings") fireEvent.click(screen.getByRole("tab", { name: "General" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: kind === "settings" ? "Export settings" : "Export profile",
+      }),
+    );
+    await waitFor(() => expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(1));
+    await act(async () => failSave(new Error("settings: stale revision")));
+    expect(await screen.findByText("The file could not be exported.")).toBeVisible();
+    expect(
+      kind === "settings" ? mocked.SaveSettingsExport : mocked.SaveLauncherProfileExport,
+    ).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "settings",
+    "profile",
+  ])("retires queued %s export after a newer preferences snapshot", async (kind) => {
+    window.location.hash = "#settings";
+    let finishSave!: (value: { revision: number; json: string }) => void;
+    mocked.SaveSettingsAtRevision.mockReturnValueOnce(
+      new Promise((resolve) => (finishSave = resolve)) as never,
+    );
+    render(<App />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    fireEvent.change(screen.getByLabelText("Profile name"), { target: { value: "Retired name" } });
+    fireEvent.blur(screen.getByLabelText("Profile name"));
+    if (kind === "settings") fireEvent.click(screen.getByRole("tab", { name: "General" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: kind === "settings" ? "Export settings" : "Export profile",
+      }),
+    );
+    await waitFor(() => expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(1));
+    const canonical = {
+      ...defaultSettings,
+      behavior: { ...defaultSettings.behavior, onboarded: true },
+    };
+    await act(async () => {
+      eventHandlers.get("prefs:settings")?.({
+        data: { generation: 2, revision: 3, json: JSON.stringify(canonical) },
+      });
+      finishSave({ revision: 2, json: mocked.SaveSettingsAtRevision.mock.calls[0][0] });
+    });
+    expect(await screen.findByText("The file could not be exported.")).toBeVisible();
+    expect(
+      kind === "settings" ? mocked.SaveSettingsExport : mocked.SaveLauncherProfileExport,
+    ).not.toHaveBeenCalled();
   });
 
   it("queues profile import after a pending settings save and recovers from canonical result", async () => {

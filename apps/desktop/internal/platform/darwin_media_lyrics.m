@@ -85,7 +85,7 @@ void *ot_lyrics_choose_start(void) {
     void *handle = (__bridge_retained void *)owner;
     dispatch_async(dispatch_get_main_queue(), ^{
         @synchronized(owner) {
-            if (owner.cancelled) { lyricsFinish(owner,lyricsError(@"Lyric import cancelled")); return; }
+            if (owner.cancelled) { lyricsFinish(owner,@{@"cancelled":@YES}); return; }
         }
         NSOpenPanel *panel = NSOpenPanel.openPanel;
         owner.panel = panel;
@@ -99,14 +99,14 @@ void *ot_lyrics_choose_start(void) {
             owner.panel = nil;
             @synchronized(owner) {
                 if (owner.cancelled || response != NSModalResponseOK || !selected) {
-                    lyricsFinish(owner,lyricsError(@"Lyric import cancelled")); return;
+                    lyricsFinish(owner,@{@"cancelled":@YES}); return;
                 }
             }
             // File I/O and bookmark creation do not block AppKit's main thread.
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
                 NSDictionary *result = lyricsReadURL(selected,0,0,YES);
                 @synchronized(owner) {
-                    lyricsFinish(owner,owner.cancelled ? lyricsError(@"Lyric import cancelled") : result);
+                    lyricsFinish(owner,owner.cancelled ? @{@"cancelled":@YES} : result);
                 }
             });
         }];

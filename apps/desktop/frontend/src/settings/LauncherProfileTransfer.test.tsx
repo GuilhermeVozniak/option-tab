@@ -13,23 +13,47 @@ const review = {
 };
 
 describe("LauncherProfileTransfer", () => {
-  it("downloads the backend-sanitized document", async () => {
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-    const create = vi.fn().mockReturnValue("blob:profile");
-    const revoke = vi.fn();
-    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: create });
-    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revoke });
+  it("waits for native save completion before reporting success", async () => {
+    let resolve!: (result: { status: "saved" | "cancelled" }) => void;
     const actions = {
-      exportProfile: vi.fn().mockResolvedValue('{"format":"option-tab.launcher-profile"}'),
+      exportProfile: vi.fn().mockReturnValue(new Promise((done) => (resolve = done))),
       previewImport: vi.fn(),
       importProfile: vi.fn(),
     };
     render(<LauncherProfileTransfer profileID="default" t={makeT("en")} actions={actions} />);
     fireEvent.click(screen.getByRole("button", { name: "Export profile" }));
-    await waitFor(() => expect(actions.exportProfile).toHaveBeenCalledWith("default"));
-    expect(create).toHaveBeenCalledWith(expect.any(Blob));
-    expect(click).toHaveBeenCalled();
-    expect(revoke).toHaveBeenCalledWith("blob:profile");
+    expect(screen.getByRole("button", { name: "Exporting…" })).toBeDisabled();
+    expect(screen.queryByRole("status")).toBeNull();
+    resolve({ status: "saved" });
+    expect(await screen.findByRole("status")).toHaveTextContent("Profile exported.");
+    expect(actions.exportProfile).toHaveBeenCalledWith("default");
+    expect(screen.getByRole("button", { name: "Export profile" })).toBeEnabled();
+  });
+
+  it("treats native cancellation neutrally and permits retry after errors", async () => {
+    const actions = {
+      exportProfile: vi
+        .fn()
+        .mockResolvedValueOnce({ status: "cancelled" })
+        .mockRejectedValueOnce(new Error("json export: destinationExists"))
+        .mockResolvedValueOnce({ status: "saved" }),
+      previewImport: vi.fn(),
+      importProfile: vi.fn(),
+    };
+    render(<LauncherProfileTransfer profileID="default" t={makeT("en")} actions={actions} />);
+    fireEvent.click(screen.getByRole("button", { name: "Export profile" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Export profile" })).toBeEnabled(),
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Export profile" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "That filename already exists. Choose a new name.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Export profile" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Profile exported.");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("reviews exact bounded bytes and commits only after confirmation", async () => {
@@ -97,23 +121,22 @@ describe("LauncherProfileTransfer", () => {
     expect(actions.previewImport).not.toHaveBeenCalled();
   });
 
-  it("does not download after an export owner unmounts", async () => {
-    let resolve!: (document: string) => void;
-    const create = vi.fn().mockReturnValue("blob:profile");
-    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: create });
+  it("ignores a native save completion belonging to the previous profile", async () => {
+    let resolve!: (result: { status: "saved" }) => void;
     const actions = {
-      exportProfile: vi.fn().mockReturnValue(new Promise<string>((done) => (resolve = done))),
+      exportProfile: vi.fn().mockReturnValue(new Promise((done) => (resolve = done))),
       previewImport: vi.fn(),
       importProfile: vi.fn(),
     };
     const view = render(
-      <LauncherProfileTransfer profileID="default" t={makeT("en")} actions={actions} />,
+      <LauncherProfileTransfer profileID="first" t={makeT("en")} actions={actions} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Export profile" }));
-    view.unmount();
-    resolve("{}");
+    view.rerender(<LauncherProfileTransfer profileID="second" t={makeT("en")} actions={actions} />);
+    resolve({ status: "saved" });
     await Promise.resolve();
-    expect(create).not.toHaveBeenCalled();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("button", { name: "Export profile" })).toBeEnabled();
   });
 
   it("does not send a document whose file read completes after unmount", async () => {

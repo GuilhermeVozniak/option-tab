@@ -1,10 +1,11 @@
-import { type ReactNode, type RefObject, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Radio } from "@/components/ui/radio";
 import { Select } from "@/components/ui/select";
 import { LANGUAGES } from "../../lib/i18n";
+import { type JSONExportResult, jsonExportError } from "../../lib/json-export-bridge";
 import {
   type CrashPolicy,
   defaultSettings,
@@ -32,6 +33,7 @@ interface GeneralTabProps {
   updateCheckResult: ReactNode;
   checkUpdates: () => void;
   onImport?: (text: string) => Promise<void>;
+  onExport?: () => Promise<JSONExportResult>;
 }
 
 export function GeneralTab({
@@ -42,22 +44,36 @@ export function GeneralTab({
   updateCheckResult,
   checkUpdates,
   onImport,
+  onExport,
 }: GeneralTabProps) {
   const { settings, t, onChange, patchBehavior } = ctx;
   const [importError, setImportError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const exportSettings = () => {
+  const [exportPending, setExportPending] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const [exported, setExported] = useState(false);
+  const exportOwner = useRef(0);
+  useEffect(
+    () => () => {
+      ++exportOwner.current;
+    },
+    [],
+  );
+
+  const exportSettings = async () => {
+    const owner = ++exportOwner.current;
+    setExportPending(true);
+    setExportError("");
+    setExported(false);
     try {
-      const blob = new Blob([JSON.stringify(settings, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "option-tab-settings.json";
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      // Download is unavailable (e.g. in tests); ignore.
+      if (!onExport) throw new Error("json export: unavailable");
+      const result = await onExport();
+      if (owner === exportOwner.current) setExported(result.status === "saved");
+    } catch (cause) {
+      if (owner === exportOwner.current) setExportError(jsonExportError(cause, t));
+    } finally {
+      if (owner === exportOwner.current) setExportPending(false);
     }
   };
   const importFile = async (file: File | undefined) => {
@@ -261,9 +277,15 @@ export function GeneralTab({
               {importError}
             </p>
           ) : null}
+          {exported ? <p role="status">{t("Settings exported.")}</p> : null}
+          {exportError ? <p role="alert">{exportError}</p> : null}
           <div className={ACTIONS_ROW}>
-            <Button aria-label="Export settings" onClick={exportSettings}>
-              {t("Export…")}
+            <Button
+              aria-label="Export settings"
+              disabled={exportPending || !onExport}
+              onClick={() => void exportSettings()}
+            >
+              {exportPending ? t("Exporting…") : t("Export…")}
             </Button>
             <Button aria-label="Import settings" onClick={() => fileInput.current?.click()}>
               {t("Import…")}

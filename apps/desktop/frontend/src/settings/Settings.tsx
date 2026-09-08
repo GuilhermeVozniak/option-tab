@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { makeT, resolveLang } from "../lib/i18n";
+import type { JSONExportResult } from "../lib/json-export-bridge";
 import type { LauncherProfileTransferActions } from "../lib/launcher-profile-transfer-bridge";
 import type {
   DockLockDisplay,
@@ -39,6 +40,7 @@ interface SettingsProps {
   settings: SettingsModel;
   onChange: (next: SettingsModel) => void;
   onImport?: (text: string) => Promise<void>;
+  onExport?: () => Promise<JSONExportResult>;
   saveError?: string | null;
   permissions?: PermissionsControl;
   about?: AboutControl;
@@ -103,6 +105,7 @@ export function Settings({
   settings,
   onChange,
   onImport,
+  onExport,
   saveError,
   permissions,
   about,
@@ -311,6 +314,7 @@ export function Settings({
             updateCheckResult={updateCheckResult}
             checkUpdates={checkUpdates}
             onImport={onImport}
+            onExport={onExport}
           />
         </section>
         <section hidden={tab !== "Controls"} aria-label="Controls" className="space-y-4">

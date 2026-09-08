@@ -1001,6 +1001,18 @@ export function SaveDiagnosticsReport(token) {
 }
 
 /**
+ * SaveLauncherProfileExport keeps sanitization and file writing in the backend;
+ * WKWebView does not provide a browser download destination in pinned Wails.
+ * @param {string} profileID
+ * @returns {$CancellablePromise<platform$0.DiagnosticExportResult>}
+ */
+export function SaveLauncherProfileExport(profileID) {
+    return $Call.ByID(3836223507, profileID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType37($result);
+    }));
+}
+
+/**
  * SaveSettings serializes saves and publishes only successfully persisted settings.
  * @param {string} jsonStr
  * @returns {$CancellablePromise<void>}
@@ -1017,6 +1029,15 @@ export function SaveSettings(jsonStr) {
 export function SaveSettingsAtRevision(document, expectedRevision) {
     return $Call.ByID(1896415605, document, expectedRevision).then(/** @type {($result: any) => any} */(($result) => {
         return $$createType28($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<platform$0.DiagnosticExportResult>}
+ */
+export function SaveSettingsExport() {
+    return $Call.ByID(815358379).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType37($result);
     }));
 }
 

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ type launcherReferenceFixture struct {
 	removed []string
 	closed  bool
 	resolve func(context.Context, string) (platform.LauncherReference, error)
+	remove  func(context.Context, string) error
 }
 
 func (s *launcherReferenceFixture) ChooseLauncherReference(ctx context.Context, kind string) (platform.LauncherReference, error) {
@@ -45,11 +47,16 @@ func (s *launcherReferenceFixture) RelinkLauncherReference(ctx context.Context, 
 	return s.ResolveLauncherReference(ctx, id)
 }
 
-func (s *launcherReferenceFixture) RemoveLauncherReference(_ context.Context, id string) error {
+func (s *launcherReferenceFixture) RemoveLauncherReference(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.records, id)
 	s.removed = append(s.removed, id)
+	if s.remove != nil {
+		if err := s.remove(ctx, id); err != nil {
+			return err
+		}
+	}
+	delete(s.records, id)
 	return nil
 }
 
@@ -73,6 +80,10 @@ func (s *launcherReferenceFixture) Close() error {
 }
 
 func launcherItemsApp(t *testing.T, source *launcherReferenceFixture) *App {
+	return launcherItemsAppBeforeStart(t, source, nil)
+}
+
+func launcherItemsAppBeforeStart(t *testing.T, source *launcherReferenceFixture, setup func(*App)) *App {
 	t.Helper()
 	a := newApp(fake.New(), config.Default(), "")
 	a.wireLauncherItems(source, nil)
@@ -80,6 +91,9 @@ func launcherItemsApp(t *testing.T, source *launcherReferenceFixture) *App {
 	a.prefsOpen = true
 	a.syncLauncherItemAdmissionLocked()
 	a.viewMu.Unlock()
+	if setup != nil {
+		setup(a)
+	}
 	a.startLauncherItems()
 	pollUntil(t, time.Second, "launcher references load", func() bool { return !a.GetLauncherItemStatus().Busy })
 	t.Cleanup(func() {
@@ -95,6 +109,154 @@ func launcherItemsApp(t *testing.T, source *launcherReferenceFixture) *App {
 		a.stopCapture()
 	})
 	return a
+}
+
+func importLauncherFolderFixture(t *testing.T, a *App) string {
+	t.Helper()
+	p := config.DefaultReplacementDock().Profiles[0]
+	p.Items = []config.LauncherItem{{ID: "folder", Kind: "folder", Label: "Docs", ReferenceID: strings.Repeat("a", 32), FolderView: "list"}}
+	doc, err := config.ExportLauncherProfile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := a.PreviewLauncherProfileImport(string(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	imported, err := a.ImportLauncherProfile(string(doc), review.Digest, review.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return imported.ProfileID
+}
+
+func TestLauncherItemsImportedPlaceholderRepairAndRemoval(t *testing.T) {
+	for _, beforeStartup := range []bool{false, true} {
+		for _, repair := range []bool{false, true} {
+			name := "after-start/removal"
+			if beforeStartup {
+				name = "before-start/removal"
+			}
+			if repair {
+				name = strings.Replace(name, "removal", "repair", 1)
+			}
+			t.Run(name, func(t *testing.T) {
+				source := &launcherReferenceFixture{records: map[string]platform.LauncherReference{}, remove: func(context.Context, string) error { return errors.New("unexpected private cleanup") }}
+				var profileID string
+				setup := func(a *App) { profileID = importLauncherFolderFixture(t, a) }
+				var a *App
+				if beforeStartup {
+					a = launcherItemsAppBeforeStart(t, source, setup)
+				} else {
+					a = launcherItemsApp(t, source)
+					setup(a)
+				}
+				initial, err := a.GetLauncherItemSettings(profileID)
+				if err != nil || len(initial.Items) != 1 {
+					t.Fatal("imported items", err)
+				}
+				placeholder := initial.Items[0].ReferenceID
+				if !strings.HasPrefix(placeholder, "selection-") {
+					t.Fatal("import retained private authority")
+				}
+				var next []config.LauncherItem
+				if repair {
+					source.choose = func(context.Context, string) (platform.LauncherReference, error) {
+						return platform.LauncherReference{ID: strings.Repeat("b", 32), Kind: "folder", Label: "Docs", State: "ready", Revision: 1}, nil
+					}
+					selected, err := a.ChooseLauncherItemReference("folder")
+					if err != nil {
+						t.Fatal(err)
+					}
+					next = cloneLauncherItems(initial.Items)
+					next[0].ReferenceID = selected.ID
+				}
+				result, err := a.SetLauncherItems(profileID, initial.Revision, next)
+				if err != nil {
+					t.Fatal("structural placeholder caused failed save", err)
+				}
+				if result.ProfileID != profileID || result.Revision != launcherItemsRevision(next) || len(result.Items) != len(next) {
+					t.Fatal("canonical saved revision missing", result)
+				}
+				for _, ref := range result.References {
+					if ref.ID == placeholder {
+						t.Fatal("retained unused structural placeholder")
+					}
+				}
+				source.mu.Lock()
+				defer source.mu.Unlock()
+				if len(source.removed) != 0 {
+					t.Fatal("structural placeholder reached private cleanup", source.removed)
+				}
+			})
+		}
+	}
+}
+
+func TestLauncherItemsPrivateCleanupFailureStillReturnsCommittedRevision(t *testing.T) {
+	id := strings.Repeat("c", 32)
+	source := &launcherReferenceFixture{records: map[string]platform.LauncherReference{id: {ID: id, Kind: "folder", State: "ready"}}, remove: func(context.Context, string) error { return errors.New("private store failed") }}
+	a := launcherItemsApp(t, source)
+	initial, err := a.GetLauncherItemSettings("default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	withPin, err := a.SetLauncherItems("default", initial.Revision, []config.LauncherItem{{ID: "folder", Kind: "folder", Label: "Docs", ReferenceID: id, FolderView: "list"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := a.SetLauncherItems("default", withPin.Revision, nil)
+	if err == nil || err.Error() != "launcher items: cleanupFailed" {
+		t.Fatal("private cleanup failure hidden", err)
+	}
+	if result.Revision != launcherItemsRevision(nil) || len(result.Items) != 0 {
+		t.Fatal("committed revision missing", result)
+	}
+	current, err := a.GetLauncherItemSettings("default")
+	if err != nil || current.Revision != result.Revision {
+		t.Fatal("save was not committed", err)
+	}
+	if len(source.removed) != 1 || source.removed[0] != id {
+		t.Fatal("private cleanup was skipped")
+	}
+}
+
+func TestLauncherItemsUnusedImportedPlaceholderCleanup(t *testing.T) {
+	source := &launcherReferenceFixture{records: map[string]platform.LauncherReference{}, remove: func(context.Context, string) error { return errors.New("unexpected private cleanup") }}
+	var profileID string
+	a := launcherItemsAppBeforeStart(t, source, func(a *App) { profileID = importLauncherFolderFixture(t, a) })
+	initial, err := a.GetLauncherItemSettings(profileID)
+	if err != nil || len(initial.Items) != 1 {
+		t.Fatal("imported items", err)
+	}
+	id := initial.Items[0].ReferenceID
+	s := a.settingsSnapshot()
+	for i := range s.ReplacementDock.Profiles {
+		if s.ReplacementDock.Profiles[i].ID == profileID {
+			s.ReplacementDock.Profiles[i].Items = nil
+		}
+	}
+	a.saveMu.Lock()
+	err = a.saveSettingsLocked(s)
+	a.saveMu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = a.RemoveUnusedLauncherReference(id); err != nil {
+		t.Fatal("inert catalog cleanup failed", err)
+	}
+	current, err := a.GetLauncherItemSettings(profileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ref := range current.References {
+		if ref.ID == id {
+			t.Fatal("inert placeholder retained")
+		}
+	}
+	if len(source.removed) != 0 {
+		t.Fatal("structural placeholder reached private cleanup")
+	}
 }
 
 func TestLauncherItemsCASAndCopiedSettings(t *testing.T) {

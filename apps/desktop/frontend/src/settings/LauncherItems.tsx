@@ -27,6 +27,14 @@ export interface LauncherItemSettingsActions {
   subscribe?(handler: (status: LauncherItemStatus) => void): () => void;
 }
 const actionable = (x: LauncherItem) => !["spacer", "separator"].includes(x.kind);
+function referenceStatus(state: string): string {
+  if (state === "moved") return "Moved — relink in Settings";
+  if (state === "missing") return "Missing — relink in Settings";
+  if (state === "accessRequired" || state === "needsSelection") return "Select again in Settings";
+  if (state === "changed") return "Changed — relink in Settings";
+  if (state === "preparing") return "Loading…";
+  return "Item unavailable";
+}
 function newID(kind: string) {
   return `${kind}-${crypto.randomUUID().replaceAll("-", "").slice(0, 24)}`;
 }
@@ -321,7 +329,9 @@ export function LauncherItems({
                   ) : null}
                   <strong>{x.label || t(x.kind)}</strong>
                   <span>{t(x.kind)}</span>
-                  {ref && ref.state !== "ready" ? <span>{t(ref.state)}</span> : null}
+                  {ref && ref.state !== "ready" ? (
+                    <span>{t(referenceStatus(ref.state))}</span>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap gap-1">
                   <Button

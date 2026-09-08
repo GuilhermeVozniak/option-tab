@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"slices"
 	"sync"
 	"time"
 
@@ -220,7 +219,7 @@ func (a *App) retireMediaPresentationLocked(id uint64) {
 }
 
 func cloneMediaView(s MediaViewState) MediaViewState {
-	s.Lyrics.Cues = slices.Clone(s.Lyrics.Cues)
+	s.Lyrics.Cues = append([]media.Cue{}, s.Lyrics.Cues...)
 	return s
 }
 
@@ -229,7 +228,7 @@ func (a *App) mediaViewLocked(p *mediaPresentation) MediaViewState {
 	if asset := a.media.assets[s.Provider]; asset != nil && asset.scope == s.Scope {
 		s.Artwork = asset.artwork
 		s.Lyrics = asset.lyrics
-		s.Lyrics.Cues = slices.Clone(asset.lyrics.Cues)
+		s.Lyrics.Cues = append([]media.Cue{}, asset.lyrics.Cues...)
 		s.PositionMS, s.ActiveCue = asset.timeline.PositionAndActive()
 	}
 	return s

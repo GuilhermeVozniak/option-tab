@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { Translate } from "../lib/i18n";
+import { jsonExportError } from "../lib/json-export-bridge";
 import type {
   LauncherProfileImportReview,
   LauncherProfileTransferActions,
@@ -52,6 +53,7 @@ export function LauncherProfileTransfer({
   const [document, setDocument] = useState("");
   const [pending, setPending] = useState("");
   const [error, setError] = useState("");
+  const [exported, setExported] = useState(false);
   const operation = useRef(0);
 
   useEffect(() => {
@@ -60,6 +62,7 @@ export function LauncherProfileTransfer({
     setDocument("");
     setPending("");
     setError("");
+    setExported(false);
     return () => {
       operation.current++;
     };
@@ -69,17 +72,13 @@ export function LauncherProfileTransfer({
     const owner = ++operation.current;
     setPending("export");
     setError("");
+    setExported(false);
     try {
-      const sanitized = await actions.exportProfile(profileID);
+      const result = await actions.exportProfile(profileID);
       if (owner !== operation.current) return;
-      const url = URL.createObjectURL(new Blob([sanitized], { type: "application/json" }));
-      const anchor = window.document.createElement("a");
-      anchor.href = url;
-      anchor.download = "option-tab-launcher-profile.json";
-      anchor.click();
-      URL.revokeObjectURL(url);
+      setExported(result.status === "saved");
     } catch (cause) {
-      if (owner === operation.current) setError(friendlyError(cause, t));
+      if (owner === operation.current) setError(jsonExportError(cause, t));
     } finally {
       if (owner === operation.current) setPending("");
     }
@@ -91,6 +90,7 @@ export function LauncherProfileTransfer({
     setReview(null);
     setDocument("");
     setError("");
+    setExported(false);
     if (file.size > MAX_DOCUMENT_BYTES) {
       setError(t("Profile file is larger than 256 KiB."));
       return;
@@ -123,6 +123,7 @@ export function LauncherProfileTransfer({
     const admitted = { document, digest: review.digest, revision: review.revision };
     setPending("import");
     setError("");
+    setExported(false);
     try {
       const result = await actions.importProfile(
         admitted.document,
@@ -195,6 +196,7 @@ export function LauncherProfileTransfer({
                 setReview(null);
                 setDocument("");
                 setError("");
+                setExported(false);
               }}
             >
               {t("Cancel import")}
@@ -202,6 +204,7 @@ export function LauncherProfileTransfer({
           </div>
         </div>
       ) : null}
+      {exported ? <p role="status">{t("Profile exported.")}</p> : null}
       {error ? <p role="alert">{error}</p> : null}
     </section>
   );

@@ -11,6 +11,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -112,6 +113,8 @@ type App struct {
 	media                     *appMediaRuntime
 	automation                *appAutomationRuntime
 	diagnostics               *diagnostics.Service
+	jsonExporter              platform.JSONExportSource
+	jsonExportCancel          context.CancelFunc // viewMu; retained until native owner joins
 	launcher                  *appLauncherRuntime
 	widgets                   *appWidgetsRuntime
 	widgetPackages            *appWidgetPackageManager
@@ -182,6 +185,7 @@ func NewApp() *App {
 	a.wireLauncherItems(launcherRefs, launcherIcons)
 	a.wireAutomation(platform.NewAutomationServer())
 	a.wireDiagnostics(platform.NewDiagnosticExportSource())
+	a.jsonExporter = platform.NewJSONExportSource()
 	return a
 }
 
@@ -337,6 +341,7 @@ func (a *App) stopCapture() {
 	a.switcherVisible = false
 	a.visibleSwitcherSession = 0
 	a.captureStopOnce.Do(func() { close(a.captureStop) })
+	a.syncJSONExportAdmissionLocked()
 	a.stopLauncherAdmissionLocked()
 	if a.launcher != nil && a.launcher.cancel != nil {
 		a.launcher.cancel()

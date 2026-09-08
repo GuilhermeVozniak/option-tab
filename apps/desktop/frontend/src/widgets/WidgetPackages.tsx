@@ -60,7 +60,9 @@ export function WidgetPackages({
         </div>
         <button
           type="button"
-          disabled={!status.available || status.busy || pendingReview || !!review}
+          disabled={
+            !status.available || status.busy || pendingReview || pendingMutation || !!review
+          }
           onClick={() => {
             const operation = ++owner.current;
             setPendingReview(true);
@@ -70,7 +72,10 @@ export function WidgetPackages({
               .then((value) => {
                 if (owner.current === operation) setReview(value);
               })
-              .catch((reason) => owner.current === operation && fail(reason))
+              .catch((reason) => {
+                const message = reason instanceof Error ? reason.message : String(reason);
+                if (owner.current === operation && message !== "context canceled") fail(reason);
+              })
               .finally(() => owner.current === operation && setPendingReview(false));
           }}
         >
@@ -151,6 +156,7 @@ export function WidgetPackages({
             </button>
             <button
               type="button"
+              disabled={status.busy || pendingMutation}
               onClick={() => {
                 const token = review.token;
                 owner.current++;
@@ -174,7 +180,7 @@ export function WidgetPackages({
                 </span>
                 <button
                   type="button"
-                  disabled={status.busy || pendingMutation}
+                  disabled={!status.available || status.busy || pendingReview || pendingMutation}
                   onClick={() => {
                     const operation = ++owner.current;
                     setError("");

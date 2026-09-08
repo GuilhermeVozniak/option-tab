@@ -92,6 +92,51 @@ describe("Settings", () => {
       }),
     );
   });
+  it.each([
+    ["en", "Connected"],
+    ["pt-BR", "Conectado"],
+    ["es", "Conectado"],
+  ] as const)("shows a successful media connection in %s when the native reason is empty", (language, connected) => {
+    render(
+      <Settings
+        settings={{
+          ...defaultSettings,
+          behavior: { ...defaultSettings.behavior, language },
+          dock: {
+            ...defaultSettings.dock,
+            media: { ...defaultSettings.dock.media, enabled: true, musicEnabled: true },
+          },
+        }}
+        onChange={vi.fn()}
+        media={{ permissions: { music: { status: "ready", reason: "" } }, onConnect: vi.fn() }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    expect(screen.getByText(connected)).toBeVisible();
+  });
+
+  it("does not connect a remembered provider while media controls are disabled", () => {
+    const onConnect = vi.fn();
+    render(
+      <Settings
+        settings={{
+          ...defaultSettings,
+          dock: {
+            ...defaultSettings.dock,
+            media: { ...defaultSettings.dock.media, enabled: false, musicEnabled: true },
+          },
+        }}
+        onChange={vi.fn()}
+        media={{ permissions: {}, onConnect }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    const connect = screen.getByRole("button", { name: "Connect" });
+    expect(connect).toBeDisabled();
+    fireEvent.click(connect);
+    expect(onConnect).not.toHaveBeenCalled();
+  });
+
   it("renders current values", () => {
     render(<Settings settings={defaultSettings} onChange={vi.fn()} />);
     expect(screen.getByLabelText("Visual style thumbnails")).toHaveAttribute(
@@ -943,36 +988,6 @@ describe("Settings", () => {
     fireEvent.change(input, { target: { files: [file] } });
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("invalid document"));
     expect(onChange).not.toHaveBeenCalled();
-  });
-
-  it("exports settings as a JSON download", () => {
-    const createObjectURL = vi.fn((_blob: Blob) => "blob:x");
-    const revokeObjectURL = vi.fn();
-    const hadCreate = "createObjectURL" in URL;
-    // jsdom has no createObjectURL; install stubs and clean up after.
-    (URL as unknown as Record<string, unknown>).createObjectURL = createObjectURL;
-    (URL as unknown as Record<string, unknown>).revokeObjectURL = revokeObjectURL;
-    let download = "";
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
-      this: HTMLAnchorElement,
-    ) {
-      download = this.download;
-    });
-    try {
-      render(<Settings settings={defaultSettings} onChange={vi.fn()} />);
-      fireEvent.click(screen.getByLabelText("Export settings"));
-      expect(createObjectURL).toHaveBeenCalledTimes(1);
-      expect(createObjectURL.mock.calls[0][0]).toBeInstanceOf(Blob);
-      expect(click).toHaveBeenCalledTimes(1);
-      expect(download).toBe("option-tab-settings.json");
-      expect(revokeObjectURL).toHaveBeenCalledWith("blob:x");
-    } finally {
-      click.mockRestore();
-      if (!hadCreate) {
-        delete (URL as unknown as Record<string, unknown>).createObjectURL;
-        delete (URL as unknown as Record<string, unknown>).revokeObjectURL;
-      }
-    }
   });
 
   it("labels the onboarding finish button 'Get started' when all permissions are granted", () => {

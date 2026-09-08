@@ -24,19 +24,21 @@ Supported operations are `focus window`, `close window`, `minimize window`, `hid
 
 ## Terminal examples
 
+Use the dictionary terms directly, without vertical-bar identifier escaping. If several local builds share the bundle identifier, replace `application id "com.optiontab.app"` with `application "/absolute/path/to/Option Tab.app"` to select the intended installed bundle.
+
 Read applications and windows:
 
 ```sh
-osascript -e 'tell application id "com.optiontab.app" to |query applications|'
-osascript -e 'tell application id "com.optiontab.app" to |query windows| given |bundle identifier|:"com.apple.finder"'
-osascript -e 'tell application id "com.optiontab.app" to |query active window|'
+osascript -e 'tell application id "com.optiontab.app" to query applications'
+osascript -e 'tell application id "com.optiontab.app" to query windows bundle identifier "com.apple.finder"'
+osascript -e 'tell application id "com.optiontab.app" to query active window'
 ```
 
 Open a switcher without advancing an existing selection:
 
 ```sh
-osascript -e 'tell application id "com.optiontab.app" to |open switcher| given |mode|:|apps mode|'
-osascript -e 'tell application id "com.optiontab.app" to |open switcher| given |mode|:|windows mode|'
+osascript -e 'tell application id "com.optiontab.app" to open switcher mode apps mode'
+osascript -e 'tell application id "com.optiontab.app" to open switcher mode windows mode'
 ```
 
 The selected mode uses its configured appearance and filtering. Disabled keyboard shortcuts do not disable these explicit commands. Paused or inactive sessions refuse new presentations and actions.
@@ -44,13 +46,13 @@ The selected mode uses its configured appearance and filtering. Disabled keyboar
 Show a Finder preview at explicit coordinates:
 
 ```sh
-osascript -e 'tell application id "com.optiontab.app" to |show app previews| given |bundle identifier|:"com.apple.finder", |x position|:160.0, |y position|:120.0'
+osascript -e 'tell application id "com.optiontab.app" to show app previews bundle identifier "com.apple.finder" x position 160.0 y position 120.0'
 ```
 
 The reply's `presentation.token` belongs to this preview. Pass that exact text to hide it; replace `TOKEN_FROM_REPLY` below with the returned value:
 
 ```sh
-osascript -e 'tell application id "com.optiontab.app" to |hide app previews| given |presentation token|:"TOKEN_FROM_REPLY"'
+osascript -e 'tell application id "com.optiontab.app" to hide app previews presentation token "TOKEN_FROM_REPLY"'
 ```
 
 Coordinates are global top-left logical points, so secondary displays can have negative coordinates. The preview clamps to a real display's usable frame. Omitted coordinates use the current display with a main-display fallback. A later show replaces only the previous automation preview; a late hide cannot dismiss the replacement or the Dock's hover panel. `accepted` means presentation work was admitted, not that native rendering has already been observed.
@@ -59,9 +61,9 @@ Explicit window actions, using a window ID from a query:
 
 ```applescript
 tell application id "com.optiontab.app"
-    |perform window action| given |operation|:|focus window|, |window id|:"12345"
-    |perform window action| given |operation|:|minimize window|, |window id|:"12345"
-    |perform window action| given |operation|:|fullscreen window|, |window id|:"12345", |fullscreen state|:true
+    perform window action operation focus window window id "12345"
+    perform window action operation minimize window window id "12345"
+    perform window action operation fullscreen window window id "12345" fullscreen state true
 end tell
 ```
 
@@ -76,7 +78,7 @@ Inventories are capped at 500 entries and replies at 4 MiB. `truncated` and omis
 To explicitly request already-cached image data:
 
 ```sh
-osascript -e 'tell application id "com.optiontab.app" to |query windows| given |bundle identifier|:"com.apple.finder", |include images|:true'
+osascript -e 'tell application id "com.optiontab.app" to query windows bundle identifier "com.apple.finder" include images true'
 ```
 
 This can return visible window content to the authorized caller. It never starts capture, refreshes an image or prompts for Screen Recording. Availability depends on prior preview presentation and the user's capture settings. Images must match the current captured process/window identity and be no older than 30 seconds. Responses include per-window `imageStatus`, optional PNG data URL `image`, and `capturedAt`; at most eight images and 512 KiB per encoded image are included. Extra image data is omitted explicitly. Local folder bookmarks, lyric files and settings secrets are not included in these replies.
@@ -91,4 +93,4 @@ Macro applications that can run AppleScript can use the same commands directly. 
 
 ## Current verification boundary
 
-Typed decoding, guarded service dispatch, suspended-reply lifetimes and shutdown have deterministic tests. A separately launched, signed, windowless fixture with the packaged dictionary reached macOS authorization and was refused with `errAEEventWouldRequireUserConsent` during no-prompt preflight. No consent prompt or real-user window action was performed for that test. Full `osascript` round trips, physical preview controls and real Accessibility action postconditions remain acceptance work; compilation and fixtures alone do not establish those results.
+Typed decoding, guarded service dispatch, suspended-reply lifetimes and shutdown have deterministic tests. A separately launched, signed, windowless fixture with the packaged dictionary reached macOS authorization and was refused with `errAEEventWouldRequireUserConsent` during no-prompt preflight. No consent prompt or real-user window action was performed for that test. The corrected examples compile against the installed dictionary and contain the matching private event codes; the earlier vertical-bar examples compiled as variables, which was not command validation. A read-only query to the local packaged app on 2026-09-08 compiled correctly but returned an Apple event timeout; the cause is not established by that result. Full successful `osascript` round trips, physical preview controls and real Accessibility action postconditions remain acceptance work; compilation and fixtures alone do not establish those results.

@@ -1,3 +1,5 @@
+import type { JSONExportResult } from "./json-export-bridge";
+
 export interface LauncherProfileImportReview {
   digest: string;
   revision: string;
@@ -13,7 +15,7 @@ export interface LauncherProfileImportResult {
 }
 
 export interface LauncherProfileTransferActions {
-  exportProfile(profileID: string): Promise<string>;
+  exportProfile(profileID: string): Promise<JSONExportResult>;
   previewImport(document: string): Promise<LauncherProfileImportReview>;
   importProfile(
     document: string,
@@ -23,14 +25,14 @@ export interface LauncherProfileTransferActions {
 }
 
 export const launcherProfileTransfer: LauncherProfileTransferActions = {
-  exportProfile: (profileID) => GetLauncherProfileExport(profileID),
+  exportProfile: (profileID) => SaveLauncherProfileExport(profileID) as Promise<JSONExportResult>,
   previewImport: (document) => PreviewLauncherProfileImport(document),
   importProfile: (document, digest, expectedRevision) =>
     ImportLauncherProfile(document, digest, expectedRevision),
 };
 
 import {
-  GetLauncherProfileExport,
   ImportLauncherProfile,
   PreviewLauncherProfileImport,
+  SaveLauncherProfileExport,
 } from "../../bindings/option-tab/app.js";

@@ -32,9 +32,13 @@ func decodeLyricsReply(raw *C.char) (lyricsSelection, error) {
 		Data, Bookmark []byte
 		Device, Inode  uint64
 		Error          string
+		Cancelled      bool
 	}
 	if err := json.Unmarshal([]byte(C.GoString(raw)), &reply); err != nil {
 		return lyricsSelection{}, err
+	}
+	if reply.Cancelled {
+		return lyricsSelection{}, context.Canceled
 	}
 	if reply.Error != "" {
 		return lyricsSelection{}, errors.New(reply.Error)

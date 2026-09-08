@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   WidgetCatalogDescriptor,
   WidgetInstanceConfig,
@@ -166,6 +166,72 @@ function makeID(base: string, used: Set<string>): string {
   for (let number = 2; number <= 99; number++)
     if (!used.has(`${stem}-${number}`)) return `${stem}-${number}`;
   return `widget-${Date.now()}`;
+}
+
+function TimezoneInput({
+  label,
+  value,
+  onCommit,
+  onInvalid,
+  onRestore,
+}: {
+  label: string;
+  value: string;
+  onCommit: (value: string) => void;
+  onInvalid: () => void;
+  onRestore: () => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const dirty = useRef(false);
+  useEffect(() => {
+    setDraft(value);
+    dirty.current = false;
+  }, [value]);
+  const commit = () => {
+    if (!dirty.current) return;
+    let zone = draft.trim();
+    try {
+      if (!zone || zone.length > 80) throw new Error("invalid timezone");
+      // Go also accepts Local; other values must be complete IANA zone names.
+      if (zone !== "Local") {
+        zone = new Intl.DateTimeFormat("en", { timeZone: zone }).resolvedOptions().timeZone;
+        if (/^[+-]/.test(zone)) throw new Error("invalid timezone");
+      }
+    } catch {
+      onInvalid();
+      return;
+    }
+    dirty.current = false;
+    setDraft(zone);
+    onRestore();
+    if (zone !== value) onCommit(zone);
+  };
+  return (
+    <input
+      aria-label={label}
+      type="text"
+      maxLength={80}
+      value={draft}
+      onChange={(event) => {
+        dirty.current = true;
+        setDraft(event.target.value);
+        onRestore();
+      }}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+        if (event.key === "Enter") {
+          event.preventDefault();
+          commit();
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          dirty.current = false;
+          setDraft(value);
+          onRestore();
+        }
+      }}
+    />
+  );
 }
 
 export function WidgetSettings({
@@ -379,6 +445,14 @@ export function WidgetSettings({
                         type="checkbox"
                         checked={checked}
                         onChange={(event) => updateSetting(instance, setting, event.target.checked)}
+                      />
+                    ) : setting.type === "timezone" ? (
+                      <TimezoneInput
+                        label={label}
+                        value={text}
+                        onCommit={(value) => updateSetting(instance, setting, value)}
+                        onInvalid={() => setErrors((current) => ({ ...current, [key]: c.invalid }))}
+                        onRestore={() => setErrors((current) => ({ ...current, [key]: "" }))}
                       />
                     ) : (
                       <input

@@ -22,6 +22,7 @@ static NSSavePanel *forbiddenPanel(void) {
 #define OT_DIAGNOSTIC_MAKE_PANEL() forbiddenPanel()
 #define ot_diagnostics_main_thread fixture_main_thread
 #define ot_diagnostics_save_start fixture_save_start
+#define ot_json_save_start fixture_json_save_start
 #define ot_diagnostics_save_cancel fixture_save_cancel
 #define ot_diagnostics_save_poll fixture_save_poll
 #define ot_diagnostics_save_release fixture_save_release
