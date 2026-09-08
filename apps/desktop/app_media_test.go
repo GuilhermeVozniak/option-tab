@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync/atomic"
 	"testing"
@@ -232,6 +233,88 @@ func TestAppMediaFailurePublishesUsableRevision(t *testing.T) {
 	}
 	if err := a.PerformMediaAction(id, next.Revision, "pause", 0); err != nil {
 		t.Fatalf("updated revision refused: %v", err)
+	}
+}
+
+func TestAppMediaPermissionPendingSurvivesDisableUntilNativeDrain(t *testing.T) {
+	for _, cancelBeforeDrain := range []bool{false, true} {
+		t.Run(map[bool]string{false: "success", true: "disabled and reenabled"}[cancelBeforeDrain], func(t *testing.T) {
+			a, source := newAppMediaFixture(t)
+			entered, release := make(chan struct{}), make(chan struct{})
+			defer func() {
+				select {
+				case <-release:
+				default:
+					close(release)
+				}
+			}()
+			events := make(chan platform.MediaPermission, 8)
+			a.eventSink = func(name string, data any) {
+				if name != "media:permission" {
+					return
+				}
+				encoded, _ := json.Marshal(data)
+				var event struct {
+					Provider string
+					Status   string
+					Reason   string
+				}
+				if json.Unmarshal(encoded, &event) == nil && event.Provider == "music" {
+					events <- platform.MediaPermission{Status: event.Status, Reason: event.Reason}
+				}
+			}
+			source.permission = func(context.Context, platform.MediaProvider) (platform.MediaPermission, error) {
+				close(entered)
+				<-release
+				return platform.MediaPermission{Status: "ready"}, nil
+			}
+			done := make(chan error, 1)
+			go func() { _, err := a.ConnectMediaProvider("music"); done <- err }()
+			mediaReceive(t, entered)
+			status := a.GetMediaPermissions()
+			if status["music"].Status != "connecting" || status["spotify"].Status == "connecting" {
+				t.Fatalf("pending snapshot is not provider-scoped: %#v", status)
+			}
+			if got := mediaReceive(t, events); got.Status != "connecting" {
+				t.Fatalf("start event = %#v", got)
+			}
+			if cancelBeforeDrain {
+				for _, enabled := range []bool{false, true} {
+					a.settingsMu.Lock()
+					a.settings.Dock.Media.Enabled = enabled
+					a.settingsMu.Unlock()
+					a.viewMu.Lock()
+					a.syncMediaLocked()
+					a.viewMu.Unlock()
+					if got := a.GetMediaPermissions()["music"].Status; got != "connecting" {
+						t.Fatalf("released pending status before native drain: %s", got)
+					}
+				}
+			}
+			if _, err := a.ConnectMediaProvider("music"); err == nil {
+				t.Fatal("duplicate permission request was admitted")
+			}
+			if source.permissionCalls.Load() != 1 {
+				t.Fatal("duplicate native permission call")
+			}
+			close(release)
+			err := mediaReceive(t, done)
+			want := "ready"
+			if cancelBeforeDrain {
+				want = "permissionRequired"
+				if err == nil {
+					t.Fatal("retired native success was accepted")
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if got := a.GetMediaPermissions()["music"].Status; got != want {
+				t.Fatalf("drained status = %s; want %s", got, want)
+			}
+			if got := mediaReceive(t, events); got.Status != want {
+				t.Fatalf("drain event = %#v; want %s", got, want)
+			}
+		})
 	}
 }
 

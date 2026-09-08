@@ -143,12 +143,21 @@ static NSDictionary *OTAutomationDecode(NSAppleEventDescriptor *event) {
     }
     return wire;
 }
+static BOOL OTAutomationIdentity(NSAppleEventDescriptor *value, uint32_t *identity) {
+    // macOS supplies these read-only attributes as UInt32 on some versions,
+    // despite the SDK documenting SInt32. Accept only those two integer types.
+    if(value.descriptorType!=typeSInt32&&value.descriptorType!=typeUInt32)return NO;
+    if(AEGetDescDataSize(value.aeDesc)!=sizeof(*identity))return NO;
+    if(AEGetDescData(value.aeDesc,identity,sizeof(*identity))!=noErr)return NO;
+    return value.descriptorType==typeUInt32||*identity<=INT32_MAX;
+}
 static BOOL OTAutomationLocal(NSAppleEventDescriptor *event) {
     NSAppleEventDescriptor *source=[event attributeDescriptorForKeyword:keyEventSourceAttr];
     if(source.descriptorType!=typeSInt16)return NO;
     int s=source.int32Value;
     NSAppleEventDescriptor *pid=[event attributeDescriptorForKeyword:keySenderPIDAttr],*uid=[event attributeDescriptorForKeyword:keySenderEUIDAttr];
-    return (s==kAELocalProcess||s==kAESameProcess)&&pid.descriptorType==typeSInt32&&pid.int32Value>0&&uid.descriptorType==typeSInt32&&(uid_t)uid.int32Value==geteuid();
+    uint32_t senderPID=0,senderUID=0;
+    return (s==kAELocalProcess||s==kAESameProcess)&&OTAutomationIdentity(pid,&senderPID)&&senderPID>0&&senderPID<=INT32_MAX&&OTAutomationIdentity(uid,&senderUID)&&(uid_t)senderUID==geteuid();
 }
 @implementation OTAutomationOwner
 - (instancetype)init {

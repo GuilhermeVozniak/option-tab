@@ -115,6 +115,33 @@ describe("Settings", () => {
     expect(screen.getByText(connected)).toBeVisible();
   });
 
+  it.each([
+    ["en", "Connecting…"],
+    ["pt-BR", "Conectando…"],
+    ["es", "Conectando…"],
+  ])("shows the pending media connection in %s", (language, label) => {
+    const onConnect = vi.fn();
+    render(
+      <Settings
+        settings={{
+          ...defaultSettings,
+          behavior: { ...defaultSettings.behavior, language },
+          dock: {
+            ...defaultSettings.dock,
+            media: { ...defaultSettings.dock.media, enabled: true, musicEnabled: true },
+          },
+        }}
+        onChange={vi.fn()}
+        media={{ permissions: { music: { status: "connecting", reason: "" } }, onConnect }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    const button = screen.getByRole("button", { name: label });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(onConnect).not.toHaveBeenCalled();
+  });
+
   it("does not connect a remembered provider while media controls are disabled", () => {
     const onConnect = vi.fn();
     render(

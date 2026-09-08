@@ -62,6 +62,7 @@ interface SettingsProps {
   };
   media?: {
     permissions: Record<string, { status: string; reason: string }>;
+    pending?: Readonly<Record<string, boolean>>;
     onConnect: (provider: "music" | "spotify") => void;
   };
   diagnostics?: boolean;

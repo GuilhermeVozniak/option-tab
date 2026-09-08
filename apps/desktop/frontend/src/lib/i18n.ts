@@ -486,6 +486,7 @@ const PT: Record<string, string> = {
     "Capas remotas contatam o servidor da imagem. Metadados e controles continuam funcionando com esta opção desligada.",
   Connect: "Conectar",
   Connected: "Conectado",
+  "Connecting…": "Conectando…",
   "Player is not running": "O player não está em execução",
   "Connect this player to allow Automation access":
     "Conecte este player para permitir o acesso de Automação",
@@ -1152,6 +1153,7 @@ const ES: Record<string, string> = {
     "Las carátulas remotas contactan al servidor de imágenes. Los metadatos y controles siguen funcionando cuando está desactivado.",
   Connect: "Conectar",
   Connected: "Conectado",
+  "Connecting…": "Conectando…",
   "Player is not running": "El reproductor no está en ejecución",
   "Connect this player to allow Automation access":
     "Conecta este reproductor para permitir el acceso de Automatización",

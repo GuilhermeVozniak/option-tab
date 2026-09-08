@@ -383,23 +383,46 @@ func (a *App) prepareLauncherChildHost(p *launcherItemPanel) bool {
 	host.show(p.state.Bounds)
 	a.publishLauncherChildLocked(p)
 	a.viewMu.Unlock()
-	ready := time.NewTimer(2 * time.Second)
+	deadline := time.Now().Add(2 * time.Second)
+	ready := time.NewTimer(time.Until(deadline))
 	defer ready.Stop()
 	tick := time.NewTicker(10 * time.Millisecond)
 	defer tick.Stop()
 	for {
+		if !time.Now().Before(deadline) {
+			a.failLauncherChildStart(p)
+			return false
+		}
 		a.viewMu.Lock()
 		if !a.launcherChildCurrentLocked(p) {
 			a.viewMu.Unlock()
+			a.failLauncherChildStart(p)
 			return false
 		}
 		panel, ok := host.wheelPanel().(platform.LauncherPanel)
-		if ok && panel.LauncherToken() != 0 {
+		if ok && p.childToken == 0 && panel.LauncherToken() != 0 {
 			p.childToken = panel.LauncherToken()
-			a.viewMu.Unlock()
-			break
 		}
 		a.viewMu.Unlock()
+		// A token exists before AppKit reports the newly shown panel as
+		// physically visible. Keep its original identity while awaiting that
+		// transition, without extending the initialization deadline.
+		visible := p.childToken != 0 && a.launcherChildGuard(p, true) == nil
+		// Native validation may return after the timer elapsed. A ready
+		// result never extends this owner's initialization deadline.
+		if !time.Now().Before(deadline) {
+			a.failLauncherChildStart(p)
+			return false
+		}
+		if visible {
+			return true
+		}
+		// Only the new child's visibility may settle. A lost parent lease
+		// still retires this request immediately.
+		if a.launcherChildGuard(p, false) != nil {
+			a.failLauncherChildStart(p)
+			return false
+		}
 		select {
 		case <-p.ctx.Done():
 			return false
@@ -409,11 +432,6 @@ func (a *App) prepareLauncherChildHost(p *launcherItemPanel) bool {
 		case <-tick.C:
 		}
 	}
-	if err := a.launcherChildGuard(p, true); err != nil {
-		a.failLauncherChildStart(p)
-		return false
-	}
-	return true
 }
 
 // LauncherToken is immutable Go-side identity, not a native visibility query.

@@ -269,6 +269,185 @@ beforeEach(() => {
 
 describe("App", () => {
   it.each([
+    false,
+    true,
+  ])("recovers a failed permission snapshot without replacing a newer pending event (%s)", async (newerEvent) => {
+    window.location.hash = "#settings";
+    mocked.GetSettingsState.mockResolvedValueOnce({
+      revision: 1,
+      json: JSON.stringify({
+        ...defaultSettings,
+        behavior: { ...defaultSettings.behavior, onboarded: true },
+        dock: {
+          ...defaultSettings.dock,
+          media: { ...defaultSettings.dock.media, enabled: true, musicEnabled: true },
+        },
+      }),
+    } as never);
+    let fail!: (error: Error) => void;
+    mocked.GetMediaPermissions.mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        fail = reject;
+      }) as never,
+    );
+    render(<App />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    const dock = within(screen.getByRole("region", { name: "Dock" }));
+    expect(dock.getByRole("button", { name: "Connect" })).toBeDisabled();
+    if (newerEvent)
+      act(() =>
+        eventHandlers.get("media:permission")?.({
+          data: { provider: "music", status: "connecting", reason: "" },
+        }),
+      );
+    await act(async () => fail(new Error("permission snapshot unavailable")));
+    if (newerEvent) expect(dock.getByRole("button", { name: "Connecting…" })).toBeDisabled();
+    else {
+      expect(dock.getByText("Media unavailable")).toBeVisible();
+      const connect = dock.getByRole("button", { name: "Connect" });
+      expect(connect).toBeEnabled();
+      fireEvent.click(connect);
+      expect(await dock.findByText("Connected")).toBeVisible();
+    }
+  });
+
+  it("keeps media Connect pending until the original native request drains", async () => {
+    window.location.hash = "#settings";
+    const enabled = {
+      ...defaultSettings,
+      behavior: { ...defaultSettings.behavior, onboarded: true },
+      dock: {
+        ...defaultSettings.dock,
+        media: {
+          ...defaultSettings.dock.media,
+          enabled: true,
+          musicEnabled: true,
+          spotifyEnabled: true,
+        },
+      },
+    };
+    mocked.GetSettingsState.mockResolvedValueOnce({
+      revision: 1,
+      json: JSON.stringify(enabled),
+    } as never);
+    let finish!: (value: { status: string; reason: string }) => void;
+    mocked.ConnectMediaProvider.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }) as never,
+    );
+    render(<App />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    const dock = within(screen.getByRole("region", { name: "Dock" }));
+    fireEvent.click(dock.getAllByRole("button", { name: "Connect" })[0]);
+    const pending = dock.getByRole("button", { name: "Connecting…" });
+    expect(pending).toBeDisabled();
+    fireEvent.click(pending);
+    expect(mocked.ConnectMediaProvider).toHaveBeenCalledTimes(1);
+    expect(dock.getByRole("button", { name: "Connect" })).toBeEnabled();
+    fireEvent.click(dock.getByLabelText("Enable media controls"));
+    await act(async () => {});
+    fireEvent.click(dock.getByLabelText("Enable media controls"));
+    await act(async () => {});
+    expect(dock.getByRole("button", { name: "Connecting…" })).toBeDisabled();
+    // Backend cancellation drains without accepting the obsolete ready result.
+    act(() =>
+      eventHandlers.get("media:permission")?.({
+        data: { provider: "music", status: "permissionRequired", reason: "" },
+      }),
+    );
+    expect(dock.getByRole("button", { name: "Connecting…" })).toBeDisabled();
+    await act(async () => finish({ status: "ready", reason: "" }));
+    expect(dock.queryByText("Connected")).not.toBeInTheDocument();
+    expect(dock.getAllByRole("button", { name: "Connect" })[0]).toBeEnabled();
+  });
+
+  it("recovers the pending provider when preferences reopen and ignores a retired response", async () => {
+    window.location.hash = "#settings";
+    mocked.GetSettingsState.mockResolvedValue({
+      revision: 1,
+      json: JSON.stringify({
+        ...defaultSettings,
+        behavior: { ...defaultSettings.behavior, onboarded: true },
+        dock: {
+          ...defaultSettings.dock,
+          media: { ...defaultSettings.dock.media, enabled: true, musicEnabled: true },
+        },
+      }),
+    } as never);
+    let finish!: (value: { status: string; reason: string }) => void;
+    mocked.ConnectMediaProvider.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }) as never,
+    );
+    const initial = render(<App />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+    initial.unmount();
+    mocked.GetMediaPermissions.mockResolvedValueOnce({
+      music: { status: "connecting", reason: "" },
+      spotify: { status: "permissionRequired", reason: "" },
+    } as never);
+    render(<App />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    expect(screen.getByRole("button", { name: "Connecting…" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Connecting…" }));
+    expect(mocked.ConnectMediaProvider).toHaveBeenCalledTimes(1);
+    act(() =>
+      eventHandlers.get("media:permission")?.({
+        data: { provider: "music", status: "denied", reason: "Automation access is denied" },
+      }),
+    );
+    await act(async () => finish({ status: "ready", reason: "" }));
+    expect(screen.getByText("Automation access is denied")).toBeVisible();
+    expect(screen.queryByText("Connected")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Connect" })).toBeEnabled();
+  });
+
+  it("keeps Connect disabled until the pending permission snapshot is known", async () => {
+    window.location.hash = "#settings";
+    mocked.GetSettingsState.mockResolvedValueOnce({
+      revision: 1,
+      json: JSON.stringify({
+        ...defaultSettings,
+        behavior: { ...defaultSettings.behavior, onboarded: true },
+        dock: {
+          ...defaultSettings.dock,
+          media: { ...defaultSettings.dock.media, enabled: true, musicEnabled: true },
+        },
+      }),
+    } as never);
+    let finish!: (value: Record<string, { status: string; reason: string }>) => void;
+    mocked.GetMediaPermissions.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }) as never,
+    );
+    render(<App />);
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
+    act(() =>
+      eventHandlers.get("media:permission")?.({
+        data: { provider: "music", status: "connecting", reason: "" },
+      }),
+    );
+    await act(async () =>
+      finish({
+        music: { status: "permissionRequired", reason: "" },
+        spotify: { status: "permissionRequired", reason: "" },
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Connecting…" })).toBeDisabled();
+    expect(mocked.ConnectMediaProvider).not.toHaveBeenCalled();
+  });
+
+  it.each([
     ["pt-BR", "media provider command is busy", "Outro comando de mídia está em andamento"],
     ["es", "context deadline exceeded", "Se ha agotado el tiempo de espera de la operación"],
   ])("localizes a rejected native media Connect error in %s", async (language, message, expected) => {

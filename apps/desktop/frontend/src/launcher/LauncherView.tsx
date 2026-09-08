@@ -60,6 +60,10 @@ export function LauncherView({
   const canUseKeyboard =
     !!policy?.enabled && !!policy.letterNavigation && !!interaction.state?.letterInputAvailable;
   if (!presentation?.visible) return null;
+  const widgetSlots = Math.min(widgetState?.slots.length ?? 0, 4);
+  // WebKit's auto flex basis measures text instead of the fixed-width slots.
+  const widgetExtent =
+    widgetSlots * 160 + Math.max(0, widgetSlots - 1) * presentation.appearance.itemSpacingPx;
   return (
     <main
       className={`ot-launcher-shell edge-${presentation.edge} theme-${presentation.appearance.theme} material-${presentation.appearance.material}`}
@@ -162,7 +166,11 @@ export function LauncherView({
           ))
         : null}
       {widgetState?.visible && widgetActions ? (
-        <div className="ot-launcher-widgets" aria-label={t("Launcher widgets")}>
+        <div
+          className="ot-launcher-widgets"
+          aria-label={t("Launcher widgets")}
+          style={{ flexBasis: widgetExtent }}
+        >
           {widgetState.slots.map((slot) => (
             <aside
               className="ot-launcher-widget"

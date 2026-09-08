@@ -42,6 +42,7 @@ export function DockTab({
   };
   media?: {
     permissions: Record<string, { status: string; reason: string }>;
+    pending?: Readonly<Record<string, boolean>>;
     onConnect: (provider: "music" | "spotify") => void;
   };
   launcher?: {
@@ -188,6 +189,9 @@ export function DockTab({
           {(["music", "spotify"] as const).map((provider) => {
             const field = provider === "music" ? "musicEnabled" : "spotifyEnabled";
             const label = provider === "music" ? "Apple Music" : "Spotify";
+            const connecting =
+              !!media?.pending?.[provider] || media?.permissions[provider]?.status === "connecting";
+            const loading = media?.permissions[provider]?.status === "loading";
             return (
               <div key={provider}>
                 <label className={ROW}>
@@ -203,16 +207,20 @@ export function DockTab({
                 {d.media?.[field] && media ? (
                   <div className="flex items-center justify-between gap-3">
                     <small>
-                      {media.permissions[provider]?.status === "ready"
-                        ? t("Connected")
-                        : t(media.permissions[provider]?.reason || "Not connected")}
+                      {connecting
+                        ? t("Connecting…")
+                        : loading
+                          ? t("Loading…")
+                          : media.permissions[provider]?.status === "ready"
+                            ? t("Connected")
+                            : t(media.permissions[provider]?.reason || "Not connected")}
                     </small>
                     <button
                       type="button"
-                      disabled={!d.media?.enabled}
+                      disabled={!d.media?.enabled || connecting || loading}
                       onClick={() => media.onConnect(provider)}
                     >
-                      {t("Connect")}
+                      {connecting ? t("Connecting…") : t("Connect")}
                     </button>
                   </div>
                 ) : null}

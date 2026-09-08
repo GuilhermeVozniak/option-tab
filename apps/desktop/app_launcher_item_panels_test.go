@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -192,6 +193,148 @@ func waitChildReady(t *testing.T, a *App, session uint64) LauncherItemPanelState
 		return state != nil && state.Folder.Status == "ready"
 	})
 	return *state
+}
+
+type childReadinessPanel struct {
+	*launcherIntegrationPanel
+	first            sync.Once
+	entered, release chan struct{}
+	physical         atomic.Bool
+}
+
+func (p *childReadinessPanel) ValidateLauncherPanel(ctx context.Context, display string) error {
+	visible := p.physical.Load()
+	p.first.Do(func() {
+		close(p.entered)
+		select {
+		case <-p.release:
+		case <-ctx.Done():
+		}
+	})
+	if !visible {
+		return platform.ErrDockPanelHostClosed
+	}
+	return p.launcherIntegrationPanel.ValidateLauncherPanel(ctx, display)
+}
+
+type childReadinessHost struct{ panel platform.DockPanel }
+
+func (h childReadinessHost) CreateDockPanel(unsafe.Pointer) (platform.DockPanel, error) {
+	return h.panel, nil
+}
+
+func childWaitingForVisibility(t *testing.T, a *App, visible bool) (*childReadinessPanel, *launcherItemPanel) {
+	t.Helper()
+	panel := &childReadinessPanel{launcherIntegrationPanel: &launcherIntegrationPanel{token: 100}, entered: make(chan struct{}), release: make(chan struct{})}
+	panel.physical.Store(visible)
+	a.viewMu.Lock()
+	factory := a.launcherItemPanelFactory
+	a.launcherItemPanelFactory = func(session uint64, uuid string, style platform.LauncherPanelStyle, failed func()) *dockWindow {
+		d := factory(session, uuid, style, failed)
+		d.host = childReadinessHost{panel: panel}
+		return d
+	}
+	a.viewMu.Unlock()
+	showChild(t, a)
+	select {
+	case <-panel.entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("child never reached physical visibility validation")
+	}
+	a.viewMu.Lock()
+	p := a.launcherItemPanels.owners[1]
+	a.viewMu.Unlock()
+	return panel, p
+}
+
+func TestLauncherChildWaitsForPhysicalVisibilityBeforeFolderAccess(t *testing.T) {
+	fs := &childFolderFixture{}
+	a, _, _ := childAppFixture(t, fs)
+	panel, p := childWaitingForVisibility(t, a, false)
+	state := a.GetLauncherItemPanelState(p.state.Session)
+	if state == nil || state.Folder.Status != "loading" {
+		t.Fatal("child was not loading while native visibility was pending")
+	}
+	if err := a.OpenLauncherFolderEntry(state.Session, state.Revision, "entry"); err == nil || fs.calls.Load() != 0 || fs.opened.Load() != 0 {
+		t.Fatal("folder access admitted before native visibility", err)
+	}
+	panel.physical.Store(true)
+	close(panel.release) // The first physical check still returns its earlier refusal.
+	ready := waitChildReady(t, a, state.Session)
+	if len(ready.Folder.Entries) != 1 || ready.Folder.Entries[0].Name != "Owned.txt" {
+		t.Fatal("ready child did not publish its folder contents", ready)
+	}
+}
+
+func TestLauncherChildPhysicalVisibilityDeadlineRetiresAndDrains(t *testing.T) {
+	fs := &childFolderFixture{}
+	a, _, _ := childAppFixture(t, fs)
+	panel, p := childWaitingForVisibility(t, a, false)
+	close(panel.release)
+	select {
+	case <-p.done:
+		t.Fatal("transient physical refusal retired the child before its readiness deadline")
+	case <-time.After(50 * time.Millisecond):
+	}
+	select {
+	case <-p.done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("unavailable child did not retire and drain within its readiness deadline")
+	}
+	if a.GetLauncherItemPanelState(p.state.Session) != nil || panel.closes.Load() != 1 || fs.calls.Load() != 0 {
+		t.Fatal("unavailable child retained its host or accessed its folder")
+	}
+}
+
+func TestLauncherChildPendingVisibilityCannotSurviveRetirement(t *testing.T) {
+	for _, reason := range []string{"cancel", "parent", "child token"} {
+		t.Run(reason, func(t *testing.T) {
+			fs := &childFolderFixture{}
+			a, _, core := childAppFixture(t, fs)
+			panel, p := childWaitingForVisibility(t, a, false)
+			switch reason {
+			case "cancel":
+				a.viewMu.Lock()
+				a.stopLauncherItemsLocked()
+				a.viewMu.Unlock()
+			case "parent":
+				core.retired.Store(true)
+			case "child token":
+				p.host.mu.Lock()
+				p.host.current.panel = &launcherIntegrationPanel{token: 101}
+				p.host.mu.Unlock()
+			}
+			panel.physical.Store(true)
+			close(panel.release)
+			select {
+			case <-p.done:
+			case <-time.After(3 * time.Second):
+				t.Fatal("retired readiness owner did not drain")
+			}
+			if a.GetLauncherItemPanelState(p.state.Session) != nil || fs.calls.Load() != 0 || fs.opened.Load() != 0 {
+				t.Fatal("retired readiness owner accessed its folder or returned")
+			}
+		})
+	}
+}
+
+func TestLauncherChildLatePhysicalValidationCannotAdmitFolderAccess(t *testing.T) {
+	fs := &childFolderFixture{entered: make(chan struct{}, 1)}
+	a, _, _ := childAppFixture(t, fs)
+	panel, p := childWaitingForVisibility(t, a, true)
+	// The readiness timer started before this native validation entered.
+	<-time.After(2100 * time.Millisecond)
+	close(panel.release)
+	select {
+	case <-fs.entered:
+		t.Fatal("native validation admitted folder access after the readiness deadline")
+	case <-p.done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("late validation did not retire and drain its child")
+	}
+	if a.GetLauncherItemPanelState(p.state.Session) != nil || panel.closes.Load() != 1 || fs.calls.Load() != 0 {
+		t.Fatal("late validation retained its child or accessed its folder")
+	}
 }
 
 func TestLauncherChildReplacementWaitsForReadAndRejectsOldResult(t *testing.T) {

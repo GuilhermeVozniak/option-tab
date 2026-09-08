@@ -36,12 +36,14 @@ static OSErr testGetHandler(AEEventClass cls,AEEventID event,AEEventHandlerUPP *
 static void pump(double seconds){NSDate *until=[NSDate dateWithTimeIntervalSinceNow:seconds];do{[[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.001]];}while(until.timeIntervalSinceNow>0);}
 @interface OTTestEvent : NSAppleEventDescriptor
 @property SInt16 fixtureSource;
+@property NSAppleEventDescriptor *fixturePID;
+@property NSAppleEventDescriptor *fixtureUID;
 @end
 @implementation OTTestEvent
 - (NSAppleEventDescriptor *)attributeDescriptorForKeyword:(AEKeyword)keyword {
  if(keyword==keyEventSourceAttr){SInt16 source=self.fixtureSource?:kAESameProcess;return [NSAppleEventDescriptor descriptorWithDescriptorType:typeSInt16 bytes:&source length:2];}
- if(keyword==keySenderPIDAttr)return [NSAppleEventDescriptor descriptorWithInt32:getpid()];
- if(keyword==keySenderEUIDAttr)return [NSAppleEventDescriptor descriptorWithInt32:geteuid()];
+ if(keyword==keySenderPIDAttr)return self.fixturePID?:[NSAppleEventDescriptor descriptorWithInt32:getpid()];
+ if(keyword==keySenderEUIDAttr)return self.fixtureUID?:[NSAppleEventDescriptor descriptorWithInt32:geteuid()];
  return [super attributeDescriptorForKeyword:keyword];
 }
 @end
@@ -52,8 +54,41 @@ static NSAppleEventDescriptor *event(AEEventID code){
  [e setAttributeDescriptor:[NSAppleEventDescriptor descriptorWithInt32:geteuid()] forKeyword:keySenderEUIDAttr];AEDesc copy;assert(AEDuplicateDesc(e.aeDesc,&copy)==noErr);return [[OTTestEvent alloc] initWithAEDescNoCopy:&copy];
 }
 static NSAppleEventDescriptor *submit(OTAutomationOwner *owner,NSAppleEventDescriptor *e){NSAppleEventDescriptor *reply=[NSAppleEventDescriptor recordDescriptor];testManager.current=reply;[owner handle:e reply:reply];return reply;}
+static NSAppleEventDescriptor *unsignedIdentity(uint32_t value) {
+ return [NSAppleEventDescriptor descriptorWithDescriptorType:typeUInt32 bytes:&value length:sizeof(value)];
+}
+static void localIdentityCases(void) {
+ OTTestEvent *e=(OTTestEvent *)event('qapp');
+ e.fixtureSource=kAELocalProcess;
+ assert(OTAutomationLocal(e));
+ // Real macOS delivery returned `magn` (UInt32) for both read-only sender IDs.
+ e.fixturePID=unsignedIdentity((uint32_t)getpid());
+ e.fixtureUID=unsignedIdentity(geteuid());
+ assert(OTAutomationLocal(e));
+ e.fixtureSource=kAESameProcess;assert(OTAutomationLocal(e));
+ e.fixtureSource=kAERemoteProcess;assert(!OTAutomationLocal(e));
+ e.fixtureSource=kAEDirectCall;assert(!OTAutomationLocal(e));
+ e.fixtureSource=kAELocalProcess;
+ e.fixtureUID=unsignedIdentity(geteuid()+1);assert(!OTAutomationLocal(e));
+ e.fixtureUID=[NSAppleEventDescriptor descriptorWithInt32:-1];assert(!OTAutomationLocal(e));
+ e.fixtureUID=[NSAppleEventDescriptor descriptorWithString:[@(geteuid()) stringValue]];assert(!OTAutomationLocal(e));
+ e.fixtureUID=[NSAppleEventDescriptor nullDescriptor];assert(!OTAutomationLocal(e));
+ e.fixtureUID=unsignedIdentity(geteuid());
+ e.fixturePID=unsignedIdentity(0);assert(!OTAutomationLocal(e));
+ e.fixturePID=unsignedIdentity(UINT32_MAX);assert(!OTAutomationLocal(e));
+ e.fixturePID=[NSAppleEventDescriptor descriptorWithInt32:-1];assert(!OTAutomationLocal(e));
+ e.fixturePID=[NSAppleEventDescriptor descriptorWithString:[@(getpid()) stringValue]];assert(!OTAutomationLocal(e));
+ e.fixturePID=[NSAppleEventDescriptor nullDescriptor];assert(!OTAutomationLocal(e));
+ uint16_t shortValue=1;
+ e.fixturePID=[NSAppleEventDescriptor descriptorWithDescriptorType:typeUInt32 bytes:&shortValue length:sizeof(shortValue)];assert(!OTAutomationLocal(e));
+ e.fixturePID=unsignedIdentity((uint32_t)getpid());
+ e.fixtureUID=[NSAppleEventDescriptor descriptorWithInt32:geteuid()];assert(OTAutomationLocal(e));
+ e.fixturePID=[NSAppleEventDescriptor descriptorWithInt32:getpid()];
+ e.fixtureUID=unsignedIdentity(geteuid());assert(OTAutomationLocal(e));
+}
 int main(void){@autoreleasepool{
  testManager=[OTTestManager new];
+ localIdentityCases();
  // Dictionary wire types are independently exercised; unknown/ambiguous selectors refuse.
  NSAppleEventDescriptor *e=event('pvsh');[e setParamDescriptor:[NSAppleEventDescriptor descriptorWithString:@"A Fixture"] forKeyword:'anam'];
  [e setParamDescriptor:[NSAppleEventDescriptor descriptorWithDouble:-120.5] forKeyword:'xpos'];[e setParamDescriptor:[NSAppleEventDescriptor descriptorWithInt32:20] forKeyword:'ypos'];

@@ -2,6 +2,8 @@
 
 This checkpoint follows `a1dcfc6` on `feat/dockdoor-parity`. Actual Preferences testing and focused review exposed the fixes below. Combined automated verification passed. This is not a release or completion of the native acceptance matrix.
 
+The user subsequently installed and ran the final local build. [The caf9166 native acceptance report](2026-09-08-native-caf9166-acceptance.md) records those results, cleanup, and follow-up defects; the observations below describe the earlier checkpoint.
+
 ## Changes
 
 | Area | Resulting behavior |

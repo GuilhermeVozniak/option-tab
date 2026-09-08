@@ -361,15 +361,33 @@ func (a *App) GetMediaPermissions() map[string]platform.MediaPermission {
 	defer a.viewMu.Unlock()
 	out := map[string]platform.MediaPermission{}
 	for _, p := range []platform.MediaProvider{platform.MediaMusic, platform.MediaSpotify} {
-		status := platform.MediaPermission{Status: "permissionRequired"}
-		if a.media == nil {
-			status.Status = "unsupported"
-		} else if known, ok := a.media.permissions[p]; ok {
-			status = known
-		}
-		out[string(p)] = status
+		out[string(p)] = a.mediaPermissionLocked(p)
 	}
 	return out
+}
+
+// A cancelled permission call still owns its provider until the native call
+// returns. Expose that retained work when preferences reload their snapshot.
+func (a *App) mediaPermissionLocked(p platform.MediaProvider) platform.MediaPermission {
+	if a.media == nil {
+		return platform.MediaPermission{Status: "unsupported"}
+	}
+	if a.media.permissionJobs[p] != nil {
+		return platform.MediaPermission{Status: "connecting"}
+	}
+	if status, ok := a.media.permissions[p]; ok {
+		return status
+	}
+	return platform.MediaPermission{Status: "permissionRequired"}
+}
+
+func (a *App) emitMediaPermissionLocked(p platform.MediaProvider) {
+	status := a.mediaPermissionLocked(p)
+	a.emit("media:permission", struct {
+		Provider platform.MediaProvider `json:"provider"`
+		Status   string                 `json:"status"`
+		Reason   string                 `json:"reason"`
+	}{p, status.Status, status.Reason})
 }
 
 func (a *App) ConnectMediaProvider(provider string) (platform.MediaPermission, error) {
@@ -386,6 +404,7 @@ func (a *App) ConnectMediaProvider(provider string) (platform.MediaPermission, e
 	ctx, cancel := context.WithCancel(a.media.ctx)
 	owner := &mediaPermissionOwner{ctx, cancel}
 	a.media.permissionJobs[p] = owner
+	a.emitMediaPermissionLocked(p)
 	a.viewMu.Unlock()
 	result, err := a.media.source.RequestMediaPermission(ctx, p)
 	a.viewMu.Lock()
@@ -395,17 +414,14 @@ func (a *App) ConnectMediaProvider(provider string) (platform.MediaPermission, e
 		delete(a.media.permissionJobs, p)
 	}
 	if ctx.Err() != nil || !a.mediaAllowedLocked(p) {
+		a.emitMediaPermissionLocked(p)
 		return platform.MediaPermission{}, media.ErrRetired
 	}
 	if err != nil && result.Status == "" {
 		result = platform.MediaPermission{Status: "unavailable", Reason: err.Error()}
 	}
 	a.media.permissions[p] = result
-	a.emit("media:permission", struct {
-		Provider platform.MediaProvider `json:"provider"`
-		Status   string                 `json:"status"`
-		Reason   string                 `json:"reason"`
-	}{p, result.Status, result.Reason})
+	a.emitMediaPermissionLocked(p)
 	return result, err
 }
 

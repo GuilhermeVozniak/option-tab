@@ -1290,7 +1290,11 @@ function SettingsRoute() {
   const [lockPlacePending, setLockPlacePending] = useState(false);
   const [mediaPermissions, setMediaPermissions] = useState<
     Record<string, { status: string; reason: string }>
-  >({});
+  >({ music: { status: "loading", reason: "" }, spotify: { status: "loading", reason: "" } });
+  const [mediaConnectPending, setMediaConnectPending] = useState<Record<string, boolean>>({});
+  const mediaConnectJobs = useRef(new Set<string>());
+  const mediaPermissionVersions = useRef<Record<string, number>>({});
+  const mediaPermissionMounted = useRef(true);
   const [diagnosticsAvailable, setDiagnosticsAvailable] = useState(false);
   const [launcherStatus, setLauncherStatus] = useState<LauncherStatus>();
   const [launcherAppChoices, setLauncherAppChoices] = useState<LauncherAppChoice[]>([]);
@@ -1387,21 +1391,42 @@ function SettingsRoute() {
   }, []);
   useEffect(() => {
     let active = true;
+    mediaPermissionMounted.current = true;
+    const versions = { ...mediaPermissionVersions.current };
+    const acceptSnapshot = (value: typeof mediaPermissions) => {
+      if (!active) return;
+      setMediaPermissions((old) => {
+        const next = { ...old };
+        for (const provider of ["music", "spotify"]) {
+          if ((mediaPermissionVersions.current[provider] ?? 0) === (versions[provider] ?? 0))
+            next[provider] = value[provider] ?? { status: "permissionRequired", reason: "" };
+        }
+        return next;
+      });
+    };
     void media
       .permissions()
-      .then((value) => {
-        if (active) setMediaPermissions(value);
-      })
-      .catch(() => {});
+      .then(acceptSnapshot)
+      .catch(() =>
+        acceptSnapshot({
+          music: { status: "unavailable", reason: "Media unavailable" },
+          spotify: { status: "unavailable", reason: "Media unavailable" },
+        }),
+      );
     const off = onMediaEvents({
       update: () => {},
       hide: () => {},
       progress: () => {},
-      permission: (provider, status, reason) =>
-        setMediaPermissions((old) => ({ ...old, [provider]: { status, reason } })),
+      permission: (provider, status, reason) => {
+        if (!active) return;
+        mediaPermissionVersions.current[provider] =
+          (mediaPermissionVersions.current[provider] ?? 0) + 1;
+        setMediaPermissions((old) => ({ ...old, [provider]: { status, reason } }));
+      },
     });
     return () => {
       active = false;
+      mediaPermissionMounted.current = false;
       off();
     };
   }, []);
@@ -1560,19 +1585,44 @@ function SettingsRoute() {
           }}
           media={{
             permissions: mediaPermissions,
+            pending: mediaConnectPending,
             onConnect: (provider) => {
+              if (
+                mediaConnectJobs.current.has(provider) ||
+                ["loading", "connecting"].includes(mediaPermissions[provider]?.status) ||
+                !settings.dock.media?.enabled ||
+                !(provider === "music"
+                  ? settings.dock.media.musicEnabled
+                  : settings.dock.media.spotifyEnabled)
+              )
+                return;
+              mediaConnectJobs.current.add(provider);
+              setMediaConnectPending((old) => ({ ...old, [provider]: true }));
+              const version = (mediaPermissionVersions.current[provider] ?? 0) + 1;
+              mediaPermissionVersions.current[provider] = version;
+              const current = () =>
+                mediaPermissionMounted.current &&
+                mediaPermissionVersions.current[provider] === version;
               void media
                 .connect(provider)
-                .then((result) => setMediaPermissions((old) => ({ ...old, [provider]: result })))
-                .catch((error) =>
-                  setMediaPermissions((old) => ({
-                    ...old,
-                    [provider]: {
-                      status: "unavailable",
-                      reason: error instanceof Error ? error.message : String(error),
-                    },
-                  })),
-                );
+                .then((result) => {
+                  if (current()) setMediaPermissions((old) => ({ ...old, [provider]: result }));
+                })
+                .catch((error) => {
+                  if (current())
+                    setMediaPermissions((old) => ({
+                      ...old,
+                      [provider]: {
+                        status: "unavailable",
+                        reason: error instanceof Error ? error.message : String(error),
+                      },
+                    }));
+                })
+                .finally(() => {
+                  mediaConnectJobs.current.delete(provider);
+                  if (mediaPermissionMounted.current)
+                    setMediaConnectPending((old) => ({ ...old, [provider]: false }));
+                });
             },
           }}
           diagnostics={diagnosticsAvailable}
