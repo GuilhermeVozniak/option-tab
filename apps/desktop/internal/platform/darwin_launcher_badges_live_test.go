@@ -125,8 +125,18 @@ func TestLauncherBadgesLiveOwnedFixture(t *testing.T) {
 		t.Fatal("fixture bundle identity mismatch")
 	}
 	announcedURL, err := url.Parse(announced.BundleURL)
-	if err != nil || announcedURL.Scheme != "file" || announcedURL.Host != "" || announcedURL.RawQuery != "" || announcedURL.Fragment != "" || filepath.Clean(announcedURL.Path) != bundle {
+	if err != nil {
+		t.Fatal("fixture bundle URL invalid")
+	}
+	if announcedURL.Scheme != "file" || announcedURL.Host != "" || announcedURL.RawQuery != "" || announcedURL.Fragment != "" || !filepath.IsAbs(announcedURL.Path) {
 		t.Fatal("fixture bundle URL mismatch")
+	}
+	// Foundation can shorten /private/var to /var. Preserve its native path for
+	// source comparisons, and independently resolve it to the exact owned bundle.
+	nativeBundlePath := filepath.Clean(announcedURL.Path)
+	resolvedBundle, err := filepath.EvalSymlinks(nativeBundlePath)
+	if err != nil || resolvedBundle != bundle {
+		t.Fatal("fixture bundle filesystem identity mismatch")
 	}
 	backend := &darwinPlatform{}
 	identity, err := backend.ProcessIdentity(domain.AppID(cmd.Process.Pid))
@@ -136,8 +146,12 @@ func TestLauncherBadgesLiveOwnedFixture(t *testing.T) {
 	verify := func() LauncherBadgeTarget {
 		t.Helper()
 		target, err := backend.ResolveRunningLauncherBadgeTarget(ctx, identity, announced.BundleID)
-		if err != nil || target.Process != identity || target.BundleID != announced.BundleID || target.CanonicalAppPath != bundle {
+		if err != nil || target.Process != identity || target.BundleID != announced.BundleID || target.CanonicalAppPath != nativeBundlePath {
 			t.Fatal("fixture current target verification refused")
+		}
+		resolved, err := filepath.EvalSymlinks(target.CanonicalAppPath)
+		if err != nil || resolved != bundle {
+			t.Fatal("fixture current target filesystem identity changed")
 		}
 		target.ItemKey = "owned-fixture"
 		target.TargetRevision = 1
@@ -163,6 +177,7 @@ func TestLauncherBadgesLiveOwnedFixture(t *testing.T) {
 			t.Error("production badge source did not join")
 		}
 	}()
+	var sequence uint64
 	for _, step := range []struct {
 		command string
 		kind    LauncherBadgeKind
@@ -170,6 +185,7 @@ func TestLauncherBadgesLiveOwnedFixture(t *testing.T) {
 		if verify() != target {
 			t.Fatal("fixture target changed")
 		}
+		commandStarted := time.Now()
 		if _, err = fmt.Fprintln(in, step.command); err != nil {
 			t.Fatal("fixture command failed")
 		}
@@ -180,23 +196,34 @@ func TestLauncherBadgesLiveOwnedFixture(t *testing.T) {
 		}
 		deadline := time.NewTimer(7 * time.Second)
 		status := BadgeSourceUnavailable
+		var lastState LauncherBadgeState
+		var lastKind LauncherBadgeKind
+		var lastCount bool
 		matched := false
 		for !matched {
 			select {
 			case snapshot := <-snapshots:
 				status = snapshot.Status
-				if snapshot.Generation == 0 || snapshot.Sequence == 0 || len(snapshot.Entries) != 1 {
+				if snapshot.Generation == 0 || snapshot.Sequence <= sequence || snapshot.ObservedAt.Before(commandStarted) || len(snapshot.Entries) != 1 {
 					continue
 				}
+				sequence = snapshot.Sequence
 				entry := snapshot.Entries[0]
-				matched = status == BadgeReady && entry.ItemKey == target.ItemKey && entry.TargetRevision == target.TargetRevision && entry.State == BadgeKnown && entry.Kind == step.kind
-				if step.kind == BadgeCount {
-					matched = matched && entry.Count != nil && *entry.Count == 7
-				} else {
-					matched = matched && entry.Count == nil
+				lastState, lastKind, lastCount = entry.State, entry.Kind, entry.Count != nil
+				matched = status == BadgeReady && entry.ItemKey == target.ItemKey && entry.TargetRevision == target.TargetRevision
+				switch step.kind {
+				case BadgeCount:
+					matched = matched && entry.State == BadgeKnown && entry.Kind == BadgeCount && entry.Count != nil && *entry.Count == 7
+				case BadgeIndicator:
+					matched = matched && entry.State == BadgeKnown && entry.Kind == BadgeIndicator && entry.Count == nil
+				case BadgeAbsent:
+					// Empty labels can become unreadable in Dock AX. That must clear
+					// prior values without turning unavailable data into a known zero.
+					cleared := (entry.State == BadgeKnown && entry.Kind == BadgeAbsent) || (entry.State == BadgeUnavailable && entry.Kind == "")
+					matched = matched && cleared && entry.Count == nil
 				}
 			case <-deadline.C:
-				t.Fatalf("owned fixture %s not observable: source status %s (no capability claim)", step.command, status)
+				t.Fatalf("owned fixture %s not observable: source=%s state=%s kind=%s countPresent=%t (no capability claim)", step.command, status, lastState, lastKind, lastCount)
 			case <-ctx.Done():
 				t.Fatal("live acceptance lifetime expired")
 			}
@@ -205,6 +232,10 @@ func TestLauncherBadgesLiveOwnedFixture(t *testing.T) {
 		if verify() != target {
 			t.Fatal("fixture target changed after observation")
 		}
-		t.Logf("owned fixture %s: production typed observation matched", step.command)
+		if step.kind == BadgeAbsent && lastState == BadgeUnavailable {
+			t.Log("owned fixture empty: prior badge cleared to unavailable; known absence remains unverified")
+		} else {
+			t.Logf("owned fixture %s: production typed observation matched", step.command)
+		}
 	}
 }

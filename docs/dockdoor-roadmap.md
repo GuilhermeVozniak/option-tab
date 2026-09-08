@@ -148,6 +148,8 @@ H05 runtime dragging and keyboard grouping are implemented with exact presentati
 
 H15 adds per-profile gesture reduction, selection haptics and explicit keyboard-mode navigation, with exact native ownership and compact controls on all four edges. Production pinch, swipe and letter input remain gated on physical delivery acceptance. H16 adds optional native-Dock status badges with exact application matching, typed counts/indicators, shared observation and serial recovery. Unknown values stay hidden. See the [input and badge checkpoint](superpowers/reports/2026-09-08-launcher-input-badges.md) for combined verification and the remaining native acceptance limits. This completes the planned implementation areas in H; their physical acceptance checkboxes remain open.
 
+The controlled H16 fixture has verified actual source count/indicator changes and clearing to unavailable on macOS 26.6.2 arm64, with exact identity and joined cleanup. Known absence, live launcher rendering, permission recovery and the broader display/application matrix remain unverified; H16 stays open for that acceptance.
+
 ## Current input checkpoint
 
 D09–D14 implementation and C04 card spacing are available on the feature branch. Automated suites and disposable native role/action fixtures pass; physical gesture and off-panel drag acceptance remain open. See the [input/drag checkpoint report](superpowers/reports/2026-09-06-dock-input-and-preview-drag.md) for behavior, evidence and exact limitations. The roadmap's unchecked items are not promises of universal AX or device support.
