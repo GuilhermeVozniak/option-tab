@@ -38,6 +38,8 @@ export { PROJECT_URL };
 
 interface SettingsProps {
   settings: SettingsModel;
+  /** Replaced on canonical refresh/import, not on ordinary saves. */
+  draftAuthority?: string | number;
   onChange: (next: SettingsModel) => void;
   onImport?: (text: string) => Promise<void>;
   onExport?: () => Promise<JSONExportResult>;
@@ -104,6 +106,7 @@ type Tab = (typeof TABS)[number];
 // permissions available) it renders the onboarding wizard instead.
 export function Settings({
   settings,
+  draftAuthority = 0,
   onChange,
   onImport,
   onExport,
@@ -328,7 +331,7 @@ export function Settings({
           <FilteringTab ctx={ctx} />
         </section>
         <section hidden={tab !== "Blacklists"} aria-label="Blacklists" className="space-y-4">
-          <BlacklistsTab ctx={ctx} />
+          <BlacklistsTab key={draftAuthority} ctx={ctx} />
         </section>
         <section hidden={tab !== "Dock"} aria-label="Dock" className="space-y-4">
           <DockTab

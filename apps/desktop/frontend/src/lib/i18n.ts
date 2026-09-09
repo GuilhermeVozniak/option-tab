@@ -35,6 +35,12 @@ export function makeT(lang: Lang): Translate {
 const PT: Record<string, string> = {
   "Profile exported.": "Perfil exportado.",
   "Settings exported.": "Configurações exportadas.",
+  "Settings imported.": "Configurações importadas.",
+  "Save app": "Salvar app",
+  "Cancel app": "Cancelar app",
+  "Capture windows in the background": "Capturar janelas em segundo plano",
+  "Keeps thumbnails fresh so the switcher opens with previews instantly. While enabled, macOS shows the screen-recording indicator.":
+    "Mantém as miniaturas atualizadas para que o alternador abra com prévias instantaneamente. Enquanto estiver ativado, o macOS mostra o indicador de gravação da tela.",
   "The file could not be exported.": "Não foi possível exportar o arquivo.",
   "Export is unavailable right now.": "A exportação está indisponível no momento.",
   "Another export is already in progress.": "Outra exportação já está em andamento.",
@@ -701,6 +707,12 @@ const PT: Record<string, string> = {
 const ES: Record<string, string> = {
   "Profile exported.": "Perfil exportado.",
   "Settings exported.": "Configuración exportada.",
+  "Settings imported.": "Configuración importada.",
+  "Save app": "Guardar app",
+  "Cancel app": "Cancelar app",
+  "Capture windows in the background": "Capturar ventanas en segundo plano",
+  "Keeps thumbnails fresh so the switcher opens with previews instantly. While enabled, macOS shows the screen-recording indicator.":
+    "Mantiene las miniaturas actualizadas para que el conmutador se abra con vistas previas al instante. Mientras está activado, macOS muestra el indicador de grabación de pantalla.",
   "The file could not be exported.": "No se pudo exportar el archivo.",
   "Export is unavailable right now.": "La exportación no está disponible en este momento.",
   "Another export is already in progress.": "Ya hay otra exportación en curso.",

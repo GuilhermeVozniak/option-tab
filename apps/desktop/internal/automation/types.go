@@ -33,6 +33,9 @@ type CachedFrame struct {
 // supplied guard after preparation, immediately before admitting a UI change.
 // Nil Admission means no additional App policy (useful for pure fixtures).
 // CachedFrames returns owned copies without capture, refresh, permission or I/O.
+// ShowPreviews receives raw app window candidates and a process/admission guard.
+// It must filter candidates, capture and revalidate selected window identities
+// before publishing, and retain identity guards for exposed preview actions.
 type Deps struct {
 	Apps         func(context.Context) ([]domain.App, error)
 	Windows      func(context.Context) ([]domain.Window, error)

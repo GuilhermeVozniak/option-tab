@@ -50,40 +50,52 @@ export function GeneralTab({
   const [importError, setImportError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const [exportPending, setExportPending] = useState(false);
+  const [transferPending, setTransferPending] = useState<"export" | "import" | null>(null);
   const [exportError, setExportError] = useState("");
   const [exported, setExported] = useState(false);
-  const exportOwner = useRef(0);
+  const [imported, setImported] = useState(false);
+  const transferOwner = useRef(0);
   useEffect(
     () => () => {
-      ++exportOwner.current;
+      ++transferOwner.current;
     },
     [],
   );
 
   const exportSettings = async () => {
-    const owner = ++exportOwner.current;
-    setExportPending(true);
+    const owner = ++transferOwner.current;
+    setTransferPending("export");
     setExportError("");
     setExported(false);
+    setImportError(null);
+    setImported(false);
     try {
       if (!onExport) throw new Error("json export: unavailable");
       const result = await onExport();
-      if (owner === exportOwner.current) setExported(result.status === "saved");
+      if (owner === transferOwner.current) setExported(result.status === "saved");
     } catch (cause) {
-      if (owner === exportOwner.current) setExportError(jsonExportError(cause, t));
+      if (owner === transferOwner.current) setExportError(jsonExportError(cause, t));
     } finally {
-      if (owner === exportOwner.current) setExportPending(false);
+      if (owner === transferOwner.current) setTransferPending(null);
     }
   };
   const importFile = async (file: File | undefined) => {
     if (!file) return;
+    const owner = ++transferOwner.current;
+    setTransferPending("import");
+    setImportError(null);
+    setImported(false);
+    setExportError("");
+    setExported(false);
     try {
       if (!onImport) throw new Error("Import settings in the desktop app.");
       await onImport(await file.text());
-      setImportError(null);
+      if (owner === transferOwner.current) setImported(true);
     } catch (error) {
-      setImportError(`Could not import settings: ${String(error)}`);
+      if (owner === transferOwner.current)
+        setImportError(`Could not import settings: ${String(error)}`);
+    } finally {
+      if (owner === transferOwner.current) setTransferPending(null);
     }
   };
 
@@ -278,21 +290,27 @@ export function GeneralTab({
             </p>
           ) : null}
           {exported ? <p role="status">{t("Settings exported.")}</p> : null}
+          {imported ? <p role="status">{t("Settings imported.")}</p> : null}
           {exportError ? <p role="alert">{exportError}</p> : null}
           <div className={ACTIONS_ROW}>
             <Button
               aria-label="Export settings"
-              disabled={exportPending || !onExport}
+              disabled={transferPending !== null || !onExport}
               onClick={() => void exportSettings()}
             >
-              {exportPending ? t("Exporting…") : t("Export…")}
+              {transferPending === "export" ? t("Exporting…") : t("Export…")}
             </Button>
-            <Button aria-label="Import settings" onClick={() => fileInput.current?.click()}>
-              {t("Import…")}
+            <Button
+              aria-label="Import settings"
+              disabled={transferPending !== null}
+              onClick={() => fileInput.current?.click()}
+            >
+              {transferPending === "import" ? t("Importing…") : t("Import…")}
             </Button>
             <Button
               variant="destructive"
               aria-label="Reset to defaults"
+              disabled={transferPending !== null}
               onClick={() => onChange(defaultSettings)}
             >
               {t("Reset to defaults")}

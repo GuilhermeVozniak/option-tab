@@ -141,6 +141,168 @@ import type { WidgetCatalogDescriptor } from "./lib/widget-types";
 
 const mocked = vi.mocked(AppService);
 
+function canonicalBlacklistBackend() {
+  const initial = structuredClone(defaultSettings);
+  initial.behavior.onboarded = true;
+  let stored = { revision: 1, json: JSON.stringify(initial) };
+  mocked.GetSettingsState.mockReset().mockImplementation(() => Promise.resolve(stored) as never);
+  mocked.SaveSettingsAtRevision.mockReset().mockImplementation((json, revision) => {
+    const next = JSON.parse(json) as typeof initial;
+    // config.Normalize drops empty matchers before returning canonical settings.
+    next.filters.appBlacklist = next.filters.appBlacklist.filter((entry) => entry.match !== "");
+    stored = { revision: revision + 1, json: JSON.stringify(next) };
+    return Promise.resolve(stored) as never;
+  });
+  return () => stored;
+}
+
+it("keeps a new blacklist draft until a valid entry survives canonical save and reopen", async () => {
+  window.location.hash = "#settings";
+  const stored = canonicalBlacklistBackend();
+  const first = render(<App />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  fireEvent.click(screen.getByText("+ Add app"));
+  await act(async () => {});
+  expect(screen.getByLabelText("Blacklist entry 1")).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Blacklist entry 1"), {
+    target: { value: " com.example.Acceptance " },
+  });
+  fireEvent.change(screen.getByLabelText("Blacklist hide 1"), {
+    target: { value: "whenNoWindow" },
+  });
+  fireEvent.click(screen.getByLabelText("Blacklist ignore shortcuts 1"));
+  expect(JSON.parse(stored().json).filters.appBlacklist).toEqual([]);
+  fireEvent.click(screen.getByRole("button", { name: "Save app" }));
+  await waitFor(() =>
+    expect(JSON.parse(stored().json).filters.appBlacklist).toEqual([
+      { match: "com.example.Acceptance", hide: "whenNoWindow", ignoreShortcuts: true },
+    ]),
+  );
+  first.unmount();
+  render(<App />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  expect(screen.getByLabelText("Blacklist entry 1")).toHaveValue("com.example.Acceptance");
+  expect(screen.getByLabelText("Blacklist hide 1")).toHaveValue("whenNoWindow");
+  expect(screen.getByLabelText("Blacklist ignore shortcuts 1")).toBeChecked();
+});
+
+it("preserves blacklist drafts across unrelated canonical saves and cancels them on preferences refresh", async () => {
+  window.location.hash = "#settings";
+  const stored = canonicalBlacklistBackend();
+  render(<App />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  fireEvent.click(screen.getByText("+ Add app"));
+  fireEvent.change(screen.getByLabelText("Blacklist entry 1"), {
+    target: { value: "Unfinished app" },
+  });
+  fireEvent.click(screen.getByRole("tab", { name: "General" }));
+  fireEvent.click(screen.getByLabelText("Capture windows in the background"));
+  await waitFor(() => expect(stored().revision).toBe(2));
+  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  expect(screen.getByLabelText("Blacklist entry 1")).toHaveValue("Unfinished app");
+  expect(JSON.parse(stored().json).filters.appBlacklist).toEqual([]);
+  act(() => eventHandlers.get("prefs:settings")?.({ data: { ...stored(), generation: 1 } }));
+  expect(screen.queryByLabelText("Blacklist entry 1")).toBeNull();
+  expect(JSON.parse(stored().json).filters.appBlacklist).toEqual([]);
+});
+
+it("edits and deletes persisted blacklist entries without saving an empty matcher", async () => {
+  window.location.hash = "#settings";
+  const stored = canonicalBlacklistBackend();
+  const seeded = JSON.parse(stored().json) as typeof defaultSettings;
+  seeded.filters.appBlacklist = [{ match: "Old app", hide: "always", ignoreShortcuts: false }];
+  await mocked.SaveSettingsAtRevision(JSON.stringify(seeded), 1);
+  render(<App />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  const input = screen.getByLabelText("Blacklist entry 1");
+  fireEvent.change(input, { target: { value: "" } });
+  await act(async () => {});
+  expect(screen.getByLabelText("Blacklist entry 1")).toBeInTheDocument();
+  fireEvent.blur(input);
+  expect(input).toHaveValue("Old app");
+  fireEvent.change(input, { target: { value: "Updated app" } });
+  fireEvent.blur(input);
+  await waitFor(() =>
+    expect(JSON.parse(stored().json).filters.appBlacklist[0].match).toBe("Updated app"),
+  );
+  fireEvent.click(screen.getByLabelText("Remove blacklist entry 1"));
+  await waitFor(() => expect(JSON.parse(stored().json).filters.appBlacklist).toEqual([]));
+  expect(screen.queryByLabelText("Blacklist entry 1")).toBeNull();
+});
+
+it("discards a failed blacklist save in favor of canonical settings", async () => {
+  window.location.hash = "#settings";
+  const stored = canonicalBlacklistBackend();
+  render(<App />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  fireEvent.click(screen.getByText("+ Add app"));
+  fireEvent.change(screen.getByLabelText("Blacklist entry 1"), {
+    target: { value: "Unsaved app" },
+  });
+  mocked.SaveSettingsAtRevision.mockRejectedValueOnce(new Error("disk full"));
+  fireEvent.click(screen.getByRole("button", { name: "Save app" }));
+  await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("disk full"));
+  expect(screen.queryByLabelText("Blacklist entry 1")).toBeNull();
+  expect(JSON.parse(stored().json).filters.appBlacklist).toEqual([]);
+  fireEvent.click(screen.getByText("+ Add app"));
+  fireEvent.change(screen.getByLabelText("Blacklist entry 1"), {
+    target: { value: "Saved retry" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save app" }));
+  await waitFor(() =>
+    expect(JSON.parse(stored().json).filters.appBlacklist[0].match).toBe("Saved retry"),
+  );
+});
+
+it("does not announce an import whose response lost preferences authority", async () => {
+  window.location.hash = "#settings";
+  const stored = canonicalBlacklistBackend();
+  let finish!: (value: { revision: number; json: string }) => void;
+  mocked.SaveSettingsAtRevision.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }) as never,
+  );
+  const { container } = render(<App />);
+  await act(async () => {});
+  const file = new File([stored().json], "settings.json");
+  Object.defineProperty(file, "text", { value: () => Promise.resolve(stored().json) });
+  fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
+  await waitFor(() => expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(1));
+  act(() =>
+    eventHandlers.get("prefs:settings")?.({ data: { ...stored(), revision: 5, generation: 1 } }),
+  );
+  await act(async () => finish({ ...stored(), revision: 2 }));
+  expect(screen.queryByText("Settings imported.")).toBeNull();
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Settings changed before this import could be saved.",
+  );
+});
+
+it("discards an unsaved blacklist draft when settings are imported", async () => {
+  window.location.hash = "#settings";
+  const stored = canonicalBlacklistBackend();
+  const { container } = render(<App />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  fireEvent.click(screen.getByText("+ Add app"));
+  fireEvent.change(screen.getByLabelText("Blacklist entry 1"), { target: { value: "Old draft" } });
+  fireEvent.click(screen.getByRole("tab", { name: "General" }));
+  const file = new File([stored().json], "settings.json");
+  Object.defineProperty(file, "text", { value: () => Promise.resolve(stored().json) });
+  fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
+  await screen.findByText("Settings imported.");
+  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  expect(screen.queryByLabelText("Blacklist entry 1")).toBeNull();
+  expect(JSON.parse(stored().json).filters.appBlacklist).toEqual([]);
+});
+
 it.each([
   "installation",
   "failed removal",

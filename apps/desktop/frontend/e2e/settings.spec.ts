@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { getCallRecords, installFakeWails } from "./support/fakeWails";
 
 // The #settings route renders the full preferences form with no Wails backend
 // (settings start from defaults, permissions/crash are absent), so the whole
@@ -101,17 +102,6 @@ test.describe("preferences (#settings route)", () => {
     await expect(page.getByLabel("Physical key KeyW")).toHaveCount(0);
   });
 
-  test("adds, edits and removes a blacklist entry", async ({ page }) => {
-    await page.getByRole("tab", { name: "Blacklists" }).click();
-    await page.getByRole("button", { name: "+ Add app" }).click();
-    // exact: otherwise "Blacklist entry 1" also matches "Remove blacklist entry 1".
-    const entry = page.getByLabel("Blacklist entry 1", { exact: true });
-    await entry.fill("com.example.App");
-    await expect(entry).toHaveValue("com.example.App");
-    await page.getByLabel("Remove blacklist entry 1").click();
-    await expect(page.getByLabel("Blacklist entry 1", { exact: true })).toHaveCount(0);
-  });
-
   test("switches the interface language", async ({ page }) => {
     await page.getByRole("tab", { name: "General" }).click();
     const lang = page.getByLabel("Language");
@@ -169,6 +159,76 @@ test.describe("preferences (#settings route)", () => {
     await expect(page.getByText("Version dev")).toBeVisible();
     await expect(page.getByLabel("Support this project")).toBeVisible();
   });
+});
+
+test("adds, edits and removes a blacklist entry", async ({ page }) => {
+  await installFakeWails(page);
+  await page.goto("/#settings");
+  const saves = async () =>
+    (await getCallRecords(page)).filter(([name]) => name === "SaveSettingsAtRevision");
+  const persistedBlacklist = () =>
+    page.evaluate(() => {
+      const w = window as unknown as { __settingsJSON: string };
+      return JSON.parse(w.__settingsJSON).filters.appBlacklist;
+    });
+
+  await page.getByRole("tab", { name: "Blacklists" }).click();
+  await page.getByRole("button", { name: "+ Add app" }).click();
+  // exact: otherwise "Blacklist entry 1" also matches "Remove blacklist entry 1".
+  const entry = page.getByLabel("Blacklist entry 1", { exact: true });
+  const save = page.getByRole("button", { name: "Save app", exact: true });
+  await expect(entry).toBeVisible();
+  await expect(entry).toHaveValue("");
+  await expect(save).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Cancel app", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Remove blacklist entry 1")).toHaveCount(0);
+  await entry.fill("com.example.App");
+  await page.getByLabel("Blacklist hide 1").selectOption("whenNoWindow");
+  await page.getByLabel("Blacklist ignore shortcuts 1").check();
+  await expect(entry).toHaveValue("com.example.App");
+  await expect(save).toBeEnabled();
+  expect(await saves()).toEqual([]);
+  expect(await persistedBlacklist()).toEqual([]);
+
+  await save.click();
+  const persistedEntry = {
+    match: "com.example.App",
+    hide: "whenNoWindow",
+    ignoreShortcuts: true,
+  };
+  await expect.poll(persistedBlacklist).toEqual([persistedEntry]);
+  await expect(page.getByLabel("Remove blacklist entry 1")).toBeVisible();
+  await expect(save).toHaveCount(0);
+
+  await entry.fill("com.example.Edited");
+  expect(await saves()).toHaveLength(1);
+  expect(await persistedBlacklist()).toEqual([persistedEntry]);
+  await entry.blur();
+  await expect
+    .poll(persistedBlacklist)
+    .toEqual([{ ...persistedEntry, match: "com.example.Edited" }]);
+  await expect.poll(saves).toHaveLength(2);
+
+  // Native preferences refresh replaces an uncommitted edit with the saved snapshot.
+  await entry.fill("Uncommitted edit");
+  await page.evaluate(() => {
+    const w = window as unknown as {
+      __settingsJSON: string;
+      __settingsRevision: number;
+      _wails: { dispatchWailsEvent: (event: { name: string; data: unknown }) => void };
+    };
+    w._wails.dispatchWailsEvent({
+      name: "prefs:settings",
+      data: { json: w.__settingsJSON, revision: w.__settingsRevision, generation: 1 },
+    });
+  });
+  await expect(entry).toHaveValue("com.example.Edited");
+  expect(await saves()).toHaveLength(2);
+
+  await page.getByLabel("Remove blacklist entry 1").click();
+  await expect.poll(persistedBlacklist).toEqual([]);
+  await expect.poll(saves).toHaveLength(3);
+  await expect(entry).toHaveCount(0);
 });
 
 test("Dock appearance edits stay separate from window and app switcher preferences", async ({

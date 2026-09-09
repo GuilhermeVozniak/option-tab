@@ -47,6 +47,8 @@ describe("i18n", () => {
   it("defines every new icon-only and platform control in both dictionaries", () => {
     const keys = [
       "Previous",
+      "Capture windows in the background",
+      "Keeps thumbnails fresh so the switcher opens with previews instantly. While enabled, macOS shows the screen-recording indicator.",
       "Play",
       "Pause",
       "Next",

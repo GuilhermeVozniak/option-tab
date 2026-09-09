@@ -185,6 +185,27 @@ func (a *App) showAutomationPreviews(ctx context.Context, process platform.Proce
 	if err != nil {
 		return automation.Presentation{}, err
 	}
+	// Guard the exact filtered identities captured during preparation, including
+	// after native host creation. Excluded inventory entries own no controls.
+	requestGuard := guard
+	guard = func() error {
+		if err := requestGuard(); err != nil {
+			return err
+		}
+		source, ok := a.platform.(platform.AutomationIdentitySource)
+		if !ok {
+			return previewError("unsupported", "window identity source unavailable")
+		}
+		for _, id := range identities {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if !source.WindowIdentityCurrent(id) {
+				return previewError("staleIdentity", "preview window identity changed")
+			}
+		}
+		return requestGuard()
+	}
 	bounds, err := automationPreviewBounds(a.platform.Screens(), a.platform.ActiveScreen(), point, 620, 460)
 	if err != nil {
 		return automation.Presentation{}, err

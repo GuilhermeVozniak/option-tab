@@ -444,8 +444,20 @@ int ot_automation_window_action(int action, OTAutomationIdentity id,
       }
       if (!status) {
         status = finalAdmission(root, id, deadline, guard);
-        if (!status)
-          status = axStatus(performAction(root, kAXRaiseAction));
+        if (!status) {
+          // Raising a minimized window can wait for AppKit's restore
+          // animation. The preceding AX lookup set a 100 ms timeout; give
+          // this admitted action the remainder of its original deadline.
+          double remaining = deadline - now();
+          if (remaining <= 0)
+            status = 8;
+          else {
+            AXUIElementSetMessagingTimeout(root, (float)remaining);
+            status = axStatus(performAction(root, kAXRaiseAction));
+            if (now() >= deadline)
+              status = 8;
+          }
+        }
       }
       CFRelease(app);
     }

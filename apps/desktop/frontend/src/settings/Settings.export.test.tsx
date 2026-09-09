@@ -7,9 +7,58 @@ import { Settings } from "./Settings";
 const native = vi.hoisted(() => ({ save: vi.fn() }));
 vi.mock("../../bindings/option-tab/app.js", () => ({ SaveSettingsExport: native.save }));
 
-beforeEach(() => native.save.mockReset());
+beforeEach(() => {
+  native.save.mockReset();
+});
 
 describe("native settings export", () => {
+  it("clears an export collision after a successful settings import", async () => {
+    native.save.mockRejectedValue(new Error("json export: destinationExists"));
+    const onImport = vi.fn().mockResolvedValue(undefined);
+    const { container } = render(
+      <Settings
+        settings={defaultSettings}
+        onChange={vi.fn()}
+        onExport={saveSettingsExport}
+        onImport={onImport}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Export settings"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("That filename already exists.");
+    const file = new File(["{}"], "settings.json");
+    Object.defineProperty(file, "text", { value: () => Promise.resolve("{}") });
+    fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
+    await waitFor(() => expect(onImport).toHaveBeenCalledWith("{}"));
+    expect(await screen.findByText("Settings imported.")).toBeVisible();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps a cancelled import neutral and reports success only after persistence", async () => {
+    let finish!: () => void;
+    const onImport = vi.fn().mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const { container } = render(
+      <Settings settings={defaultSettings} onChange={vi.fn()} onImport={onImport} />,
+    );
+    const input = container.querySelector('input[type="file"]')!;
+    fireEvent.change(input, { target: { files: [] } });
+    expect(onImport).not.toHaveBeenCalled();
+    expect(screen.queryByText("Settings imported.")).toBeNull();
+    const file = new File(["{}"], "settings.json");
+    Object.defineProperty(file, "text", { value: () => Promise.resolve("{}") });
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Settings imported.")).toBeNull();
+    expect(screen.getByLabelText("Import settings")).toBeDisabled();
+    finish();
+    expect(await screen.findByText("Settings imported.")).toBeVisible();
+    fireEvent.change(input, { target: { files: [] } });
+    expect(screen.getByText("Settings imported.")).toBeVisible();
+  });
+
   it("exports through the native chooser and reports only a completed save", async () => {
     let resolve!: (result: { status: string }) => void;
     native.save.mockReturnValue(new Promise((done) => (resolve = done)));

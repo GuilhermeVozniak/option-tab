@@ -5,8 +5,21 @@ static BOOL identityValid = YES, permission = YES, guardAllowed = YES,
             revokeDuringPreparation = NO;
 static int writes = 0, presses = 0, guards = 0, focusReads = 0;
 static AXError writeError = kAXErrorSuccess;
+static AXError raiseError = kAXErrorSuccess;
 static CFTypeRef lastValue = NULL;
 static AXUIElementRef firstRoot, secondRoot;
+static float messageTimeout;
+static BOOL slowFocusRaise, expireWhileFronting, expireWhileRaising,
+            retireWhileFronting;
+static double clockOffset;
+static double testClock(void) {
+  return CFAbsoluteTimeGetCurrent() + clockOffset;
+}
+static AXError fakeMessagingTimeout(AXUIElementRef element, float seconds) {
+  (void)element;
+  messageTimeout = seconds;
+  return kAXErrorSuccess;
+}
 int ot_retirement_matches(uint32_t window, int pid, uint64_t sec,
                           uint64_t usec) {
   return identityValid &&
@@ -25,7 +38,11 @@ int goAutomationWindowFinalGuard(uintptr_t token) {
   guards++;
   return guardAllowed;
 }
+#define AXUIElementSetMessagingTimeout fakeMessagingTimeout
+#define CFAbsoluteTimeGetCurrent testClock
 #include "../../darwin_active_window.m"
+#undef AXUIElementSetMessagingTimeout
+#undef CFAbsoluteTimeGetCurrent
 static Boolean fakeTrusted(void) { return permission; }
 static AXError fakePID(AXUIElementRef root, pid_t *pid) {
   *pid = CFEqual(root, secondRoot) ? 8 : 7;
@@ -79,12 +96,25 @@ static AXError fakeSet(AXUIElementRef root, CFStringRef name, CFTypeRef value) {
   (void)name;
   writes++;
   lastValue = value;
+  if (CFEqual(name, kAXFrontmostAttribute)) {
+    if (expireWhileFronting)
+      clockOffset += 2;
+    if (retireWhileFronting)
+      guardAllowed = NO;
+  }
   return writeError;
 }
 static AXError fakePerform(AXUIElementRef root, CFStringRef action) {
   (void)root;
-  (void)action;
   presses++;
+  // AppKit can spend several hundred milliseconds restoring a minimized
+  // document. A short lookup timeout rejects the action before it replies.
+  if (slowFocusRaise && CFEqual(action, kAXRaiseAction) && messageTimeout < .3)
+    return kAXErrorCannotComplete;
+  if (expireWhileRaising && CFEqual(action, kAXRaiseAction))
+    clockOffset += 2;
+  if (CFEqual(action, kAXRaiseAction) && raiseError != kAXErrorSuccess)
+    return raiseError;
   return writeError;
 }
 static BOOL fakeHide(int pid) {
@@ -148,6 +178,32 @@ int main(void) {
     writeError = kAXErrorSuccess;
     NSCAssert(ot_automation_window_action(4, id, 0, 1) == 0,
               @"explicit app hide refused");
+    slowFocusRaise = YES;
+    NSCAssert(ot_automation_window_action(1, id, 0, 1) == 0,
+              @"focus rejected a native restore that fits its action deadline");
+    NSCAssert(messageTimeout > .3 && messageTimeout <= 1.5,
+              @"focus did not retain its bounded action deadline");
+    slowFocusRaise = NO;
+    int beforeRaise = presses;
+    retireWhileFronting = YES;
+    NSCAssert(ot_automation_window_action(1, id, 0, 1) == 7 &&
+                  presses == beforeRaise,
+              @"retired focus request raised a window");
+    retireWhileFronting = NO;
+    guardAllowed = YES;
+    expireWhileFronting = YES;
+    NSCAssert(ot_automation_window_action(1, id, 0, 1) == 8 &&
+                  presses == beforeRaise,
+              @"focus raised after its original deadline");
+    expireWhileFronting = NO;
+    expireWhileRaising = YES;
+    NSCAssert(ot_automation_window_action(1, id, 0, 1) == 8,
+              @"late native focus success escaped the action deadline");
+    expireWhileRaising = NO;
+    raiseError = kAXErrorCannotComplete;
+    NSCAssert(ot_automation_window_action(1, id, 0, 1) == 6,
+              @"native focus rejection became success");
+    raiseError = kAXErrorSuccess;
     permission = NO;
     NSCAssert(ot_automation_window_action(1, id, 0, 1) == 2,
               @"permission refusal missing");

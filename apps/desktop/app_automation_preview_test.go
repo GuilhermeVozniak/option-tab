@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -384,6 +385,145 @@ func TestAutomationPreviewDefaultsToCurrentDisplayWithMainFallback(t *testing.T)
 			}
 			if result.Bounds != tc.want {
 				t.Fatalf("bounds %+v, want %+v", result.Bounds, tc.want)
+			}
+		})
+	}
+}
+
+func TestAutomationPreviewServiceFiltersBeforeWindowAdmission(t *testing.T) {
+	for _, excluded := range []string{"untitled", "hidden", "minimized"} {
+		t.Run(excluded, func(t *testing.T) {
+			a, p := automationPreviewFixture(t)
+			windows, _ := p.Windows()
+			auxiliary := domain.Window{ID: 2, AppID: 1, BundleID: "test.fixture", Title: "Auxiliary", OnScreen: true, ScreenID: 1, SpaceID: 1}
+			a.settingsMu.Lock()
+			switch excluded {
+			case "untitled":
+				auxiliary.Title = ""
+			case "hidden":
+				auxiliary.Hidden = true
+				a.settings.Filters.ShowHiddenApps = config.VisHide
+			case "minimized":
+				auxiliary.Minimized = true
+				a.settings.Filters.ShowMinimized = config.VisHide
+			}
+			a.settingsMu.Unlock()
+			// Like a CG-only auxiliary window, this identity exists in inventory
+			// but has no authoritative AX window root (only window 1 is current).
+			p.SetWindows(append(windows, auxiliary))
+			reply := a.automation.service.Handle(context.Background(), platform.AutomationRequest{ID: 1, Operation: platform.AutomationShowPreviews, App: &platform.AutomationAppSelector{BundleID: "test.fixture"}})
+			if reply.ErrorCode != "" {
+				t.Fatalf("filtered auxiliary window blocked the document preview: %+v", reply)
+			}
+			var result struct{ Presentation automation.Presentation }
+			if err := json.Unmarshal(reply.JSON, &result); err != nil || result.Presentation.Status != "accepted" {
+				t.Fatalf("preview was not accepted: %s (%v)", reply.JSON, err)
+			}
+			session, err := strconv.ParseUint(result.Presentation.Token, 10, 64)
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := a.GetAutomationPreviewState(session)
+			if state == nil || len(state.Entries) != 1 || state.Entries[0].WindowID != 1 || state.SelectedWindowID != 1 {
+				t.Fatalf("preview should expose only the eligible document: %+v", state)
+			}
+			if err := a.SelectAutomationPreview(session, state.Revision, 2); err == nil {
+				t.Fatal("excluded auxiliary window acquired preview controls")
+			}
+		})
+	}
+}
+
+func TestAutomationPreviewServiceRejectsNonCurrentEligibleWindow(t *testing.T) {
+	a, p := automationPreviewFixture(t)
+	windows, _ := p.Windows()
+	p.SetWindows(append(windows, domain.Window{ID: 2, AppID: 1, BundleID: "test.fixture", Title: "Eligible but retired", OnScreen: true, ScreenID: 1, SpaceID: 1}))
+	reply := a.automation.service.Handle(context.Background(), platform.AutomationRequest{ID: 1, Operation: platform.AutomationShowPreviews, App: &platform.AutomationAppSelector{PID: 1}})
+	if reply.ErrorCode != "staleIdentity" || a.automation.preview != nil {
+		t.Fatalf("an eligible window without a current AX identity must refuse presentation: %+v", reply)
+	}
+}
+
+type changingPreviewPlatform struct {
+	*appAutomationPlatform
+	windowRetired   atomic.Bool
+	processReplaced atomic.Bool
+	dispatched      atomic.Int32
+}
+
+func (p *changingPreviewPlatform) ProcessIdentity(pid domain.AppID) (platform.ProcessIdentity, error) {
+	id, err := p.appAutomationPlatform.ProcessIdentity(pid)
+	if p.processReplaced.Load() {
+		id.StartSeconds++
+	}
+	return id, err
+}
+
+func (p *changingPreviewPlatform) WindowIdentityCurrent(id platform.AutomationWindowIdentity) bool {
+	return !p.windowRetired.Load() && !p.processReplaced.Load() && p.appAutomationPlatform.WindowIdentityCurrent(id)
+}
+
+func (p *changingPreviewPlatform) PerformAutomationWindowAction(_ context.Context, _ string, _ platform.AutomationWindowIdentity, _ *bool, guard func() error) error {
+	if err := guard(); err != nil {
+		return err
+	}
+	p.dispatched.Add(1)
+	return nil
+}
+
+func TestAutomationPreviewServiceRetiresPreparedReplacement(t *testing.T) {
+	for _, change := range []string{"selected window", "process", "cancellation"} {
+		t.Run(change, func(t *testing.T) {
+			p := &changingPreviewPlatform{appAutomationPlatform: &appAutomationPlatform{fake.New()}}
+			p.ScreenList = []domain.Screen{{ID: 1, Main: true, Visible: domain.Bounds{W: 1200, H: 800}}}
+			p.SetWindows([]domain.Window{{ID: 1, AppID: 1, Title: "Fixture", BundleID: "test.fixture", OnScreen: true, ScreenID: 1, SpaceID: 1}})
+			settings := config.Default()
+			settings.Appearance.Style = config.StyleTitles
+			settings.Appearance.PreviewSelected = false
+			a := newApp(p, settings, "")
+			a.wireAutomation(nil)
+			a.automation.previewFactory = func(uint64, func(platform.MediaPanelEvent)) *dockWindow { d, _, _, _ := dockHarness(); return d }
+			t.Cleanup(a.stopCapture)
+			request := platform.AutomationRequest{ID: 1, Operation: platform.AutomationShowPreviews, App: &platform.AutomationAppSelector{PID: 1}}
+			if reply := a.automation.service.Handle(context.Background(), request); reply.ErrorCode != "" {
+				t.Fatalf("initial presentation: %+v", reply)
+			}
+			original := a.automation.preview.state.Session
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			prepared := false
+			a.automation.previewFactory = func(uint64, func(platform.MediaPanelEvent)) *dockWindow {
+				prepared = true
+				switch change {
+				case "selected window":
+					p.windowRetired.Store(true)
+				case "process":
+					p.processReplaced.Store(true)
+				case "cancellation":
+					cancel()
+				}
+				d, _, _, _ := dockHarness()
+				return d
+			}
+			reply := a.automation.service.Handle(ctx, request)
+			want := "staleIdentity"
+			if change == "cancellation" {
+				want = "cancelled"
+			}
+			if !prepared || reply.ErrorCode != want {
+				t.Fatalf("changed preparation should be refused with %s: %+v (prepared %t)", want, reply, prepared)
+			}
+			state := a.GetAutomationPreviewState(original)
+			if state == nil {
+				t.Fatal("failed replacement retired the previous presentation")
+			}
+			if change != "cancellation" {
+				if err := a.PerformAutomationPreviewAction(original, state.Revision, "close", 1, false); err == nil {
+					t.Fatal("retired target retained actionable controls")
+				}
+				if p.dispatched.Load() != 0 {
+					t.Fatal("retired target received a native action")
+				}
 			}
 		})
 	}

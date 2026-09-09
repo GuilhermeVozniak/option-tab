@@ -207,7 +207,6 @@ func (s *Service) show(ctx context.Context, r platform.AutomationRequest) (*Pres
 		return nil, err
 	}
 	selected := make([]domain.Window, 0)
-	ids := make([]platform.AutomationWindowIdentity, 0)
 	for _, w := range windows {
 		if w.AppID != app.ID {
 			continue
@@ -215,27 +214,12 @@ func (s *Service) show(ctx context.Context, r platform.AutomationRequest) (*Pres
 		if len(selected) == MaxEntries {
 			return nil, failure("busy", "too many application windows for preview")
 		}
-		id, e := s.windowIdentity(w)
-		if e != nil {
-			return nil, e
-		}
-		if id.Process != p {
-			return nil, failure("staleIdentity", "preview window process changed")
-		}
 		selected = append(selected, w)
-		ids = append(ids, id)
 	}
-	guard := func() error {
-		if e := s.processGuard(ctx, r.Operation, p)(); e != nil {
-			return e
-		}
-		for _, id := range ids {
-			if e := s.windowGuard(ctx, r.Operation, id)(); e != nil {
-				return e
-			}
-		}
-		return s.admit(ctx, r.Operation)
-	}
+	// The presentation applies its window filters before capturing and guarding
+	// selected identities. Raw CG inventory can include non-AX auxiliary windows
+	// that will never be displayed and must not block eligible document windows.
+	guard := s.processGuard(ctx, r.Operation, p)
 	if err = guard(); err != nil {
 		return nil, err
 	}

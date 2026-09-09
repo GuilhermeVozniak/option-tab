@@ -3,6 +3,8 @@
 Baseline: v0.4.8. Branch: `feat/dockdoor-parity`.
 Status: approved narrowed scope; implementation in progress. Unchecked items have not passed all acceptance checks.
 
+Latest follow-up: [September 9 retest fixes](superpowers/reports/2026-09-09-native-retest-fixes.md). Blacklist creation, standalone preview admission, focus restoration, missing translations and stale import feedback are corrected; fresh automated suites pass. An owned native fixture verifies focus restoration, and independent CG/AX reads confirm the existing installed build opens a separate folder child. The [September 8 retest](superpowers/reports/2026-09-08-native-2496558-retest.md) also established both clock texts, Spotify connection and local AppleScript queries. Full packaged UI, physical input and release gates remain open; historical checkpoint prose below does not supersede these reports.
+
 This scope was narrowed after reviewing the other projects in `~/Dev/pessoal`. It adds complementary Option Tab features rather than duplicating products we already maintain. Existing Option Tab features are retained. Native Dock enhancements come first. The subsequent instruction to work on all retained features includes the optional Dock replacement, delivered as a separate mode after the core enhancements.
 
 ## Removed overlaps and product ownership
@@ -113,7 +115,7 @@ B10 now has native material, guarded interior geometry and solid-fallback implem
 
 The feature branch implements the same-hover Windows/Media selector, the future universal/macOS 14 release contract, an in-repository cask for the published v0.4.8 ARM64 build, bounded user-reviewed diagnostics, current data-handling documentation, and explicit PT-BR/Spanish strings for new controls. Combined JavaScript unit, browser and lint gates pass. Go integration, real universal compilation, signed/notarized release validation, Homebrew installation lifecycle, diagnostics chooser behavior and physical media-selector acceptance remain pending, so the G checkboxes and native media acceptance stay open. See the [parity follow-ups checkpoint](superpowers/reports/2026-09-07-parity-followups.md).
 
-The [2026-09-08 native Settings/media follow-up](superpowers/reports/2026-09-08-native-settings-media-fixes.md) records fixes from actual Preferences testing, scoped H17 import evidence, and remaining export, host and automation acceptance. Its combined verification and final build are pending; native acceptance checkboxes remain open.
+The [2026-09-08 native Settings/media follow-up](superpowers/reports/2026-09-08-native-settings-media-fixes.md) records earlier fixes from actual Preferences testing. The subsequent 2496558 build and combined automated verification completed; its [packaged retest](superpowers/reports/2026-09-08-native-2496558-retest.md) records successful export/import, widget and query checks alongside remaining native failures. Native acceptance checkboxes remain open.
 
 ## H. Optional Dock replacement — later delivery stage
 

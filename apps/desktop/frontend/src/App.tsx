@@ -190,6 +190,7 @@ function useSettingsModel() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const queue = useRef<Promise<void>>(Promise.resolve());
   const backendRevision = useRef(0);
+  const importedRevision = useRef(0);
   const authorityEpoch = useRef(0);
   const modelEpoch = useRef(0);
   const mounted = useRef(true);
@@ -370,8 +371,9 @@ function useSettingsModel() {
           owner !== authorityEpoch.current ||
           canonical.revision < backendRevision.current
         )
-          return;
+          throw new Error("Settings changed before this import could be saved.");
         backendRevision.current = canonical.revision;
+        importedRevision.current = canonical.revision;
         setSettings(canonical.settings);
         setSaveError(null);
       })
@@ -505,6 +507,7 @@ function useSettingsModel() {
   }, []);
   return {
     settings,
+    settingsAuthority: `${authorityEpoch.current}:${importedRevision.current}`,
     onChange,
     onImport,
     withSavedSettings,
@@ -1268,6 +1271,7 @@ function MediaRoute({ session }: { session: number }) {
 function SettingsRoute() {
   const {
     settings,
+    settingsAuthority,
     onChange,
     onImport,
     withSavedSettings,
@@ -1550,6 +1554,7 @@ function SettingsRoute() {
       >
         <Settings
           settings={settings}
+          draftAuthority={settingsAuthority}
           onChange={onChange}
           onImport={onImport}
           onExport={() => withSavedSettings(saveSettingsExport)}

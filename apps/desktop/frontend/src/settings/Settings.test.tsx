@@ -267,14 +267,20 @@ describe("Settings", () => {
     expect(removed.shortcuts.some((s: { id: number }) => s.id === 2)).toBe(false);
   });
 
-  it("adds a structured blacklist entry", () => {
+  it("keeps a blank blacklist row local until it has a matcher", () => {
     const onChange = vi.fn();
     render(<Settings settings={defaultSettings} onChange={onChange} />);
     fireEvent.click(screen.getByText("+ Add app"));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Blacklist entry 1")).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("Blacklist entry 1"), {
+      target: { value: "Example app" },
+    });
+    fireEvent.click(screen.getByText("Save app"));
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         filters: expect.objectContaining({
-          appBlacklist: [{ match: "", hide: "always", ignoreShortcuts: false }],
+          appBlacklist: [{ match: "Example app", hide: "always", ignoreShortcuts: false }],
         }),
       }),
     );
@@ -949,6 +955,7 @@ describe("Settings", () => {
     fireEvent.change(screen.getByLabelText("Blacklist entry 1"), {
       target: { value: "com.foo" },
     });
+    fireEvent.blur(screen.getByLabelText("Blacklist entry 1"));
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         filters: expect.objectContaining({
