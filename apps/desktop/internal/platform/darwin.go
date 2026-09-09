@@ -19,6 +19,7 @@ import (
 	"image/png"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -105,7 +106,7 @@ func (p *darwinPlatform) Windows() ([]domain.Window, error) {
 	if err := json.Unmarshal([]byte(data), &raws); err != nil {
 		return nil, err
 	}
-	return mapRawWindows(raws), nil
+	return retiredWindows.filter(mapRawWindows(raws), nativeRetirementInventory, nativeWindowReappeared), nil
 }
 
 func (p *darwinPlatform) Focus(id domain.WindowID) error {
@@ -366,13 +367,14 @@ func (q *eventQueue[T]) close() {
 
 // darwinHotkeys drives the CGEventTap in darwin.m and streams events to Go.
 type darwinHotkeys struct {
-	events   *eventQueue[HotkeyEvent]
-	keys     *eventQueue[KeyEvent]
-	focus    *eventQueue[domain.WindowID]
-	eventsCh chan HotkeyEvent
-	keysCh   chan KeyEvent
-	focusCh  chan domain.WindowID
-	started  bool
+	keySession atomic.Uint64
+	events     *eventQueue[HotkeyEvent]
+	keys       *eventQueue[KeyEvent]
+	focus      *eventQueue[domain.WindowID]
+	eventsCh   chan HotkeyEvent
+	keysCh     chan KeyEvent
+	focusCh    chan domain.WindowID
+	started    bool
 
 	policyMu    sync.Mutex
 	policy      HotkeyPolicy
@@ -457,6 +459,13 @@ func (h *darwinHotkeys) Unregister(id int) error {
 func (h *darwinHotkeys) Events() <-chan HotkeyEvent { return h.eventsCh }
 
 func (h *darwinHotkeys) Keys() <-chan KeyEvent { return h.keysCh }
+
+func (h *darwinHotkeys) SetKeySession(session uint64) { h.keySession.Store(session) }
+
+func (h *darwinHotkeys) enqueueKey(event KeyEvent) {
+	event.Session = h.keySession.Load()
+	h.keys.push(event)
+}
 
 // SetOpen mirrors the overlay's visibility into the native tap, which consumes
 // and forwards all keyboard input while the switcher is open.
@@ -691,7 +700,7 @@ func goKeyEvent(keycode C.int, flags C.uint64_t, text *C.char) {
 	if activeEngine == nil {
 		return
 	}
-	activeEngine.keys.push(keyEventFromTap(uint16(keycode), uint64(flags), C.GoString(text)))
+	activeEngine.enqueueKey(keyEventFromTap(uint16(keycode), uint64(flags), C.GoString(text)))
 }
 
 //export goFocusEvent

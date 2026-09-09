@@ -11,6 +11,26 @@ import (
 	"option-tab/internal/platform/fake"
 )
 
+func TestSettingsSnapshotDoesNotShareActionBindings(t *testing.T) {
+	a := newApp(fake.New(), config.Default(), "")
+	snapshot := a.settingsSnapshot()
+	original := snapshot.Behavior.ActionBindings["KeyW"]
+	delete(snapshot.Behavior.ActionBindings, "KeyW")
+	if got := a.settingsSnapshot().Behavior.ActionBindings["KeyW"]; got != original {
+		t.Fatalf("mutating a snapshot changed shared bindings: got %q, want %q", got, original)
+	}
+}
+
+func TestSettingsSnapshotClonesAppModeActionBindings(t *testing.T) {
+	a := newApp(fake.New(), config.Default(), "")
+	defer a.stopCapture()
+	snapshot := a.settingsSnapshot()
+	snapshot.AppSwitcher.Behavior.ActionBindings["KeyW"] = config.ActionQuit
+	if got := a.settingsSnapshot().AppSwitcher.Behavior.ActionBindings["KeyW"]; got != config.ActionClose {
+		t.Fatalf("app binding escaped snapshot: %q", got)
+	}
+}
+
 func TestSaveSettingsFailureKeepsPreviousSettings(t *testing.T) {
 	s := config.Default()
 	a := newApp(fake.New(), s, t.TempDir())

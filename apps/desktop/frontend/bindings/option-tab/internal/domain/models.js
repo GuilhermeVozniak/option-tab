@@ -13,6 +13,59 @@ import { Create as $Create } from "@wailsio/runtime";
  */
 
 /**
+ * Bounds is an axis-aligned rectangle in global screen coordinates, origin
+ * top-left, measured in points.
+ */
+export class Bounds {
+    /**
+     * Creates a new Bounds instance.
+     * @param {Partial<Bounds>} [$$source = {}] - The source object to create the Bounds.
+     */
+    constructor($$source = {}) {
+        if (!("X" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["X"] = 0;
+        }
+        if (!("Y" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["Y"] = 0;
+        }
+        if (!("W" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["W"] = 0;
+        }
+        if (!("H" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["H"] = 0;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Bounds instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {Bounds}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Bounds(/** @type {Partial<Bounds>} */($$parsedSource));
+    }
+}
+
+/**
  * ScreenID identifies a physical display. Zero means "unknown".
  * @typedef {number} ScreenID
  */

@@ -16,13 +16,83 @@ import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Cr
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as actions$0 from "./internal/actions/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as config$0 from "./internal/config/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as domain$0 from "./internal/domain/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as launcher$0 from "./internal/launcher/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as platform$0 from "./internal/platform/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as switcher$0 from "./internal/switcher/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as widgets$0 from "./internal/widgets/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
+/**
+ * @param {string} message
+ * @returns {$CancellablePromise<void>}
+ */
+export function ActionFailed(message) {
+    return $Call.ByID(2458319746, message);
+}
+
+/**
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} itemID
+ * @returns {$CancellablePromise<void>}
+ */
+export function ActivateLauncherItem(epoch, displayUUID, session, revision, itemID) {
+    return $Call.ByID(529143415, epoch, displayUUID, session, revision, itemID);
+}
+
+/**
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} session
+ * @param {number} presentationRevision
+ * @param {number} admission
+ * @param {number} sequence
+ * @returns {$CancellablePromise<void>}
+ */
+export function ActivateLauncherSelection(epoch, displayUUID, session, presentationRevision, admission, sequence) {
+    return $Call.ByID(4123151142, epoch, displayUUID, session, presentationRevision, admission, sequence);
+}
 
 /**
  * @returns {$CancellablePromise<void>}
  */
 export function Advance() {
     return $Call.ByID(3974603045);
+}
+
+/**
+ * @param {number} session
+ * @param {number} gesture
+ * @param {number} windowID
+ * @param {number} appID
+ * @param {number} pointerX
+ * @param {number} pointerY
+ * @param {number} grabX
+ * @param {number} grabY
+ * @returns {$CancellablePromise<void>}
+ */
+export function BeginDockPreviewDrag(session, gesture, windowID, appID, pointerX, pointerY, grabX, grabY) {
+    return $Call.ByID(3337788529, session, gesture, windowID, appID, pointerX, pointerY, grabX, grabY);
 }
 
 /**
@@ -33,12 +103,61 @@ export function Cancel() {
 }
 
 /**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function CancelDockFolderAccess(session, revision) {
+    return $Call.ByID(3062959714, session, revision);
+}
+
+/**
+ * @returns {$CancellablePromise<void>}
+ */
+export function CancelDockPlacement() {
+    return $Call.ByID(2631637315);
+}
+
+/**
+ * @param {number} session
+ * @param {number} gesture
+ * @returns {$CancellablePromise<void>}
+ */
+export function CancelDockPreviewDrag(session, gesture) {
+    return $Call.ByID(418174098, session, gesture);
+}
+
+/**
+ * @returns {$CancellablePromise<void>}
+ */
+export function CancelLauncherItemSelection() {
+    return $Call.ByID(396214674);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function CancelMediaLyricsImport(session, revision) {
+    return $Call.ByID(3785335492, session, revision);
+}
+
+/**
  * CancelShortcutCapture disarms a pending shortcut capture (the recorder
  * input lost focus).
  * @returns {$CancellablePromise<void>}
  */
 export function CancelShortcutCapture() {
     return $Call.ByID(1824023725);
+}
+
+/**
+ * @param {string} token
+ * @returns {$CancellablePromise<void>}
+ */
+export function CancelWidgetPackageReview(token) {
+    return $Call.ByID(1933127773, token);
 }
 
 /**
@@ -64,6 +183,59 @@ export function CheckForUpdates() {
 }
 
 /**
+ * @returns {$CancellablePromise<$models.LauncherItemIcon>}
+ */
+export function ChooseLauncherItemIcon() {
+    return $Call.ByID(1062900294).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * @param {string} kind
+ * @returns {$CancellablePromise<$models.LauncherReferenceView>}
+ */
+export function ChooseLauncherItemReference(kind) {
+    return $Call.ByID(3580272244, kind).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<void>}
+ */
+export function ClearDiagnostics() {
+    return $Call.ByID(2969743170);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function CloseAutomationPreview(session, revision) {
+    return $Call.ByID(43965240, session, revision);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function CloseLauncherItemPanel(session, revision) {
+    return $Call.ByID(1453209586, session, revision);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function CloseMediaPanel(session, revision) {
+    return $Call.ByID(231734221, session, revision);
+}
+
+/**
  * ClosePreferences hides the preferences window and returns the app to the
  * accessory policy (no Dock icon).
  * @returns {$CancellablePromise<void>}
@@ -80,10 +252,34 @@ export function CloseSelected() {
 }
 
 /**
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} session
+ * @param {number} presentationRevision
+ * @param {number} admission
+ * @param {number} sequence
+ * @param {string} text
+ * @param {number} modifiers
+ * @param {boolean} composing
+ * @returns {$CancellablePromise<void>}
+ */
+export function CommitLauncherLetter(epoch, displayUUID, session, presentationRevision, admission, sequence, text, modifiers, composing) {
+    return $Call.ByID(3590058620, epoch, displayUUID, session, presentationRevision, admission, sequence, text, modifiers, composing);
+}
+
+/**
  * @returns {$CancellablePromise<void>}
  */
 export function Confirm() {
     return $Call.ByID(3228319335);
+}
+
+/**
+ * @param {number} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function ConfirmApp(id) {
+    return $Call.ByID(1759019970, id);
 }
 
 /**
@@ -95,11 +291,33 @@ export function ConfirmWindow(id) {
 }
 
 /**
+ * @param {string} provider
+ * @returns {$CancellablePromise<platform$0.MediaPermission>}
+ */
+export function ConnectMediaProvider(provider) {
+    return $Call.ByID(2624774846, provider).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType2($result);
+    }));
+}
+
+/**
  * DismissCrashReport discards the pending crash log.
  * @returns {$CancellablePromise<void>}
  */
 export function DismissCrashReport() {
     return $Call.ByID(2108673700);
+}
+
+/**
+ * @param {number} session
+ * @param {number} windowID
+ * @param {number} appID
+ * @returns {$CancellablePromise<actions$0.Result>}
+ */
+export function FocusDockWindow(session, windowID, appID) {
+    return $Call.ByID(1587026944, session, windowID, appID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
 }
 
 /**
@@ -110,12 +328,206 @@ export function FullscreenSelected() {
 }
 
 /**
+ * @param {number} session
+ * @returns {$CancellablePromise<$models.AutomationPreviewViewState | null>}
+ */
+export function GetAutomationPreviewState(session) {
+    return $Call.ByID(473218209, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType5($result);
+    }));
+}
+
+/**
  * GetCrashReport returns the previous run's crash log, or "" when there is
  * none (or the policy is "never").
  * @returns {$CancellablePromise<string>}
  */
 export function GetCrashReport() {
     return $Call.ByID(2071961624);
+}
+
+/**
+ * @returns {$CancellablePromise<$models.DiagnosticsReview>}
+ */
+export function GetDiagnosticsReview() {
+    return $Call.ByID(3103844513).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType6($result);
+    }));
+}
+
+/**
+ * @param {number} session
+ * @returns {$CancellablePromise<platform$0.MaterialStatus>}
+ */
+export function GetDockMaterialStatus(session) {
+    return $Call.ByID(167017963, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType7($result);
+    }));
+}
+
+/**
+ * Display discovery is read-only and does not enable native input filtering.
+ * @returns {$CancellablePromise<platform$0.DockLockDisplay[]>}
+ */
+export function GetDockMonitorLockDisplays() {
+    return $Call.ByID(961307694).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType9($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<platform$0.DockMonitorLockState>}
+ */
+export function GetDockMonitorLockState() {
+    return $Call.ByID(3014544674).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType10($result);
+    }));
+}
+
+/**
+ * GetDockState lets a newly loaded hidden webview catch up with a hover that
+ * arrived before its event subscriptions were installed.
+ * @returns {$CancellablePromise<$models.DockViewState | null>}
+ */
+export function GetDockState() {
+    return $Call.ByID(1033939333).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType12($result);
+    }));
+}
+
+/**
+ * GetLauncherAppChoices is an explicit settings inventory. It performs no
+ * window query, permission prompt or app activation and exposes no process IDs.
+ * @returns {$CancellablePromise<$models.LauncherAppChoice[]>}
+ */
+export function GetLauncherAppChoices() {
+    return $Call.ByID(1561877478).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType14($result);
+    }));
+}
+
+/**
+ * @param {number} session
+ * @returns {$CancellablePromise<$models.LauncherBadgeViewState>}
+ */
+export function GetLauncherBadges(session) {
+    return $Call.ByID(3953438223, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType15($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<$models.LauncherInteractionCapabilities>}
+ */
+export function GetLauncherInteractionCapabilities() {
+    return $Call.ByID(447462271).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType16($result);
+    }));
+}
+
+/**
+ * @param {number} session
+ * @returns {$CancellablePromise<$models.LauncherInteractionState>}
+ */
+export function GetLauncherInteractionState(session) {
+    return $Call.ByID(59755958, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType17($result);
+    }));
+}
+
+/**
+ * @param {string} id
+ * @returns {$CancellablePromise<$models.LauncherItemIcon>}
+ */
+export function GetLauncherItemIcon(id) {
+    return $Call.ByID(3646775041, id).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType0($result);
+    }));
+}
+
+/**
+ * @param {number} session
+ * @returns {$CancellablePromise<$models.LauncherItemPanelState | null>}
+ */
+export function GetLauncherItemPanelState(session) {
+    return $Call.ByID(2821689331, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType19($result);
+    }));
+}
+
+/**
+ * @param {string} profileID
+ * @returns {$CancellablePromise<$models.LauncherItemSettings>}
+ */
+export function GetLauncherItemSettings(profileID) {
+    return $Call.ByID(1300445933, profileID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType20($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<$models.LauncherItemStatus>}
+ */
+export function GetLauncherItemStatus() {
+    return $Call.ByID(117720418).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType21($result);
+    }));
+}
+
+/**
+ * @param {string} profileID
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetLauncherProfileExport(profileID) {
+    return $Call.ByID(2209096222, profileID);
+}
+
+/**
+ * @param {number} session
+ * @returns {$CancellablePromise<launcher$0.Presentation>}
+ */
+export function GetLauncherState(session) {
+    return $Call.ByID(1942731528, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType22($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<$models.LauncherStatus>}
+ */
+export function GetLauncherStatus() {
+    return $Call.ByID(3297738801).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType23($result);
+    }));
+}
+
+/**
+ * @param {number} session
+ * @returns {$CancellablePromise<$models.LauncherWidgetState>}
+ */
+export function GetLauncherWidgets(session) {
+    return $Call.ByID(1662395444, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType24($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<{ [_ in string]?: platform$0.MediaPermission }>}
+ */
+export function GetMediaPermissions() {
+    return $Call.ByID(3673411287).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType25($result);
+    }));
+}
+
+/**
+ * @param {number} session
+ * @returns {$CancellablePromise<$models.MediaViewState | null>}
+ */
+export function GetMediaState(session) {
+    return $Call.ByID(3763583330, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType27($result);
+    }));
 }
 
 /**
@@ -137,11 +549,68 @@ export function GetSettings() {
 }
 
 /**
+ * @returns {$CancellablePromise<$models.SettingsState>}
+ */
+export function GetSettingsState() {
+    return $Call.ByID(620781575).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType28($result);
+    }));
+}
+
+/**
+ * @param {number} session
+ * @returns {$CancellablePromise<platform$0.MaterialStatus>}
+ */
+export function GetSwitcherMaterialStatus(session) {
+    return $Call.ByID(3075636663, session).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType7($result);
+    }));
+}
+
+/**
  * GetVersion returns the app version for the About tab.
  * @returns {$CancellablePromise<string>}
  */
 export function GetVersion() {
     return $Call.ByID(1049863377);
+}
+
+/**
+ * @param {widgets$0.Lease} lease
+ * @param {string} actionToken
+ * @returns {$CancellablePromise<widgets$0.ActionOptions>}
+ */
+export function GetWidgetActionOptions(lease, actionToken) {
+    return $Call.ByID(1913639053, lease, actionToken).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType29($result);
+    }));
+}
+
+/**
+ * @param {widgets$0.Lease} lease
+ * @param {string} assetToken
+ * @returns {$CancellablePromise<string>}
+ */
+export function GetWidgetAsset(lease, assetToken) {
+    return $Call.ByID(1591270545, lease, assetToken);
+}
+
+/**
+ * @returns {$CancellablePromise<$models.WidgetCatalogItem[]>}
+ */
+export function GetWidgetCatalog() {
+    return $Call.ByID(1508342138).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType31($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<$models.WidgetPackageStatus>}
+ */
+export function GetWidgetPackageStatus() {
+    return $Call.ByID(2166434855).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType32($result);
+    }));
 }
 
 /**
@@ -157,6 +626,47 @@ export function Hide() {
  */
 export function HideSelectedApp() {
     return $Call.ByID(3942268823);
+}
+
+/**
+ * HideSession retires only the presentation that requested dismissal. An old
+ * controller callback must not hide an overlay that has since reopened.
+ * @param {number} session
+ * @returns {$CancellablePromise<void>}
+ */
+export function HideSession(session) {
+    return $Call.ByID(3201711143, session);
+}
+
+/**
+ * @param {string} document
+ * @param {string} digest
+ * @param {string} expectedRevision
+ * @returns {$CancellablePromise<$models.LauncherProfileImportResult>}
+ */
+export function ImportLauncherProfile(document, digest, expectedRevision) {
+    return $Call.ByID(216581033, document, digest, expectedRevision).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType33($result);
+    }));
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function ImportMediaLyrics(session, revision) {
+    return $Call.ByID(4054143088, session, revision);
+}
+
+/**
+ * @param {string} token
+ * @returns {$CancellablePromise<$models.WidgetCatalogItem>}
+ */
+export function InstallReviewedWidget(token) {
+    return $Call.ByID(4223715965, token).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType30($result);
+    }));
 }
 
 /**
@@ -181,6 +691,41 @@ export function IsPaused() {
  */
 export function MinimizeSelected() {
     return $Call.ByID(1240045732);
+}
+
+/**
+ * MutateLauncherItems changes only existing profile structure after exact native
+ * presentation admission. Once the final admitted save starts, disk owns completion.
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} expectedItemsRevision
+ * @param {config$0.LauncherItemMutation} mutation
+ * @returns {$CancellablePromise<void>}
+ */
+export function MutateLauncherItems(epoch, displayUUID, session, revision, expectedItemsRevision, mutation) {
+    return $Call.ByID(3805544533, epoch, displayUUID, session, revision, expectedItemsRevision, mutation);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} itemID
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenDockFolderEntry(session, revision, itemID) {
+    return $Call.ByID(1164782910, session, revision, itemID);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} entryID
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenLauncherFolderEntry(session, revision, entryID) {
+    return $Call.ByID(2663677683, session, revision, entryID);
 }
 
 /**
@@ -213,6 +758,116 @@ export function OpenURL(url) {
 }
 
 /**
+ * PerformAction acts on the supplied identity without changing the selection.
+ * @param {string} kind
+ * @param {number} windowID
+ * @param {number} appID
+ * @returns {$CancellablePromise<actions$0.Result>}
+ */
+export function PerformAction(kind, windowID, appID) {
+    return $Call.ByID(280563800, kind, windowID, appID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} kind
+ * @param {domain$0.WindowID} windowID
+ * @param {boolean} fullscreen
+ * @returns {$CancellablePromise<void>}
+ */
+export function PerformAutomationPreviewAction(session, revision, kind, windowID, fullscreen) {
+    return $Call.ByID(513435453, session, revision, kind, windowID, fullscreen);
+}
+
+/**
+ * @param {number} session
+ * @param {string} kind
+ * @param {number} windowID
+ * @param {number} appID
+ * @returns {$CancellablePromise<actions$0.Result>}
+ */
+export function PerformDockAction(session, kind, windowID, appID) {
+    return $Call.ByID(1943493959, session, kind, windowID, appID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} kind
+ * @param {domain$0.WindowID} id
+ * @param {boolean} fullscreen
+ * @returns {$CancellablePromise<void>}
+ */
+export function PerformLauncherWindowAction(session, revision, kind, id, fullscreen) {
+    return $Call.ByID(2955927072, session, revision, kind, id, fullscreen);
+}
+
+/**
+ * Initial RPC admission uses the rendered revision. Once accepted, native
+ * preparation keeps exact panel and track authority while progress/artwork can
+ * update the view independently. Controller also checks its current owner epoch.
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} kind
+ * @param {number} positionMS
+ * @returns {$CancellablePromise<void>}
+ */
+export function PerformMediaAction(session, revision, kind, positionMS) {
+    return $Call.ByID(2082824200, session, revision, kind, positionMS);
+}
+
+/**
+ * @param {widgets$0.Lease} lease
+ * @param {string} actionToken
+ * @param {string} optionToken
+ * @param {number | null} value
+ * @returns {$CancellablePromise<void>}
+ */
+export function PerformWidgetAction(lease, actionToken, optionToken, value) {
+    return $Call.ByID(4243588732, lease, actionToken, optionToken, value);
+}
+
+/**
+ * The Wails factory creates only a scheduler here. Its native webview and panel
+ * are constructed later on the UI queue, outside App.viewMu.
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<number>}
+ */
+export function PinMediaPanel(session, revision) {
+    return $Call.ByID(900489102, session, revision);
+}
+
+/**
+ * This explicit UI action may briefly move the pointer. Native code owns the
+ * bounded attempt and must relinquish cursor restoration on physical takeover.
+ * @param {number} session
+ * @param {number} revision
+ * @param {number} generation
+ * @returns {$CancellablePromise<platform$0.DockPlacementResult>}
+ */
+export function PlaceDockOnSelectedMonitor(session, revision, generation) {
+    return $Call.ByID(1589667255, session, revision, generation).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType34($result);
+    }));
+}
+
+/**
+ * @param {string} document
+ * @returns {$CancellablePromise<$models.LauncherProfileImportReview>}
+ */
+export function PreviewLauncherProfileImport(document) {
+    return $Call.ByID(3977947893, document).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType35($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<void>}
  */
 export function QuitSelectedApp() {
@@ -220,8 +875,72 @@ export function QuitSelectedApp() {
 }
 
 /**
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} itemID
+ * @returns {$CancellablePromise<void>}
+ */
+export function RelaunchLauncherItem(epoch, displayUUID, session, revision, itemID) {
+    return $Call.ByID(3869413604, epoch, displayUUID, session, revision, itemID);
+}
+
+/**
+ * @param {string} id
+ * @returns {$CancellablePromise<$models.LauncherReferenceView>}
+ */
+export function RelinkLauncherItemReference(id) {
+    return $Call.ByID(1968092868, id).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function ReloadMediaLyrics(session, revision) {
+    return $Call.ByID(3208690520, session, revision);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function RemoveMediaLyrics(session, revision) {
+    return $Call.ByID(2634844375, session, revision);
+}
+
+/**
+ * @param {string} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function RemoveUnusedLauncherIcon(id) {
+    return $Call.ByID(3663795810, id);
+}
+
+/**
+ * @param {string} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function RemoveUnusedLauncherReference(id) {
+    return $Call.ByID(3826513928, id);
+}
+
+/**
+ * @param {string} digest
+ * @returns {$CancellablePromise<void>}
+ */
+export function RemoveWidgetPackage(digest) {
+    return $Call.ByID(2737711739, digest);
+}
+
+/**
  * ReportCrash opens a prefilled GitHub issue containing the pending crash log
- * (truncated), so the user sees exactly what is shared before submitting.
+ * (truncated). Navigation sends that text to GitHub before issue submission.
  * @returns {$CancellablePromise<void>}
  */
 export function ReportCrash() {
@@ -235,6 +954,15 @@ export function ReportCrash() {
  */
 export function RequestAccessibility() {
     return $Call.ByID(3385258050);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @returns {$CancellablePromise<void>}
+ */
+export function RequestDockFolderAccess(session, revision) {
+    return $Call.ByID(1355609963, session, revision);
 }
 
 /**
@@ -254,6 +982,37 @@ export function Reverse() {
 }
 
 /**
+ * @returns {$CancellablePromise<$models.WidgetPackageReview>}
+ */
+export function ReviewLocalWidgetPackage() {
+    return $Call.ByID(460648480).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType36($result);
+    }));
+}
+
+/**
+ * @param {string} token
+ * @returns {$CancellablePromise<platform$0.DiagnosticExportResult>}
+ */
+export function SaveDiagnosticsReport(token) {
+    return $Call.ByID(1276106854, token).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType37($result);
+    }));
+}
+
+/**
+ * SaveLauncherProfileExport keeps sanitization and file writing in the backend;
+ * WKWebView does not provide a browser download destination in pinned Wails.
+ * @param {string} profileID
+ * @returns {$CancellablePromise<platform$0.DiagnosticExportResult>}
+ */
+export function SaveLauncherProfileExport(profileID) {
+    return $Call.ByID(3836223507, profileID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType37($result);
+    }));
+}
+
+/**
  * SaveSettings serializes saves and publishes only successfully persisted settings.
  * @param {string} jsonStr
  * @returns {$CancellablePromise<void>}
@@ -263,11 +1022,237 @@ export function SaveSettings(jsonStr) {
 }
 
 /**
+ * @param {string} document
+ * @param {number} expectedRevision
+ * @returns {$CancellablePromise<$models.SettingsState>}
+ */
+export function SaveSettingsAtRevision(document, expectedRevision) {
+    return $Call.ByID(1896415605, document, expectedRevision).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType28($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<platform$0.DiagnosticExportResult>}
+ */
+export function SaveSettingsExport() {
+    return $Call.ByID(815358379).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType37($result);
+    }));
+}
+
+/**
  * @param {number} index
  * @returns {$CancellablePromise<void>}
  */
 export function Select(index) {
     return $Call.ByID(149583269, index);
+}
+
+/**
+ * @param {number} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectApp(id) {
+    return $Call.ByID(523317996, id);
+}
+
+/**
+ * @param {number} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectAppWindow(id) {
+    return $Call.ByID(76282064, id);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {domain$0.WindowID} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectAutomationPreview(session, revision, id) {
+    return $Call.ByID(2322291942, session, revision, id);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} kind
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectDockContent(session, revision, kind) {
+    return $Call.ByID(2963493651, session, revision, kind);
+}
+
+/**
+ * @param {number} session
+ * @param {number} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectDockWindow(session, id) {
+    return $Call.ByID(1507952022, session, id);
+}
+
+/**
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} session
+ * @param {string} profileID
+ * @param {string} stackID
+ * @param {string} instanceID
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectLauncherWidget(epoch, displayUUID, session, profileID, stackID, instanceID) {
+    return $Call.ByID(3729375001, epoch, displayUUID, session, profileID, stackID, instanceID);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {domain$0.WindowID} id
+ * @returns {$CancellablePromise<void>}
+ */
+export function SelectLauncherWindow(session, revision, id) {
+    return $Call.ByID(3962714865, session, revision, id);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {number} width
+ * @param {number} height
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetAutomationPreviewSize(session, revision, width, height) {
+    return $Call.ByID(3307079785, session, revision, width, height);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} field
+ * @param {string} direction
+ * @param {boolean} foldersFirst
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetDockFolderSort(session, revision, field, direction, foldersFirst) {
+    return $Call.ByID(3148788948, session, revision, field, direction, foldersFirst);
+}
+
+/**
+ * @param {number} session
+ * @param {number} width
+ * @param {number} height
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetDockPanelSize(session, width, height) {
+    return $Call.ByID(1080314307, session, width, height);
+}
+
+/**
+ * SetDockPreviewRegions publishes clipped panel-local card geometry. Native
+ * code copies this policy and captures one immutable target at gesture begin.
+ * @param {number} session
+ * @param {number} revision
+ * @param {$models.DockPreviewRegion[]} regions
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetDockPreviewRegions(session, revision, regions) {
+    return $Call.ByID(3579515437, session, revision, regions);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} field
+ * @param {string} direction
+ * @param {boolean} foldersFirst
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetLauncherFolderSort(session, revision, field, direction, foldersFirst) {
+    return $Call.ByID(419936015, session, revision, field, direction, foldersFirst);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {string} view
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetLauncherFolderView(session, revision, view) {
+    return $Call.ByID(4073294914, session, revision, view);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {number} width
+ * @param {number} height
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetLauncherItemPanelSize(session, revision, width, height) {
+    return $Call.ByID(3203216027, session, revision, width, height);
+}
+
+/**
+ * @param {string} profileID
+ * @param {string} expectedRevision
+ * @param {config$0.LauncherItem[]} items
+ * @returns {$CancellablePromise<$models.LauncherItemSettings>}
+ */
+export function SetLauncherItems(profileID, expectedRevision, items) {
+    return $Call.ByID(2858019573, profileID, expectedRevision, items).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType20($result);
+    }));
+}
+
+/**
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} session
+ * @param {number} presentationRevision
+ * @param {number} admission
+ * @param {boolean} enabled
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetLauncherKeyboardMode(epoch, displayUUID, session, presentationRevision, admission, enabled) {
+    return $Call.ByID(2605124801, epoch, displayUUID, session, presentationRevision, admission, enabled);
+}
+
+/**
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} session
+ * @param {number} presentationRevision
+ * @param {number} admission
+ * @param {number} sequence
+ * @param {string} itemID
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetLauncherReorderTarget(epoch, displayUUID, session, presentationRevision, admission, sequence, itemID) {
+    return $Call.ByID(1107160523, epoch, displayUUID, session, presentationRevision, admission, sequence, itemID);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {number} offsetMS
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetMediaLyricsOffset(session, revision, offsetMS) {
+    return $Call.ByID(3423128546, session, revision, offsetMS);
+}
+
+/**
+ * @param {number} session
+ * @param {number} revision
+ * @param {number} width
+ * @param {number} height
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetMediaPanelSize(session, revision, width, height) {
+    return $Call.ByID(143498724, session, revision, width, height);
 }
 
 /**
@@ -289,6 +1274,20 @@ export function SetSearch(q) {
 }
 
 /**
+ * @param {number} session
+ * @param {number} stateRevision
+ * @param {number} sequence
+ * @param {number} x
+ * @param {number} y
+ * @param {number} width
+ * @param {number} height
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetSwitcherMaterialRect(session, stateRevision, sequence, x, y, width, height) {
+    return $Call.ByID(724815411, session, stateRevision, sequence, x, y, width, height);
+}
+
+/**
  * Show reveals the overlay window and pushes the initial state. If the
  * preferences window is open it is dismissed first. The overlay is shown
  * WITHOUT activating the app (v3 Show is a bare makeKeyAndOrderFront): the
@@ -299,6 +1298,34 @@ export function SetSearch(q) {
  */
 export function Show(st) {
     return $Call.ByID(2781088484, st);
+}
+
+/**
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} parentSession
+ * @param {number} parentRevision
+ * @param {string} itemID
+ * @returns {$CancellablePromise<$models.LauncherItemPanelState>}
+ */
+export function ShowLauncherItemPanel(epoch, displayUUID, parentSession, parentRevision, itemID) {
+    return $Call.ByID(3216568691, epoch, displayUUID, parentSession, parentRevision, itemID).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType18($result);
+    }));
+}
+
+/**
+ * @returns {$CancellablePromise<void>}
+ */
+export function StartDiagnosticsRecording() {
+    return $Call.ByID(2282172420);
+}
+
+/**
+ * @returns {$CancellablePromise<void>}
+ */
+export function StopDiagnosticsRecording() {
+    return $Call.ByID(76990490);
 }
 
 /**
@@ -317,3 +1344,52 @@ export function TogglePause() {
 export function Update(st) {
     return $Call.ByID(4141298428, st);
 }
+
+/**
+ * Recovery changes runtime admission before persistence. A failed save leaves
+ * the launcher disabled until recovery succeeds and the user enables it again.
+ * @returns {$CancellablePromise<void>}
+ */
+export function UseNativeDock() {
+    return $Call.ByID(421143656);
+}
+
+// Private type creation functions
+const $$createType0 = $models.LauncherItemIcon.createFrom;
+const $$createType1 = $models.LauncherReferenceView.createFrom;
+const $$createType2 = platform$0.MediaPermission.createFrom;
+const $$createType3 = actions$0.Result.createFrom;
+const $$createType4 = $models.AutomationPreviewViewState.createFrom;
+const $$createType5 = $Create.Nullable($$createType4);
+const $$createType6 = $models.DiagnosticsReview.createFrom;
+const $$createType7 = platform$0.MaterialStatus.createFrom;
+const $$createType8 = platform$0.DockLockDisplay.createFrom;
+const $$createType9 = $Create.Array($$createType8);
+const $$createType10 = platform$0.DockMonitorLockState.createFrom;
+const $$createType11 = $models.DockViewState.createFrom;
+const $$createType12 = $Create.Nullable($$createType11);
+const $$createType13 = $models.LauncherAppChoice.createFrom;
+const $$createType14 = $Create.Array($$createType13);
+const $$createType15 = $models.LauncherBadgeViewState.createFrom;
+const $$createType16 = $models.LauncherInteractionCapabilities.createFrom;
+const $$createType17 = $models.LauncherInteractionState.createFrom;
+const $$createType18 = $models.LauncherItemPanelState.createFrom;
+const $$createType19 = $Create.Nullable($$createType18);
+const $$createType20 = $models.LauncherItemSettings.createFrom;
+const $$createType21 = $models.LauncherItemStatus.createFrom;
+const $$createType22 = launcher$0.Presentation.createFrom;
+const $$createType23 = $models.LauncherStatus.createFrom;
+const $$createType24 = $models.LauncherWidgetState.createFrom;
+const $$createType25 = $Create.Map($Create.Any, $$createType2);
+const $$createType26 = $models.MediaViewState.createFrom;
+const $$createType27 = $Create.Nullable($$createType26);
+const $$createType28 = $models.SettingsState.createFrom;
+const $$createType29 = widgets$0.ActionOptions.createFrom;
+const $$createType30 = $models.WidgetCatalogItem.createFrom;
+const $$createType31 = $Create.Array($$createType30);
+const $$createType32 = $models.WidgetPackageStatus.createFrom;
+const $$createType33 = $models.LauncherProfileImportResult.createFrom;
+const $$createType34 = platform$0.DockPlacementResult.createFrom;
+const $$createType35 = $models.LauncherProfileImportReview.createFrom;
+const $$createType36 = $models.WidgetPackageReview.createFrom;
+const $$createType37 = platform$0.DiagnosticExportResult.createFrom;

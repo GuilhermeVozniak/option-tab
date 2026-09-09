@@ -5,7 +5,7 @@ import type { OrderMode, ScreenScope, SpaceScope, WindowVisibility } from "../..
 import { ROW, type TabContext } from "../shared";
 
 export function FilteringTab({ ctx }: { ctx: TabContext }) {
-  const { settings, t, patch, patchFilters } = ctx;
+  const { settings, t, mode, patchModePreferences, patchFilters } = ctx;
 
   return (
     <>
@@ -18,8 +18,8 @@ export function FilteringTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Display order")}</span>
             <Select
               aria-label="Display order"
-              value={settings.order}
-              onChange={(e) => patch({ order: e.target.value as OrderMode })}
+              value={mode === "apps" ? settings.appSwitcher.order : settings.order}
+              onChange={(e) => patchModePreferences({ order: e.target.value as OrderMode })}
             >
               <option value="recent">{t("Recently focused")}</option>
               <option value="recentlyCreated">{t("Recently created")}</option>

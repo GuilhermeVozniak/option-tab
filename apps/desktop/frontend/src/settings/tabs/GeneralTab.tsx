@@ -1,10 +1,11 @@
-import { type ReactNode, type RefObject, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Radio } from "@/components/ui/radio";
 import { Select } from "@/components/ui/select";
 import { LANGUAGES } from "../../lib/i18n";
+import { type JSONExportResult, jsonExportError } from "../../lib/json-export-bridge";
 import {
   type CrashPolicy,
   defaultSettings,
@@ -32,6 +33,7 @@ interface GeneralTabProps {
   updateCheckResult: ReactNode;
   checkUpdates: () => void;
   onImport?: (text: string) => Promise<void>;
+  onExport?: () => Promise<JSONExportResult>;
 }
 
 export function GeneralTab({
@@ -42,32 +44,58 @@ export function GeneralTab({
   updateCheckResult,
   checkUpdates,
   onImport,
+  onExport,
 }: GeneralTabProps) {
   const { settings, t, onChange, patchBehavior } = ctx;
   const [importError, setImportError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const exportSettings = () => {
+  const [transferPending, setTransferPending] = useState<"export" | "import" | null>(null);
+  const [exportError, setExportError] = useState("");
+  const [exported, setExported] = useState(false);
+  const [imported, setImported] = useState(false);
+  const transferOwner = useRef(0);
+  useEffect(
+    () => () => {
+      ++transferOwner.current;
+    },
+    [],
+  );
+
+  const exportSettings = async () => {
+    const owner = ++transferOwner.current;
+    setTransferPending("export");
+    setExportError("");
+    setExported(false);
+    setImportError(null);
+    setImported(false);
     try {
-      const blob = new Blob([JSON.stringify(settings, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "option-tab-settings.json";
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      // Download is unavailable (e.g. in tests); ignore.
+      if (!onExport) throw new Error("json export: unavailable");
+      const result = await onExport();
+      if (owner === transferOwner.current) setExported(result.status === "saved");
+    } catch (cause) {
+      if (owner === transferOwner.current) setExportError(jsonExportError(cause, t));
+    } finally {
+      if (owner === transferOwner.current) setTransferPending(null);
     }
   };
   const importFile = async (file: File | undefined) => {
     if (!file) return;
+    const owner = ++transferOwner.current;
+    setTransferPending("import");
+    setImportError(null);
+    setImported(false);
+    setExportError("");
+    setExported(false);
     try {
       if (!onImport) throw new Error("Import settings in the desktop app.");
       await onImport(await file.text());
-      setImportError(null);
+      if (owner === transferOwner.current) setImported(true);
     } catch (error) {
-      setImportError(`Could not import settings: ${String(error)}`);
+      if (owner === transferOwner.current)
+        setImportError(`Could not import settings: ${String(error)}`);
+    } finally {
+      if (owner === transferOwner.current) setTransferPending(null);
     }
   };
 
@@ -261,16 +289,28 @@ export function GeneralTab({
               {importError}
             </p>
           ) : null}
+          {exported ? <p role="status">{t("Settings exported.")}</p> : null}
+          {imported ? <p role="status">{t("Settings imported.")}</p> : null}
+          {exportError ? <p role="alert">{exportError}</p> : null}
           <div className={ACTIONS_ROW}>
-            <Button aria-label="Export settings" onClick={exportSettings}>
-              {t("Export…")}
+            <Button
+              aria-label="Export settings"
+              disabled={transferPending !== null || !onExport}
+              onClick={() => void exportSettings()}
+            >
+              {transferPending === "export" ? t("Exporting…") : t("Export…")}
             </Button>
-            <Button aria-label="Import settings" onClick={() => fileInput.current?.click()}>
-              {t("Import…")}
+            <Button
+              aria-label="Import settings"
+              disabled={transferPending !== null}
+              onClick={() => fileInput.current?.click()}
+            >
+              {transferPending === "import" ? t("Importing…") : t("Import…")}
             </Button>
             <Button
               variant="destructive"
               aria-label="Reset to defaults"
+              disabled={transferPending !== null}
               onClick={() => onChange(defaultSettings)}
             >
               {t("Reset to defaults")}

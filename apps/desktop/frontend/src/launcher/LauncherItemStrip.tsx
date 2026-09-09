@@ -1,0 +1,355 @@
+import { useEffect, useRef, useState } from "react";
+import type { LauncherBadgeEntry } from "../lib/launcher-badge-types";
+import type { LauncherMutateCommand } from "../lib/launcher-item-runtime-bridge";
+import type { LauncherPresentation, LauncherPresentationItem } from "../lib/types";
+import { type LauncherItemMutation, reorderable, reorderChoices } from "./reorder";
+import { useLauncherReorder } from "./useLauncherReorder";
+
+import { useMagnification } from "./useMagnification";
+
+export type LauncherItemCommand = (
+  epoch: number,
+  displayUUID: string,
+  session: number,
+  revision: number,
+  itemID: string,
+) => void;
+
+export function LauncherItemStrip({
+  presentation,
+  onActivate,
+  onRelaunch,
+  onShowPanel,
+  onMutate,
+  selectedItemID,
+  onReorderTarget,
+  badges,
+  t,
+}: {
+  presentation: LauncherPresentation;
+  onActivate: LauncherItemCommand;
+  onRelaunch?: LauncherItemCommand;
+  onShowPanel?: LauncherItemCommand;
+  onMutate?: LauncherMutateCommand;
+  selectedItemID?: string;
+  onReorderTarget?: (itemID: string) => void;
+  badges?: ReadonlyMap<string, LauncherBadgeEntry>;
+  t: (text: string) => string;
+}) {
+  const [group, setGroup] = useState("");
+  const [contextItem, setContextItem] = useState("");
+  const itemsKey = JSON.stringify(presentation.items.map(itemIdentity));
+  const [admittedItems, setAdmittedItems] = useState(itemsKey);
+  useEffect(() => {
+    setGroup("");
+    setContextItem("");
+    setAdmittedItems(itemsKey);
+  }, [itemsKey]);
+  const strip = useRef<HTMLUListElement>(null);
+  const m = presentation.magnification;
+  const magnified = !!m?.enabled && m.scale > 1;
+  useMagnification(strip, {
+    enabled: magnified,
+    scale: m?.scale ?? 1,
+    reach: m?.reach ?? 0,
+    iconPx: presentation.iconPx,
+    vertical: presentation.edge === "left" || presentation.edge === "right",
+    owner: `${presentation.epoch}:${presentation.displayUUID}:${presentation.session}:${presentation.profileID}`,
+    itemsKey: `${itemsKey}:${group}`,
+  });
+  const [reorderMenu, setReorderMenu] = useState("");
+  const reorderOwner = `${presentation.epoch}:${presentation.displayUUID}:${presentation.session}:${presentation.profileID}:${presentation.revision}:${presentation.itemsRevision}`;
+  const reorderEnabled =
+    !!presentation.runtimeReorder && !!presentation.itemsRevision && !!onMutate;
+  useEffect(() => setReorderMenu(""), [reorderOwner, reorderEnabled]);
+  const performMutation = (mutation: LauncherItemMutation) => {
+    setReorderMenu("");
+    onMutate?.(
+      presentation.epoch,
+      presentation.displayUUID,
+      presentation.session,
+      presentation.revision,
+      presentation.itemsRevision!,
+      mutation,
+    );
+  };
+  const reorder = useLauncherReorder(strip, {
+    enabled: reorderEnabled,
+    owner: reorderOwner,
+    items: presentation.items,
+    vertical: presentation.edge === "left" || presentation.edge === "right",
+    perform: performMutation,
+  });
+  const reportedReorderTarget = useRef("");
+  useEffect(() => {
+    const parent = presentation.items.find((item) =>
+      item.members?.some((member) => member.id === selectedItemID),
+    );
+    if (parent) setGroup(parent.id);
+  }, [presentation.items, selectedItemID]);
+  useEffect(() => {
+    if (!selectedItemID) return;
+    const item = [
+      ...(strip.current?.querySelectorAll<HTMLElement>("[data-launcher-item-id]") ?? []),
+    ].find((candidate) => candidate.dataset.launcherItemId === selectedItemID);
+    item?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [selectedItemID, group]);
+  useEffect(() => {
+    const target = reorder.target?.targetID ?? "";
+    if (target === reportedReorderTarget.current) return;
+    reportedReorderTarget.current = target;
+    onReorderTarget?.(target);
+  }, [onReorderTarget, reorder.target?.targetID]);
+  const currentItems = admittedItems === itemsKey;
+  const invoke = (command: LauncherItemCommand, id: string) => {
+    setContextItem("");
+    command(
+      presentation.epoch,
+      presentation.displayUUID,
+      presentation.session,
+      presentation.revision,
+      id,
+    );
+  };
+  const renderItem = (item: LauncherPresentationItem, member = false) => {
+    const kind = item.kind || "app";
+    if (kind === "spacer" || kind === "separator") {
+      return (
+        <li
+          key={item.id}
+          data-reorder-target={item.id}
+          data-reorder-zone={reorder.target?.targetID === item.id ? reorder.target.kind : undefined}
+          className={`ot-launcher-${kind}`}
+          aria-hidden="true"
+        />
+      );
+    }
+    const isGroup = kind === "group" && !member;
+    const ready = !item.status || item.status === "ready";
+    const badge = ready && kind === "app" ? badges?.get(item.id) : undefined;
+    const badgeText =
+      badge?.state === "known"
+        ? badge.kind === "count" && badge.count !== undefined
+          ? `${t("Dock badge count")}: ${badge.count}`
+          : badge.kind === "indicator"
+            ? t("Dock badge indicator")
+            : ""
+        : "";
+    const canRelaunch =
+      kind === "app" && ready && item.running && !!item.referenceRevision && !!onRelaunch;
+    const status = ready
+      ? item.running
+        ? t("Running")
+        : t(kindLabel(kind))
+      : t(referenceStatus(item.status));
+    const canShowPanel = !!onShowPanel && (kind === "folder" || (kind === "app" && !!item.running));
+    const showContext = currentItems && contextItem === item.id && (canRelaunch || canShowPanel);
+    return (
+      <li
+        className={`ot-launcher-item kind-${kind}`}
+        key={item.id}
+        data-reorder-zone={reorder.target?.targetID === item.id ? reorder.target.kind : undefined}
+      >
+        <button
+          type="button"
+          aria-label={item.name}
+          className={`ot-launcher-app${selectedItemID === item.id ? " is-key-selected" : ""}`}
+          data-launcher-item-id={item.id}
+          aria-current={selectedItemID === item.id ? "true" : undefined}
+          data-reorder-target={item.id}
+          disabled={!ready && !isGroup}
+          aria-description={badgeText ? `${status} · ${badgeText}` : status}
+          title={`${item.name} · ${status}${badgeText ? ` · ${badgeText}` : ""}`}
+          aria-expanded={
+            isGroup
+              ? currentItems && group === item.id
+              : canRelaunch || canShowPanel
+                ? !!showContext
+                : undefined
+          }
+          onClick={() =>
+            isGroup
+              ? setGroup(currentItems && group === item.id ? "" : item.id)
+              : kind === "folder" && onShowPanel
+                ? invoke(onShowPanel, item.id)
+                : invoke(onActivate, item.id)
+          }
+          onContextMenu={(event) => {
+            if (canRelaunch || canShowPanel) {
+              event.preventDefault();
+              setContextItem(item.id);
+            }
+          }}
+          onKeyDown={(event) => {
+            if (
+              (canRelaunch || canShowPanel) &&
+              ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu")
+            ) {
+              event.preventDefault();
+              setContextItem(item.id);
+            }
+            if (event.key === "Escape") {
+              setContextItem("");
+              setGroup("");
+            }
+          }}
+        >
+          <span className="ot-launcher-visual">
+            {badgeText ? (
+              <span
+                className={`ot-launcher-badge${badge?.kind === "indicator" ? " is-indicator" : ""}`}
+                aria-hidden="true"
+              >
+                {badge?.kind === "count" ? (badge.count! > 99 ? "99+" : badge.count) : ""}
+              </span>
+            ) : null}
+            {item.icon.startsWith("data:image/png;base64,") ? (
+              <img alt="" draggable={false} src={item.icon} />
+            ) : (
+              <span className="ot-launcher-icon-fallback" aria-hidden="true">
+                {isGroup
+                  ? "▦"
+                  : kind === "folder"
+                    ? "▱"
+                    : kind === "link"
+                      ? "↗"
+                      : item.name.slice(0, 1)}
+              </span>
+            )}
+            <small className={presentation.appearance.showLabels ? "" : "ot-launcher-label-hidden"}>
+              {item.name}
+            </small>
+            {item.running ? <i className="ot-launcher-running" aria-hidden="true" /> : null}
+            {!ready ? (
+              <i className="ot-launcher-item-warning" aria-hidden="true">
+                !
+              </i>
+            ) : null}
+          </span>
+        </button>
+        {reorderEnabled && reorderable(item) ? (
+          <>
+            <button
+              type="button"
+              className="ot-launcher-reorder-handle"
+              aria-label={`${t("Reorder")} ${item.name}`}
+              onPointerDown={(event) => reorder.start(event, item.id)}
+              onClick={() => setReorderMenu(reorderMenu === item.id ? "" : item.id)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setReorderMenu(item.id);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setReorderMenu("");
+              }}
+            >
+              ⋮
+            </button>
+            {reorderMenu === item.id ? (
+              <div
+                className="ot-launcher-item-actions ot-launcher-reorder-menu"
+                aria-label={t("Reorder item")}
+              >
+                {reorderChoices(presentation.items, item.id).map((choice) => (
+                  <button
+                    type="button"
+                    key={`${choice.mutation.kind}:${choice.mutation.targetID}`}
+                    onClick={() => performMutation(choice.mutation)}
+                  >
+                    {t(choice.label)}
+                    {choice.targetName ? ` ${choice.targetName}` : ""}
+                  </button>
+                ))}
+                <button type="button" onClick={() => setReorderMenu("")}>
+                  {t("Cancel")}
+                </button>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+        {showContext ? (
+          <div
+            className="ot-launcher-item-actions"
+            aria-label={`${t("Application actions")}: ${item.name}`}
+          >
+            {canShowPanel && onShowPanel ? (
+              <button type="button" onClick={() => invoke(onShowPanel, item.id)}>
+                {t(kind === "folder" ? "Show folder contents" : "Show all windows")}
+              </button>
+            ) : null}
+            {kind === "folder" && ready ? (
+              <button type="button" onClick={() => invoke(onActivate, item.id)}>
+                {t("Open folder")}
+              </button>
+            ) : null}
+            {canRelaunch && onRelaunch ? (
+              <button type="button" onClick={() => invoke(onRelaunch, item.id)}>
+                {t("Relaunch")}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              aria-label={t("Close application actions")}
+              onClick={() => setContextItem("")}
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
+        {isGroup && currentItems && group === item.id ? (
+          <ul className="ot-launcher-group-members" aria-label={item.name}>
+            {(item.members ?? []).map((entry) => renderItem(entry, true))}
+          </ul>
+        ) : null}
+      </li>
+    );
+  };
+  return (
+    <ul
+      ref={strip}
+      onClickCapture={reorder.suppressClick}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => event.preventDefault()}
+      className={`ot-launcher-strip${magnified ? " is-magnified" : ""}`}
+      style={
+        magnified
+          ? ({
+              "--ot-mag-primary": `${Math.max(0, m!.primaryInset - 4)}px`,
+              "--ot-mag-cross": `${Math.max(0, m!.crossInset - 4)}px`,
+            } as React.CSSProperties)
+          : undefined
+      }
+      aria-label={t("Launcher items")}
+    >
+      {presentation.items.map((item) => renderItem(item))}
+    </ul>
+  );
+}
+
+function kindLabel(kind: string) {
+  if (kind === "folder") return "Open folder";
+  if (kind === "file") return "Open file";
+  if (kind === "link") return "Open link";
+  if (kind === "group") return "Application group";
+  return "Open application";
+}
+function referenceStatus(status?: string) {
+  if (status === "moved") return "Moved — relink in Settings";
+  if (status === "missing") return "Missing — relink in Settings";
+  if (status === "accessRequired" || status === "needsSelection") return "Select again in Settings";
+  if (status === "changed") return "Changed — relink in Settings";
+  if (status === "preparing") return "Loading…";
+  return "Item unavailable";
+}
+
+function itemIdentity(item: LauncherPresentationItem): unknown {
+  return [
+    item.id,
+    item.kind,
+    item.name,
+    item.status,
+    item.running,
+    item.referenceRevision,
+    item.members?.map(itemIdentity),
+  ];
+}

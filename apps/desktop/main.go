@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"fmt"
 	"log/slog"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -33,6 +34,14 @@ func main() {
 				app.OpenPreferences()
 			},
 		},
+	})
+
+	wailsApp.OnShutdown(func() {
+		app.stopAutomation()
+		// Wails invokes shutdown hooks synchronously on main before closing
+		// windows or ending the AppKit loop. Drain suspended native replies here.
+		app.drainAutomationOnMainThread()
+		app.stopCapture()
 	})
 
 	// --- Switcher overlay window ---
@@ -77,9 +86,12 @@ func main() {
 				Appearance: application.NSAppearanceNameDarkAqua,
 			},
 		})
-		prefs.OnWindowEvent(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		// Hooks run before Wails' default destroy listener. A regular event
+		// listener races that listener and cannot reliably cancel destruction.
+		prefs.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 			e.Cancel()
-			app.closePreferencesWindow()
+			// Native hooks must return without waiting for viewMu/AppKit calls.
+			go app.ClosePreferences()
 		})
 		// If macOS destroys the window anyway, retire it: messaging a destroyed
 		// window aborts the process, so the next open builds a fresh one.
@@ -88,10 +100,106 @@ func main() {
 		})
 		return prefs
 	}
-	overlay.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
-		app.markOverlayClosed()
-	})
 	app.setRuntime(wailsApp, overlay, makePrefs(), makePrefs)
+	liveOverlay := app.overlay
+	overlay.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
+		liveOverlay.markClosed()
+		go app.materialHostClosed(liveOverlay)
+	})
+	overlay.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) {
+		epoch := liveOverlay.materialResized()
+		go app.materialHostResized(liveOverlay, epoch)
+	})
+
+	// The Dock owns a separate hidden webview. A true nonactivating NSPanel
+	// hosts its content; the Wails host itself is never shown or focused.
+	if host, ok := app.platform.(platform.DockPanelHost); ok {
+		makeDockHost := func() nativeWindow {
+			window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+				Name: "dock-preview", Title: "Option Tab Dock preview", Width: 320, Height: 200,
+				Hidden: true, Frameless: true, DisableResize: true, URL: "/#/dock",
+				Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
+			})
+			window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
+				if app.dockWindow != nil {
+					app.dockWindow.markHostClosedIf(window)
+				}
+			})
+			return window
+		}
+		app.dockWindow = newDockWindow(application.InvokeAsync, makeDockHost, host)
+	}
+	if host, ok := app.platform.(platform.MediaPanelHost); ok {
+		app.mediaPinFactory = func(session uint64, provider platform.MediaProvider, emit func(platform.MediaPanelEvent)) *dockWindow {
+			var scheduled *dockWindow
+			factory := func() nativeWindow {
+				window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+					Name: fmt.Sprintf("media-%s-%d", provider, session), Title: "Option Tab media", Width: 420, Height: 460,
+					Hidden: true, Frameless: true, DisableResize: true, URL: fmt.Sprintf("/#/media/%d", session),
+					Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
+				})
+				window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
+					if scheduled.markHostClosedIf(window) {
+						go app.mediaPinHostClosed(session, scheduled, window)
+					}
+				})
+				return window
+			}
+			adapter := &mediaPinHostAdapter{source: host, session: session, emit: emit}
+			scheduled = newDockWindow(application.InvokeAsync, factory, adapter)
+			adapter.owner = scheduled
+			return scheduled
+		}
+	}
+
+	if host, ok := app.platform.(platform.MediaPanelHost); ok && app.automation != nil {
+		app.automation.previewFactory = func(session uint64, emit func(platform.MediaPanelEvent)) *dockWindow {
+			var scheduled *dockWindow
+			factory := func() nativeWindow {
+				window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+					Name: fmt.Sprintf("automation-preview-%d", session), Title: "Option Tab app previews", Width: 420, Height: 300,
+					Hidden: true, Frameless: true, DisableResize: true, URL: fmt.Sprintf("/#/automation/%d", session),
+					Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
+				})
+				window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
+					if scheduled.markHostClosedIf(window) {
+						go app.automationPreviewHostClosed(session, scheduled, window)
+					}
+				})
+				return window
+			}
+			adapter := &mediaPinHostAdapter{source: host, session: session, emit: emit}
+			scheduled = newDockWindow(application.InvokeAsync, factory, adapter)
+			adapter.owner = scheduled
+			return scheduled
+		}
+	}
+
+	if host, ok := app.platform.(platform.LauncherPanelHost); ok {
+		makeLauncherFactory := func(route, title string, width, height int) func(uint64, string, platform.LauncherPanelStyle, func()) *dockWindow {
+			return func(session uint64, uuid string, style platform.LauncherPanelStyle, failed func()) *dockWindow {
+				var scheduled *dockWindow
+				factory := func() nativeWindow {
+					window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
+						Name: fmt.Sprintf("%s-%d", route, session), Title: title, Width: width, Height: height,
+						Hidden: true, Frameless: true, DisableResize: true, URL: fmt.Sprintf("/#/%s/%d", route, session),
+						Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
+					})
+					window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
+						if scheduled.markHostClosedIf(window) {
+							go failed()
+						}
+					})
+					return window
+				}
+				scheduled = newDockWindow(application.InvokeAsync, factory, launcherPanelHostAdapter{source: host, uuid: uuid, style: style})
+				scheduled.onFailure = func() { go failed() }
+				return scheduled
+			}
+		}
+		app.launcherFactory = makeLauncherFactory("launcher", "Option Tab Dock", 400, 64)
+		app.launcherItemPanelFactory = makeLauncherFactory("launcher-item", "Option Tab item", 420, 360)
+	}
 
 	// --- Menubar tray ---
 	// Menu accelerators are display-only on macOS (a status-item menu is outside
@@ -103,6 +211,9 @@ func main() {
 		app.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
 	})
 	pauseItem := menu.Add("Pause").OnClick(func(*application.Context) { app.TogglePause() })
+	app.nativeDockItem = menu.Add(nativeDockRecoveryLabel(app.settingsSnapshot().Behavior.Language)).OnClick(func(*application.Context) {
+		go func() { _ = app.UseNativeDock() }()
+	})
 	menu.AddSeparator()
 	menu.Add("Settings…").SetAccelerator("CmdOrCtrl+,").OnClick(func(*application.Context) { app.OpenPreferences() })
 	menu.Add("Check for updates…").OnClick(func(*application.Context) { app.CheckForUpdates() })

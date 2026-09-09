@@ -22,6 +22,7 @@ vi.mock("@wailsio/runtime", async (importOriginal) => {
 });
 
 vi.mock("../../bindings/option-tab/app.js", () => ({
+  PerformAction: vi.fn().mockResolvedValue({ succeeded: 1, failures: [] }),
   Advance: vi.fn().mockResolvedValue(undefined),
   Reverse: vi.fn().mockResolvedValue(undefined),
   Confirm: vi.fn().mockResolvedValue(undefined),
@@ -151,12 +152,22 @@ describe("onSwitcherEvent", () => {
     eventHandlers.get("switcher:hide")?.({ data: null });
     eventHandlers.get("switcher:thumbnails")?.({ data: { "42": "data:t" } });
     eventHandlers.get("switcher:preview")?.({ data: { "42": "data:p" } });
+    eventHandlers.get("switcher:hide")?.({ data: { session: 7, revision: 9 } });
+    eventHandlers.get("switcher:thumbnails")?.({
+      data: { session: 7, frames: { "43": "data:scoped-t" } },
+    });
+    eventHandlers.get("switcher:preview")?.({
+      data: { session: 7, frames: { "43": "data:scoped-p" } },
+    });
 
     expect(onShow).toHaveBeenCalledWith({ open: true });
     expect(onUpdate).toHaveBeenCalledWith({ selected: 1 });
-    expect(onHide).toHaveBeenCalled();
-    expect(onThumbnails).toHaveBeenCalledWith({ "42": "data:t" });
-    expect(onPreview).toHaveBeenCalledWith({ "42": "data:p" });
+    expect(onHide).toHaveBeenNthCalledWith(1, 0, 0);
+    expect(onHide).toHaveBeenNthCalledWith(2, 7, 9);
+    expect(onThumbnails).toHaveBeenNthCalledWith(1, 0, { "42": "data:t" });
+    expect(onThumbnails).toHaveBeenNthCalledWith(2, 7, { "43": "data:scoped-t" });
+    expect(onPreview).toHaveBeenNthCalledWith(1, 0, { "42": "data:p" });
+    expect(onPreview).toHaveBeenNthCalledWith(2, 7, { "43": "data:scoped-p" });
 
     unsubscribe();
     for (const off of eventOffs) {
@@ -379,5 +390,17 @@ describe("settings failures and imports", () => {
     mocked.SaveSettings.mockRejectedValueOnce(new Error("read only"));
     await expect(importSettings("{}")).rejects.toThrow("read only");
     expect(mocked.GetSettings).not.toHaveBeenCalled();
+  });
+});
+
+describe("explicit window actions", () => {
+  it("preserves native action errors for the UI", async () => {
+    mocked.PerformAction.mockRejectedValueOnce(new Error("Access denied"));
+    await expect(switcher.performAction("close", 42, 7)).rejects.toThrow("Access denied");
+  });
+  it("returns per-window bulk results", async () => {
+    const result = { succeeded: 1, failures: [{ windowId: 9, error: "closed" }] };
+    mocked.PerformAction.mockResolvedValueOnce(result as never);
+    await expect(switcher.performAction("closeAll", 0, 7)).resolves.toEqual(result);
   });
 });

@@ -2,8 +2,6 @@ package main
 
 import (
 	"strconv"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"option-tab/internal/config"
@@ -60,9 +58,17 @@ func (a *App) reRegisterHotkeys() {
 }
 
 func (a *App) hotkeyLoop() {
-	for ev := range a.platform.Hotkeys().Events() {
-		dlog("hotkeyLoop: received event kind=%d shortcut=%d", ev.Kind, ev.ShortcutID)
-		a.controller.HandleHotkey(ev)
+	for {
+		select {
+		case <-a.captureStop:
+			return
+		case ev, ok := <-a.platform.Hotkeys().Events():
+			if !ok {
+				return
+			}
+			dlog("hotkeyLoop: received event kind=%d shortcut=%d", ev.Kind, ev.ShortcutID)
+			a.controller.HandleHotkey(ev)
+		}
 	}
 }
 
@@ -87,10 +93,24 @@ func (a *App) keyLoop() {
 	if keys == nil {
 		return // backend without key forwarding (stub/fake)
 	}
-	for ev := range keys {
-		if a.controller.IsOpen() {
-			a.emit("switcher:key", ev)
+	for {
+		select {
+		case <-a.captureStop:
+			return
+		case ev, ok := <-keys:
+			if !ok {
+				return
+			}
+			if session := a.controller.PresentationSession(); session != 0 && ev.Session == session {
+				a.emit("switcher:key", ev)
+			}
 		}
+	}
+}
+
+func (a *App) setKeySession(session uint64) {
+	if source, ok := a.platform.Hotkeys().(platform.KeySessionSetter); ok {
+		source.SetKeySession(session)
 	}
 }
 
@@ -102,14 +122,36 @@ func (a *App) keyLoop() {
 // previously active app keeps focus, so the active-app scope filter keeps
 // seeing the real frontmost app — activating here was the v2 switching bug.
 func (a *App) Show(st switcher.State) {
+	a.viewMu.Lock()
+	defer a.viewMu.Unlock()
+	if a.sessionInactive || (st.Session != 0 && a.controller.PresentationSession() != st.Session) {
+		return
+	}
+	select {
+	case <-a.captureStop:
+		return
+	default:
+	}
+	a.cancelDismissalLocked()
+	a.switcherVisible = true
+	a.visibleSwitcherSession = st.Session
+	a.syncDockSuspensionLocked()
+	// Wait out the prior owner's emissions before assigning a new frame token.
+	a.captures.Hide()
+	a.captureSwitcherSession.Store(st.Session)
+	a.fadeOnHide = st.Appearance.FadeOutAnimation
+	a.captureActive = true
 	dlog("Show: %d entries, selected=%d", len(st.Entries), st.Selected)
 	if a.prefsOpen {
 		a.closePreferencesWindow()
 	}
 	// Tell the native tap to consume and forward all keyboard input before the
 	// window appears, so a quick follow-up Tab never leaks to the previous app.
+	a.setKeySession(st.Session)
 	a.platform.Hotkeys().SetOpen(true)
 	a.enrichIcons(&st)
+	a.switcherRevision++
+	st.Revision = a.switcherRevision
 	a.emit("switcher:show", st)
 	a.lastSelected = st.Selected
 	// Size the transparent window to the screen the Placement setting chose
@@ -128,33 +170,108 @@ func (a *App) Show(st switcher.State) {
 		a.overlay.setAlwaysOnTop(true)
 		a.overlay.show()
 	}
+	a.syncSwitcherMaterialLocked(st)
 	a.emitCachedThumbnails(st)
-	a.captureThumbnails(st)
-	a.capturePreview(st)
+	a.updateCapture(st)
 }
 
 // Update pushes a new state to the visible overlay.
 func (a *App) Update(st switcher.State) {
+	a.viewMu.Lock()
+	defer a.viewMu.Unlock()
+	if a.sessionInactive || (st.Session != 0 && a.controller.PresentationSession() != st.Session) {
+		return
+	}
 	a.enrichIcons(&st)
+	a.switcherRevision++
+	st.Revision = a.switcherRevision
 	a.emit("switcher:update", st)
+	a.syncSwitcherMaterialLocked(st)
 	if st.Selected != a.lastSelected {
 		a.lastSelected = st.Selected
-		if h, ok := a.platform.(platform.HapticFeedback); ok && a.settingsSnapshot().Behavior.HapticFeedback {
+		if h, ok := a.platform.(platform.HapticFeedback); ok && a.settingsSnapshot().Preferences(st.Mode).Behavior.HapticFeedback {
 			h.HapticTick()
 		}
 	}
-	a.capturePreview(st)
+	a.updateCapture(st)
 }
 
 // Hide pushes the hide event and hides the overlay window.
 func (a *App) Hide() {
-	atomic.AddInt64(&a.thumbGen, 1) // invalidate any in-flight thumbnail capture
+	a.viewMu.Lock()
+	defer a.viewMu.Unlock()
+	a.hideSwitcherLocked()
+}
+
+// HideSession retires only the presentation that requested dismissal. An old
+// controller callback must not hide an overlay that has since reopened.
+func (a *App) HideSession(session uint64) {
+	a.viewMu.Lock()
+	defer a.viewMu.Unlock()
+	if session != a.visibleSwitcherSession {
+		return
+	}
+	a.hideSwitcherLocked()
+}
+
+func (a *App) hideSwitcherLocked() {
+	select {
+	case <-a.captureStop:
+		return
+	default:
+	}
+	a.cancelDismissalLocked()
+	fade := 0
+	if a.fadeOnHide {
+		fade = 180
+	}
+	a.retireSwitcherMaterialLocked(fade)
+	a.switcherVisible = false
+	retiredSession := a.visibleSwitcherSession
+	a.visibleSwitcherSession = 0
+	a.syncDockSuspensionLocked()
+	a.captureActive = false
+	a.captures.Hide() // invalidate callbacks before the overlay disappears
+	a.captureSwitcherSession.Store(0)
 	a.platform.Hotkeys().SetOpen(false)
-	a.emit("switcher:hide", nil)
+	a.setKeySession(0)
+	a.emitSwitcherHideLocked(retiredSession)
+	if a.fadeOnHide && a.overlay.alive() {
+		generation := a.viewGeneration
+		// Match Overlay's 180 ms CSS fade; input and capture stop immediately.
+		a.dismissal = time.AfterFunc(180*time.Millisecond, func() {
+			a.viewMu.Lock()
+			defer a.viewMu.Unlock()
+			if generation != a.viewGeneration {
+				return
+			}
+			a.dismissal = nil
+			a.finishHideLocked()
+		})
+		return
+	}
+	a.finishHideLocked()
+}
+
+func (a *App) emitSwitcherHideLocked(session uint64) {
+	a.switcherRevision++
+	a.emit("switcher:hide", dockSessionEvent{Session: session, Revision: a.switcherRevision})
+}
+
+// cancelDismissalLocked also invalidates callbacks already waiting on viewMu.
+func (a *App) cancelDismissalLocked() {
+	a.viewGeneration++
+	if a.dismissal != nil {
+		a.dismissal.Stop()
+		a.dismissal = nil
+	}
+}
+
+func (a *App) finishHideLocked() {
 	a.overlay.hide()
 	// Clicking the overlay activates the app (a plain NSWindow can't avoid it);
 	// drop that activation so focus returns to the previously active app.
-	if act, ok := a.platform.(platform.AppActivator); ok {
+	if act, ok := a.platform.(platform.AppActivator); ok && !a.prefsOpen {
 		act.HideAppIfActive()
 	}
 }
@@ -177,7 +294,7 @@ func (a *App) emitCachedThumbnails(st switcher.State) {
 		}
 	}
 	if len(out) > 0 {
-		a.emit("switcher:thumbnails", out)
+		a.emit("switcher:thumbnails", switcherFramePayload(st.Session, out))
 	}
 }
 
@@ -188,11 +305,17 @@ func (a *App) backgroundCaptureLoop() {
 	const maxWindows = 30
 	ticker := time.NewTicker(4 * time.Second)
 	defer ticker.Stop()
-	for range ticker.C {
+	for {
+		select {
+		case <-a.captureStop:
+			return
+		case <-ticker.C:
+		}
 		settings := a.settingsSnapshot()
-		if !settings.Behavior.CaptureInBackground || a.controller.IsOpen() || a.controller.Paused() {
+		if !a.backgroundCaptureAllowed() {
 			continue
 		}
+		epoch := a.backgroundCaptureEpoch()
 		src, ok := a.platform.(platform.ThumbnailSource)
 		if !ok {
 			continue
@@ -205,90 +328,66 @@ func (a *App) backgroundCaptureLoop() {
 		if px <= 0 {
 			px = 256
 		}
+		next := map[domain.WindowID]string{}
 		for i, w := range wins {
-			if i >= maxWindows || a.controller.IsOpen() {
+			select {
+			case <-a.captureStop:
+				return
+			default:
+			}
+			if !a.backgroundCaptureAllowed() {
+				break
+			}
+			if i >= maxWindows {
 				break
 			}
 			url := src.ThumbnailDataURL(w.ID, px)
 			if url == "" {
 				continue
 			}
-			a.thumbCacheMu.Lock()
-			a.thumbCache[w.ID] = url
-			a.thumbCacheMu.Unlock()
+			next[w.ID] = url
 		}
+		a.publishBackgroundCache(epoch, next)
 	}
 }
 
-// captureThumbnails snapshots each window off the hotkey path and streams the
-// results to the overlay via "switcher:thumbnails" events, so the switcher
-// appears instantly (with icons) and previews fill in as they are captured.
-// Each Show/Hide bumps thumbGen; a stale goroutine stops emitting.
-func (a *App) captureThumbnails(st switcher.State) {
-	if st.Style != config.StyleThumbnails {
+// updateCapture shares one selected-window stream between thumbnail and preview.
+// Caller holds viewMu, making active admission atomic with Hide and shutdown.
+func (a *App) updateCapture(st switcher.State) {
+	if !a.captureActive {
 		return
 	}
-	src, ok := a.platform.(platform.ThumbnailSource)
-	if !ok {
+	select {
+	case <-a.captureStop:
 		return
+	default:
+	}
+	thumbs := st.Style == config.StyleThumbnails || st.Mode == config.ModeApps
+	selected := domain.WindowID(0)
+	if st.Mode == config.ModeApps {
+		selected = st.SelectedWindowID
+	} else if st.Selected >= 0 && st.Selected < len(st.Entries) {
+		selected = st.Entries[st.Selected].WindowID
+	}
+	a.captureSelected.Store(uint64(selected))
+	a.capturePreviewEnabled.Store(st.Appearance.PreviewSelected)
+	a.captureThumbnailsEnabled.Store(thumbs)
+	ids := []domain.WindowID{}
+	if thumbs {
+		for _, entry := range st.Entries {
+			ids = append(ids, entry.WindowID)
+		}
+	} else if st.Appearance.PreviewSelected && selected != 0 {
+		ids = append(ids, selected)
 	}
 	px := st.Appearance.ThumbnailMaxPx
 	if px <= 0 {
 		px = 256
 	}
-	gen := atomic.AddInt64(&a.thumbGen, 1)
-	// Capture the selected window first, and capture in parallel (bounded) so
-	// all previews appear together quickly instead of streaming in one by one.
-	// Concurrency is modest: each capture is a full ScreenCaptureKit enumeration,
-	// so too many at once contend on the window server and risk timing out.
-	entries := switcher.OrderSelectedFirst(st.Entries, st.Selected)
-	const maxConcurrent = 4
-	go func() {
-		sem := make(chan struct{}, maxConcurrent)
-		var wg sync.WaitGroup
-		for _, e := range entries {
-			if atomic.LoadInt64(&a.thumbGen) != gen {
-				break
-			}
-			sem <- struct{}{}
-			wg.Add(1)
-			go func(e switcher.Entry) {
-				defer wg.Done()
-				defer func() { <-sem }()
-				if atomic.LoadInt64(&a.thumbGen) != gen {
-					return
-				}
-				url := src.ThumbnailDataURL(e.WindowID, px)
-				if url == "" || atomic.LoadInt64(&a.thumbGen) != gen {
-					return
-				}
-				a.emit("switcher:thumbnails", map[string]string{strconv.Itoa(int(e.WindowID)): url})
-			}(e)
-		}
-		wg.Wait()
-	}()
-}
-
-// capturePreview captures a high-resolution snapshot of the selected window
-// when "preview selected window" is enabled, streamed via "switcher:preview".
-// Stale captures are dropped via the same generation counter as thumbnails.
-func (a *App) capturePreview(st switcher.State) {
-	if !st.Appearance.PreviewSelected || st.Selected < 0 || st.Selected >= len(st.Entries) {
-		return
+	if st.Appearance.PreviewSelected {
+		px = 1024
 	}
-	src, ok := a.platform.(platform.ThumbnailSource)
-	if !ok {
-		return
-	}
-	id := st.Entries[st.Selected].WindowID
-	gen := atomic.LoadInt64(&a.thumbGen)
-	go func() {
-		dataURL := src.ThumbnailDataURL(id, 1024)
-		if dataURL == "" || atomic.LoadInt64(&a.thumbGen) != gen {
-			return
-		}
-		a.emit("switcher:preview", map[string]string{strconv.Itoa(int(id)): dataURL})
-	}()
+	a.captures.Update(ids, selected, px)
 }
 
 // enrichIcons fills each entry's Icon with the owning app's icon (a base64 PNG
@@ -317,15 +416,29 @@ func (a *App) enrichIcons(st *switcher.State) {
 		}
 		st.Entries[i].Icon = img
 	}
+	for i := range st.Apps {
+		pid := int(st.Apps[i].AppID)
+		img, cached := a.iconCache[pid]
+		if !cached {
+			img = src.AppIcon(pid, px)
+			a.iconCache[pid] = img
+		}
+		st.Apps[i].Icon = img
+	}
 }
 
 // ---- Bound controller actions (called from the frontend) ----
 
-func (a *App) Advance() { a.controller.Advance() }
-func (a *App) Reverse() { a.controller.Reverse() }
-func (a *App) Confirm() { a.controller.Confirm() }
+func (a *App) Advance()       { a.controller.Advance() }
+func (a *App) Reverse()       { a.controller.Reverse() }
+func (a *App) Confirm() error { return a.controller.Confirm() }
 
-func (a *App) ConfirmWindow(id uint64) { a.controller.ConfirmWindow(domain.WindowID(id)) }
+func (a *App) ConfirmWindow(id uint64) error { return a.controller.ConfirmWindow(domain.WindowID(id)) }
+
+func (a *App) SelectApp(id int)            { a.controller.SelectApp(domain.AppID(id)) }
+func (a *App) SelectAppWindow(id uint64)   { a.controller.SelectAppWindow(domain.WindowID(id)) }
+func (a *App) ConfirmApp(id int) error     { return a.controller.ConfirmApp(domain.AppID(id)) }
+func (a *App) ActionFailed(message string) { a.emit("switcher:error", message) }
 
 func (a *App) Cancel()             { a.controller.Cancel() }
 func (a *App) Select(index int)    { a.controller.Select(index) }

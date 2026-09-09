@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LANGUAGES, makeT, resolveLang } from "./i18n";
+import { LANGUAGES, makeT, resolveLang, TRANSLATIONS } from "./i18n";
 
 describe("i18n", () => {
   it("resolves explicit languages and falls back to English", () => {
@@ -42,5 +42,50 @@ describe("i18n", () => {
 
   it("offers system default plus the supported languages", () => {
     expect(LANGUAGES.map((l) => l.value)).toEqual(["", "en", "pt-BR", "es"]);
+  });
+
+  it("defines every new icon-only and platform control in both dictionaries", () => {
+    const keys = [
+      "Previous",
+      "Capture windows in the background",
+      "Keeps thumbnails fresh so the switcher opens with previews instantly. While enabled, macOS shows the screen-recording indicator.",
+      "Play",
+      "Pause",
+      "Next",
+      "Playback position",
+      "Pin media panel",
+      "Close media panel",
+      "Option",
+      "Control",
+      "Command",
+      "Shift",
+      "Close preview",
+      "Diagnostics",
+      "Review diagnostics",
+      "Refresh preview",
+      "Start recording",
+      "Stop recording",
+      "Clear diagnostics",
+      "Save report…",
+      "Diagnostics report preview",
+      "Report saved",
+      "Focus rules",
+      "Add focus rule",
+      "Running app",
+      "Exact bundle identifier",
+      "Destination profile",
+      "Display scope",
+      "Every assigned display",
+      "Enter an exact bundle identifier using letters, numbers, dots, hyphens, or underscores.",
+      "Removing a display assignment also removes focus rules scoped only to that display.",
+    ];
+    for (const locale of ["pt-BR", "es"] as const) {
+      for (const key of keys) {
+        expect(TRANSLATIONS[locale], `${locale} is missing ${key}`).toHaveProperty(key);
+        expect(TRANSLATIONS[locale][key]).not.toBe("");
+      }
+    }
+    expect(TRANSLATIONS["pt-BR"].Shift).toBe("Shift");
+    expect(TRANSLATIONS.es.Shift).toBe("Mayúsculas");
   });
 });

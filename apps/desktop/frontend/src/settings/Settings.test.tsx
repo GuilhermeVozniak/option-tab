@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { defaultSettings, type Shortcut } from "../lib/types";
 import { PROJECT_URL, Settings } from "./Settings";
@@ -13,6 +13,157 @@ const makeShortcuts = (n: number): Shortcut[] =>
   }));
 
 describe("Settings", () => {
+  it("edits app-mode appearance without mutating window appearance", () => {
+    const onChange = vi.fn();
+    render(<Settings settings={defaultSettings} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
+    fireEvent.change(screen.getByLabelText("Switcher settings mode"), {
+      target: { value: "apps" },
+    });
+    fireEvent.click(screen.getByLabelText("Visual style titles"));
+    const next = onChange.mock.calls.at(-1)?.[0];
+    expect(next.appearance.style).toBe(defaultSettings.appearance.style);
+    expect(next.appSwitcher.appearance.style).toBe("titles");
+  });
+
+  it("keeps app-mode action bindings independent", () => {
+    const onChange = vi.fn();
+    render(<Settings settings={defaultSettings} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    fireEvent.change(screen.getByLabelText("Switcher settings mode"), {
+      target: { value: "apps" },
+    });
+    fireEvent.change(screen.getByLabelText("Action for KeyW"), { target: { value: "minimize" } });
+    const next = onChange.mock.calls.at(-1)?.[0];
+    expect(next.behavior.actionBindings.KeyW).toBe("close");
+    expect(next.appSwitcher.behavior.actionBindings.KeyW).toBe("minimize");
+  });
+
+  it("sets shortcut modes and configures Dock independently", () => {
+    const onChange = vi.fn();
+    render(<Settings settings={defaultSettings} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText("Shortcut 1 mode"), { target: { value: "windows" } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        shortcuts: expect.arrayContaining([expect.objectContaining({ id: 1, mode: "windows" })]),
+      }),
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    fireEvent.click(screen.getByLabelText("Enable Dock previews"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dock: expect.objectContaining({ enabled: true }) }),
+    );
+    fireEvent.change(screen.getByLabelText("Dock hover delay"), { target: { value: "450" } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ dock: expect.objectContaining({ hoverDelayMs: 450 }) }),
+    );
+  });
+
+  it("enables Folder Pop independently from app previews", () => {
+    const onChange = vi.fn();
+    render(<Settings settings={defaultSettings} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    fireEvent.click(screen.getByLabelText("Enable Folder Pop"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        dock: expect.objectContaining({ enabled: false, folderPop: { enabled: true } }),
+      }),
+    );
+  });
+  it("keeps media and provider opt-ins independent from Dock previews", () => {
+    const onChange = vi.fn();
+    render(<Settings settings={defaultSettings} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    fireEvent.click(screen.getByLabelText("Enable media controls"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        dock: expect.objectContaining({
+          enabled: false,
+          media: expect.objectContaining({ enabled: true }),
+        }),
+      }),
+    );
+    fireEvent.click(screen.getByLabelText("Enable Apple Music"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        dock: expect.objectContaining({
+          media: expect.objectContaining({ musicEnabled: true, spotifyEnabled: false }),
+        }),
+      }),
+    );
+  });
+  it.each([
+    ["en", "Connected"],
+    ["pt-BR", "Conectado"],
+    ["es", "Conectado"],
+  ] as const)("shows a successful media connection in %s when the native reason is empty", (language, connected) => {
+    render(
+      <Settings
+        settings={{
+          ...defaultSettings,
+          behavior: { ...defaultSettings.behavior, language },
+          dock: {
+            ...defaultSettings.dock,
+            media: { ...defaultSettings.dock.media, enabled: true, musicEnabled: true },
+          },
+        }}
+        onChange={vi.fn()}
+        media={{ permissions: { music: { status: "ready", reason: "" } }, onConnect: vi.fn() }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    expect(screen.getByText(connected)).toBeVisible();
+  });
+
+  it.each([
+    ["en", "Connecting…"],
+    ["pt-BR", "Conectando…"],
+    ["es", "Conectando…"],
+  ])("shows the pending media connection in %s", (language, label) => {
+    const onConnect = vi.fn();
+    render(
+      <Settings
+        settings={{
+          ...defaultSettings,
+          behavior: { ...defaultSettings.behavior, language },
+          dock: {
+            ...defaultSettings.dock,
+            media: { ...defaultSettings.dock.media, enabled: true, musicEnabled: true },
+          },
+        }}
+        onChange={vi.fn()}
+        media={{ permissions: { music: { status: "connecting", reason: "" } }, onConnect }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    const button = screen.getByRole("button", { name: label });
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(onConnect).not.toHaveBeenCalled();
+  });
+
+  it("does not connect a remembered provider while media controls are disabled", () => {
+    const onConnect = vi.fn();
+    render(
+      <Settings
+        settings={{
+          ...defaultSettings,
+          dock: {
+            ...defaultSettings.dock,
+            media: { ...defaultSettings.dock.media, enabled: false, musicEnabled: true },
+          },
+        }}
+        onChange={vi.fn()}
+        media={{ permissions: {}, onConnect }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    const connect = screen.getByRole("button", { name: "Connect" });
+    expect(connect).toBeDisabled();
+    fireEvent.click(connect);
+    expect(onConnect).not.toHaveBeenCalled();
+  });
+
   it("renders current values", () => {
     render(<Settings settings={defaultSettings} onChange={vi.fn()} />);
     expect(screen.getByLabelText("Visual style thumbnails")).toHaveAttribute(
@@ -116,14 +267,20 @@ describe("Settings", () => {
     expect(removed.shortcuts.some((s: { id: number }) => s.id === 2)).toBe(false);
   });
 
-  it("adds a structured blacklist entry", () => {
+  it("keeps a blank blacklist row local until it has a matcher", () => {
     const onChange = vi.fn();
     render(<Settings settings={defaultSettings} onChange={onChange} />);
     fireEvent.click(screen.getByText("+ Add app"));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Blacklist entry 1")).toHaveValue("");
+    fireEvent.change(screen.getByLabelText("Blacklist entry 1"), {
+      target: { value: "Example app" },
+    });
+    fireEvent.click(screen.getByText("Save app"));
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         filters: expect.objectContaining({
-          appBlacklist: [{ match: "", hide: "always", ignoreShortcuts: false }],
+          appBlacklist: [{ match: "Example app", hide: "always", ignoreShortcuts: false }],
         }),
       }),
     );
@@ -231,9 +388,14 @@ describe("Settings", () => {
   it("exposes appearance parity controls", () => {
     const onChange = vi.fn();
     render(<Settings settings={defaultSettings} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText("Window title truncation"), {
-      target: { value: "middle" },
-    });
+    fireEvent.change(
+      within(screen.getByLabelText("Appearance", { selector: "section" })).getByLabelText(
+        "Window title truncation",
+      ),
+      {
+        target: { value: "middle" },
+      },
+    );
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         appearance: expect.objectContaining({ titleTruncation: "middle" }),
@@ -249,6 +411,86 @@ describe("Settings", () => {
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ appearance: expect.objectContaining({ previewSelected: true }) }),
     );
+  });
+
+  it("configures compact layout and switcher interactions", () => {
+    const onChange = vi.fn();
+    render(<Settings settings={defaultSettings} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText("Compact threshold"), { target: { value: "8" } });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ appearance: expect.objectContaining({ compactThreshold: 8 }) }),
+    );
+    fireEvent.change(
+      within(screen.getByLabelText("Appearance", { selector: "section" })).getByLabelText(
+        "Layout direction",
+      ),
+      { target: { value: "vertical" } },
+    );
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appearance: expect.objectContaining({ layoutDirection: "vertical" }),
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Middle click action"), {
+      target: { value: "minimize" },
+    });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        behavior: expect.objectContaining({ middleClickAction: "minimize" }),
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Action for KeyW"), { target: { value: "minimize" } });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        behavior: expect.objectContaining({
+          actionBindings: expect.objectContaining({ KeyW: "minimize" }),
+        }),
+      }),
+    );
+  });
+
+  it("adds, edits, and removes arbitrary physical key bindings", () => {
+    const onChange = vi.fn();
+    const first = render(<Settings settings={defaultSettings} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add action binding" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        behavior: expect.objectContaining({
+          actionBindings: expect.objectContaining({ KeyA: "close" }),
+        }),
+      }),
+    );
+    first.unmount();
+    onChange.mockClear();
+
+    const custom = {
+      ...defaultSettings,
+      behavior: {
+        ...defaultSettings.behavior,
+        actionBindings: { KeyW: "close" as const, KeyA: "minimize" as const },
+      },
+    };
+    const { rerender } = render(<Settings settings={custom} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    fireEvent.change(screen.getByLabelText("Physical key KeyA"), { target: { value: "KeyB" } });
+    fireEvent.blur(screen.getByLabelText("Physical key KeyA"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        behavior: expect.objectContaining({ actionBindings: { KeyW: "close", KeyB: "minimize" } }),
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Physical key KeyA"), { target: { value: "Tab" } });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText("Physical key KeyA"), { target: { value: "KeyW" } });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Remove action binding KeyA" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        behavior: expect.objectContaining({ actionBindings: { KeyW: "close" } }),
+      }),
+    );
+    rerender(<></>);
   });
 
   it("renders translated copy when a language is selected", () => {
@@ -604,21 +846,40 @@ describe("Settings", () => {
   it("edits appearance knobs: max columns, opacity, accent color, blur", () => {
     const onChange = vi.fn();
     render(<Settings settings={defaultSettings} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText("Max columns"), { target: { value: "7" } });
+    fireEvent.change(
+      within(screen.getByLabelText("Appearance", { selector: "section" })).getByLabelText(
+        "Max columns",
+      ),
+      { target: { value: "7" } },
+    );
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ appearance: expect.objectContaining({ maxColumns: 7 }) }),
     );
-    fireEvent.change(screen.getByLabelText("Background opacity"), { target: { value: "0.5" } });
+    fireEvent.change(
+      within(screen.getByLabelText("Appearance", { selector: "section" })).getByLabelText(
+        "Background opacity",
+      ),
+      { target: { value: "0.5" } },
+    );
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ appearance: expect.objectContaining({ backgroundOpacity: 0.5 }) }),
     );
-    fireEvent.change(screen.getByLabelText("Accent color"), { target: { value: "#112233" } });
+    fireEvent.change(
+      within(screen.getByLabelText("Appearance", { selector: "section" })).getByLabelText(
+        "Accent color",
+      ),
+      { target: { value: "#112233" } },
+    );
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ appearance: expect.objectContaining({ accentColor: "#112233" }) }),
     );
     // blur defaults to true; the checkbox flips it (settings emission only —
     // the overlay never reads it, so there is no overlay DOM to assert).
-    fireEvent.click(screen.getByLabelText("Background blur"));
+    fireEvent.click(
+      within(screen.getByLabelText("Appearance", { selector: "section" })).getByLabelText(
+        "Background blur",
+      ),
+    );
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ appearance: expect.objectContaining({ blur: false }) }),
     );
@@ -694,6 +955,7 @@ describe("Settings", () => {
     fireEvent.change(screen.getByLabelText("Blacklist entry 1"), {
       target: { value: "com.foo" },
     });
+    fireEvent.blur(screen.getByLabelText("Blacklist entry 1"));
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         filters: expect.objectContaining({
@@ -762,36 +1024,6 @@ describe("Settings", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("exports settings as a JSON download", () => {
-    const createObjectURL = vi.fn((_blob: Blob) => "blob:x");
-    const revokeObjectURL = vi.fn();
-    const hadCreate = "createObjectURL" in URL;
-    // jsdom has no createObjectURL; install stubs and clean up after.
-    (URL as unknown as Record<string, unknown>).createObjectURL = createObjectURL;
-    (URL as unknown as Record<string, unknown>).revokeObjectURL = revokeObjectURL;
-    let download = "";
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
-      this: HTMLAnchorElement,
-    ) {
-      download = this.download;
-    });
-    try {
-      render(<Settings settings={defaultSettings} onChange={vi.fn()} />);
-      fireEvent.click(screen.getByLabelText("Export settings"));
-      expect(createObjectURL).toHaveBeenCalledTimes(1);
-      expect(createObjectURL.mock.calls[0][0]).toBeInstanceOf(Blob);
-      expect(click).toHaveBeenCalledTimes(1);
-      expect(download).toBe("option-tab-settings.json");
-      expect(revokeObjectURL).toHaveBeenCalledWith("blob:x");
-    } finally {
-      click.mockRestore();
-      if (!hadCreate) {
-        delete (URL as unknown as Record<string, unknown>).createObjectURL;
-        delete (URL as unknown as Record<string, unknown>).revokeObjectURL;
-      }
-    }
-  });
-
   it("labels the onboarding finish button 'Get started' when all permissions are granted", () => {
     const onChange = vi.fn();
     render(
@@ -850,4 +1082,142 @@ describe("Settings", () => {
       }),
     );
   });
+});
+
+it("edits the full Dock appearance independently without exposing unused timing or placement", () => {
+  let current = structuredClone(defaultSettings);
+  const original = structuredClone(current);
+  const onChange = vi.fn((next: typeof current) => {
+    current = next;
+  });
+  const { rerender } = render(<Settings settings={current} onChange={onChange} />);
+  fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  const checkIndependent = () => {
+    expect(current.appearance).toEqual(original.appearance);
+    expect(current.appSwitcher).toEqual(original.appSwitcher);
+    expect(current.behavior).toEqual(original.behavior);
+    expect(current.dock.scope).toEqual(original.dock.scope);
+    expect(current.dock.hoverDelayMs).toBe(original.dock.hoverDelayMs);
+    expect(current.dock.dismissDelayMs).toBe(original.dock.dismissDelayMs);
+    rerender(<Settings settings={current} onChange={onChange} />);
+  };
+  for (const [label, field, value] of [
+    ["Dock layout direction", "layoutDirection", "vertical"],
+    ["Dock window title truncation", "titleTruncation", "middle"],
+    ["Dock thumbnail size", "thumbnailMaxPx", 320],
+    ["Dock icon size", "iconSizePx", 80],
+    ["Dock max columns", "maxColumns", 3],
+    ["Dock max rows", "maxRows", 4],
+    ["Dock background opacity", "backgroundOpacity", 0.6],
+  ] as const) {
+    fireEvent.change(screen.getByLabelText(label), { target: { value: String(value) } });
+    expect(current.dock.appearance[field]).toBe(value);
+    checkIndependent();
+  }
+  for (const [label, field] of [
+    ["Dock background blur", "blur"],
+    ["Dock show window titles", "showTitle"],
+    ["Dock show app badge", "showAppBadge"],
+    ["Dock show status icons", "showStatusIcons"],
+    ["Dock show Space number labels", "showSpaceNumbers"],
+    ["Dock auto-size thumbnails", "autoSize"],
+    ["Dock selected preview", "previewSelected"],
+    ["Dock preview fade in", "previewFade"],
+    ["Dock window controls", "showWindowControls"],
+  ] as const) {
+    const before = current.dock.appearance[field];
+    fireEvent.click(screen.getByLabelText(label));
+    expect(current.dock.appearance[field]).toBe(!before);
+    checkIndependent();
+  }
+  fireEvent.click(screen.getByLabelText("Dock theme light"));
+  expect(current.dock.appearance.theme).toBe("light");
+  checkIndependent();
+  fireEvent.click(screen.getByLabelText("Dock size large"));
+  expect(current.dock.appearance).toMatchObject({
+    sizePreset: "large",
+    thumbnailMaxPx: 360,
+    iconSizePx: 96,
+  });
+  checkIndependent();
+  fireEvent.click(screen.getByLabelText("Dock visual style titles"));
+  expect(current.dock.appearance.style).toBe("titles");
+  checkIndependent();
+  expect(
+    within(screen.getByRole("region", { name: "Dock" })).queryByLabelText(/Overlay placement/i),
+  ).not.toBeInTheDocument();
+  expect(
+    within(screen.getByRole("region", { name: "Dock" })).queryByLabelText(/Fade out animation/i),
+  ).not.toBeInTheDocument();
+  expect(
+    within(screen.getByRole("region", { name: "Dock" })).queryByLabelText(/Apparition delay/i),
+  ).not.toBeInTheDocument();
+  expect(screen.getAllByLabelText("Dock thumbnail size")).toHaveLength(1);
+});
+
+it("edits every Dock input gesture independently", () => {
+  let current = structuredClone(defaultSettings);
+  const original = structuredClone(current);
+  const onChange = vi.fn((next: typeof current) => {
+    current = next;
+  });
+  const { rerender } = render(<Settings settings={current} onChange={onChange} />);
+  fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  const refresh = () => rerender(<Settings settings={current} onChange={onChange} />);
+  fireEvent.change(screen.getByLabelText("Dock card spacing"), { target: { value: "0" } });
+  expect(current.dock.cardSpacingPx).toBe(0);
+  refresh();
+  fireEvent.change(screen.getByLabelText("Dock card spacing"), { target: { value: "24" } });
+  expect(current.dock.cardSpacingPx).toBe(24);
+  expect(current.appearance).toEqual(original.appearance);
+  expect(current.appSwitcher).toEqual(original.appSwitcher);
+  refresh();
+  for (const [label, field] of [
+    ["Click Dock icon to hide app", "clickToHide"],
+    ["Scroll Dock icon to show or hide app", "scrollShowHide"],
+    ["Command-right-click to quit app", "modifiedRightClick"],
+    ["Drag previews to move windows", "previewDrag"],
+  ] as const) {
+    fireEvent.click(screen.getByLabelText(label));
+    expect(current.dock.input[field]).toBe(true);
+    expect(current.dock.scope).toEqual(original.dock.scope);
+    expect(current.dock.appearance).toEqual(original.dock.appearance);
+    expect(current.appearance).toEqual(original.appearance);
+    expect(current.appSwitcher).toEqual(original.appSwitcher);
+    expect(current.behavior).toEqual(original.behavior);
+    refresh();
+  }
+  for (const [label, field] of [
+    ["Swipe toward Dock", "swipeTowardDock"],
+    ["Swipe away from Dock", "swipeAwayFromDock"],
+    ["Swipe to previous preview", "swipePrevious"],
+    ["Swipe to next preview", "swipeNext"],
+  ] as const) {
+    fireEvent.change(screen.getByLabelText(label), { target: { value: "close" } });
+    expect(current.dock.input[field]).toBe("close");
+    refresh();
+  }
+  fireEvent.change(screen.getByLabelText("Aero Shake action"), {
+    target: { value: "minimizeOthers" },
+  });
+  expect(current.dock.input.aeroShakeAction).toBe("minimizeOthers");
+  expect(
+    screen.getByText(
+      "Precise trackpad scrolling powers preview swipes. macOS does not reliably expose the number of fingers.",
+    ),
+  ).toBeInTheDocument();
+});
+
+it("shows retained native Dock input failures without opening a preview", () => {
+  render(
+    <Settings
+      settings={defaultSettings}
+      onChange={vi.fn()}
+      requestedTab="Dock"
+      dockInputError="Input Monitoring permission required"
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Dock input unavailable: Input Monitoring permission required",
+  );
 });

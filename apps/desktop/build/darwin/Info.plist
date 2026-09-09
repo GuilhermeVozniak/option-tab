@@ -17,9 +17,15 @@
         <key>CFBundleIconFile</key>
         <string>iconfile</string>
         <key>LSMinimumSystemVersion</key>
-        <string>13.0</string>
+        <string>14.0</string>
         <key>NSHighResolutionCapable</key>
         <string>true</string>
+        <key>NSAppleEventsUsageDescription</key>
+        <string>Option Tab reads playback details and controls Music or Spotify only when you connect that player.</string>
+        <key>NSAppleScriptEnabled</key>
+        <true/>
+        <key>OSAScriptingDefinition</key>
+        <string>OptionTab.sdef</string>
         <key>LSUIElement</key>
         <true/>
     </dict>

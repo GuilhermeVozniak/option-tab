@@ -6,6 +6,19 @@ export type Theme = "system" | "light" | "dark";
 export type SizePreset = "small" | "medium" | "large";
 export type Placement = "activeScreen" | "cursorScreen" | "focusedWindowScreen";
 export type TruncationMode = "end" | "middle" | "start";
+export type LayoutDirection = "horizontal" | "vertical";
+export type WindowAction =
+  | "close"
+  | "minimize"
+  | "fullscreen"
+  | "hide"
+  | "quit"
+  | "newWindow"
+  | "forceQuit"
+  | "closeAll"
+  | "minimizeAll";
+export type PointerAction = "none" | "close" | "minimize" | "fullscreen" | "hide" | "quit";
+export type SwitcherMode = "windows" | "apps";
 
 // PermState mirrors platform.PermState; "unknown" covers the not-yet-determined
 // state. PermKey names the permissions the switcher needs.
@@ -42,6 +55,8 @@ export interface Appearance {
   titleTruncation: TruncationMode;
   previewSelected: boolean;
   previewFade: boolean;
+  compactThreshold: number;
+  layoutDirection: LayoutDirection;
 }
 
 export interface Entry {
@@ -62,6 +77,8 @@ export interface Entry {
 }
 
 export interface SwitcherState {
+  session?: number;
+  revision?: number;
   open: boolean;
   style: VisualStyle;
   appearance: Appearance;
@@ -74,6 +91,155 @@ export interface SwitcherState {
   arrowKeys: boolean;
   mouseHover: boolean;
   activeSpaceId: number;
+  actionBindings: Record<string, WindowAction>;
+  middleClickAction: PointerAction;
+  swipeUpAction: PointerAction;
+  swipeDownAction: PointerAction;
+  mode?: SwitcherMode;
+  apps?: AppEntry[];
+  selectedWindowId?: number;
+}
+
+export interface AppEntry {
+  appId: number;
+  appName: string;
+  bundleId: string;
+  hidden: boolean;
+  windowCount: number;
+  windowPresence?: "present" | "none" | "unknown";
+  icon?: string;
+}
+
+export interface Bounds {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+export interface DockItem {
+  appId: number;
+  bundleId: string;
+  path: string;
+  title: string;
+  bounds: Bounds;
+  screenId: number;
+  edge: string;
+  kind: string;
+}
+export interface DockViewState {
+  session: number;
+  revision?: number;
+  open?: boolean;
+  item: DockItem;
+  entries: Entry[];
+  selectedWindowId: number;
+  appearance: Appearance;
+  emptyReason: string;
+  error?: string;
+  cardSpacingPx?: number;
+  previewDragEnabled?: boolean;
+  dragGestureFloor?: number;
+  pointer?: DockPointer;
+  contentKind?: "windows" | "folder" | "media";
+  contentOptions?: string[];
+  folder?: DockFolderState;
+  media?: MediaViewState;
+}
+export interface AutomationPreviewState {
+  open: boolean;
+  session: number;
+  revision: number;
+  title: string;
+  entries: Entry[];
+  selectedWindowId: number;
+  appearance: Appearance;
+  cardSpacingPx: number;
+  emptyReason: string;
+  error?: string;
+  frames?: Record<string, string>;
+  frameSequence?: number;
+}
+export type MediaProvider = "music" | "spotify";
+export interface MediaScope {
+  provider: MediaProvider;
+  process: { pid: number; launchID: string };
+  generation: number;
+  trackEpoch: number;
+  trackID: string;
+}
+export interface MediaSample {
+  provider: MediaProvider;
+  process: { pid: number; launchID: string };
+  generation: number;
+  sequence: number;
+  trackEpoch: number;
+  track: { id: string; title: string; artist: string; album: string; durationMS: number };
+  playback: string;
+  positionMS: number;
+  observedAt: string;
+  status: string;
+  reason: string;
+  capabilities: { play: boolean; pause: boolean; previous: boolean; next: boolean; seek: boolean };
+  artworkToken: string;
+}
+export interface MediaViewState {
+  session: number;
+  revision: number;
+  open: boolean;
+  pinned: boolean;
+  pinnable: boolean;
+  provider: MediaProvider;
+  scope: MediaScope;
+  sample: MediaSample;
+  appearance: Appearance;
+  artwork: { status: string; reason: string; image: string };
+  lyrics: {
+    documentID: string;
+    status: string;
+    reason: string;
+    cues: Array<{ atMs: number; text: string }>;
+    offsetMS: number;
+  };
+  positionMS: number;
+  activeCue: number;
+  error: string;
+  interactionEpoch?: number;
+}
+export interface DockFolderEntry {
+  id: string;
+  name: string;
+  kind: string;
+  size: number;
+  modifiedAtMs: number;
+  hidden: boolean;
+}
+export interface DockFolderSort {
+  field: "name" | "modified" | "size" | "kind";
+  direction: "asc" | "desc";
+  foldersFirst: boolean;
+}
+export interface DockFolderState {
+  status:
+    | "loading"
+    | "ready"
+    | "permissionRequired"
+    | "missing"
+    | "revoked"
+    | "partial"
+    | "unavailable";
+  reason: string;
+  folderIdentity: string;
+  entries: DockFolderEntry[];
+  sort: DockFolderSort;
+  partial: boolean;
+  revision: number;
+}
+export interface DockPointer {
+  session: number;
+  sequence: number;
+  x: number;
+  y: number;
+  inside: boolean;
 }
 
 export const emptyState: SwitcherState = {
@@ -104,6 +270,8 @@ export const emptyState: SwitcherState = {
     titleTruncation: "end",
     previewSelected: false,
     previewFade: true,
+    compactThreshold: 0,
+    layoutDirection: "horizontal",
   },
   placement: "cursorScreen",
   entries: [],
@@ -114,6 +282,19 @@ export const emptyState: SwitcherState = {
   arrowKeys: true,
   mouseHover: true,
   activeSpaceId: 0,
+  actionBindings: {
+    KeyW: "close",
+    KeyM: "minimize",
+    KeyQ: "quit",
+    KeyH: "hide",
+    KeyF: "fullscreen",
+  },
+  middleClickAction: "close",
+  swipeUpAction: "none",
+  swipeDownAction: "none",
+  mode: "windows",
+  apps: [],
+  selectedWindowId: 0,
 };
 
 // ---- Settings (mirror of internal/config.Settings) ----
@@ -149,6 +330,7 @@ export interface Shortcut {
   scope: ShortcutScope;
   styleOverride?: VisualStyle;
   whenReleased?: ReleaseAction;
+  mode?: SwitcherMode;
 }
 
 export interface Filters {
@@ -177,6 +359,316 @@ export interface Behavior {
   hapticFeedback: boolean;
   captureInBackground: boolean;
   onboarded: boolean;
+  actionBindings: Record<string, WindowAction>;
+  middleClickAction: PointerAction;
+  swipeUpAction: PointerAction;
+  swipeDownAction: PointerAction;
+}
+
+export interface SwitcherBehavior {
+  holdToCycle: boolean;
+  vimKeys: boolean;
+  arrowKeys: boolean;
+  mouseHoverSelect: boolean;
+  cursorFollowFocus: boolean;
+  hapticFeedback: boolean;
+  actionBindings: Record<string, WindowAction>;
+  middleClickAction: PointerAction;
+  swipeUpAction: PointerAction;
+  swipeDownAction: PointerAction;
+}
+
+export interface ModePreferences {
+  appearance: Appearance;
+  behavior: SwitcherBehavior;
+  order: OrderMode;
+  placement: Placement;
+}
+
+export interface DockSettings {
+  enabled: boolean;
+  hoverDelayMs: number;
+  dismissDelayMs: number;
+  hoverSlopPx: number;
+  bridgePaddingPx: number;
+  cardSpacingPx: number;
+  scope: ShortcutScope;
+  appearance: Appearance;
+  input: DockInputSettings;
+  folderPop: { enabled: boolean };
+  media: DockMediaSettings;
+  monitorLock: DockMonitorLockSettings;
+}
+export interface DockMediaSettings {
+  enabled: boolean;
+  musicEnabled: boolean;
+  spotifyEnabled: boolean;
+  remoteArtwork: boolean;
+}
+export interface DockMonitorLockSettings {
+  enabled: boolean;
+  target: "main" | "display";
+  displayUUID: string;
+  bypassModifier: "option" | "control" | "command" | "shift";
+}
+export interface DockLockDisplay {
+  uuid: string;
+  id: number;
+  name: string;
+  bounds: Bounds;
+  scale: number;
+  main: boolean;
+  mirrored: boolean;
+}
+export interface DockMonitorLockState {
+  session: number;
+  revision: number;
+  generation: number;
+  sequence: number;
+  observedAtMs: number;
+  status: string;
+  reason: string;
+  targetUUID: string;
+  actualUUID: string;
+  edge: string;
+  displays: DockLockDisplay[];
+  placementAvailable?: boolean;
+}
+
+export interface LauncherWidgetInstance {
+  id: string;
+  packageID: string;
+  digest: string;
+  enabled: boolean;
+  grants: string[];
+  settings?: Record<string, { text: string } | { number: number } | { boolean: boolean }>;
+}
+export interface LauncherWidgetStack {
+  id: string;
+  name: string;
+  members: string[];
+  activeID: string;
+}
+export type LauncherItemKind =
+  | "app"
+  | "folder"
+  | "file"
+  | "link"
+  | "group"
+  | "spacer"
+  | "separator";
+export interface LauncherItem {
+  id: string;
+  kind: LauncherItemKind;
+  label: string;
+  referenceID?: string;
+  url?: string;
+  iconID?: string;
+  members?: string[];
+  folderView?: "list" | "grid";
+}
+export interface LauncherReferenceView {
+  id: string;
+  kind: string;
+  label: string;
+  bundleID: string;
+  state: string;
+  reason: string;
+  revision: number;
+}
+export interface LauncherItemSettings {
+  profileID: string;
+  revision: string;
+  items: LauncherItem[];
+  references: LauncherReferenceView[];
+  iconIDs?: string[];
+}
+export interface LauncherItemIcon {
+  id: string;
+  dataURL: string;
+}
+export interface LauncherItemStatus {
+  available: boolean;
+  busy: boolean;
+  reason: string;
+}
+
+export interface LauncherProfile {
+  showBadges?: boolean;
+  runtimeReorder?: boolean;
+  id: string;
+  name: string;
+  edge: "bottom" | "left" | "right" | "top";
+  layout: "floating" | "fullWidth";
+  alignment: "start" | "center" | "end";
+  appearance: LauncherAppearance;
+  iconPx: number;
+  thicknessPx: number;
+  maxLengthFraction: number;
+  insetPx: number;
+  autoHide: boolean;
+  widgets: LauncherWidgetInstance[];
+  stacks?: LauncherWidgetStack[];
+  items?: LauncherItem[];
+  magnification?: LauncherProfileMagnification;
+  interactions?: LauncherInteractions;
+}
+export interface LauncherProfileMagnification {
+  enabled: boolean;
+  scale: number;
+  reach: number;
+}
+export interface LauncherInteractions {
+  enabled: boolean;
+  preciseScroll: boolean;
+  pinch: boolean;
+  swipe: boolean;
+  primaryAction: "none" | "previous" | "next";
+  towardAction: "none" | "showPreview" | "hidePreview";
+  pinchAction: "none" | "showPreview" | "hidePreview";
+  haptics: boolean;
+  letterNavigation: boolean;
+  enterActivates: boolean;
+}
+export interface LauncherAppearance {
+  theme: "system" | "light" | "dark";
+  material: "solid" | "system";
+  tint: string;
+  opacity: number;
+  borderOpacity: number;
+  cornerRadiusPx: number;
+  itemSpacingPx: number;
+  showLabels: boolean;
+}
+export interface LauncherBinding {
+  id: string;
+  target: "main" | "display";
+  displayUUID: string;
+  profileID: string;
+}
+export interface LauncherProfileRule {
+  id: string;
+  enabled: boolean;
+  bundleID: string;
+  profileID: string;
+  bindingID: string;
+}
+export interface LauncherAppChoice {
+  name: string;
+  bundleID: string;
+}
+export interface ReplacementDockSettings {
+  version: number;
+  enabled: boolean;
+  profiles: LauncherProfile[];
+  bindings: LauncherBinding[];
+  rules?: LauncherProfileRule[];
+}
+export interface LauncherWidgetNode {
+  kind: "row" | "text";
+  text?: string;
+  children?: LauncherWidgetNode[];
+}
+export interface LauncherPresentationItem {
+  id: string;
+  name: string;
+  icon: string;
+  kind?: string;
+  status?: string;
+  reason?: string;
+  running?: boolean;
+  members?: LauncherPresentationItem[];
+  referenceRevision?: number;
+}
+export interface LauncherMagnification {
+  enabled: boolean;
+  scale: number;
+  reach: number;
+  primaryInset: number;
+  crossInset: number;
+}
+export interface LauncherPresentation {
+  runtimeReorder?: boolean;
+  itemsRevision?: string;
+  magnification?: LauncherMagnification;
+  epoch: number;
+  displayUUID: string;
+  session: number;
+  revision: number;
+  visible: boolean;
+  reason: string;
+  profileID: string;
+  bounds: Bounds;
+  iconPx: number;
+  edge: "bottom" | "left" | "right" | "top";
+  layout: "floating" | "fullWidth";
+  appearance: LauncherAppearance;
+  items: LauncherPresentationItem[];
+  widgets: Array<{
+    id: string;
+    packageID: string;
+    digest: string;
+    status: string;
+    root: LauncherWidgetNode;
+  }>;
+}
+export interface LauncherInteractionState {
+  epoch: number;
+  displayUUID: string;
+  session: number;
+  presentationRevision: number;
+  admission: number;
+  sequence: number;
+  visible: boolean;
+  selectedItemID: string;
+  keyboardMode: boolean;
+  gestureAvailable: boolean;
+  pinchAvailable: boolean;
+  swipeAvailable: boolean;
+  letterInputAvailable: boolean;
+  hapticsAvailable: boolean;
+  configured: LauncherInteractions;
+  reason: string;
+}
+
+export interface LauncherInteractionCapabilities {
+  gestureAvailable: boolean;
+  pinchAvailable: boolean;
+  swipeAvailable: boolean;
+  letterInputAvailable: boolean;
+  hapticsAvailable: boolean;
+  reason: string;
+}
+export interface LauncherStatus {
+  epoch: number;
+  revision: number;
+  enabled: boolean;
+  status: string;
+  reason: string;
+  recoveryLatched: boolean;
+  displays: Array<{
+    uuid: string;
+    name: string;
+    main: boolean;
+    bindingID: string;
+    profileID: string;
+    spaceKind: string;
+    status: string;
+    reason: string;
+  }>;
+  clockPackageID: string;
+  clockDigest: string;
+}
+export interface DockInputSettings {
+  clickToHide: boolean;
+  scrollShowHide: boolean;
+  modifiedRightClick: boolean;
+  swipeTowardDock: PointerAction;
+  swipeAwayFromDock: PointerAction;
+  swipePrevious: PointerAction;
+  swipeNext: PointerAction;
+  previewDrag: boolean;
+  aeroShakeAction: "none" | "minimizeOthers" | "closeOthers";
 }
 
 export interface Settings {
@@ -187,13 +679,30 @@ export interface Settings {
   order: OrderMode;
   placement: Placement;
   behavior: Behavior;
+  appSwitcher: ModePreferences;
+  dock: DockSettings;
+  replacementDock: ReplacementDockSettings;
 }
 
+const DEFAULT_ACTION_BINDINGS: Record<string, WindowAction> = {
+  KeyW: "close",
+  KeyM: "minimize",
+  KeyQ: "quit",
+  KeyH: "hide",
+  KeyF: "fullscreen",
+};
+
 export const defaultSettings: Settings = {
-  version: 2,
+  version: 3,
   shortcuts: [
-    { id: 1, chord: "command+tab", enabled: true, scope: { appScope: "all" } },
-    { id: 2, chord: "option+tab", enabled: true, scope: { appScope: "activeApp" } },
+    { id: 1, chord: "command+tab", enabled: true, scope: { appScope: "all" }, mode: "apps" },
+    {
+      id: 2,
+      chord: "option+tab",
+      enabled: true,
+      scope: { appScope: "activeApp" },
+      mode: "windows",
+    },
   ],
   appearance: { ...emptyState.appearance },
   filters: {
@@ -223,5 +732,97 @@ export const defaultSettings: Settings = {
     hapticFeedback: true,
     captureInBackground: false,
     onboarded: false,
+    actionBindings: { ...DEFAULT_ACTION_BINDINGS },
+    middleClickAction: "close",
+    swipeUpAction: "none",
+    swipeDownAction: "none",
+  },
+  appSwitcher: {
+    appearance: { ...emptyState.appearance, style: "appIcons", previewSelected: true },
+    behavior: {
+      holdToCycle: true,
+      vimKeys: false,
+      arrowKeys: true,
+      mouseHoverSelect: true,
+      cursorFollowFocus: false,
+      hapticFeedback: true,
+      actionBindings: { ...DEFAULT_ACTION_BINDINGS },
+      middleClickAction: "close",
+      swipeUpAction: "none",
+      swipeDownAction: "none",
+    },
+    order: "recent",
+    placement: "cursorScreen",
+  },
+  replacementDock: {
+    version: 2,
+    enabled: false,
+    profiles: [
+      {
+        id: "default",
+        name: "Default",
+        edge: "bottom",
+        layout: "floating",
+        alignment: "center",
+        appearance: {
+          theme: "system",
+          material: "solid",
+          tint: "#172033",
+          opacity: 0.76,
+          borderOpacity: 0.16,
+          cornerRadiusPx: 18,
+          itemSpacingPx: 6,
+          showLabels: true,
+        },
+        iconPx: 40,
+        thicknessPx: 64,
+        maxLengthFraction: 0.8,
+        insetPx: 16,
+        autoHide: false,
+        widgets: [
+          {
+            id: "clock",
+            packageID: "org.optiontab.clock",
+            digest: "sha256:09bcb4221f7ace94e21898b4e583f9db72be1be5f6524fbe9972af70726c9dc3",
+            enabled: false,
+            grants: [],
+          },
+        ],
+      },
+    ],
+    bindings: [{ id: "main", target: "main", displayUUID: "", profileID: "default" }],
+  },
+  dock: {
+    enabled: false,
+    hoverDelayMs: 300,
+    dismissDelayMs: 250,
+    hoverSlopPx: 8,
+    bridgePaddingPx: 12,
+    cardSpacingPx: 7,
+    scope: { appScope: "all" },
+    appearance: {
+      ...emptyState.appearance,
+      style: "thumbnails",
+      thumbnailMaxPx: 240,
+      maxRows: 2,
+      maxColumns: 5,
+      previewSelected: false,
+      showWindowControls: true,
+      fadeOutAnimation: false,
+    },
+    input: {
+      clickToHide: false,
+      scrollShowHide: false,
+      modifiedRightClick: false,
+      swipeTowardDock: "none",
+      swipeAwayFromDock: "none",
+      swipePrevious: "none",
+      swipeNext: "none",
+      previewDrag: false,
+      aeroShakeAction: "none",
+    },
+    folderPop: { enabled: false },
+    media: { enabled: false, musicEnabled: false, spotifyEnabled: false, remoteArtwork: false },
+    monitorLock: { enabled: false, target: "main", displayUUID: "", bypassModifier: "option" },
   },
 };

@@ -1,0 +1,484 @@
+.ot-launcher-shell {
+  position: relative;
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  max-width: 100vw;
+  gap: var(--ot-launcher-gap);
+  padding: 3px;
+  overflow: hidden;
+  color: var(--ot-dock-text, #f5f5f7);
+  border: 1px solid
+    color-mix(in srgb, currentColor calc(var(--ot-launcher-border-opacity) * 100%), transparent);
+  border-radius: var(--ot-launcher-radius);
+  background: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--ot-launcher-tint) 22%, var(--ot-launcher-surface))
+      calc(var(--ot-launcher-opacity) * 100%),
+    transparent
+  );
+  box-shadow:
+    0 12px 34px rgb(0 0 0 / 34%),
+    inset 0 1px rgb(255 255 255 / 12%);
+  backdrop-filter: blur(22px) saturate(145%);
+}
+
+.ot-launcher-strip {
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  gap: var(--ot-launcher-gap);
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-width: none;
+}
+.ot-launcher-shell.edge-left,
+.ot-launcher-shell.edge-right {
+  flex-direction: column;
+  max-height: 100vh;
+}
+.ot-launcher-shell.edge-left .ot-launcher-strip,
+.ot-launcher-shell.edge-right .ot-launcher-strip {
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.ot-launcher-shell.theme-light {
+  --ot-launcher-surface: #f4f7fc;
+  color: #16213c;
+}
+.ot-launcher-shell.theme-dark {
+  --ot-launcher-surface: #172033;
+  color: #f5f5f7;
+}
+.ot-launcher-shell.theme-system {
+  --ot-launcher-surface: #172033;
+  color: #f5f5f7;
+}
+@media (prefers-color-scheme: light) {
+  .ot-launcher-shell.theme-system {
+    --ot-launcher-surface: #f4f7fc;
+    color: #16213c;
+  }
+}
+.ot-launcher-label-hidden {
+  position: absolute;
+  width: 1px !important;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.ot-launcher-app {
+  position: relative;
+  display: grid;
+  box-sizing: border-box;
+  width: var(--ot-launcher-icon);
+  height: var(--ot-launcher-icon);
+  place-items: center;
+  gap: 0;
+  padding: 0;
+  color: inherit;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+}
+.ot-launcher-app:hover,
+.ot-launcher-app:focus-visible {
+  background: rgb(255 255 255 / 12%);
+}
+.ot-launcher-app img,
+.ot-launcher-icon-fallback {
+  width: var(--ot-launcher-icon);
+  height: var(--ot-launcher-icon);
+  border-radius: 10px;
+}
+.ot-launcher-icon-fallback {
+  display: grid;
+  place-items: center;
+  background: rgb(255 255 255 / 14%);
+  font-weight: 700;
+}
+.ot-launcher-app small {
+  position: absolute;
+  inset-inline: 4px;
+  bottom: 1px;
+  overflow: hidden;
+  padding: 1px 2px;
+  color: white;
+  border-radius: 3px;
+  background: rgb(0 0 0 / 58%);
+  font-size: 8px;
+  line-height: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ot-launcher-widget {
+  box-sizing: border-box;
+  flex: 0 0 160px;
+  max-height: 100%;
+  padding: 2px 6px;
+  overflow: auto;
+  border-left: 1px solid rgb(255 255 255 / 14%);
+  font-variant-numeric: tabular-nums;
+}
+.ot-launcher-widgets {
+  display: flex;
+  min-width: 0;
+  max-width: calc(640px + 3 * var(--ot-launcher-gap));
+  gap: var(--ot-launcher-gap);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ot-launcher-shell.edge-left .ot-launcher-widgets,
+.ot-launcher-shell.edge-right .ot-launcher-widgets {
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(640px + 3 * var(--ot-launcher-gap));
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.ot-launcher-widget-choices {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+}
+.ot-launcher-widget-choices button {
+  min-height: 16px;
+  padding: 1px 4px;
+  color: inherit;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font-size: 9px;
+  white-space: nowrap;
+}
+.ot-launcher-widget-choices button.is-selected {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+.ot-launcher-widget .ot-widget button {
+  min-height: 22px;
+  padding-block: 1px;
+}
+.ot-launcher-shell.edge-left .ot-launcher-widget,
+.ot-launcher-shell.edge-right .ot-launcher-widget {
+  flex-basis: 160px;
+  width: 100%;
+  max-width: 100%;
+  padding: 2px;
+  border-top: 1px solid rgb(255 255 255 / 14%);
+  border-left: 0;
+}
+.ot-launcher-widget-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ot-launcher-widget-text {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ot-launcher-item,
+.ot-launcher-group-members,
+.ot-launcher-item-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: var(--ot-launcher-gap);
+}
+.ot-launcher-group-members {
+  margin: 0;
+  padding: 0 4px;
+  list-style: none;
+  border-inline-start: 1px solid currentColor;
+}
+.ot-launcher-spacer,
+.ot-launcher-separator {
+  flex: 0 0 calc(var(--ot-launcher-icon) / 2);
+  align-self: stretch;
+}
+.ot-launcher-separator::after {
+  display: block;
+  width: 1px;
+  height: 70%;
+  margin: 15% auto;
+  background: color-mix(in srgb, currentColor 28%, transparent);
+  content: "";
+}
+.ot-launcher-running {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  top: 2px;
+  right: 2px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 45%);
+}
+.ot-launcher-app:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ot-launcher-item-warning {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+.ot-launcher-item-actions {
+  gap: 2px;
+  padding-inline: 3px;
+}
+.ot-launcher-item-actions button {
+  min-height: 26px;
+  padding: 3px 6px;
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  color: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.ot-launcher-item-actions button:focus-visible,
+.ot-launcher-app:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+.ot-launcher-action-error {
+  position: fixed;
+  inset: auto 4px 2px;
+  z-index: 2;
+  margin: 0;
+  padding: 3px 6px;
+  overflow: hidden;
+  max-height: 34px;
+  border-radius: 5px;
+  background: #321e22;
+  color: #fff0f0;
+  font-size: 11px;
+  line-height: 14px;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.ot-launcher-shell.edge-left .ot-launcher-item,
+.ot-launcher-shell.edge-right .ot-launcher-item,
+.ot-launcher-shell.edge-left .ot-launcher-group-members,
+.ot-launcher-shell.edge-right .ot-launcher-group-members {
+  flex-direction: column;
+}
+.ot-launcher-shell.edge-left .ot-launcher-item-actions,
+.ot-launcher-shell.edge-right .ot-launcher-item-actions {
+  flex-direction: column;
+  gap: 1px;
+}
+.ot-launcher-shell.edge-left .ot-launcher-group-members,
+.ot-launcher-shell.edge-right .ot-launcher-group-members {
+  border-inline-start: 0;
+  border-top: 1px solid currentColor;
+  padding: 4px 0;
+}
+.ot-launcher-shell.edge-left .ot-launcher-item-actions,
+.ot-launcher-shell.edge-right .ot-launcher-item-actions {
+  max-width: var(--ot-launcher-icon);
+  padding-inline: 0;
+}
+.ot-launcher-shell.edge-left .ot-launcher-item-actions button,
+.ot-launcher-shell.edge-right .ot-launcher-item-actions button {
+  box-sizing: border-box;
+  width: var(--ot-launcher-icon);
+  padding-inline: 1px;
+  font-size: 10px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.ot-launcher-shell.edge-left .ot-launcher-separator::after,
+.ot-launcher-shell.edge-right .ot-launcher-separator::after {
+  width: 70%;
+  height: 1px;
+  margin: 6px auto;
+}
+.ot-launcher-child {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 960px;
+  max-height: 720px;
+  overflow: hidden;
+  padding: 8px;
+  color: var(--ot-dock-text, #f5f5f7);
+}
+.ot-launcher-child-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: center;
+  min-height: 32px;
+}
+.ot-launcher-child-header strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ot-launcher-child-header button,
+.ot-launcher-child-view button {
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: inherit;
+}
+.ot-launcher-child-header button {
+  justify-self: end;
+  width: 32px;
+  height: 28px;
+}
+.ot-launcher-child-view {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.ot-launcher-child-view button {
+  padding: 3px 8px;
+}
+.ot-launcher-child-view button[aria-pressed="true"] {
+  outline: 1px solid var(--ot-accent, #78a8ff);
+}
+
+/* Insets are the backend's resolved host-to-icon envelope minus the shell's
+   existing3px padding+1px border. Stable buttons never receive a transform. */
+.ot-launcher-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--ot-launcher-icon);
+  height: var(--ot-launcher-icon);
+  pointer-events: none;
+  transform-origin: center;
+}
+.ot-launcher-badge {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border: 1px solid #fff9;
+  border-radius: 999px;
+  background: #c92e3c;
+  color: #fff;
+  font:
+    700 9px / 1 system-ui,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.ot-launcher-badge.is-indicator {
+  min-width: 9px;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+}
+.ot-launcher-strip.is-magnified {
+  box-sizing: border-box;
+  padding: var(--ot-mag-cross) var(--ot-mag-primary);
+  min-width: calc(var(--ot-launcher-icon) + 2 * var(--ot-mag-primary));
+}
+.ot-launcher-shell.edge-left .ot-launcher-strip.is-magnified,
+.ot-launcher-shell.edge-right .ot-launcher-strip.is-magnified {
+  padding: var(--ot-mag-primary) var(--ot-mag-cross);
+  min-width: 0;
+  min-height: calc(var(--ot-launcher-icon) + 2 * var(--ot-mag-primary));
+}
+
+.ot-launcher-item {
+  position: relative;
+}
+.ot-launcher-app.is-key-selected {
+  outline: 2px solid var(--ot-accent, #78a8ff);
+  outline-offset: 1px;
+}
+.ot-launcher-keyboard-toggle,
+.ot-launcher-letter-input {
+  box-sizing: border-box;
+  flex: 0 0 24px;
+  width: 24px;
+  max-width: 24px;
+  max-height: 100%;
+  min-width: 0;
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 7px;
+  color: inherit;
+  background: color-mix(in srgb, var(--ot-launcher-surface, #172033) 76%, transparent);
+}
+.ot-launcher-shell:is(.edge-left, .edge-right)
+  :is(.ot-launcher-keyboard-toggle, .ot-launcher-letter-input) {
+  width: 24px;
+}
+.ot-launcher-interaction-error {
+  position: absolute;
+  z-index: 4;
+  inset-inline-end: 3px;
+  inset-block-end: 3px;
+  box-sizing: border-box;
+  max-width: calc(100% - 6px);
+  max-height: 100%;
+  overflow: auto;
+  margin: 0;
+  font-size: 11px;
+}
+.ot-launcher-reorder-handle {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  top: calc(var(--ot-launcher-icon) - 18px);
+  width: 14px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  cursor: grab;
+  touch-action: none;
+}
+.ot-launcher-item[data-reorder-zone="moveBefore"] > .ot-launcher-app {
+  box-shadow: -3px 0 var(--ot-accent, #78a8ff);
+}
+.ot-launcher-item[data-reorder-zone="moveAfter"] > .ot-launcher-app {
+  box-shadow: 3px 0 var(--ot-accent, #78a8ff);
+}
+.ot-launcher-item[data-reorder-zone="addToGroup"] > .ot-launcher-app {
+  outline: 2px solid var(--ot-accent, #78a8ff);
+}
+.ot-launcher-shell.edge-left .ot-launcher-item[data-reorder-zone="moveBefore"] > .ot-launcher-app,
+.ot-launcher-shell.edge-right .ot-launcher-item[data-reorder-zone="moveBefore"] > .ot-launcher-app {
+  box-shadow: 0 -3px var(--ot-accent, #78a8ff);
+}
+.ot-launcher-shell.edge-left .ot-launcher-item[data-reorder-zone="moveAfter"] > .ot-launcher-app,
+.ot-launcher-shell.edge-right .ot-launcher-item[data-reorder-zone="moveAfter"] > .ot-launcher-app {
+  box-shadow: 0 3px var(--ot-accent, #78a8ff);
+}
+
+:is(.ot-launcher-spacer, .ot-launcher-separator)[data-reorder-zone="moveBefore"] {
+  box-shadow: -3px 0 var(--ot-accent, #78a8ff);
+}
+:is(.ot-launcher-spacer, .ot-launcher-separator)[data-reorder-zone="moveAfter"] {
+  box-shadow: 3px 0 var(--ot-accent, #78a8ff);
+}
+.ot-launcher-shell:is(.edge-left, .edge-right)
+  :is(.ot-launcher-spacer, .ot-launcher-separator)[data-reorder-zone="moveBefore"] {
+  box-shadow: 0 -3px var(--ot-accent, #78a8ff);
+}
+.ot-launcher-shell:is(.edge-left, .edge-right)
+  :is(.ot-launcher-spacer, .ot-launcher-separator)[data-reorder-zone="moveAfter"] {
+  box-shadow: 0 3px var(--ot-accent, #78a8ff);
+}

@@ -11,18 +11,24 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"option-tab/internal/config"
+	"option-tab/internal/diagnostics"
+	"option-tab/internal/dock"
 	"option-tab/internal/domain"
 	"option-tab/internal/mru"
 	"option-tab/internal/platform"
+	"option-tab/internal/preview"
 	"option-tab/internal/switcher"
 	"option-tab/internal/update"
 )
@@ -47,36 +53,105 @@ type App struct {
 	// setRuntime/setTray after the Wails app and windows are created. The
 	// setters are unexported so they don't become frontend bindings.
 	wailsApp *application.App
+	// eventSink is the event transport used by integration tests without Wails.
+	eventSink func(string, any)
 	// overlay and prefs are liveness-tracked: a window macOS destroyed must
 	// never be messaged again (see liveWindow).
-	overlay *liveWindow
-	prefs   *liveWindow
+	overlay          *liveWindow
+	switcherMaterial *appSwitcherMaterial
+	dockMaterial     *appDockMaterial
+	materialRevision uint64
+	prefs            *liveWindow
 	// prefsFactory recreates the preferences window if macOS ever destroys it
 	// under us (the Wails v3 alpha has no destroyed-window probe).
 	prefsFactory func() nativeWindow
 
 	// tray, trayMenu and pauseItem are the Wails v3 menubar pieces; nil until
 	// setTray runs (and on stub/fake test paths).
-	tray      *application.SystemTray
-	trayMenu  *application.Menu
-	pauseItem *application.MenuItem
+	tray           *application.SystemTray
+	trayMenu       *application.Menu
+	pauseItem      *application.MenuItem
+	nativeDockItem *application.MenuItem
 
-	platform     platform.Platform
-	controller   *switcher.Controller
-	settingsMu   sync.RWMutex
-	saveMu       sync.Mutex // serializes persistence and platform/controller application
-	settings     config.Settings
-	settingsPath string
+	platform         platform.Platform
+	controller       *switcher.Controller
+	settingsMu       sync.RWMutex
+	saveMu           sync.Mutex // serializes persistence and platform/controller application
+	settingsRevision uint64     // settingsMu; writes also require saveMu
+	settings         config.Settings
+	settingsPath     string
 
 	iconMu    sync.Mutex
 	iconCache map[int]string // pid -> base64 PNG data URL
 
-	// thumbGen invalidates in-flight thumbnail captures: each Show/Hide bumps
-	// it, and a capture goroutine stops emitting once its generation is stale.
-	thumbGen int64
+	// viewMu serializes visible sessions, capture and pending dismissal.
+	viewMu                   sync.Mutex // serializes Show/Update/Hide and terminal capture shutdown
+	viewGeneration           uint64
+	dismissal                *time.Timer
+	fadeOnHide               bool
+	captureActive            bool // only Show admits a visible capture session
+	captures                 *preview.Manager
+	captureSelected          atomic.Uint64
+	capturePreviewEnabled    atomic.Bool
+	captureThumbnailsEnabled atomic.Bool
+	captureDockSession       atomic.Uint64
+	captureSwitcherSession   atomic.Uint64
+	switcherRevision         uint64
+	captureStop              chan struct{}
+	captureStopOnce          sync.Once
 
 	// prefsOpen tracks whether the preferences window is currently shown.
-	prefsOpen bool
+	prefsOpen                 bool
+	prefsRefreshGeneration    uint64 // viewMu; correlates loading and canonical refresh events
+	switcherVisible           bool
+	visibleSwitcherSession    uint64
+	sessionInactive           bool
+	sessionMu                 sync.Mutex // serializes native and runtime session transitions; never nested by View
+	sessionGeneration         uint64
+	sessionObserveOnce        sync.Once
+	dockController            *dock.Controller
+	media                     *appMediaRuntime
+	automation                *appAutomationRuntime
+	diagnostics               *diagnostics.Service
+	jsonExporter              platform.JSONExportSource
+	jsonExportCancel          context.CancelFunc // viewMu; retained until native owner joins
+	launcher                  *appLauncherRuntime
+	widgets                   *appWidgetsRuntime
+	widgetPackages            *appWidgetPackageManager
+	launcherItems             *appLauncherItems
+	launcherItemPanels        *appLauncherItemPanels
+	launcherItemPanelFactory  func(uint64, string, platform.LauncherPanelStyle, func()) *dockWindow
+	launcherFactory           func(uint64, string, platform.LauncherPanelStyle, func()) *dockWindow
+	mediaPinFactory           func(uint64, platform.MediaProvider, func(platform.MediaPanelEvent)) *dockWindow
+	dockFolders               platform.FolderSource
+	dockFolderGrant           *dockFolderGrantOwner
+	dockInput                 *dock.InputController
+	dockShake                 *dock.ShakeController
+	dockMonitorLock           *dock.MonitorLockController
+	dockInputError            string
+	dockFeatureErrors         [4]string
+	dockWheelMu               sync.Mutex
+	dockWheelPublishMu        sync.Mutex
+	dockWheelSource           platform.DockPanelWheelSource
+	dockWheel                 *dock.PanelGestureRecognizer
+	dockWheelSession          uint64
+	dockWheelRevision         uint64
+	dockWheelFrontendRevision uint64
+	dockWheelAdmission        uint64
+	dockWheelPending          struct{ session, revision, gesture uint64 }
+	dockDragMu                sync.Mutex
+	dockDragGesture           uint64
+	dockDragSession           uint64
+	dockDragHighGesture       uint64
+	dockDragHighSession       uint64
+	dockDragCancel            func()
+	dockDragCancelled         uint64
+	dockDragCancelledSession  uint64
+	dockWindow                *dockWindow
+	dockState                 dock.State
+	dockViewState             DockViewState
+	dockLastSession           uint64
+	dockRevision              uint64
 
 	// lastSelected is the previously shown selection index, used to fire the
 	// haptic tick only when the selection actually moves.
@@ -101,7 +176,17 @@ func NewApp() *App {
 	p, _ := platform.New()
 	path, _ := config.DefaultPath()
 	settings := loadStartupSettings(path)
-	return newApp(p, settings, path)
+	a := newApp(p, settings, path, platform.NewFolderSource(filepath.Join(filepath.Dir(path), "folder-bookmarks.json")))
+	a.wireMedia(platform.NewMediaSource(), platform.NewMediaLyricsSource(filepath.Join(filepath.Dir(path), "media-lyrics.json")))
+	a.wireProductionWidgets()
+	_ = a.wireWidgetPackages(platform.NewWidgetPackageSource(), filepath.Join(filepath.Dir(path), "widgets"))
+	launcherRefs, _ := platform.NewLauncherReferenceSource(filepath.Join(filepath.Dir(path), "launcher-references"))
+	launcherIcons, _ := platform.NewLauncherIconSource(filepath.Join(filepath.Dir(path), "launcher-icons"))
+	a.wireLauncherItems(launcherRefs, launcherIcons)
+	a.wireAutomation(platform.NewAutomationServer())
+	a.wireDiagnostics(platform.NewDiagnosticExportSource())
+	a.jsonExporter = platform.NewJSONExportSource()
+	return a
 }
 
 // loadStartupSettings keeps the app usable when the persisted file cannot be
@@ -116,12 +201,20 @@ func loadStartupSettings(path string) config.Settings {
 }
 
 // newApp builds an App from explicit dependencies (used by tests).
-func newApp(p platform.Platform, settings config.Settings, settingsPath string) *App {
+func newApp(p platform.Platform, settings config.Settings, settingsPath string, folders ...platform.FolderSource) *App {
 	a := &App{
-		platform:     p,
-		settings:     settings,
-		settingsPath: settingsPath,
-		thumbCache:   map[domain.WindowID]string{},
+		platform:         p,
+		settings:         settings,
+		settingsRevision: 1,
+		settingsPath:     settingsPath,
+		thumbCache:       map[domain.WindowID]string{},
+		captureStop:      make(chan struct{}),
+	}
+	a.captures = preview.New(p, a.emitCaptureFrame)
+	a.wireDiagnostics(nil)
+	a.dockFolders, _ = p.(platform.FolderSource)
+	if len(folders) > 0 {
+		a.dockFolders = folders[0]
 	}
 	deps := switcher.Deps{
 		Windows:      p,
@@ -134,7 +227,17 @@ func newApp(p platform.Platform, settings config.Settings, settingsPath string) 
 	if cw, ok := p.(platform.CursorWarper); ok {
 		deps.Cursor = cw
 	}
+	deps.Apps, _ = p.(platform.ApplicationSource)
+	deps.AppActivator, _ = p.(platform.ApplicationActivator)
+	deps.AppWindows, _ = p.(platform.ApplicationWindowPresenceSource)
 	a.controller = switcher.New(deps, settings)
+	a.wireDockController()
+	a.wireDockInput()
+	a.wireDockShake()
+	a.wireDockMonitorLock()
+	a.wireWidgetsDefault()
+	a.wireLauncher()
+	a.wireLauncherItemPanels()
 	return a
 }
 
@@ -159,6 +262,7 @@ func (a *App) setTray(tray *application.SystemTray, menu *application.Menu, paus
 // the tray, and starts the global hotkey listener and background loops. The
 // overlay window starts hidden (created with Hidden: true).
 func (a *App) startup() {
+	a.startSessionObservation()
 	dlog("startup: platform=%s accessibility=%v", a.platform.Name(), a.platform.Accessibility())
 	if !a.settingsSnapshot().Behavior.Onboarded {
 		// First launch: open preferences, where the onboarding wizard walks the
@@ -200,10 +304,67 @@ func (a *App) startup() {
 	go a.focusLoop()
 	go a.updateLoop()
 	go a.backgroundCaptureLoop()
+	a.startDock()
+	a.startMedia()
+	a.startAutomation()
+	a.startLauncher()
 }
 
 func (a *App) emit(name string, data any) {
+	a.recordDiagnosticEvent(name)
+	if a.eventSink != nil {
+		a.eventSink(name, data)
+		return
+	}
 	if a.wailsApp != nil {
 		a.wailsApp.Event.Emit(name, data)
+	}
+}
+
+// stopCapture is safe before startup and on repeated shutdown notifications.
+func (a *App) stopCapture() {
+	if a.diagnostics != nil {
+		a.diagnostics.Close()
+	}
+	a.stopAutomation()
+	a.stopAutomationPreview()
+	a.stopLauncherItemPanels()
+	a.cancelDockPreviewDrag()
+	a.viewMu.Lock()
+	a.cancelDismissalLocked()
+	a.dismissDockLocked()
+	if a.dockWindow != nil {
+		a.dockWindow.close()
+	}
+	a.stopMaterialsLocked()
+	a.captureActive = false
+	a.switcherVisible = false
+	a.visibleSwitcherSession = 0
+	a.captureStopOnce.Do(func() { close(a.captureStop) })
+	a.syncJSONExportAdmissionLocked()
+	a.stopLauncherAdmissionLocked()
+	if a.launcher != nil && a.launcher.cancel != nil {
+		a.launcher.cancel()
+	}
+	if a.widgets != nil {
+		a.widgets.cancel()
+	}
+	a.stopWidgetPackagesLocked()
+	a.stopLauncherItemsLocked()
+	a.syncMediaLocked()
+	a.syncDockFolderGrantLocked()
+	a.syncDockMonitorLockLocked()
+	if a.captures != nil {
+		a.captures.Close()
+	}
+	a.captureSwitcherSession.Store(0)
+	a.platform.Hotkeys().SetOpen(false)
+	a.setKeySession(0)
+	a.viewMu.Unlock()
+	a.cancelDockPreviewDrag()
+	// Stopping can call the View again. The terminal channel closes admission
+	// first; never hold viewMu while retiring controller state.
+	if a.controller != nil {
+		a.controller.Stop()
 	}
 }

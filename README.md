@@ -6,6 +6,8 @@
 
 **Website & downloads: [option-tab.vozniak.dev](https://option-tab.vozniak.dev)**
 
+[Data handling](docs/data-handling.md) · [Distribution and local builds](docs/distribution.md) · [Homebrew installation](docs/homebrew.md)
+
 A free, open-source **window switcher** for macOS (with Windows/Linux builds) — the
 Windows-style `Alt`+`Tab` experience, rebuilt in [Wails](https://wails.io) (Go + React).
 Switch by **window**, not just by app, with live thumbnails, fuzzy search, and up to nine

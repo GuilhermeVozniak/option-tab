@@ -7,6 +7,27 @@
 import { Create as $Create } from "@wailsio/runtime";
 
 /**
+ * @readonly
+ * @enum {string}
+ */
+export const ActionKind = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    ActionClose: "close",
+    ActionMinimize: "minimize",
+    ActionFullscreen: "fullscreen",
+    ActionHide: "hide",
+    ActionQuit: "quit",
+    ActionNewWindow: "newWindow",
+    ActionForceQuit: "forceQuit",
+    ActionCloseAll: "closeAll",
+    ActionMinimizeAll: "minimizeAll",
+};
+
+/**
  * Appearance controls the look of the overlay.
  */
 export class Appearance {
@@ -193,6 +214,20 @@ export class Appearance {
              */
             this["previewFade"] = false;
         }
+        if (!("compactThreshold" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["compactThreshold"] = 0;
+        }
+        if (!("layoutDirection" in $$source)) {
+            /**
+             * @member
+             * @type {LayoutDirection}
+             */
+            this["layoutDirection"] = LayoutDirection.$zero;
+        }
 
         Object.assign(this, $$source);
     }
@@ -207,6 +242,314 @@ export class Appearance {
         return new Appearance(/** @type {Partial<Appearance>} */($$parsedSource));
     }
 }
+
+export class LauncherAppearance {
+    /**
+     * Creates a new LauncherAppearance instance.
+     * @param {Partial<LauncherAppearance>} [$$source = {}] - The source object to create the LauncherAppearance.
+     */
+    constructor($$source = {}) {
+        if (!("theme" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["theme"] = "";
+        }
+        if (!("material" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["material"] = "";
+        }
+        if (!("tint" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["tint"] = "";
+        }
+        if (!("opacity" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["opacity"] = 0;
+        }
+        if (!("borderOpacity" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["borderOpacity"] = 0;
+        }
+        if (!("cornerRadiusPx" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["cornerRadiusPx"] = 0;
+        }
+        if (!("itemSpacingPx" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["itemSpacingPx"] = 0;
+        }
+        if (!("showLabels" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["showLabels"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherAppearance instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherAppearance}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LauncherAppearance(/** @type {Partial<LauncherAppearance>} */($$parsedSource));
+    }
+}
+
+export class LauncherInteractions {
+    /**
+     * Creates a new LauncherInteractions instance.
+     * @param {Partial<LauncherInteractions>} [$$source = {}] - The source object to create the LauncherInteractions.
+     */
+    constructor($$source = {}) {
+        if (!("enabled" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["enabled"] = false;
+        }
+        if (!("preciseScroll" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["preciseScroll"] = false;
+        }
+        if (!("pinch" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["pinch"] = false;
+        }
+        if (!("swipe" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["swipe"] = false;
+        }
+        if (!("primaryAction" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["primaryAction"] = "";
+        }
+        if (!("towardAction" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["towardAction"] = "";
+        }
+        if (!("pinchAction" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["pinchAction"] = "";
+        }
+        if (!("haptics" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["haptics"] = false;
+        }
+        if (!("letterNavigation" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["letterNavigation"] = false;
+        }
+        if (!("enterActivates" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["enterActivates"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherInteractions instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherInteractions}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LauncherInteractions(/** @type {Partial<LauncherInteractions>} */($$parsedSource));
+    }
+}
+
+export class LauncherItem {
+    /**
+     * Creates a new LauncherItem instance.
+     * @param {Partial<LauncherItem>} [$$source = {}] - The source object to create the LauncherItem.
+     */
+    constructor($$source = {}) {
+        if (!("id" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["id"] = "";
+        }
+        if (!("kind" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["kind"] = "";
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["label"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["referenceID"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["url"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["iconID"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string[] | undefined}
+             */
+            this["members"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["folderView"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherItem instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherItem}
+     */
+    static createFrom($$source = {}) {
+        const $$createField6_0 = $$createType0;
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("members" in $$parsedSource) {
+            $$parsedSource["members"] = $$createField6_0($$parsedSource["members"]);
+        }
+        return new LauncherItem(/** @type {Partial<LauncherItem>} */($$parsedSource));
+    }
+}
+
+/**
+ * LauncherItemMutation names existing profile records, never replacement metadata.
+ */
+export class LauncherItemMutation {
+    /**
+     * Creates a new LauncherItemMutation instance.
+     * @param {Partial<LauncherItemMutation>} [$$source = {}] - The source object to create the LauncherItemMutation.
+     */
+    constructor($$source = {}) {
+        if (!("kind" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["kind"] = "";
+        }
+        if (!("itemID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["itemID"] = "";
+        }
+        if (!("targetID" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["targetID"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LauncherItemMutation instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LauncherItemMutation}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LauncherItemMutation(/** @type {Partial<LauncherItemMutation>} */($$parsedSource));
+    }
+}
+
+/**
+ * @readonly
+ * @enum {string}
+ */
+export const LayoutDirection = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    LayoutHorizontal: "horizontal",
+    LayoutVertical: "vertical",
+};
 
 /**
  * Placement is where the overlay appears.
@@ -225,6 +568,24 @@ export const Placement = {
 };
 
 /**
+ * @readonly
+ * @enum {string}
+ */
+export const PointerAction = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    PointerNone: "none",
+    PointerClose: "close",
+    PointerMinimize: "minimize",
+    PointerFullscreen: "fullscreen",
+    PointerHide: "hide",
+    PointerQuit: "quit",
+};
+
+/**
  * SizePreset is the coarse switcher size (AltTab's Small/Medium/Large): it
  * drives the thumbnail/icon pixel sizes from one user-facing control.
  * @readonly
@@ -239,6 +600,22 @@ export const SizePreset = {
     SizeSmall: "small",
     SizeMedium: "medium",
     SizeLarge: "large",
+};
+
+/**
+ * SwitcherMode selects whether a shortcut cycles individual windows or one
+ * entry per running application. It is independent of the visual style.
+ * @readonly
+ * @enum {string}
+ */
+export const SwitcherMode = {
+    /**
+     * The Go zero value for the underlying type of the enum.
+     */
+    $zero: "",
+
+    ModeWindows: "windows",
+    ModeApps: "apps",
 };
 
 /**
@@ -288,3 +665,6 @@ export const VisualStyle = {
     StyleAppIcons: "appIcons",
     StyleTitles: "titles",
 };
+
+// Private type creation functions
+const $$createType0 = $Create.Array($Create.Any);

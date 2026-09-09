@@ -1,5 +1,6 @@
+import { useRef } from "react";
 import { truncateTitle } from "../lib/text";
-import type { Entry, SwitcherState } from "../lib/types";
+import type { Entry, PointerAction, SwitcherState } from "../lib/types";
 import { StatusIcons } from "./StatusIcons";
 import type { OverlayHandlers } from "./types";
 
@@ -16,6 +17,7 @@ interface EntryItemProps {
   iconSizePx: number;
   titleMaxWidthPx: number;
   showTitle: boolean;
+  showAppBadge: boolean;
   showControls: boolean;
   showStatusIcons: boolean;
   spaceNumber?: number;
@@ -23,6 +25,9 @@ interface EntryItemProps {
   mouseHover: boolean;
   activeSpaceId: number;
   handlers: OverlayHandlers;
+  middleClickAction: PointerAction;
+  swipeUpAction: PointerAction;
+  swipeDownAction: PointerAction;
 }
 
 // EntryItem renders one window in the active visual style: a titled thumbnail
@@ -37,6 +42,7 @@ export function EntryItem({
   iconSizePx,
   titleMaxWidthPx,
   showTitle,
+  showAppBadge,
   showControls,
   showStatusIcons,
   spaceNumber,
@@ -44,7 +50,23 @@ export function EntryItem({
   mouseHover,
   activeSpaceId,
   handlers,
+  middleClickAction,
+  swipeUpAction,
+  swipeDownAction,
 }: EntryItemProps) {
+  const gesture = useRef<{ id: number; y: number; fired: boolean } | null>(null);
+  const suppressClick = useRef(false);
+  const wheelGesture = useRef<{ total: number; fired: boolean; timer?: number }>({
+    total: 0,
+    fired: false,
+  });
+  const runAction = (action: PointerAction) => {
+    if (action === "close") handlers.onClose(entry.windowId);
+    else if (action === "minimize") handlers.onMinimize(entry.windowId);
+    else if (action === "fullscreen") handlers.onFullscreen(entry.windowId);
+    else if (action === "hide") handlers.onHide(entry.appId);
+    else if (action === "quit") handlers.onQuit(entry.appId);
+  };
   const iconPx = style === "appIcons" ? Math.max(iconSizePx, 48) : iconSizePx;
   const otherSpace = !!entry.spaceId && !!activeSpaceId && entry.spaceId !== activeSpaceId;
   const glyph = entry.icon ? (
@@ -64,7 +86,54 @@ export function EntryItem({
       aria-selected={selected}
       className={`ot-entry ot-entry-${style}${selected ? " ot-selected" : ""}`}
       onMouseEnter={mouseHover ? () => handlers.onSelect(index) : undefined}
-      onClick={() => handlers.onConfirmWindow(entry.windowId)}
+      onClick={(e) => {
+        if (suppressClick.current) {
+          suppressClick.current = false;
+          e.preventDefault();
+          return;
+        }
+        handlers.onConfirmWindow(entry.windowId);
+      }}
+      onMouseDown={(e) => {
+        if (e.button === 1) {
+          e.preventDefault();
+          runAction(middleClickAction);
+        }
+      }}
+      onPointerDown={(e) => {
+        if (e.button === 0 && e.isPrimary)
+          gesture.current = { id: e.pointerId, y: e.clientY, fired: false };
+      }}
+      onPointerMove={(e) => {
+        const g = gesture.current;
+        if (!g || g.id !== e.pointerId || g.fired || Math.abs(e.clientY - g.y) < 48) return;
+        g.fired = true;
+        suppressClick.current = true;
+        runAction(e.clientY < g.y ? swipeUpAction : swipeDownAction);
+      }}
+      onPointerUp={() => {
+        gesture.current = null;
+        window.setTimeout(() => {
+          suppressClick.current = false;
+        }, 0);
+      }}
+      onPointerCancel={() => {
+        gesture.current = null;
+        suppressClick.current = false;
+      }}
+      onWheel={(e) => {
+        const wheel = wheelGesture.current;
+        if (wheel.timer !== undefined) window.clearTimeout(wheel.timer);
+        wheel.timer = window.setTimeout(() => {
+          wheelGesture.current = { total: 0, fired: false };
+        }, 250);
+        if (wheel.fired) return;
+        if (wheel.total !== 0 && Math.sign(wheel.total) !== Math.sign(e.deltaY)) wheel.total = 0;
+        wheel.total += e.deltaY;
+        if (Math.abs(wheel.total) < 48) return;
+        wheel.fired = true;
+        runAction(wheel.total < 0 ? swipeUpAction : swipeDownAction);
+      }}
       style={{ maxWidth }}
     >
       {style === "thumbnails" ? (
@@ -80,7 +149,12 @@ export function EntryItem({
             style={{ width: thumbnailPx, height: Math.round(thumbnailPx * 0.62) }}
           >
             {entry.thumbnail ? (
-              <img className="ot-thumb-img" src={entry.thumbnail} alt="" />
+              <>
+                <img className="ot-thumb-img" src={entry.thumbnail} alt="" />
+                {showAppBadge ? (
+                  <span className="ot-thumb-icon ot-thumb-icon-badge">{glyph}</span>
+                ) : null}
+              </>
             ) : (
               <span
                 className="ot-thumb-fallback"

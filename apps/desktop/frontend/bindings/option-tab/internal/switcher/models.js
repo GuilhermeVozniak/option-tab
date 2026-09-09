@@ -12,6 +12,83 @@ import * as config$0 from "../config/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as domain$0 from "../domain/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as platform$0 from "../platform/models.js";
+
+/**
+ * AppEntry represents one exact running process. Windows is the count of
+ * eligible preview entries, not a claim about all native windows.
+ */
+export class AppEntry {
+    /**
+     * Creates a new AppEntry instance.
+     * @param {Partial<AppEntry>} [$$source = {}] - The source object to create the AppEntry.
+     */
+    constructor($$source = {}) {
+        if (!("appId" in $$source)) {
+            /**
+             * @member
+             * @type {domain$0.AppID}
+             */
+            this["appId"] = 0;
+        }
+        if (!("appName" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["appName"] = "";
+        }
+        if (!("bundleId" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["bundleId"] = "";
+        }
+        if (!("hidden" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hidden"] = false;
+        }
+        if (!("windowCount" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["windowCount"] = 0;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {platform$0.WindowPresence | undefined}
+             */
+            this["windowPresence"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["icon"] = undefined;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new AppEntry instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {AppEntry}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new AppEntry(/** @type {Partial<AppEntry>} */($$parsedSource));
+    }
+}
 
 /**
  * Entry is one window as presented to the view (JSON-serializable).
@@ -118,6 +195,69 @@ export class State {
      * @param {Partial<State>} [$$source = {}] - The source object to create the State.
      */
     constructor($$source = {}) {
+        if (!("session" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["session"] = 0;
+        }
+        if (!("revision" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["revision"] = 0;
+        }
+        if (!("mode" in $$source)) {
+            /**
+             * @member
+             * @type {config$0.SwitcherMode}
+             */
+            this["mode"] = config$0.SwitcherMode.$zero;
+        }
+        if (!("apps" in $$source)) {
+            /**
+             * @member
+             * @type {AppEntry[]}
+             */
+            this["apps"] = [];
+        }
+        if (!("selectedWindowId" in $$source)) {
+            /**
+             * @member
+             * @type {domain$0.WindowID}
+             */
+            this["selectedWindowId"] = 0;
+        }
+        if (!("actionBindings" in $$source)) {
+            /**
+             * @member
+             * @type {{ [_ in string]?: config$0.ActionKind }}
+             */
+            this["actionBindings"] = {};
+        }
+        if (!("middleClickAction" in $$source)) {
+            /**
+             * @member
+             * @type {config$0.PointerAction}
+             */
+            this["middleClickAction"] = config$0.PointerAction.$zero;
+        }
+        if (!("swipeUpAction" in $$source)) {
+            /**
+             * @member
+             * @type {config$0.PointerAction}
+             */
+            this["swipeUpAction"] = config$0.PointerAction.$zero;
+        }
+        if (!("swipeDownAction" in $$source)) {
+            /**
+             * @member
+             * @type {config$0.PointerAction}
+             */
+            this["swipeDownAction"] = config$0.PointerAction.$zero;
+        }
         if (!("open" in $$source)) {
             /**
              * @member
@@ -220,20 +360,31 @@ export class State {
      * @returns {State}
      */
     static createFrom($$source = {}) {
-        const $$createField2_0 = $$createType0;
-        const $$createField4_0 = $$createType2;
+        const $$createField3_0 = $$createType1;
+        const $$createField5_0 = $$createType2;
+        const $$createField11_0 = $$createType3;
+        const $$createField13_0 = $$createType5;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        if ("apps" in $$parsedSource) {
+            $$parsedSource["apps"] = $$createField3_0($$parsedSource["apps"]);
+        }
+        if ("actionBindings" in $$parsedSource) {
+            $$parsedSource["actionBindings"] = $$createField5_0($$parsedSource["actionBindings"]);
+        }
         if ("appearance" in $$parsedSource) {
-            $$parsedSource["appearance"] = $$createField2_0($$parsedSource["appearance"]);
+            $$parsedSource["appearance"] = $$createField11_0($$parsedSource["appearance"]);
         }
         if ("entries" in $$parsedSource) {
-            $$parsedSource["entries"] = $$createField4_0($$parsedSource["entries"]);
+            $$parsedSource["entries"] = $$createField13_0($$parsedSource["entries"]);
         }
         return new State(/** @type {Partial<State>} */($$parsedSource));
     }
 }
 
 // Private type creation functions
-const $$createType0 = config$0.Appearance.createFrom;
-const $$createType1 = Entry.createFrom;
-const $$createType2 = $Create.Array($$createType1);
+const $$createType0 = AppEntry.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = $Create.Map($Create.Any, $Create.Any);
+const $$createType3 = config$0.Appearance.createFrom;
+const $$createType4 = Entry.createFrom;
+const $$createType5 = $Create.Array($$createType4);

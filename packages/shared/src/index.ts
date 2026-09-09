@@ -6,7 +6,7 @@ export const PRODUCT = {
 } as const;
 
 export type Platform = "darwin" | "windows" | "linux";
-export type Arch = "amd64" | "arm64";
+export type Arch = "amd64" | "arm64" | "universal";
 
 const EXTENSIONS: Record<Platform, string> = {
   darwin: "dmg",
@@ -15,6 +15,8 @@ const EXTENSIONS: Record<Platform, string> = {
 };
 
 export function releaseAssetName(platform: Platform, arch: Arch, version: string): string {
+  if (arch === "universal" && platform !== "darwin")
+    throw new Error("Universal assets are macOS-only");
   return `${PRODUCT.name}_${version}_${platform}_${arch}.${EXTENSIONS[platform]}`;
 }
 

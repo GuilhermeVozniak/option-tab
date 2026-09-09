@@ -7,6 +7,7 @@
 
 import { Events } from "@wailsio/runtime";
 import * as AppService from "../../bindings/option-tab/app.js";
+import type { MaterialRect, MaterialStatus } from "./material";
 import type { Permissions, PermKey, Settings, SwitcherState } from "./types";
 
 // hasBackend resolves to true when a real Wails backend answers a cheap call.
@@ -45,12 +46,23 @@ async function call(fn: Promise<unknown>): Promise<void> {
   }
 }
 
+export interface WindowActionResult {
+  succeeded: number;
+  failures: Array<{ windowId: number; error: string }>;
+}
+
 // switcher exposes the controller actions the overlay invokes.
 export const switcher = {
+  // Action errors are deliberately returned to the caller for visible feedback.
+  performAction: (kind: string, windowId: number, appId: number): Promise<WindowActionResult> =>
+    AppService.PerformAction(kind, windowId, appId),
   advance: () => call(AppService.Advance()),
   reverse: () => call(AppService.Reverse()),
-  confirm: () => call(AppService.Confirm()),
-  confirmWindow: (windowId: number) => call(AppService.ConfirmWindow(windowId)),
+  confirm: () => AppService.Confirm(),
+  confirmWindow: (windowId: number) => AppService.ConfirmWindow(windowId),
+  selectApp: (appId: number) => call(AppService.SelectApp(appId)),
+  selectAppWindow: (windowId: number) => call(AppService.SelectAppWindow(windowId)),
+  confirmApp: (appId: number) => AppService.ConfirmApp(appId),
   cancel: () => call(AppService.Cancel()),
   select: (index: number) => call(AppService.Select(index)),
   setSearch: (query: string) => call(AppService.SetSearch(query)),
@@ -59,7 +71,23 @@ export const switcher = {
   fullscreenSelected: () => call(AppService.FullscreenSelected()),
   quitSelectedApp: () => call(AppService.QuitSelectedApp()),
   hideSelectedApp: () => call(AppService.HideSelectedApp()),
+  materialStatus: (session: number) =>
+    AppService.GetSwitcherMaterialStatus(session) as Promise<MaterialStatus>,
+  materialRect: (rect: MaterialRect) =>
+    AppService.SetSwitcherMaterialRect(
+      rect.session,
+      rect.stateRevision,
+      rect.sequence,
+      rect.x,
+      rect.y,
+      rect.width,
+      rect.height,
+    ),
 };
+
+export function onSwitcherMaterial(handler: (status: MaterialStatus) => void): () => void {
+  return Events.On("switcher:material", (event) => handler(event.data as MaterialStatus));
+}
 
 // system exposes app-level (non-switcher) actions: the menubar pause toggle and
 // opening/closing the preferences window.
@@ -112,6 +140,7 @@ export async function loadVersion(): Promise<string | null> {
 // is its only keyboard source). Fields match the DOM KeyboardEvent shape the
 // keymap consumes.
 export interface KeyPayload {
+  session?: number;
   key: string;
   code: string;
   shift: boolean;
@@ -123,9 +152,10 @@ export interface KeyPayload {
 export interface SwitcherEventHandlers {
   onShow: (state: SwitcherState) => void;
   onUpdate: (state: SwitcherState) => void;
-  onHide: () => void;
-  onThumbnails?: (thumbs: Record<string, string>) => void;
-  onPreview?: (previews: Record<string, string>) => void;
+  onHide: (session: number, revision: number) => void;
+  onThumbnails?: (session: number, thumbs: Record<string, string>) => void;
+  onPreview?: (session: number, previews: Record<string, string>) => void;
+  onError?: (message: string) => void;
 }
 
 // onSwitcherEvent subscribes to the Go controller's events and returns an
@@ -135,19 +165,32 @@ export function onSwitcherEvent(handlers: SwitcherEventHandlers): () => void {
   const offUpdate = Events.On("switcher:update", (ev) =>
     handlers.onUpdate(ev.data as SwitcherState),
   );
-  const offHide = Events.On("switcher:hide", () => handlers.onHide());
-  const offThumbs = Events.On("switcher:thumbnails", (ev) =>
-    handlers.onThumbnails?.(ev.data as Record<string, string>),
-  );
-  const offPreview = Events.On("switcher:preview", (ev) =>
-    handlers.onPreview?.(ev.data as Record<string, string>),
-  );
+  const offHide = Events.On("switcher:hide", (ev) => {
+    const data = ev.data as { session?: number; revision?: number } | null;
+    handlers.onHide(data?.session ?? 0, data?.revision ?? 0);
+  });
+  const framePayload = (data: unknown): [number, Record<string, string>] => {
+    const scoped = data as { session?: number; frames?: Record<string, string> } | null;
+    return scoped?.frames
+      ? [scoped.session ?? 0, scoped.frames]
+      : [0, (data ?? {}) as Record<string, string>];
+  };
+  const offThumbs = Events.On("switcher:thumbnails", (ev) => {
+    const [session, frames] = framePayload(ev.data);
+    handlers.onThumbnails?.(session, frames);
+  });
+  const offPreview = Events.On("switcher:preview", (ev) => {
+    const [session, frames] = framePayload(ev.data);
+    handlers.onPreview?.(session, frames);
+  });
+  const offError = Events.On("switcher:error", (ev) => handlers.onError?.(ev.data as string));
   return () => {
     offShow();
     offUpdate();
     offHide();
     offThumbs();
     offPreview();
+    offError();
   };
 }
 
@@ -162,6 +205,26 @@ export function onSwitcherKey(cb: (key: KeyPayload) => void): () => void {
 // specific tab (e.g. "About"). Only the preferences window acts on it.
 export function onPrefsTab(cb: (tab: string) => void): () => void {
   return Events.On("prefs:tab", (ev) => cb(ev.data as string));
+}
+
+export interface SettingsState {
+  generation?: number;
+  revision: number;
+  json: string;
+}
+
+export function onPrefsSettings(
+  loading: (value: { generation?: number }) => void,
+  state: (value: SettingsState) => void,
+): () => void {
+  const offLoading = Events.On("prefs:settings-loading", (event) =>
+    loading((event.data ?? {}) as { generation?: number }),
+  );
+  const offState = Events.On("prefs:settings", (event) => state(event.data as SettingsState));
+  return () => {
+    offLoading();
+    offState();
+  };
 }
 
 // UpdateInfo describes a newer release found by the background checker.
@@ -254,6 +317,57 @@ export async function loadSettings(): Promise<Settings | null> {
   } catch {
     return null;
   }
+}
+
+function decodeSettings(json: string): Settings | null {
+  try {
+    const settings = JSON.parse(json) as Settings;
+    if (!settings?.behavior) return null;
+    if (settings.filters) settings.filters.appBlacklist = settings.filters.appBlacklist ?? [];
+    return settings;
+  } catch {
+    return null;
+  }
+}
+
+export async function loadSettingsState(): Promise<{
+  revision: number;
+  settings: Settings;
+} | null> {
+  try {
+    const value = await AppService.GetSettingsState();
+    const settings = decodeSettings(value.json);
+    return settings && Number.isSafeInteger(value.revision) && value.revision > 0
+      ? { revision: value.revision, settings }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveSettingsAtRevision(
+  settings: Settings,
+  expectedRevision: number,
+): Promise<{ revision: number; settings: Settings }> {
+  return saveSettingsDocumentAtRevision(JSON.stringify(settings), expectedRevision);
+}
+
+// Preserve imported source bytes through the revisioned RPC so Go's strict
+// decoder can still reject duplicate and unknown keys before it persists them.
+export async function saveSettingsDocumentAtRevision(
+  document: string,
+  expectedRevision: number,
+): Promise<{ revision: number; settings: Settings }> {
+  if (!(await hasBackend())) {
+    const settings = decodeSettings(document);
+    if (!settings) throw new Error("Settings must be a valid JSON object.");
+    return { revision: expectedRevision, settings };
+  }
+  const value = await AppService.SaveSettingsAtRevision(document, expectedRevision);
+  const canonical = decodeSettings(value.json);
+  if (!canonical || !Number.isSafeInteger(value.revision) || value.revision <= expectedRevision)
+    throw new Error("Settings save returned an invalid revision.");
+  return { revision: value.revision, settings: canonical };
 }
 
 // saveSettings persists settings through Go; a no-op when unavailable.

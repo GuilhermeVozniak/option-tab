@@ -1,8 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { makeT, resolveLang } from "../lib/i18n";
-import type { Settings as SettingsModel } from "../lib/types";
+import type { JSONExportResult } from "../lib/json-export-bridge";
+import type { LauncherProfileTransferActions } from "../lib/launcher-profile-transfer-bridge";
+import type {
+  DockLockDisplay,
+  DockMonitorLockState,
+  LauncherAppChoice,
+  LauncherStatus,
+  Settings as SettingsModel,
+  SwitcherMode,
+} from "../lib/types";
+import type { WidgetCatalogDescriptor, WidgetPackageStatus } from "../lib/widget-types";
+import type { WidgetPackageActions } from "../widgets/WidgetPackages";
+import type { LauncherItemSettingsActions } from "./LauncherItems";
 import { Onboarding } from "./Onboarding";
 import {
   type AboutControl,
@@ -15,6 +28,7 @@ import { AboutTab } from "./tabs/AboutTab";
 import { AppearanceTab } from "./tabs/AppearanceTab";
 import { BlacklistsTab } from "./tabs/BlacklistsTab";
 import { ControlsTab } from "./tabs/ControlsTab";
+import { DockTab } from "./tabs/DockTab";
 import { FilteringTab } from "./tabs/FilteringTab";
 import { GeneralTab } from "./tabs/GeneralTab";
 
@@ -24,8 +38,11 @@ export { PROJECT_URL };
 
 interface SettingsProps {
   settings: SettingsModel;
+  /** Replaced on canonical refresh/import, not on ordinary saves. */
+  draftAuthority?: string | number;
   onChange: (next: SettingsModel) => void;
   onImport?: (text: string) => Promise<void>;
+  onExport?: () => Promise<JSONExportResult>;
   saveError?: string | null;
   permissions?: PermissionsControl;
   about?: AboutControl;
@@ -35,9 +52,50 @@ interface SettingsProps {
    * within it ("General#updates"); applied when it changes.
    */
   requestedTab?: string | null;
+  dockInputError?: string;
+  monitorLock?: {
+    state?: DockMonitorLockState;
+    displays: DockLockDisplay[];
+    error?: string;
+    pending?: boolean;
+    onEnable: () => void;
+    onPlace: (session: number, revision: number, generation: number) => void;
+    onCancel: () => void;
+  };
+  media?: {
+    permissions: Record<string, { status: string; reason: string }>;
+    pending?: Readonly<Record<string, boolean>>;
+    onConnect: (provider: "music" | "spotify") => void;
+  };
+  diagnostics?: boolean;
+  launcher?: {
+    status?: LauncherStatus;
+    error?: string;
+    appChoices?: LauncherAppChoice[];
+    interactionCapabilities?: Partial<
+      Record<"preciseScroll" | "pinch" | "swipe" | "letterNavigation" | "haptics", boolean>
+    >;
+    widgetCatalog?: WidgetCatalogDescriptor[];
+    itemActions?: LauncherItemSettingsActions;
+    profileTransfer?: LauncherProfileTransferActions;
+    widgetPackages?: {
+      status: WidgetPackageStatus;
+      actions: WidgetPackageActions;
+      onRefresh: () => void;
+    };
+    onUseNativeDock: () => void;
+  };
 }
 
-const TABS = ["General", "Controls", "Appearance", "Filtering", "Blacklists", "About"] as const;
+const TABS = [
+  "General",
+  "Controls",
+  "Appearance",
+  "Filtering",
+  "Blacklists",
+  "Dock",
+  "About",
+] as const;
 type Tab = (typeof TABS)[number];
 
 // Settings is a controlled preferences form. It never holds the settings itself:
@@ -48,15 +106,23 @@ type Tab = (typeof TABS)[number];
 // permissions available) it renders the onboarding wizard instead.
 export function Settings({
   settings,
+  draftAuthority = 0,
   onChange,
   onImport,
+  onExport,
   saveError,
   permissions,
   about,
   crash,
   requestedTab,
+  dockInputError,
+  monitorLock,
+  media,
+  diagnostics,
+  launcher,
 }: SettingsProps) {
   const [tab, setTab] = useState<Tab>("General");
+  const [mode, setMode] = useState<SwitcherMode>("windows");
   // Updates live in a section of the General tab; the global banner and the
   // menubar's "Check for updates…" both jump there rather than to another tab.
   const [pendingUpdatesScroll, setPendingUpdatesScroll] = useState(false);
@@ -86,6 +152,33 @@ export function Settings({
   const t = makeT(resolveLang(settings.behavior.language));
 
   const patch = (partial: Partial<SettingsModel>) => onChange({ ...settings, ...partial });
+  const windowMode = {
+    appearance: settings.appearance,
+    behavior: {
+      holdToCycle: settings.behavior.holdToCycle,
+      vimKeys: settings.behavior.vimKeys,
+      arrowKeys: settings.behavior.arrowKeys,
+      mouseHoverSelect: settings.behavior.mouseHoverSelect,
+      cursorFollowFocus: settings.behavior.cursorFollowFocus,
+      hapticFeedback: settings.behavior.hapticFeedback,
+      actionBindings: settings.behavior.actionBindings,
+      middleClickAction: settings.behavior.middleClickAction,
+      swipeUpAction: settings.behavior.swipeUpAction,
+      swipeDownAction: settings.behavior.swipeDownAction,
+    },
+    order: settings.order,
+    placement: settings.placement,
+  };
+  const modePrefs = mode === "apps" ? settings.appSwitcher : windowMode;
+  const patchModePreferences = (p: Partial<typeof modePrefs>) =>
+    mode === "apps"
+      ? patch({ appSwitcher: { ...settings.appSwitcher, ...p } })
+      : patch({
+          appearance: p.appearance ?? settings.appearance,
+          behavior: p.behavior ? { ...settings.behavior, ...p.behavior } : settings.behavior,
+          order: p.order ?? settings.order,
+          placement: p.placement ?? settings.placement,
+        });
   const ctx: TabContext = {
     settings,
     t,
@@ -96,6 +189,14 @@ export function Settings({
     patchFilters: (p) => patch({ filters: { ...settings.filters, ...p } }),
     patchShortcut: (id, p) =>
       patch({ shortcuts: settings.shortcuts.map((s) => (s.id === id ? { ...s, ...p } : s)) }),
+    mode,
+    modeAppearance: modePrefs.appearance,
+    modeBehavior: modePrefs.behavior,
+    modePlacement: modePrefs.placement,
+    patchModeAppearance: (p) =>
+      patchModePreferences({ appearance: { ...modePrefs.appearance, ...p } }),
+    patchModeBehavior: (p) => patchModePreferences({ behavior: { ...modePrefs.behavior, ...p } }),
+    patchModePreferences,
   };
 
   if (permissions && !settings.behavior.onboarded) {
@@ -194,6 +295,20 @@ export function Settings({
           ))}
         </nav>
 
+        {tab === "Controls" || tab === "Appearance" || tab === "Filtering" ? (
+          <label className="mb-4 flex items-center justify-end gap-3 text-[13px]">
+            <span>{t("Editing")}</span>
+            <Select
+              aria-label="Switcher settings mode"
+              value={mode}
+              onChange={(e) => setMode(e.target.value as SwitcherMode)}
+            >
+              <option value="windows">{t("Window switcher")}</option>
+              <option value="apps">{t("App switcher")}</option>
+            </Select>
+          </label>
+        ) : null}
+
         <section hidden={tab !== "General"} aria-label="General" className="space-y-4">
           <GeneralTab
             ctx={ctx}
@@ -203,6 +318,7 @@ export function Settings({
             updateCheckResult={updateCheckResult}
             checkUpdates={checkUpdates}
             onImport={onImport}
+            onExport={onExport}
           />
         </section>
         <section hidden={tab !== "Controls"} aria-label="Controls" className="space-y-4">
@@ -215,10 +331,26 @@ export function Settings({
           <FilteringTab ctx={ctx} />
         </section>
         <section hidden={tab !== "Blacklists"} aria-label="Blacklists" className="space-y-4">
-          <BlacklistsTab ctx={ctx} />
+          <BlacklistsTab key={draftAuthority} ctx={ctx} />
+        </section>
+        <section hidden={tab !== "Dock"} aria-label="Dock" className="space-y-4">
+          <DockTab
+            ctx={ctx}
+            permissions={permissions}
+            inputError={dockInputError}
+            monitorLock={monitorLock}
+            media={media}
+            launcher={launcher}
+          />
         </section>
         <section hidden={tab !== "About"} aria-label="About" className="space-y-4">
-          <AboutTab ctx={ctx} about={about} openURL={openURL} checkUpdates={checkUpdates} />
+          <AboutTab
+            ctx={ctx}
+            about={about}
+            openURL={openURL}
+            checkUpdates={checkUpdates}
+            diagnostics={diagnostics}
+          />
         </section>
       </div>
     </div>

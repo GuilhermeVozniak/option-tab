@@ -1,17 +1,12 @@
 "use client";
 
-import { downloadUrl, type Platform } from "@option-tab/shared";
+import { type Platform } from "@option-tab/shared";
 import { useEffect, useState } from "react";
 import { buttonVariants } from "@/components/ui/button";
-import { APP_VERSION, detectPlatform } from "../lib/download";
+import { detectPlatform, publishedDownloadUrl } from "../lib/download";
 
-const ARCH: Record<Platform, "amd64" | "arm64"> = {
-  darwin: "arm64",
-  windows: "amd64",
-  linux: "amd64",
-};
 const OS_LABEL: Record<Platform, string> = {
-  darwin: "macOS",
+  darwin: "macOS (Apple silicon)",
   windows: "Windows",
   linux: "Linux",
 };
@@ -32,7 +27,7 @@ export function PrimaryDownload() {
       data-testid="primary-download"
       data-platform={platform}
       className={buttonVariants({ variant: "default", size: "lg" })}
-      href={downloadUrl(platform, ARCH[platform], APP_VERSION)}
+      href={publishedDownloadUrl(platform)}
     >
       Download for {OS_LABEL[platform]}
     </a>

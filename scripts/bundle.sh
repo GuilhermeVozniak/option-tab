@@ -1,53 +1,70 @@
 #!/usr/bin/env bash
-# Assemble the macOS release: frontend build, Go binary with embedded assets,
-# .app bundle, optional codesign/notarize, and the dmg installer.
-#
-# There is no `wails build` step: Wails v3 serves the embedded frontend/dist
-# from the plain Go binary, so bundling is just "put the binary in a .app".
-#
-# Usage:
-#   ./scripts/bundle.sh              # host arch, sign/notarize when env present
-#   VERSION=1.2.3 ./scripts/bundle.sh
-#   UNIVERSAL=1 ./scripts/bundle.sh  # arm64+amd64 via lipo
-#
-# Signing/notarization env (all optional; unsigned local builds just skip it):
-#   CODESIGN_IDENTITY   e.g. "Developer ID Application" — enables codesigning
-#   APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD — enable notarization+staple
+# Release: VERSION=1.2.3 ./scripts/bundle.sh (signing credentials required).
+# Local: BUNDLE_MODE=unsigned ./scripts/bundle.sh (UNVERIFIED, never publish).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-
 BIN_DIR="apps/desktop/build/bin"
 APP="$BIN_DIR/option-tab.app"
 PLIST="apps/desktop/build/darwin/Info.plist"
-VERSION="${VERSION:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")}"
-# Asset name follows the @option-tab/shared releaseAssetName contract that the
-# landing page builds download links with.
-DMG_NAME="option-tab_${VERSION}_darwin_arm64.dmg"
+BUNDLE_MODE="${BUNDLE_MODE:-release}"
+case "$BUNDLE_MODE" in
+  release)
+    for required in VERSION CODESIGN_IDENTITY APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
+      [[ -n "${!required:-}" ]] || { echo "Release requires $required" >&2; exit 1; }
+    done
+    [[ "${UNIVERSAL:-1}" == 1 ]] || { echo "Releases require UNIVERSAL=1" >&2; exit 1; }
+    UNIVERSAL=1
+    ;;
+  unsigned)
+    VERSION="${VERSION:-$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")}"
+    UNIVERSAL="${UNIVERSAL:-0}"
+    echo "UNVERIFIED LOCAL BUILD: unsigned and not notarized; do not distribute."
+    ;;
+  *) echo "BUNDLE_MODE must be release or unsigned" >&2; exit 1 ;;
+esac
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][A-Za-z0-9.-]+)?$ ]] || { echo "Invalid VERSION" >&2; exit 1; }
+[[ "$UNIVERSAL" == 0 || "$UNIVERSAL" == 1 ]] || { echo "UNIVERSAL must be 0 or 1" >&2; exit 1; }
+export MACOSX_DEPLOYMENT_TARGET=14.0
+export CGO_CFLAGS="${CGO_CFLAGS:-} -mmacosx-version-min=14.0"
+export CGO_CXXFLAGS="${CGO_CXXFLAGS:-} -mmacosx-version-min=14.0"
+export CGO_LDFLAGS="${CGO_LDFLAGS:-} -mmacosx-version-min=14.0"
 
-echo "==> bundling option-tab $VERSION"
-
-# 1. Frontend (embedded into the binary via //go:embed frontend/dist).
+# Bindings must exist BEFORE the frontend embeds its generated bridge.
+./scripts/generate-bindings.sh
 (cd apps/desktop/frontend && bun install --frozen-lockfile && bun run build)
 
-# 2. Binary. Regenerate bindings when the wails3 CLI is available; the
-#    committed frontend/bindings are the fallback.
 cd apps/desktop
-(wails3 generate bindings || echo 'wails3 not installed, using committed bindings')
 mkdir -p build/bin
-if [ "${UNIVERSAL:-0}" = "1" ]; then
-  # CGO_ENABLED=1 is explicit: cgo defaults OFF when GOARCH differs from the
-  # host, which would silently drop the AX/CGEventTap platform layer.
+if [[ "$UNIVERSAL" == 1 ]]; then
   CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o build/bin/option-tab-arm64 .
   CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -o build/bin/option-tab-amd64 .
   lipo -create -output build/bin/option-tab build/bin/option-tab-arm64 build/bin/option-tab-amd64
-  rm build/bin/option-tab-arm64 build/bin/option-tab-amd64
+  expected_archs="arm64 x86_64"
+  asset_arch=universal
 else
-  CGO_ENABLED=1 go build -o build/bin/option-tab .
+  asset_arch="$(go env GOARCH)"
+  case "$asset_arch" in
+    arm64) expected_archs=arm64 ;;
+    amd64) expected_archs=x86_64 ;;
+    *) echo "Unsupported macOS architecture: $asset_arch" >&2; exit 1 ;;
+  esac
+  CGO_ENABLED=1 GOOS=darwin GOARCH="$asset_arch" go build -o build/bin/option-tab .
 fi
+# Inspect the produced binary rather than trusting requested compiler flags.
+actual_archs="$(lipo -archs build/bin/option-tab | tr ' ' '\n' | LC_ALL=C sort | xargs)"
+[[ "$actual_archs" == "$expected_archs" ]] || { echo "Architecture mismatch: $actual_archs (expected $expected_archs)" >&2; exit 1; }
+for arch in $expected_archs; do
+  build_info="$(xcrun vtool -arch "$arch" -show-build build/bin/option-tab)"
+  [[ "$(awk '$1 == "minos" { print $2 }' <<< "$build_info")" == "14.0" ]] || { echo "Deployment floor mismatch for $arch" >&2; exit 1; }
+done
 cd ../..
+DMG_NAME="option-tab_${VERSION}_darwin_${asset_arch}.dmg"
+if [[ "$BUNDLE_MODE" == unsigned ]]; then DMG_NAME="option-tab_${VERSION}_darwin_${asset_arch}_UNVERIFIED.dmg"; fi
 
 # 3. Icon: render build/appicon.png into the .icns the bundle expects.
-ICONSET="$(mktemp -d)/icon.iconset"
+ICON_TMP="$(mktemp -d)"
+trap 'rm -rf "$ICON_TMP"' EXIT
+ICONSET="$ICON_TMP/icon.iconset"
 mkdir -p "$ICONSET"
 for size in 16 32 128 256 512; do
   sips -z "$size" "$size" apps/desktop/build/appicon.png --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
@@ -67,20 +84,29 @@ cp "$PLIST" "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist"
 cp "$BIN_DIR/option-tab" "$APP/Contents/MacOS/option-tab"
 cp "$BIN_DIR/iconfile.icns" "$APP/Contents/Resources/"
+cp apps/desktop/build/darwin/OptionTab.sdef "$APP/Contents/Resources/OptionTab.sdef"
 
-# 5. Sign (hardened runtime) when an identity is available.
-if [ -n "${CODESIGN_IDENTITY:-}" ]; then
-  codesign --force --deep --options runtime --timestamp --sign "$CODESIGN_IDENTITY" "$APP"
+# Verify the assembled metadata, not just the committed template.
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$APP/Contents/Info.plist")" == "14.0" ]] || { echo "Bundle minimum OS must be 14.0" >&2; exit 1; }
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")" == "option-tab" ]] || { echo "Bundle executable mismatch" >&2; exit 1; }
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :OSAScriptingDefinition' "$APP/Contents/Info.plist")" == "OptionTab.sdef" && -s "$APP/Contents/Resources/OptionTab.sdef" ]] || { echo "Bundle scripting dictionary missing or mismatched" >&2; exit 1; }
+for version_key in CFBundleShortVersionString CFBundleVersion; do
+  [[ "$(/usr/libexec/PlistBuddy -c "Print :$version_key" "$APP/Contents/Info.plist")" == "$VERSION" ]] || { echo "Bundle version mismatch" >&2; exit 1; }
+done
+
+# 5. Sign the release app with hardened runtime.
+if [[ "$BUNDLE_MODE" == release ]]; then
+  codesign --force --deep --options runtime --entitlements apps/desktop/build/darwin/entitlements.plist --timestamp --sign "$CODESIGN_IDENTITY" "$APP"
   codesign --verify --deep --strict --verbose=2 "$APP"
 else
-  echo "==> CODESIGN_IDENTITY unset: skipping codesign"
+  echo "==> UNVERIFIED: skipping codesign"
 fi
 
 # 6. DMG (styled drag-to-Applications window; see build/darwin/dmg/appdmg.json).
 (cd apps/desktop && npx --yes appdmg build/darwin/dmg/appdmg.json "build/bin/$DMG_NAME")
 
-# 7. Sign, notarize, and staple the DMG when Apple credentials are available.
-if [ -n "${CODESIGN_IDENTITY:-}" ] && [ -n "${APPLE_ID:-}" ]; then
+# 7. Release success requires DMG signing, notarization and staple validation.
+if [[ "$BUNDLE_MODE" == release ]]; then
   codesign --force --timestamp --sign "$CODESIGN_IDENTITY" "$BIN_DIR/$DMG_NAME"
   xcrun notarytool submit "$BIN_DIR/$DMG_NAME" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
     --password "$APPLE_APP_PASSWORD" --wait
@@ -88,7 +114,7 @@ if [ -n "${CODESIGN_IDENTITY:-}" ] && [ -n "${APPLE_ID:-}" ]; then
   xcrun stapler staple "$BIN_DIR/$DMG_NAME"
   xcrun stapler validate "$BIN_DIR/$DMG_NAME"
 else
-  echo "==> APPLE_ID/CODESIGN_IDENTITY unset: skipping dmg notarization"
+  echo "==> UNVERIFIED: skipping notarization"
 fi
 
 echo "==> done: $BIN_DIR/$DMG_NAME"

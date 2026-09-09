@@ -1,19 +1,116 @@
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type {
   OrderMode,
+  PointerAction,
   ReleaseAction,
   ScreenScope,
   SpaceScope,
+  SwitcherMode,
   VisualStyle,
+  WindowAction,
 } from "../../lib/types";
 import { ShortcutRecorder } from "../ShortcutRecorder";
 import { CHECK_LABEL, HINT, ROW, type TabContext } from "../shared";
 
+const ACTION_LABEL: Record<WindowAction, string> = {
+  close: "Close",
+  minimize: "Minimize",
+  fullscreen: "Fullscreen",
+  hide: "Hide app",
+  quit: "Quit app",
+  newWindow: "New window",
+  forceQuit: "Force quit",
+  closeAll: "Close all windows",
+  minimizeAll: "Minimize all windows",
+};
+
+function ActionBindingRow({
+  code,
+  action,
+  bindings,
+  patchBehavior,
+  t,
+}: {
+  code: string;
+  action: WindowAction;
+  bindings: Record<string, WindowAction>;
+  patchBehavior: TabContext["patchBehavior"];
+  t: TabContext["t"];
+}) {
+  const [draft, setDraft] = useState(code);
+  useEffect(() => setDraft(code), [code]);
+  const valid = /^Key[A-Z]$/.test(draft) && (draft === code || !(draft in bindings));
+  const commit = () => {
+    if (!valid) {
+      setDraft(code);
+      return;
+    }
+    if (draft === code) return;
+    const next = { ...bindings };
+    delete next[code];
+    next[draft] = action;
+    patchBehavior({ actionBindings: next });
+  };
+  return (
+    <div className="flex items-center gap-2 py-1">
+      <Input
+        className="w-24"
+        aria-label={`Physical key ${code}`}
+        aria-invalid={!valid}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+        }}
+      />
+      <Select
+        aria-label={`Action for ${code}`}
+        value={action}
+        onChange={(e) =>
+          patchBehavior({ actionBindings: { ...bindings, [code]: e.target.value as WindowAction } })
+        }
+      >
+        {[
+          "close",
+          "minimize",
+          "fullscreen",
+          "hide",
+          "quit",
+          "newWindow",
+          "forceQuit",
+          "closeAll",
+          "minimizeAll",
+        ].map((v) => (
+          <option key={v} value={v}>
+            {t(ACTION_LABEL[v as WindowAction])}
+          </option>
+        ))}
+      </Select>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label={`Remove action binding ${code}`}
+        onClick={() => {
+          const next = { ...bindings };
+          delete next[code];
+          patchBehavior({ actionBindings: next });
+        }}
+      >
+        ✕
+      </Button>
+    </div>
+  );
+}
+
 export function ControlsTab({ ctx }: { ctx: TabContext }) {
-  const { settings, t, patch, patchBehavior, patchShortcut } = ctx;
+  const { settings, t, patch, patchModeBehavior: patchBehavior, modeBehavior, patchShortcut } = ctx;
 
   const addShortcut = () => {
     const used = new Set(settings.shortcuts.map((s) => s.id));
@@ -23,7 +120,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
     patch({
       shortcuts: [
         ...settings.shortcuts,
-        { id, chord: "", enabled: true, scope: { appScope: "all" } },
+        { id, chord: "", enabled: true, scope: { appScope: "all" }, mode: "windows" },
       ],
     });
   };
@@ -62,6 +159,14 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
                   placeholder={t("Press shortcut keys")}
                   onChordChange={(chord) => patchShortcut(s.id, { chord })}
                 />
+                <Select
+                  aria-label={`Shortcut ${s.id} mode`}
+                  value={s.mode ?? "windows"}
+                  onChange={(e) => patchShortcut(s.id, { mode: e.target.value as SwitcherMode })}
+                >
+                  <option value="windows">{t("Window switcher")}</option>
+                  <option value="apps">{t("App switcher")}</option>
+                </Select>
                 <Select
                   aria-label={`Shortcut ${s.id} scope`}
                   value={s.scope.appScope}
@@ -175,6 +280,75 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
 
       <Card>
         <CardHeader>
+          <CardTitle>{t("Switcher interactions")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          <label className={ROW}>
+            <span>{t("Middle click")}</span>
+            <Select
+              aria-label="Middle click action"
+              value={modeBehavior.middleClickAction}
+              onChange={(e) =>
+                patchBehavior({ middleClickAction: e.target.value as PointerAction })
+              }
+            >
+              <option value="none">{t("None")}</option>
+              <option value="close">{t("Close")}</option>
+              <option value="minimize">{t("Minimize")}</option>
+            </Select>
+          </label>
+          {(["swipeUpAction", "swipeDownAction"] as const).map((field) => (
+            <label className={ROW} key={field}>
+              <span>{t(field === "swipeUpAction" ? "Swipe up" : "Swipe down")}</span>
+              <Select
+                aria-label={field === "swipeUpAction" ? "Swipe up action" : "Swipe down action"}
+                value={modeBehavior[field]}
+                onChange={(e) => patchBehavior({ [field]: e.target.value as PointerAction })}
+              >
+                {(["none", "close", "minimize", "fullscreen", "hide", "quit"] as const).map((v) => (
+                  <option key={v} value={v}>
+                    {t(v === "none" ? "None" : ACTION_LABEL[v])}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          ))}
+          {Object.entries(modeBehavior.actionBindings).map(([code, action]) => (
+            <ActionBindingRow
+              key={code}
+              code={code}
+              action={action}
+              bindings={modeBehavior.actionBindings}
+              patchBehavior={patchBehavior}
+              t={t}
+            />
+          ))}
+          <Button
+            type="button"
+            aria-label="Add action binding"
+            variant="dashed"
+            disabled={Object.keys(modeBehavior.actionBindings).length >= 26}
+            onClick={() => {
+              const code = Array.from(
+                { length: 26 },
+                (_, i) => `Key${String.fromCharCode(65 + i)}`,
+              ).find((candidate) => !(candidate in modeBehavior.actionBindings));
+              if (code)
+                patchBehavior({
+                  actionBindings: { ...modeBehavior.actionBindings, [code]: "close" },
+                });
+            }}
+          >
+            {t("+ Add action binding")}
+          </Button>
+          <Button variant="ghost" onClick={() => patchBehavior({ actionBindings: {} })}>
+            {t("Disable action keys")}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>{t("Activation")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
@@ -182,7 +356,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Hold modifier to cycle (release to select)")}</span>
             <Checkbox
               aria-label="Hold modifier to cycle"
-              checked={settings.behavior.holdToCycle}
+              checked={modeBehavior.holdToCycle}
               onChange={(e) => patchBehavior({ holdToCycle: e.target.checked })}
             />
           </label>
@@ -190,7 +364,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Navigate with arrow keys")}</span>
             <Checkbox
               aria-label="Arrow keys"
-              checked={settings.behavior.arrowKeys}
+              checked={modeBehavior.arrowKeys}
               onChange={(e) => patchBehavior({ arrowKeys: e.target.checked })}
             />
           </label>
@@ -198,7 +372,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Navigate with vim keys (h / j / k / l)")}</span>
             <Checkbox
               aria-label="Vim keys"
-              checked={settings.behavior.vimKeys}
+              checked={modeBehavior.vimKeys}
               onChange={(e) => patchBehavior({ vimKeys: e.target.checked })}
             />
           </label>
@@ -206,7 +380,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Trackpad haptic feedback when the selection changes")}</span>
             <Checkbox
               aria-label="Haptic feedback"
-              checked={settings.behavior.hapticFeedback}
+              checked={modeBehavior.hapticFeedback}
               onChange={(e) => patchBehavior({ hapticFeedback: e.target.checked })}
             />
           </label>
@@ -222,7 +396,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Mouse hover")}</span>
             <Checkbox
               aria-label="Select windows on mouse hover"
-              checked={settings.behavior.mouseHoverSelect}
+              checked={modeBehavior.mouseHoverSelect}
               onChange={(e) => patchBehavior({ mouseHoverSelect: e.target.checked })}
             />
           </label>
@@ -230,7 +404,7 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <span>{t("Cursor follows focus (warp the mouse to the focused window)")}</span>
             <Checkbox
               aria-label="Cursor follows focus"
-              checked={settings.behavior.cursorFollowFocus}
+              checked={modeBehavior.cursorFollowFocus}
               onChange={(e) => patchBehavior({ cursorFollowFocus: e.target.checked })}
             />
           </label>

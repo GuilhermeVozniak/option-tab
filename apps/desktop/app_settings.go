@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -10,6 +12,43 @@ import (
 	"option-tab/internal/config"
 	"option-tab/internal/platform"
 )
+
+// SettingsState pairs a canonical snapshot with its process-local write revision.
+// Renderers do not survive a process restart, so this revision is not persisted.
+type SettingsState struct {
+	Revision uint64 `json:"revision"`
+	JSON     string `json:"json"`
+}
+
+func (a *App) GetSettingsState() SettingsState {
+	// A menu callback may run on AppKit's main thread. It must not wait for
+	// saveMu while a writer is applying native settings on that same thread.
+	a.settingsMu.RLock()
+	s, revision := a.settingsSnapshotLocked(), max(a.settingsRevision, 1)
+	a.settingsMu.RUnlock()
+	b, err := json.Marshal(s)
+	if err != nil {
+		return SettingsState{}
+	}
+	return SettingsState{Revision: revision, JSON: string(b)}
+}
+
+func (a *App) SaveSettingsAtRevision(document string, expectedRevision uint64) (SettingsState, error) {
+	s, err := config.Load(strings.NewReader(document))
+	if err != nil {
+		return SettingsState{}, err
+	}
+	a.saveMu.Lock()
+	defer a.saveMu.Unlock()
+	current := a.GetSettingsState()
+	if expectedRevision == 0 || expectedRevision != current.Revision {
+		return current, errors.New("settings: stale revision")
+	}
+	if err := a.saveSettingsLocked(s); err != nil {
+		return current, err
+	}
+	return a.GetSettingsState(), nil
+}
 
 // GetSettings returns the current settings as JSON for the preferences UI.
 func (a *App) GetSettings() string {
@@ -20,14 +59,21 @@ func (a *App) GetSettings() string {
 	return string(b)
 }
 
-// settingsSnapshot copies the slice-backed fields so callers cannot mutate
+// settingsSnapshot copies mutable fields so callers cannot mutate
 // shared settings after the read lock has been released.
 func (a *App) settingsSnapshot() config.Settings {
 	a.settingsMu.RLock()
 	defer a.settingsMu.RUnlock()
+	return a.settingsSnapshotLocked()
+}
+
+func (a *App) settingsSnapshotLocked() config.Settings {
 	s := a.settings
 	s.Shortcuts = slices.Clone(s.Shortcuts)
+	s.Behavior.ActionBindings = maps.Clone(s.Behavior.ActionBindings)
+	s.AppSwitcher.Behavior.ActionBindings = maps.Clone(s.AppSwitcher.Behavior.ActionBindings)
 	s.Filters.AppBlacklist = slices.Clone(s.Filters.AppBlacklist)
+	s.ReplacementDock = config.CloneReplacementDock(s.ReplacementDock)
 	return s
 }
 
@@ -64,8 +110,14 @@ func (a *App) saveSettingsLocked(s config.Settings) error {
 	}
 	a.settingsMu.Lock()
 	a.settings = s
+	if a.settingsRevision == 0 {
+		a.settingsRevision = 1
+	}
+	a.settingsRevision++
 	a.settingsMu.Unlock()
 	a.controller.SetSettings(s)
+	a.configureDock(s)
+	a.configureLauncher(previous, s)
 	a.reRegisterHotkeys()
 	a.syncTray()
 	return nil

@@ -26,7 +26,13 @@ beforeEach(() => {
 });
 
 // pressKey simulates a native-tap key press (the production keyboard path).
-function pressKey(p: { key: string; code?: string; shift?: boolean; alt?: boolean }) {
+function pressKey(p: {
+  key: string;
+  code?: string;
+  shift?: boolean;
+  alt?: boolean;
+  session?: number;
+}) {
   act(() => {
     keyHandler?.({
       data: {
@@ -36,6 +42,7 @@ function pressKey(p: { key: string; code?: string; shift?: boolean; alt?: boolea
         ctrl: false,
         alt: !!p.alt,
         meta: false,
+        session: p.session,
       },
     });
   });
@@ -85,6 +92,7 @@ const noopHandlers = () => ({
   onFullscreen: vi.fn(),
   onQuit: vi.fn(),
   onHide: vi.fn(),
+  onAction: vi.fn(),
 });
 
 describe("Overlay", () => {
@@ -133,6 +141,14 @@ describe("Overlay", () => {
     expect(h.onConfirm).toHaveBeenCalled();
   });
 
+  it("ignores native keys from a different presentation session", () => {
+    const h = noopHandlers();
+    render(<Overlay state={stateWith({ session: 12 })} handlers={h} />);
+    pressKey({ key: "Tab", session: 11 });
+    pressKey({ key: "Tab", session: 12 });
+    expect(h.onAdvance).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back to DOM keydown when nativeKeys is off (browser dev)", () => {
     const h = noopHandlers();
     render(<Overlay state={stateWith({})} handlers={h} nativeKeys={false} />);
@@ -153,6 +169,71 @@ describe("Overlay", () => {
     expect(h.onClose).toHaveBeenCalledWith(2);
     pressKey({ key: "f", code: "KeyF", alt: true });
     expect(h.onFullscreen).toHaveBeenCalledWith(2);
+  });
+
+  it("uses configured bindings and compact style at the boundary", () => {
+    const h = noopHandlers();
+    const s = stateWith({});
+    s.actionBindings = { KeyW: "minimize" };
+    s.appearance = { ...s.appearance, compactThreshold: 2 };
+    const { container } = render(<Overlay state={s} handlers={h} />);
+    pressKey({ key: "∑", code: "KeyW", alt: true });
+    expect(h.onMinimize).toHaveBeenCalledWith(1);
+    expect(container.querySelector('[data-style="titles"]')).not.toBeNull();
+  });
+
+  it("arranges and navigates entries vertically when selected", () => {
+    const h = noopHandlers();
+    const s = stateWith({});
+    s.appearance = { ...s.appearance, layoutDirection: "vertical" };
+    const { container } = render(<Overlay state={s} handlers={h} />);
+    expect((container.querySelector(".ot-list") as HTMLElement).style.gridAutoFlow).toBe("column");
+    pressKey({ key: "ArrowDown" });
+    expect(h.onAdvance).toHaveBeenCalledOnce();
+    pressKey({ key: "ArrowRight" });
+    expect(h.onAdvance).toHaveBeenCalledOnce();
+  });
+
+  it("middle-click closes the clicked window without confirming it", () => {
+    const h = noopHandlers();
+    const s = stateWith({ middleClickAction: "close" });
+    render(<Overlay state={s} handlers={h} />);
+    const second = screen.getByText("GitHub").closest('[role="option"]') as HTMLElement;
+    fireEvent.mouseDown(second, { button: 1 });
+    expect(h.onClose).toHaveBeenCalledWith(2);
+    expect(h.onConfirmWindow).not.toHaveBeenCalled();
+  });
+
+  it("fires one swipe action and ignores momentum after crossing the threshold", () => {
+    const h = noopHandlers();
+    const s = stateWith({ swipeUpAction: "minimize" });
+    render(<Overlay state={s} handlers={h} />);
+    const first = screen.getByText("main.go").closest('[role="option"]') as HTMLElement;
+    fireEvent.wheel(first, { deltaY: -60 });
+    fireEvent.wheel(first, { deltaY: -80 });
+    expect(h.onMinimize).toHaveBeenCalledTimes(1);
+    expect(h.onConfirmWindow).not.toHaveBeenCalled();
+  });
+
+  it("uses vertical arrows when compact mode renders a titles list", () => {
+    const h = noopHandlers();
+    const s = stateWith({});
+    s.appearance = { ...s.appearance, layoutDirection: "horizontal", compactThreshold: 2 };
+    render(<Overlay state={s} handlers={h} />);
+    pressKey({ key: "ArrowDown" });
+    expect(h.onAdvance).toHaveBeenCalledOnce();
+    pressKey({ key: "ArrowUp" });
+    expect(h.onReverse).toHaveBeenCalledOnce();
+  });
+
+  it("renders the app badge on a thumbnail and exposes additional actions", () => {
+    const h = noopHandlers();
+    const s = stateWith({});
+    s.entries[0] = { ...s.entries[0], thumbnail: "thumb.png", icon: "icon.png" };
+    const { container } = render(<Overlay state={s} handlers={h} />);
+    expect(container.querySelector(".ot-thumb-icon-badge img")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "forceQuit" }));
+    expect(h.onAction).toHaveBeenCalledWith("forceQuit", 1, 1);
   });
 
   it("navigates with vim keys when enabled", () => {
@@ -234,6 +315,7 @@ describe("Overlay", () => {
     s.appearance = { ...s.appearance, showWindowControls: false };
     render(<Overlay state={s} handlers={noopHandlers()} />);
     expect(screen.queryByLabelText("Close window")).toBeNull();
+    expect(screen.queryByLabelText("Switcher actions")).toBeNull();
   });
 
   it("renders status icons for minimized and other-Space windows", () => {
@@ -310,6 +392,32 @@ describe("Overlay", () => {
       .getByLabelText("Selected window preview")
       .querySelector("img") as HTMLImageElement;
     expect(img.src).toContain("big");
+  });
+
+  it("retains the preview image across frames and remounts it for a new selection", () => {
+    const s = stateWith({ selected: 0 });
+    s.entries = [
+      { ...s.entries[0], preview: "data:image/png;base64,frame-a" },
+      { ...s.entries[1], preview: "data:image/png;base64,other" },
+    ];
+    s.appearance = { ...s.appearance, previewSelected: true, previewFade: true };
+    const { rerender } = render(<Overlay state={s} handlers={noopHandlers()} />);
+    const firstNode = screen.getByLabelText("Selected window preview").querySelector("img");
+    rerender(
+      <Overlay
+        state={{
+          ...s,
+          entries: [{ ...s.entries[0], preview: "data:image/png;base64,frame-b" }, s.entries[1]],
+        }}
+        handlers={noopHandlers()}
+      />,
+    );
+    const nextFrameNode = screen.getByLabelText("Selected window preview").querySelector("img");
+    expect(nextFrameNode).toBe(firstNode);
+    rerender(<Overlay state={{ ...s, selected: 1 }} handlers={noopHandlers()} />);
+    expect(screen.getByLabelText("Selected window preview").querySelector("img")).not.toBe(
+      firstNode,
+    );
   });
 
   it("truncates long titles in the middle when configured", () => {

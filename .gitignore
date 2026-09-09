@@ -11,6 +11,7 @@ playwright-report/
 test-results/
 *.log
 .DS_Store
+.worktrees/
 
 # Wails frontend build cache
 apps/desktop/frontend/package.json.md5

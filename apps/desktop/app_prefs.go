@@ -40,18 +40,40 @@ func (a *App) IsPaused() bool { return a.controller.Paused() }
 
 // ---- Preferences window ----
 
+type prefsSettingsLoading struct {
+	Generation uint64 `json:"generation"`
+}
+
+type prefsSettingsSnapshot struct {
+	Generation uint64 `json:"generation"`
+	SettingsState
+}
+
 // OpenPreferences shows and focuses the preferences window (created hidden at
 // startup; recreated defensively if macOS destroyed it). Invoked by the menubar
 // "Settings…" item and on first launch (onboarding).
 func (a *App) OpenPreferences() {
+	a.viewMu.Lock()
+	if a.dismissal != nil {
+		a.cancelDismissalLocked()
+		a.overlay.hide()
+	}
 	dlog("OpenPreferences: prefsOpen=%v", a.prefsOpen)
 	a.prefsOpen = true
+	a.prefsRefreshGeneration++
+	generation := a.prefsRefreshGeneration
+	a.emit("prefs:settings-loading", prefsSettingsLoading{Generation: generation})
+	a.syncDockSuspensionLocked()
 	// Preferences need keyboard focus: flip the accessory app to a regular,
 	// activated app (the switcher overlay itself never activates).
 	if act, ok := a.platform.(platform.AppActivator); ok {
 		act.ActivateForPrefs()
 	}
 	a.showPrefsWindow()
+	a.viewMu.Unlock()
+	// Correlate both events so late loading or older snapshots cannot replace a
+	// completed refresh. Snapshot reading does not wait for the native writer.
+	a.emit("prefs:settings", prefsSettingsSnapshot{Generation: generation, SettingsState: a.GetSettingsState()})
 }
 
 // showPrefsWindow shows and focuses the preferences window, recreating it once
@@ -90,6 +112,8 @@ func tryShowWindow(w nativeWindow) (ok bool) {
 // ClosePreferences hides the preferences window and returns the app to the
 // accessory policy (no Dock icon).
 func (a *App) ClosePreferences() {
+	a.viewMu.Lock()
+	defer a.viewMu.Unlock()
 	a.closePreferencesWindow()
 }
 
@@ -97,6 +121,7 @@ func (a *App) ClosePreferences() {
 // opens over an open preferences window and on WindowClosing).
 func (a *App) closePreferencesWindow() {
 	a.prefsOpen = false
+	a.syncDockSuspensionLocked()
 	a.prefs.hide()
 	if h, ok := a.platform.(platform.DockHider); ok {
 		h.HideDockIcon()
@@ -136,6 +161,9 @@ func (a *App) syncTray() {
 	paused := a.controller.Paused()
 	glyph := trayGlyph(settings.Behavior.MenubarIconStyle)
 	application.InvokeAsync(func() {
+		if a.nativeDockItem != nil {
+			a.nativeDockItem.SetLabel(nativeDockRecoveryLabel(settings.Behavior.Language))
+		}
 		if a.pauseItem != nil {
 			label := "Pause"
 			if paused {
@@ -153,4 +181,15 @@ func (a *App) syncTray() {
 			a.tray.Hide()
 		}
 	})
+}
+
+func nativeDockRecoveryLabel(language string) string {
+	switch language {
+	case "pt-BR", "pt":
+		return "Usar o Dock nativo"
+	case "es":
+		return "Usar el Dock nativo"
+	default:
+		return "Use native Dock"
+	}
 }

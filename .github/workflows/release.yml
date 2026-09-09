@@ -16,6 +16,12 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: latest }
       - run: bun install --frozen-lockfile
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.26" }
+      - name: Install bindings loader system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: Generate pinned bindings before UI build
+        run: ./scripts/generate-bindings.sh
       - name: Desktop UI e2e (overlay + preferences)
         run: cd apps/desktop/frontend && bunx playwright install --with-deps chromium && bun run e2e
       - name: Landing-page e2e
@@ -32,28 +38,52 @@ jobs:
         include:
           - os: macos-latest
             platform: darwin
-            arch: arm64
+            arch: universal
+            format: dmg
           - os: windows-latest
             platform: windows
             arch: amd64
+            format: zip
           - os: ubuntu-latest
             platform: linux
             arch: amd64
+            format: tar.gz
     runs-on: ${{ matrix.os }}
-    env:
-      # secrets are not readable in step-level `if:`; surface presence here.
-      HAS_MACOS_SIGNING: ${{ secrets.MACOS_CERT_P12 != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with: { bun-version: latest }
       - uses: actions/setup-go@v5
         with: { go-version: "1.26" }
+      - name: Release version
+        id: release-version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - name: Test macOS packaging contract (fake tools only)
+        if: matrix.platform == 'darwin'
+        run: python3 scripts/test_bundle.py
+      - name: Require release signing credentials (macOS)
+        if: matrix.platform == 'darwin'
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          for required in MACOS_CERT_P12 MACOS_CERT_PASSWORD APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
+            [[ -n "${!required}" ]] || { echo "Missing required release credential: $required" >&2; exit 1; }
+          done
       - name: Install Linux system deps
         if: matrix.platform == 'linux'
         run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
       - run: bun install --frozen-lockfile
+      - name: Generate pinned bindings (Windows/Linux)
+        if: matrix.platform != 'darwin'
+        shell: bash
+        run: ./scripts/generate-bindings.sh
       - name: Build frontend (embedded via //go:embed)
+        if: matrix.platform != 'darwin'
         run: cd apps/desktop/frontend && bun run build
       # The desktop binary is a plain `go build` (Wails v3 serves the embedded
       # frontend from the binary); macOS bundling/signing/notarization lives in
@@ -64,10 +94,10 @@ jobs:
       - name: Build desktop binary (Linux)
         if: matrix.platform == 'linux'
         run: cd apps/desktop && go build -o build/bin/option-tab .
-      # Signing/notarization steps are skipped when the signing secrets are
-      # absent (e.g. forks), so unsigned releases still build.
+      # A tagged macOS release must be signed and notarized; forks use the
+      # explicitly unsigned local task instead of publishing unverified assets.
       - name: Import signing certificate (macOS)
-        if: matrix.platform == 'darwin' && env.HAS_MACOS_SIGNING == 'true'
+        if: matrix.platform == 'darwin'
         env:
           MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
           MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
@@ -85,7 +115,7 @@ jobs:
           # fail here, not at codesign, if the p12 lacks a Developer ID identity.
           security find-identity -v -p codesigning "$KEYCHAIN" | grep "Developer ID Application"
       - name: Enable signing for bundle.sh (macOS)
-        if: matrix.platform == 'darwin' && env.HAS_MACOS_SIGNING == 'true'
+        if: matrix.platform == 'darwin'
         run: echo "CODESIGN_IDENTITY=Developer ID Application" >> "$GITHUB_ENV"
       - name: Bundle, sign, and package dmg (macOS)
         if: matrix.platform == 'darwin'
@@ -93,7 +123,7 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-        run: VERSION="${GITHUB_REF_NAME#v}" ./scripts/bundle.sh
+        run: BUNDLE_MODE=release UNIVERSAL=1 VERSION="${GITHUB_REF_NAME#v}" ./scripts/bundle.sh
       - name: Package artifact (Windows .zip)
         if: matrix.platform == 'windows'
         shell: pwsh
@@ -108,7 +138,5 @@ jobs:
           tar -czf "option-tab_${GITHUB_REF_NAME#v}_linux_${{ matrix.arch }}.tar.gz" option-tab
       - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            apps/desktop/build/bin/*.dmg
-            apps/desktop/build/bin/*.zip
-            apps/desktop/build/bin/*.tar.gz
+          fail_on_unmatched_files: true
+          files: apps/desktop/build/bin/option-tab_${{ steps.release-version.outputs.version }}_${{ matrix.platform }}_${{ matrix.arch }}.${{ matrix.format }}
