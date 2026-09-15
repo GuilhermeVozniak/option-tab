@@ -124,7 +124,7 @@ func TestDockInputValidationNormalizationAndCopy(t *testing.T) {
 
 func TestDockInputExplicitDisabledRoundTrip(t *testing.T) {
 	s := Default()
-	s.Dock.Input = DockInputSettings{AeroShakeAction: "none", SwipeTowardDock: PointerNone, SwipeAwayFromDock: PointerNone, SwipePrevious: PointerNone, SwipeNext: PointerNone}
+	s.Dock.Input = DockInputSettings{MiddleClickAction: PointerNone, AeroShakeAction: "none", SwipeTowardDock: PointerNone, SwipeAwayFromDock: PointerNone, SwipePrevious: PointerNone, SwipeNext: PointerNone}
 	var buf bytes.Buffer
 	if err := Save(&buf, s); err != nil {
 		t.Fatal(err)

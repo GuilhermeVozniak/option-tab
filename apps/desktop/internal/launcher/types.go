@@ -100,6 +100,7 @@ type (
 		View              View
 		Now               func() time.Time
 		Activate          func(context.Context, Scope, platform.LauncherAppTarget, func() error) error
+		Relaunch          func(context.Context, Scope, platform.LauncherAppTarget, func() error) error
 		ResolveReference  func(context.Context, string) (platform.LauncherReference, error)
 		ReadItemIcon      func(context.Context, string) ([]byte, error)
 		PerformItem       func(context.Context, Scope, ConfiguredTarget, string, func() error) error

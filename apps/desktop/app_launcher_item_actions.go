@@ -20,7 +20,7 @@ func (a *App) RelaunchLauncherItem(epoch uint64, displayUUID string, session, re
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 	defer cancel()
-	return r.core.PerformConfigured(ctx, launcher.Scope{Epoch: epoch, DisplayUUID: displayUUID, Session: session, Revision: revision}, itemID, "relaunch")
+	return r.core.Relaunch(ctx, launcher.Scope{Epoch: epoch, DisplayUUID: displayUUID, Session: session, Revision: revision}, itemID)
 }
 
 // Source owns final physical panel/process/resource validation. The supplied

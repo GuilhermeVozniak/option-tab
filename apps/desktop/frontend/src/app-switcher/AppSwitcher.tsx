@@ -38,8 +38,6 @@ function AppWindowCard({
   hover,
   showControls,
   middle,
-  swipeUp,
-  swipeDown,
   appearance,
   style,
   thumbnailPx,
@@ -54,8 +52,6 @@ function AppWindowCard({
   hover: boolean;
   showControls: boolean;
   middle: PointerAction;
-  swipeUp: PointerAction;
-  swipeDown: PointerAction;
   appearance: SwitcherState["appearance"];
   style: SwitcherState["appearance"]["style"];
   thumbnailPx: number;
@@ -63,18 +59,6 @@ function AppWindowCard({
   activeSpaceId: number;
   t: (text: string) => string;
 }) {
-  const pointer = useRef<{ id: number; y: number; swiped: boolean } | null>(null);
-  const suppressClick = useRef(false);
-  const wheel = useRef<{ total: number; fired: boolean; timer?: number }>({
-    total: 0,
-    fired: false,
-  });
-  useEffect(
-    () => () => {
-      if (wheel.current.timer !== undefined) window.clearTimeout(wheel.current.timer);
-    },
-    [],
-  );
   const title = truncateTitle(entry.title || entry.appName, appearance.titleTruncation);
   const icon = entry.icon ? (
     <img src={entry.icon} alt="" />
@@ -91,55 +75,7 @@ function AppWindowCard({
         onAuxClick={(event) => {
           if (event.button === 1) runPointerAction(middle, entry, handlers);
         }}
-        onPointerDown={(event) => {
-          if (event.button === 0 && event.isPrimary !== false)
-            pointer.current = { id: event.pointerId, y: event.clientY, swiped: false };
-        }}
-        onPointerMove={(event) => {
-          const start = pointer.current;
-          if (
-            !start ||
-            start.id !== event.pointerId ||
-            start.swiped ||
-            Math.abs(event.clientY - start.y) < 40
-          )
-            return;
-          start.swiped = true;
-          suppressClick.current = true;
-          runPointerAction(event.clientY < start.y ? swipeUp : swipeDown, entry, handlers);
-        }}
-        onPointerUp={() => {
-          pointer.current = null;
-          window.setTimeout(() => {
-            suppressClick.current = false;
-          }, 0);
-        }}
-        onPointerCancel={() => {
-          pointer.current = null;
-          suppressClick.current = false;
-        }}
-        onClick={(event) => {
-          if (suppressClick.current) {
-            suppressClick.current = false;
-            event.preventDefault();
-            return;
-          }
-          focus(entry);
-        }}
-        onWheel={(event) => {
-          const gesture = wheel.current;
-          if (gesture.timer !== undefined) window.clearTimeout(gesture.timer);
-          gesture.timer = window.setTimeout(() => {
-            wheel.current = { total: 0, fired: false };
-          }, 250);
-          if (gesture.fired) return;
-          if (gesture.total && Math.sign(gesture.total) !== Math.sign(event.deltaY))
-            gesture.total = 0;
-          gesture.total += event.deltaY;
-          if (Math.abs(gesture.total) < 48) return;
-          gesture.fired = true;
-          runPointerAction(gesture.total < 0 ? swipeUp : swipeDown, entry, handlers);
-        }}
+        onClick={() => focus(entry)}
         style={{ width: style === "titles" ? appearance.titleMaxWidthPx : thumbnailPx }}
       >
         {style === "titles" ? (
@@ -442,8 +378,6 @@ export function AppSwitcher({
               hover={state.mouseHover}
               showControls={state.appearance.showWindowControls}
               middle={state.middleClickAction}
-              swipeUp={state.swipeUpAction}
-              swipeDown={state.swipeDownAction}
               appearance={appearance}
               style={style}
               thumbnailPx={layout.thumbnailPx}

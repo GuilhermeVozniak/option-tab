@@ -1,3 +1,7 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { LANGUAGES, makeT, resolveLang, TRANSLATIONS } from "./i18n";
 
@@ -44,7 +48,57 @@ describe("i18n", () => {
     expect(LANGUAGES.map((l) => l.value)).toEqual(["", "en", "pt-BR", "es"]);
   });
 
-  it("defines every new icon-only and platform control in both dictionaries", () => {
+  it("defines the literal translation keys used by production source in both dictionaries", () => {
+    const keys = new Map<string, string>();
+    const literals = (node: ts.Node): string[] => {
+      if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return [node.text];
+      if (ts.isConditionalExpression(node))
+        return [...literals(node.whenTrue), ...literals(node.whenFalse)];
+      return [];
+    };
+    const inspectDirectory = (directory: string) => {
+      for (const entry of readdirSync(directory, { withFileTypes: true })) {
+        const path = join(directory, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name !== "test") inspectDirectory(path);
+          continue;
+        }
+        if (!/\.tsx?$/.test(entry.name) || /\.test\.tsx?$/.test(entry.name)) continue;
+        const source = ts.createSourceFile(
+          path,
+          readFileSync(path, "utf8"),
+          ts.ScriptTarget.Latest,
+          true,
+        );
+        const visit = (node: ts.Node) => {
+          if (
+            ts.isCallExpression(node) &&
+            ((ts.isIdentifier(node.expression) && node.expression.text === "t") ||
+              (ts.isPropertyAccessExpression(node.expression) &&
+                node.expression.name.text === "t")) &&
+            node.arguments[0]
+          ) {
+            const line = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+            for (const key of literals(node.arguments[0])) keys.set(key, `${path}:${line}`);
+          }
+          ts.forEachChild(node, visit);
+        };
+        visit(source);
+      }
+    };
+    inspectDirectory(join(dirname(fileURLToPath(import.meta.url)), ".."));
+    expect(keys.size, "No production translation calls were inspected").toBeGreaterThan(0);
+    for (const locale of ["pt-BR", "es"] as const) {
+      const missing = [...keys]
+        .filter(
+          ([key]) => !Object.hasOwn(TRANSLATIONS[locale], key) || !TRANSLATIONS[locale][key].trim(),
+        )
+        .map(([key, path]) => ({ key, path }));
+      expect(missing, `${locale} leaves production controls untranslated`).toEqual([]);
+    }
+  });
+
+  it("retains coverage for selected controls whose keys may be chosen dynamically", () => {
     const keys = [
       "Previous",
       "Capture windows in the background",

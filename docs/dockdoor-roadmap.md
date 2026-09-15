@@ -3,7 +3,7 @@
 Baseline: v0.4.8. Branch: `feat/dockdoor-parity`.
 Status: approved narrowed scope; implementation in progress. Unchecked items have not passed all acceptance checks.
 
-Latest follow-up: [September 9 retest fixes](superpowers/reports/2026-09-09-native-retest-fixes.md). Blacklist creation, standalone preview admission, focus restoration, missing translations and stale import feedback are corrected; fresh automated suites pass. An owned native fixture verifies focus restoration, and independent CG/AX reads confirm the existing installed build opens a separate folder child. The [September 8 retest](superpowers/reports/2026-09-08-native-2496558-retest.md) also established both clock texts, Spotify connection and local AppleScript queries. Full packaged UI, physical input and release gates remain open; historical checkpoint prose below does not supersede these reports.
+Latest follow-up: [September 9 retained-feature corrections](superpowers/reports/2026-09-09-retained-feature-corrections.md). Native-Dock preview middle-click, unpinned-app relaunch, replacement-Dock interaction holds and remaining control/built-in metadata translations are implemented. Unqualified mouse drag/wheel switcher actions are removed; B08 remains unavailable until a qualified native trackpad route is implemented. Native diagnostics Save, Cancel, expiry and collision checks passed. The [earlier retest fixes](superpowers/reports/2026-09-09-native-retest-fixes.md) and [September 8 retest](superpowers/reports/2026-09-08-native-2496558-retest.md) retain their evidence. Full packaged UI, physical input and release gates remain open; historical checkpoint prose below does not supersede these reports.
 
 This scope was narrowed after reviewing the other projects in `~/Dev/pessoal`. It adds complementary Option Tab features rather than duplicating products we already maintain. Existing Option Tab features are retained. Native Dock enhancements come first. The subsequent instruction to work on all retained features includes the optional Dock replacement, delivered as a separate mode after the core enhancements.
 
@@ -31,7 +31,7 @@ Bulk close/minimize and cache lifecycle are implemented with remaining native li
 
 App grouping, running windowless apps, independent mode settings, Dock hover previews, exact preview focus/actions, independent Dock appearance and scoped pointer/capture transport are implemented. Required lint, unit/race, production build and browser checks pass. Disposable native fixtures have proved real Dock hover, nonactivating Close against the exact second preview, windowless application activation, and bounded capture returning to idle.
 
-Acceptance remains partial for the broader native matrix: actual shortcut delivery, other-Space focus, all physical Dock/display configurations, restart, lock and permission transitions are not established by the combined harness. C04 spacing implementation is in progress. A [positive window-retirement follow-up](superpowers/reports/2026-09-06-positive-window-retirement.md) fixes deliberately retained closed NSWindows when exact AX destruction was observed; broader C06 coverage remains incomplete. See [the app/Dock validation report](superpowers/reports/2026-09-06-app-groups-and-dock-previews.md). Unchecked IDs continue to distinguish implementation from completed acceptance.
+Acceptance remains partial for the broader native matrix: actual shortcut delivery, other-Space focus, all physical Dock/display configurations, restart, lock and permission transitions are not established by the combined harness. C04 spacing is implemented; native visual acceptance remains open. A [positive window-retirement follow-up](superpowers/reports/2026-09-06-positive-window-retirement.md) fixes deliberately retained closed NSWindows when exact AX destruction was observed; broader C06 coverage remains incomplete. See [the app/Dock validation report](superpowers/reports/2026-09-06-app-groups-and-dock-previews.md). Unchecked IDs continue to distinguish implementation from completed acceptance.
 
 ## A. Window actions
 
@@ -53,7 +53,7 @@ B10 now has native material, guarded interior geometry and solid-fallback implem
 - [x] B05 Configurable middle-click actions, defaulting to close where enabled.
 - [x] B06 Automatic compact-list mode at a configurable window-count threshold, plus always-list mode.
 - [x] B07 Horizontal/vertical layout direction and corresponding navigation.
-- [x] B08 Configurable two-finger swipe actions inside the switcher.
+- [ ] B08 Configurable qualified trackpad swipe actions inside the switcher. Saved choices are retained, but unqualified DOM mouse/wheel dispatch is disabled pending a native input route.
 - [x] B09 Complete the exposed app-badge and dismissal-animation settings.
 - [ ] B10 Native translucent material background where supported, with a solid fallback.
 
@@ -107,13 +107,13 @@ B10 now has native material, guarded interior geometry and solid-fallback implem
 - [ ] G01 Publish tested Intel/universal macOS downloads and align updater/download URLs.
 - [ ] G02 Homebrew installation route.
 - [ ] G03 Validate signed/notarized packages and supported macOS versions; macOS 13 capture needs a real fallback before claiming parity.
-- [ ] G04 User-controlled diagnostic log export.
+- [x] G04 User-controlled diagnostic log export.
 - [x] G05 Document local data handling and any update/media-provider network activity.
 - [ ] G06 Extend existing English, Brazilian Portuguese and Spanish strings to all new controls.
 
 ## Current parity follow-ups checkpoint
 
-The feature branch implements the same-hover Windows/Media selector, the future universal/macOS 14 release contract, an in-repository cask for the published v0.4.8 ARM64 build, bounded user-reviewed diagnostics, current data-handling documentation, and explicit PT-BR/Spanish strings for new controls. Combined JavaScript unit, browser and lint gates pass. Go integration, real universal compilation, signed/notarized release validation, Homebrew installation lifecycle, diagnostics chooser behavior and physical media-selector acceptance remain pending, so the G checkboxes and native media acceptance stay open. See the [parity follow-ups checkpoint](superpowers/reports/2026-09-07-parity-followups.md).
+The feature branch implements the same-hover Windows/Media selector, the future universal/macOS 14 release contract, an in-repository cask for the published v0.4.8 ARM64 build, bounded user-reviewed diagnostics, current data-handling documentation, and explicit PT-BR/Spanish strings for new controls. Combined JavaScript unit, browser and lint gates pass. Go integration and real universal compilation subsequently passed. Native diagnostics chooser/save/cancel/collision behavior passed on September 9. Signed/notarized release validation, Homebrew installation lifecycle and physical media-selector acceptance remain pending; G01–G03 and native media acceptance stay open. See the [parity follow-ups checkpoint](superpowers/reports/2026-09-07-parity-followups.md).
 
 The [2026-09-08 native Settings/media follow-up](superpowers/reports/2026-09-08-native-settings-media-fixes.md) records earlier fixes from actual Preferences testing. The subsequent 2496558 build and combined automated verification completed; its [packaged retest](superpowers/reports/2026-09-08-native-2496558-retest.md) records successful export/import, widget and query checks alongside remaining native failures. Native acceptance checkboxes remain open.
 
@@ -144,13 +144,13 @@ The branch now implements persistent app/folder/file/link pins, exact running-ap
 
 H09 folder list/grid fan-out and H11 show-all window children are now implemented, with explicit root-folder opening, exact window actions, independent capture lifetimes and parent/Space retirement. Automated Go, browser and build checks pass; physical native acceptance remains open. See the [launcher child-panel checkpoint](superpowers/reports/2026-09-07-launcher-item-panels.md).
 
-H17 profile transfer now exports structural layout/items/widget settings and imports a reviewed document as a new unassigned profile. Private selections and widget access must be restored locally. The full Go, unit, browser and build gates pass; native WebKit file selection/download acceptance remains open. See the [profile transfer checkpoint](superpowers/reports/2026-09-07-launcher-profile-transfer.md).
+H17 profile transfer now exports structural layout/items/widget settings and imports a reviewed document as a new unassigned profile. Private selections and widget access must be restored locally. The full Go, unit, browser and build gates pass; native file selection, Save/Cancel/collision, sanitization and folder-repair checks passed in the September 8 retest. Cross-machine/restart and broader item/widget combinations remain acceptance checks. See the [profile transfer checkpoint](superpowers/reports/2026-09-07-launcher-profile-transfer.md).
 
 H06 spring magnification is implemented with per-profile scale/reach, resolved native bounds, stable hitboxes, reduced-motion handling and conservative scroll-edge behavior. Automated Go, unit, browser and build gates pass; physical smoothness and native pointer/display acceptance remain open. See the [magnification checkpoint](superpowers/reports/2026-09-07-launcher-magnification.md).
 
 H05 runtime dragging and keyboard grouping are implemented with exact presentation/native admission and revision-aware Settings saves. Reopening Preferences refreshes the canonical model before edits resume; stale full-settings saves cannot overwrite runtime pin changes. See the [runtime reordering checkpoint](superpowers/reports/2026-09-07-launcher-runtime-reorder.md) for verification and native acceptance limits.
 
-H15 adds per-profile gesture reduction, selection haptics and explicit keyboard-mode navigation, with exact native ownership and compact controls on all four edges. Production pinch, swipe and letter input remain gated on physical delivery acceptance. H16 adds optional native-Dock status badges with exact application matching, typed counts/indicators, shared observation and serial recovery. Unknown values stay hidden. See the [input and badge checkpoint](superpowers/reports/2026-09-08-launcher-input-badges.md) for combined verification and the remaining native acceptance limits. This completes the planned implementation areas in H; their physical acceptance checkboxes remain open.
+H15 adds per-profile gesture reduction, selection haptics and explicit keyboard-mode navigation, with exact native ownership and compact controls on all four edges. Production pinch, swipe and letter input remain gated on physical delivery acceptance. H16 adds optional native-Dock status badges with exact application matching, typed counts/indicators, shared observation and serial recovery. Unknown values stay hidden. See the [input and badge checkpoint](superpowers/reports/2026-09-08-launcher-input-badges.md) for combined verification and the remaining native acceptance limits. The planned H areas have implementation, but production pinch/swipe/letter delivery remains unavailable. The September 9 follow-up adds missing unpinned relaunch and interaction holds; physical acceptance checkboxes remain open.
 
 The controlled H16 fixture has verified actual source count/indicator changes and clearing to unavailable on macOS 26.6.2 arm64, with exact identity and joined cleanup. Known absence, live launcher rendering, permission recovery and the broader display/application matrix remain unverified; H16 stays open for that acceptance.
 

@@ -4,6 +4,7 @@ import type { LauncherPresentation, LauncherWidgetNode } from "../lib/types";
 import type { LauncherWidgetState, WidgetActions, WidgetLocalized } from "../lib/widget-types";
 import { WidgetView } from "../widgets/WidgetView";
 import { type LauncherItemCommand, LauncherItemStrip } from "./LauncherItemStrip";
+import type { LauncherAutoHideHold } from "./useLauncherAutoHideHold";
 import type { LauncherInteractionTransport } from "./useLauncherInteractions";
 import { useLauncherInteractions } from "./useLauncherInteractions";
 import "./launcher.css";
@@ -33,6 +34,7 @@ export function LauncherView({
   t = (text) => text,
   language = "en",
   interactionTransport,
+  onAutoHideHold,
 }: {
   presentation: LauncherPresentation;
   onActivate: (
@@ -52,6 +54,7 @@ export function LauncherView({
   t?: (text: string) => string;
   language?: string;
   interactionTransport?: LauncherInteractionTransport;
+  onAutoHideHold?: LauncherAutoHideHold;
 }) {
   const interaction = useLauncherInteractions(presentation, interactionTransport);
   const modifiedInput = useRef(false);
@@ -86,6 +89,7 @@ export function LauncherView({
         onRelaunch={onRelaunch}
         onShowPanel={onShowPanel}
         onMutate={onMutate}
+        onAutoHideHold={onAutoHideHold}
         selectedItemID={interaction.state?.selectedItemID}
         onReorderTarget={interaction.setReorderTarget}
         badges={badges}

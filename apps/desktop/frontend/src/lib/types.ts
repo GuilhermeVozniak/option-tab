@@ -127,6 +127,7 @@ export interface DockItem {
   kind: string;
 }
 export interface DockViewState {
+  middleClickAction?: PointerAction;
   session: number;
   revision?: number;
   open?: boolean;
@@ -660,6 +661,7 @@ export interface LauncherStatus {
   clockDigest: string;
 }
 export interface DockInputSettings {
+  middleClickAction: PointerAction;
   clickToHide: boolean;
   scrollShowHide: boolean;
   modifiedRightClick: boolean;
@@ -814,6 +816,7 @@ export const defaultSettings: Settings = {
       clickToHide: false,
       scrollShowHide: false,
       modifiedRightClick: false,
+      middleClickAction: "none",
       swipeTowardDock: "none",
       swipeAwayFromDock: "none",
       swipePrevious: "none",

@@ -46,6 +46,7 @@ type (
 		nextChildAdmission                     uint64
 		childSessions                          map[string]uint64
 		childHolds                             map[string]childHold
+		autoHideHolds                          map[string]autoHideHold
 		hide                                   map[string]hideDeadline
 		wake                                   chan struct{}
 	}
@@ -99,6 +100,7 @@ func (c *Controller) retireLocked() {
 	c.childAdmissions = nil
 	c.childSessions = nil
 	c.childHolds = nil
+	c.autoHideHolds = nil
 }
 
 func (c *Controller) Configure(s config.ReplacementDockSettings) error {

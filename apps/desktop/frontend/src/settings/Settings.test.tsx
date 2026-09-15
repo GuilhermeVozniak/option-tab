@@ -13,6 +13,23 @@ const makeShortcuts = (n: number): Shortcut[] =>
   }));
 
 describe("Settings", () => {
+  it("keeps saved switcher swipe choices visible but unavailable without qualified native input", () => {
+    const settings = structuredClone(defaultSettings);
+    settings.behavior.swipeUpAction = "close";
+    settings.appSwitcher.behavior.swipeUpAction = "minimize";
+    const onChange = vi.fn();
+    render(<Settings settings={settings} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    expect(screen.getByLabelText("Swipe up action")).toBeDisabled();
+    expect(screen.getByLabelText("Swipe up action")).toHaveValue("close");
+    expect(screen.getByLabelText("Swipe down action")).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Switcher settings mode"), {
+      target: { value: "apps" },
+    });
+    expect(screen.getByLabelText("Swipe up action")).toBeDisabled();
+    expect(screen.getByLabelText("Swipe up action")).toHaveValue("minimize");
+    expect(onChange).not.toHaveBeenCalled();
+  });
   it("edits app-mode appearance without mutating window appearance", () => {
     const onChange = vi.fn();
     render(<Settings settings={defaultSettings} onChange={onChange} />);
@@ -1164,6 +1181,13 @@ it("edits every Dock input gesture independently", () => {
   const { rerender } = render(<Settings settings={current} onChange={onChange} />);
   fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
   const refresh = () => rerender(<Settings settings={current} onChange={onChange} />);
+  fireEvent.change(screen.getByLabelText("Dock middle-click action"), {
+    target: { value: "minimize" },
+  });
+  expect(current.dock.input.middleClickAction).toBe("minimize");
+  expect(current.behavior).toEqual(original.behavior);
+  expect(current.appSwitcher).toEqual(original.appSwitcher);
+  refresh();
   fireEvent.change(screen.getByLabelText("Dock card spacing"), { target: { value: "0" } });
   expect(current.dock.cardSpacingPx).toBe(0);
   refresh();

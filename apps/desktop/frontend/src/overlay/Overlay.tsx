@@ -297,8 +297,6 @@ export function Overlay({ state, handlers, nativeKeys = true, material }: Overla
               activeSpaceId={state.activeSpaceId}
               handlers={handlers}
               middleClickAction={state.middleClickAction}
-              swipeUpAction={state.swipeUpAction}
-              swipeDownAction={state.swipeDownAction}
             />
           ))}
         </ul>

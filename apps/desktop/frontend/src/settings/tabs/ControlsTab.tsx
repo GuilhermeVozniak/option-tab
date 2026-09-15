@@ -302,6 +302,8 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
               <span>{t(field === "swipeUpAction" ? "Swipe up" : "Swipe down")}</span>
               <Select
                 aria-label={field === "swipeUpAction" ? "Swipe up action" : "Swipe down action"}
+                disabled
+                aria-describedby="switcher-swipe-unavailable"
                 value={modeBehavior[field]}
                 onChange={(e) => patchBehavior({ [field]: e.target.value as PointerAction })}
               >
@@ -313,6 +315,11 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
               </Select>
             </label>
           ))}
+          <p id="switcher-swipe-unavailable" className={HINT}>
+            {t(
+              "Switcher swipe actions are unavailable until native trackpad input is supported. Saved choices are preserved.",
+            )}
+          </p>
           {Object.entries(modeBehavior.actionBindings).map(([code, action]) => (
             <ActionBindingRow
               key={code}

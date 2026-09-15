@@ -70,6 +70,7 @@ func (a *App) wireLauncher() {
 	r.core = launcher.New(launcher.Deps{
 		Environment: environment, Applications: apps, Identities: identities,
 		View: appLauncherView{a}, Activate: a.activateLauncherTarget,
+		Relaunch:         a.relaunchLauncherTarget,
 		ResolveReference: a.resolveLauncherItemReference, ReadItemIcon: a.readLauncherItemIcon,
 		EligibleReference: a.launcherReferenceEligible,
 		PerformItem:       a.performConfiguredLauncherItem,

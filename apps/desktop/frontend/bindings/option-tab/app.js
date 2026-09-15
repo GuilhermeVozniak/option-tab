@@ -1163,6 +1163,21 @@ export function SetDockPreviewRegions(session, revision, regions) {
 }
 
 /**
+ * SetLauncherAutoHideHold extends only an already-visible, exact host owner.
+ * It deliberately does not depend on optional gesture/haptic capabilities.
+ * @param {number} epoch
+ * @param {string} displayUUID
+ * @param {number} session
+ * @param {number} revision
+ * @param {number} sequence
+ * @param {string} phase
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetLauncherAutoHideHold(epoch, displayUUID, session, revision, sequence, phase) {
+    return $Call.ByID(3848259349, epoch, displayUUID, session, revision, sequence, phase);
+}
+
+/**
  * @param {number} session
  * @param {number} revision
  * @param {string} field

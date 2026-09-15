@@ -614,6 +614,9 @@ func (s Settings) Validate() error {
 	if err := validateAppearance("dock", s.Dock.Appearance); err != nil {
 		return err
 	}
+	if !s.Dock.Input.MiddleClickAction.ValidMiddleClick() {
+		return errors.New("config: invalid dock preview middle-click action")
+	}
 	if !s.Dock.Input.SwipeTowardDock.ValidSwipe() ||
 		!s.Dock.Input.SwipeAwayFromDock.ValidSwipe() ||
 		!s.Dock.Input.SwipePrevious.ValidSwipe() ||
@@ -822,6 +825,9 @@ func (s Settings) Normalize() Settings {
 		out.Dock.Scope.Order = ""
 	}
 	out.Dock.Appearance = normalizeAppearance(out.Dock.Appearance, d.Dock.Appearance)
+	if !out.Dock.Input.MiddleClickAction.ValidMiddleClick() {
+		out.Dock.Input.MiddleClickAction = PointerNone
+	}
 	if !out.Dock.Input.SwipeTowardDock.ValidSwipe() {
 		out.Dock.Input.SwipeTowardDock = PointerNone
 	}

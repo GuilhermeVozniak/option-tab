@@ -136,11 +136,12 @@ func (c *Controller) reconcileLocked() {
 			}
 		}
 		p.Visible = reason == ""
+		interactionHeld := p.Visible && c.autoHideHeldLocked(p)
 		if p.Visible && profile.AutoHide {
 			hold := c.hide[d.UUID]
 			wasVisible := prior.Visible && prior.Epoch == c.epoch && prior.ProfileID == p.ProfileID && c.spaces[d.UUID] == d.SpaceID
 			if wasVisible {
-				if contains(p.Bounds, c.env.PointerX, c.env.PointerY) || c.childOwnsPointerLocked(p) {
+				if interactionHeld || contains(p.Bounds, c.env.PointerX, c.env.PointerY) || c.childOwnsPointerLocked(p) {
 					hold.leave = time.Time{}
 				} else if hold.leave.IsZero() {
 					hold.leave = now
@@ -176,11 +177,12 @@ func (c *Controller) reconcileLocked() {
 			p.Revision++
 		}
 		c.spaces[d.UUID] = d.SpaceID
-		if p.Visible && c.ordinaryLocked(d.UUID) && (contains(p.Bounds, c.env.PointerX, c.env.PointerY) || c.childOwnsPointerLocked(p)) {
+		if p.Visible && c.ordinaryLocked(d.UUID) && (interactionHeld || contains(p.Bounds, c.env.PointerX, c.env.PointerY) || c.childOwnsPointerLocked(p)) {
 			out.PointerOwned = true
 		}
 		if !p.Visible {
 			delete(c.childHolds, d.UUID)
+			delete(c.autoHideHolds, d.UUID)
 		}
 		ds.Status = "ready"
 		if !p.Visible {
@@ -201,6 +203,7 @@ func (c *Controller) reconcileLocked() {
 			delete(c.spaces, uuid)
 			delete(c.hide, uuid)
 			delete(c.failed, uuid)
+			delete(c.autoHideHolds, uuid)
 		}
 	}
 	c.state = out

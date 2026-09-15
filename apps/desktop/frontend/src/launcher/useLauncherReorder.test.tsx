@@ -76,6 +76,7 @@ it("escape and pointer cancellation prevent a queued drag action", () => {
   for (const cancel of [
     () => fireEvent.keyDown(window, { key: "Escape" }),
     () => fireEvent.pointerCancel(window),
+    () => fireEvent.lostPointerCapture(buttons[0]),
   ]) {
     fireEvent.pointerDown(buttons[0], { button: 0, clientX: 20, clientY: 20 });
     fireEvent.pointerMove(window, { clientX: 87, clientY: 20 });

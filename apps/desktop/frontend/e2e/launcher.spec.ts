@@ -9,7 +9,7 @@ const presentation = (revision: number, name: string, visible = true) => ({
   visible,
   reason: "",
   profileID: "default",
-  bounds: { x: 20, y: 700, w: 220, h: 64 },
+  bounds: { X: 20, Y: 700, W: 220, H: 64 },
   iconPx: 40,
   edge: "bottom",
   layout: "floating",
@@ -25,6 +25,161 @@ const presentation = (revision: number, name: string, visible = true) => ({
   },
   items: visible ? [{ id: `opaque-${name}`, name, icon: "" }] : [],
   widgets: [],
+});
+
+test("launcher menu renews its exact auto-hide hold and Escape ends it without activation", async ({
+  page,
+}) => {
+  await installFakeWails(page);
+  await page.addInitScript(
+    (state) => {
+      (window as any).__launcherState = state;
+    },
+    {
+      ...presentation(2, ""),
+      items: [
+        {
+          id: "pin:work",
+          name: "Work",
+          icon: "",
+          kind: "group",
+          status: "ready",
+          members: [{ id: "pin:notes", name: "Notes", icon: "", kind: "app", status: "ready" }],
+        },
+      ],
+    },
+  );
+  await page.goto("/#/launcher/41");
+  await page.getByRole("button", { name: "Work", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Notes", exact: true })).toBeVisible();
+  const holds = async () =>
+    (await getCallRecords(page)).filter(([name]) => name === "SetLauncherAutoHideHold");
+  await expect.poll(async () => (await holds()).some((call) => call[6] === "renew")).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Notes", exact: true })).toHaveCount(0);
+  await expect.poll(async () => (await holds()).at(-1)?.[6]).toBe("end");
+  const completed = await holds();
+  expect(completed[0]).toEqual(["SetLauncherAutoHideHold", 7, "display-main", 41, 2, 1, "begin"]);
+  let sequence = 0;
+  for (const call of completed) {
+    expect(call.slice(1, 5)).toEqual([7, "display-main", 41, 2]);
+    expect(Number(call[5])).toBeGreaterThan(sequence);
+    sequence = Number(call[5]);
+  }
+  // Cross a renewal interval to prove the closed menu no longer holds the Dock.
+  await page.waitForTimeout(650);
+  expect(await holds()).toEqual(completed);
+  expect(
+    (await getCallRecords(page)).filter(([name]) =>
+      ["ActivateLauncherItem", "RelaunchLauncherItem", "ShowLauncherItemPanel"].includes(
+        String(name),
+      ),
+    ),
+  ).toEqual([]);
+});
+
+test("launcher item replacement cancels the old menu hold and requires a fresh click", async ({
+  page,
+}) => {
+  await installFakeWails(page);
+  const state = {
+    ...presentation(2, ""),
+    items: [
+      {
+        id: "pin:work",
+        name: "Work",
+        icon: "",
+        kind: "group",
+        status: "ready",
+        members: [{ id: "pin:notes", name: "Notes", icon: "", kind: "app", status: "ready" }],
+      },
+    ],
+  };
+  await page.addInitScript((value) => {
+    (window as any).__launcherState = value;
+  }, state);
+  await page.goto("/#/launcher/41");
+  await page.getByRole("button", { name: "Work", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Notes", exact: true })).toBeVisible();
+  const holds = async () =>
+    (await getCallRecords(page)).filter(([name]) => name === "SetLauncherAutoHideHold");
+  await expect.poll(async () => (await holds()).some((call) => call[6] === "renew")).toBe(true);
+  const before = await holds();
+  await page.evaluate(
+    (value) => (window as any)._wails.dispatchWailsEvent({ name: "launcher:state", data: value }),
+    {
+      ...state,
+      revision: 3,
+      items: [
+        {
+          ...state.items[0],
+          members: [
+            { id: "pin:calendar", name: "Calendar", icon: "", kind: "app", status: "ready" },
+          ],
+        },
+      ],
+    },
+  );
+  await expect(page.getByRole("button", { name: "Notes", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Calendar", exact: true })).toHaveCount(0);
+  await expect
+    .poll(async () => (await holds()).at(-1)?.slice(1, 5))
+    .toEqual([7, "display-main", 41, 3]);
+  await expect.poll(async () => (await holds()).at(-1)?.[6]).toBe("end");
+  const ended = await holds();
+  expect(Number(ended.at(-1)![5])).toBeGreaterThan(Number(before.at(-1)![5]));
+  await page.waitForTimeout(650);
+  expect(await holds()).toEqual(ended);
+  await page.getByRole("button", { name: "Work", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Calendar", exact: true })).toBeVisible();
+  await expect
+    .poll(async () =>
+      (await holds()).slice(ended.length).some((call) => call[4] === 3 && call[6] === "begin"),
+    )
+    .toBe(true);
+  for (const call of (await holds()).slice(ended.length))
+    expect(call.slice(1, 5)).toEqual([7, "display-main", 41, 3]);
+  expect((await getCallRecords(page)).some(([name]) => name === "ActivateLauncherItem")).toBe(
+    false,
+  );
+  await page.keyboard.press("Escape");
+});
+
+test("launcher relaunches an unpinned running app through the exact rendered scope", async ({
+  page,
+}) => {
+  await installFakeWails(page);
+  await page.addInitScript(
+    (state) => {
+      (window as any).__launcherState = state;
+    },
+    {
+      ...presentation(2, ""),
+      items: [
+        {
+          id: "running:editor",
+          name: "Editor",
+          icon: "",
+          kind: "app",
+          status: "ready",
+          running: true,
+        },
+      ],
+    },
+  );
+  await page.goto("/#/launcher/41");
+  await page.getByRole("button", { name: "Editor", exact: true }).click({ button: "right" });
+  await page.getByRole("button", { name: "Relaunch", exact: true }).click();
+  await expect
+    .poll(async () =>
+      (await getCallRecords(page)).filter(([name]) => name === "RelaunchLauncherItem"),
+    )
+    .toEqual([["RelaunchLauncherItem", 7, "display-main", 41, 2, "running:editor"]]);
+  expect(
+    (await getCallRecords(page)).filter(([name]) =>
+      ["ActivateLauncherItem", "ShowLauncherItemPanel"].includes(String(name)),
+    ),
+  ).toEqual([]);
 });
 
 test("keyboard navigation is explicitly admitted and selects without activating", async ({
@@ -114,7 +269,7 @@ for (const edge of ["bottom", "top", "left", "right"] as const) {
       ...presentation(2, "Mail"),
       edge,
       iconPx: 24,
-      bounds: { x: 0, y: 0, w: vertical ? 32 : 76, h: vertical ? 76 : 32 },
+      bounds: { X: 0, Y: 0, W: vertical ? 32 : 76, H: vertical ? 76 : 32 },
     };
     await page.addInitScript((launcher) => {
       (window as any).__launcherState = launcher;

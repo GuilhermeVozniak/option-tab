@@ -166,6 +166,7 @@ const METHOD = {
   SaveDiagnosticsReport: 1276106854,
   ActivateLauncherItem: 529143415,
   RelaunchLauncherItem: 3869413604,
+  SetLauncherAutoHideHold: 3848259349,
   GetLauncherItemSettings: 1300445933,
   GetLauncherItemStatus: 117720418,
   GetLauncherState: 1942731528,
@@ -493,6 +494,7 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json("");
       case "ActivateLauncherItem":
       case "RelaunchLauncherItem":
+      case "SetLauncherAutoHideHold":
       case "ShowLauncherItemPanel":
       case "CloseLauncherItemPanel":
       case "SetLauncherItemPanelSize":

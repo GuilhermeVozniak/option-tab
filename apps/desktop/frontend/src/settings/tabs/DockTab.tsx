@@ -297,6 +297,20 @@ export function DockTab({
               />
             </label>
           ))}
+          <label className={ROW}>
+            <span>{t("Dock middle-click action")}</span>
+            <Select
+              aria-label="Dock middle-click action"
+              value={input.middleClickAction}
+              onChange={(event) =>
+                patchInput({ middleClickAction: event.target.value as PointerAction })
+              }
+            >
+              <option value="none">{t("None")}</option>
+              <option value="close">{t("Close")}</option>
+              <option value="minimize">{t("Minimize")}</option>
+            </Select>
+          </label>
           {(
             [
               ["Swipe toward Dock", "swipeTowardDock"],

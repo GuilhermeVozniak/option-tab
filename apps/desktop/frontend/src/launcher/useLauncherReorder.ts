@@ -85,12 +85,14 @@ export function useLauncherReorder(ref: RefObject<HTMLUListElement | null>, opti
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", cancel);
+    window.addEventListener("lostpointercapture", cancel);
     window.addEventListener("keydown", key);
     return () => {
       clear();
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("lostpointercapture", cancel);
       window.removeEventListener("keydown", key);
     };
   }, [ref, options.owner, options.enabled]);

@@ -107,6 +107,10 @@ func (c *Controller) captureInteractionLocked(scope Scope) (InteractionAuthority
 func (c *Controller) ValidateInteraction(a InteractionAuthority) (Scope, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.validateInteractionLocked(a)
+}
+
+func (c *Controller) validateInteractionLocked(a InteractionAuthority) (Scope, error) {
 	if a.Admission == 0 || c.childAdmissions[a.Scope.DisplayUUID] != a.Admission {
 		return Scope{}, ErrRetired
 	}

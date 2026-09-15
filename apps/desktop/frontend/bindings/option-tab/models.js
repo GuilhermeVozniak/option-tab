@@ -529,6 +529,13 @@ export class DockViewState {
              */
             this["cardSpacingPx"] = 0;
         }
+        if (!("middleClickAction" in $$source)) {
+            /**
+             * @member
+             * @type {config$0.PointerAction}
+             */
+            this["middleClickAction"] = config$0.PointerAction.$zero;
+        }
         if (!("emptyReason" in $$source)) {
             /**
              * @member
@@ -580,7 +587,7 @@ export class DockViewState {
         const $$createField7_0 = $$createType10;
         const $$createField8_0 = $$createType1;
         const $$createField10_0 = $$createType2;
-        const $$createField13_0 = $$createType12;
+        const $$createField14_0 = $$createType12;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("contentOptions" in $$parsedSource) {
             $$parsedSource["contentOptions"] = $$createField1_0($$parsedSource["contentOptions"]);
@@ -601,7 +608,7 @@ export class DockViewState {
             $$parsedSource["appearance"] = $$createField10_0($$parsedSource["appearance"]);
         }
         if ("pointer" in $$parsedSource) {
-            $$parsedSource["pointer"] = $$createField13_0($$parsedSource["pointer"]);
+            $$parsedSource["pointer"] = $$createField14_0($$parsedSource["pointer"]);
         }
         return new DockViewState(/** @type {Partial<DockViewState>} */($$parsedSource));
     }

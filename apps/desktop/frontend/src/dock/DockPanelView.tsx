@@ -406,6 +406,16 @@ export function DockPanelView({
                           className={`ot-dock-preview${drag.current?.windowId === e.windowId && drag.current.dragging ? " is-dragging" : ""}`}
                           aria-label={`Focus ${e.title || e.appName}`}
                           draggable={false}
+                          onMouseDown={(event) => {
+                            if (event.button !== 1) return;
+                            event.preventDefault();
+                            const action = state.middleClickAction;
+                            if (action === "close" || action === "minimize")
+                              handlers.onAction(state.session, action, e.windowId, e.appId);
+                          }}
+                          onAuxClick={(event) => {
+                            if (event.button === 1) event.preventDefault();
+                          }}
                           onPointerDown={(event) => {
                             if (
                               !state.previewDragEnabled ||

@@ -56,6 +56,42 @@ it("sends session and explicit target and displays native errors", () => {
   expect(h.onAction).toHaveBeenCalledWith(7, "close", 102, 10);
 });
 
+it("applies one configured middle-click action to the clicked Dock preview without focus or drag", () => {
+  const h = {
+    onSelectWindow: vi.fn(),
+    onFocusWindow: vi.fn(),
+    onAction: vi.fn(),
+    onSize: vi.fn(),
+    onBeginDrag: vi.fn(),
+  };
+  const { rerender } = render(
+    <DockPanelView
+      state={{ ...state, middleClickAction: "close", previewDragEnabled: true }}
+      handlers={h}
+    />,
+  );
+  const preview = screen.getByRole("button", { name: "Focus Document B" });
+  fireEvent.pointerDown(preview, { button: 1, pointerId: 1, isPrimary: true });
+  fireEvent.mouseDown(preview, { button: 1 });
+  expect(h.onAction).toHaveBeenCalledExactlyOnceWith(7, "close", 102, 10);
+  fireEvent.mouseUp(preview, { button: 1 });
+  fireEvent(preview, new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+  expect(h.onAction).toHaveBeenCalledExactlyOnceWith(7, "close", 102, 10);
+  expect(h.onFocusWindow).not.toHaveBeenCalled();
+  expect(h.onBeginDrag).not.toHaveBeenCalled();
+  rerender(
+    <DockPanelView state={{ ...state, session: 8, middleClickAction: "minimize" }} handlers={h} />,
+  );
+  fireEvent.mouseDown(preview, { button: 1 });
+  fireEvent(preview, new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+  expect(h.onAction).toHaveBeenLastCalledWith(8, "minimize", 102, 10);
+  rerender(<DockPanelView state={{ ...state, middleClickAction: "none" }} handlers={h} />);
+  fireEvent.mouseDown(preview, { button: 1 });
+  fireEvent(preview, new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+  fireEvent(preview, new MouseEvent("auxclick", { bubbles: true, button: 2 }));
+  expect(h.onAction).toHaveBeenCalledTimes(2);
+});
+
 it("selects an available media or windows view without invoking window actions", () => {
   const h = {
     onSelectWindow: vi.fn(),

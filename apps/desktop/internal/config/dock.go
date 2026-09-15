@@ -42,6 +42,7 @@ var displayUUIDPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-
 func validDisplayUUID(value string) bool { return displayUUIDPattern.MatchString(value) }
 
 type DockInputSettings struct {
+	MiddleClickAction  PointerAction `json:"middleClickAction"`
 	ClickToHide        bool          `json:"clickToHide"`
 	ScrollShowHide     bool          `json:"scrollShowHide"`
 	ModifiedRightClick bool          `json:"modifiedRightClick"`
@@ -55,7 +56,8 @@ type DockInputSettings struct {
 
 func defaultDockInput() DockInputSettings {
 	return DockInputSettings{
-		SwipeTowardDock: PointerNone, SwipeAwayFromDock: PointerNone,
+		MiddleClickAction: PointerNone,
+		SwipeTowardDock:   PointerNone, SwipeAwayFromDock: PointerNone,
 		SwipePrevious: PointerNone, SwipeNext: PointerNone, AeroShakeAction: "none",
 	}
 }

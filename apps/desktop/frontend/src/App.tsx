@@ -30,6 +30,7 @@ import {
 import { dockLock } from "./lib/dock-lock-bridge";
 import { makeT, resolveLang } from "./lib/i18n";
 import { saveSettingsExport } from "./lib/json-export-bridge";
+import { setLauncherAutoHideHold } from "./lib/launcher-autohide-bridge";
 import { launcherBadges } from "./lib/launcher-badge-bridge";
 import {
   launcher,
@@ -144,6 +145,7 @@ function LauncherAppRoute({ session }: { session: number }) {
         activate: launcher.activate,
         relaunch: relaunchLauncherItem,
         mutate: mutateLauncherItems,
+        autoHideHold: setLauncherAutoHideHold,
         showPanel: showLauncherItemPanel,
         subscribe: onLauncherState,
         interactions: launcherInteractions,

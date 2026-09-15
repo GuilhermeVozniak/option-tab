@@ -204,14 +204,36 @@ describe("Overlay", () => {
     expect(h.onConfirmWindow).not.toHaveBeenCalled();
   });
 
-  it("fires one swipe action and ignores momentum after crossing the threshold", () => {
+  it("does not treat unqualified DOM wheel input as a switcher swipe", () => {
     const h = noopHandlers();
     const s = stateWith({ swipeUpAction: "minimize" });
     render(<Overlay state={s} handlers={h} />);
     const first = screen.getByText("main.go").closest('[role="option"]') as HTMLElement;
     fireEvent.wheel(first, { deltaY: -60 });
     fireEvent.wheel(first, { deltaY: -80 });
-    expect(h.onMinimize).toHaveBeenCalledTimes(1);
+    expect(h.onMinimize).not.toHaveBeenCalled();
+    expect(h.onConfirmWindow).not.toHaveBeenCalled();
+  });
+
+  it("does not invoke a configured swipe action while dragging with the primary mouse button", () => {
+    const h = noopHandlers();
+    render(<Overlay state={stateWith({ swipeUpAction: "close" })} handlers={h} />);
+    const first = screen.getByText("main.go").closest('[role="option"]') as HTMLElement;
+    const pointer = (type: string, y: number) => {
+      const event = new Event(type, { bubbles: true });
+      Object.defineProperties(event, {
+        button: { value: 0 },
+        isPrimary: { value: true },
+        pointerId: { value: 1 },
+        pointerType: { value: "mouse" },
+        clientY: { value: y },
+      });
+      fireEvent(first, event);
+    };
+    pointer("pointerdown", 100);
+    pointer("pointermove", 20);
+    pointer("pointerup", 20);
+    expect(h.onClose).not.toHaveBeenCalled();
     expect(h.onConfirmWindow).not.toHaveBeenCalled();
   });
 

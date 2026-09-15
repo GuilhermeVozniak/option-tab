@@ -4,10 +4,12 @@ import type { LauncherPresentation } from "../lib/types";
 import type { LauncherWidgetState, WidgetActions } from "../lib/widget-types";
 import { LauncherView } from "./LauncherView";
 import type { LauncherItemMutation } from "./reorder";
+import type { LauncherAutoHideHold } from "./useLauncherAutoHideHold";
 import { useLauncherBadges } from "./useLauncherBadges";
 import type { LauncherInteractionTransport } from "./useLauncherInteractions";
 
 export interface LauncherTransport {
+  autoHideHold?: LauncherAutoHideHold;
   badges?: LauncherBadgeTransport;
   getState(session: number): Promise<LauncherPresentation | null>;
   activate(
@@ -183,6 +185,7 @@ export function LauncherRoute({
       <LauncherView
         badges={badges}
         presentation={state}
+        onAutoHideHold={transport.autoHideHold}
         onActivate={(...args) => performItem(transport.activate, args)}
         onRelaunch={relaunch ? (...args) => performItem(relaunch, args) : undefined}
         onShowPanel={

@@ -33,6 +33,29 @@ export function makeT(lang: Lang): Translate {
 }
 
 const PT: Record<string, string> = {
+  Cancel: "Cancelar",
+  "Select again": "Selecionar novamente",
+  Opacity: "Opacidade",
+  "Corner radius": "Raio dos cantos",
+  Enabled: "Ativado",
+  "Fade in the selected-window preview": "Exibir a prévia da janela selecionada gradualmente",
+  "Navigate with arrow keys": "Navegar com as teclas de seta",
+  "Trackpad haptic feedback when the selection changes":
+    "Resposta tátil do trackpad quando a seleção muda",
+  "Shortcuts while the switcher is open": "Atalhos enquanto o alternador está aberto",
+  "type any text": "digite qualquer texto",
+  "The modifier is whichever key your shortcut holds (e.g. ⌥ for Option+Tab).":
+    "O modificador é a tecla mantida pressionada pelo atalho (por exemplo, ⌥ para Option+Tab).",
+  "Loading…": "Carregando…",
+  "System default": "Padrão do sistema",
+  "Widget icon": "Ícone do widget",
+  "Loading icon…": "Carregando ícone…",
+  Progress: "Progresso",
+  History: "Histórico",
+  Widget: "Widget",
+  "Dock middle-click action": "Ação do clique do meio no Dock",
+  "Switcher swipe actions are unavailable until native trackpad input is supported. Saved choices are preserved.":
+    "As ações de deslizar no alternador ficam indisponíveis até haver suporte à entrada nativa do trackpad. As opções salvas são preservadas.",
   "Profile exported.": "Perfil exportado.",
   "Settings exported.": "Configurações exportadas.",
   "Settings imported.": "Configurações importadas.",
@@ -705,6 +728,30 @@ const PT: Record<string, string> = {
 };
 
 const ES: Record<string, string> = {
+  Cancel: "Cancelar",
+  "Select again": "Seleccionar de nuevo",
+  Opacity: "Opacidad",
+  "Corner radius": "Radio de las esquinas",
+  Enabled: "Activado",
+  "Fade in the selected-window preview":
+    "Mostrar gradualmente la vista previa de la ventana seleccionada",
+  "Navigate with arrow keys": "Navegar con las teclas de flecha",
+  "Trackpad haptic feedback when the selection changes":
+    "Respuesta háptica del trackpad cuando cambia la selección",
+  "Shortcuts while the switcher is open": "Atajos mientras el conmutador está abierto",
+  "type any text": "escribe cualquier texto",
+  "The modifier is whichever key your shortcut holds (e.g. ⌥ for Option+Tab).":
+    "El modificador es la tecla que mantienes pulsada en el atajo (por ejemplo, ⌥ para Option+Tab).",
+  "Loading…": "Cargando…",
+  "System default": "Predeterminado del sistema",
+  "Widget icon": "Icono del widget",
+  "Loading icon…": "Cargando icono…",
+  Progress: "Progreso",
+  History: "Historial",
+  Widget: "Widget",
+  "Dock middle-click action": "Acción del clic central en el Dock",
+  "Switcher swipe actions are unavailable until native trackpad input is supported. Saved choices are preserved.":
+    "Las acciones de deslizamiento del conmutador no están disponibles hasta que se admita la entrada nativa del trackpad. Las opciones guardadas se conservan.",
   "Profile exported.": "Perfil exportado.",
   "Settings exported.": "Configuración exportada.",
   "Settings imported.": "Configuración importada.",

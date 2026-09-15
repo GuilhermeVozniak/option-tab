@@ -21,6 +21,8 @@ test("Dock route keeps session targets and displays current native failures", as
     },
     entries: [{ ...base.entries[0], windowId: 102, appId: 10, title: "Document B" }],
     selectedWindowId: 102,
+    middleClickAction: "minimize",
+    previewDragEnabled: true,
     appearance: { ...base.appearance, showWindowControls: true },
     emptyReason: "",
   };
@@ -30,6 +32,17 @@ test("Dock route keeps session targets and displays current native failures", as
     w._wails.dispatchWailsEvent({ name: "dock:show", data: s });
   }, state);
   await expect(page.getByRole("button", { name: "Focus Document B" })).toBeVisible();
+  await page.getByRole("button", { name: "Focus Document B" }).click({ button: "middle" });
+  await expect
+    .poll(async () =>
+      (await getCallRecords(page)).filter((call) => call[0] === "PerformDockAction"),
+    )
+    .toEqual([["PerformDockAction", 7, "minimize", 102, 10]]);
+  expect(
+    (await getCallRecords(page)).filter((call) =>
+      ["FocusDockWindow", "BeginDockPreviewDrag"].includes(call[0]),
+    ),
+  ).toHaveLength(0);
   await page.locator(".ot-dock-list article").hover();
   await page.getByLabel("Close window").click();
   await expect

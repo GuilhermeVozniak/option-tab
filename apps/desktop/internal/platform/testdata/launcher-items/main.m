@@ -3,8 +3,11 @@ static BOOL admission = YES;
 static NSMutableArray *mainQueue;
 static void (^beforeGuard)(void);
 static int opened;
+static NSURL *openedURL;
+static BOOL safeOpenConfiguration, panelAdmission = YES;
 static id selectedProcess;
 static BOOL refuseTerminate, holdTermination;
+static void (^afterTerminate)(void);
 static int terminateCount;
 #define OT_ITEM_PROCESS_APP(pid) (selectedProcess)
 #define OT_ITEM_WORK(block) block()
@@ -33,6 +36,8 @@ static BOOL changeProcess;
     return NO;
   if (!holdTermination)
     self.terminated = YES;
+  if (afterTerminate)
+    afterTerminate();
   return YES;
 }
 @end
@@ -46,6 +51,10 @@ static BOOL changeProcess;
 #define OT_ITEM_OPEN_APP(url, config, done)                                    \
   do {                                                                         \
     opened++;                                                                  \
+    openedURL = url;                                                            \
+    safeOpenConfiguration = !config.promptsUserIfNeeded &&                      \
+        !config.addsToRecentItems && !config.allowsRunningApplicationSubstitution \
+        && !config.createsNewApplicationInstance;                              \
     done(nil, nil);                                                            \
   } while (0)
 #define OT_ITEM_OPEN_URL(url, config, done)                                    \
@@ -54,7 +63,7 @@ static BOOL changeProcess;
     done(nil, nil);                                                            \
   } while (0)
 #define OT_ITEM_CURRENT(t) (admission)
-#define OT_ITEM_PANEL_CURRENT(t, d) (YES)
+#define OT_ITEM_PANEL_CURRENT(t, d) (panelAdmission)
 #define OT_ITEM_BEFORE_GUARD()                                                 \
   do {                                                                         \
     if (beforeGuard)                                                           \
@@ -66,6 +75,88 @@ static void require(BOOL value, NSString *message) {
     fprintf(stderr, "%s\n", message.UTF8String);
     exit(1);
   }
+}
+static void drainMain(void) {
+  while (mainQueue.count) {
+    void (^work)(void) = mainQueue.firstObject;
+    [mainQueue removeObjectAtIndex:0];
+    work();
+  }
+}
+
+static void runningRelaunchCases(FixtureRunning *app, FixtureRunning *other,
+                                 NSString *dir) {
+  selectedProcess = app;
+  app.terminated = NO;
+  running = @[app];
+  for (NSString *kind in @[@"wrongPID", @"wrongStart", @"wrongBundle", @"reuse", @"ambiguous"]) {
+    processReads = 0;
+    changeProcess = [kind isEqual:@"reuse"];
+    other.bundleURL = app.bundleURL;
+    running = [kind isEqual:@"ambiguous"] ? @[app, other] : @[app];
+    char *error = NULL;
+    void *captured = ot_launcher_item_capture_running(
+        [kind isEqual:@"wrongPID"] ? 43 : 42,
+        [kind isEqual:@"wrongStart"] ? 2 : 1, 0,
+        [kind isEqual:@"wrongBundle"] ? "other.bundle" : "org.optiontab.fixture", &error);
+    require(!captured && error && terminateCount == 0 && opened == 0,
+            [@"running capture admitted " stringByAppendingString:kind]);
+    free(error);
+    changeProcess = NO;
+  }
+  for (NSString *kind in @[@"current", @"refused", @"timeout", @"cancelAfterExit", @"newProcess", @"resource", @"panel", @"cancelPreparation", @"reusePreparation"]) {
+    app.terminated = NO;
+    other.terminated = NO;
+    running = @[app];
+    selectedProcess = app;
+    admission = panelAdmission = YES;
+    refuseTerminate = holdTermination = NO;
+    opened = terminateCount = processReads = 0;
+    openedURL = nil;
+    safeOpenConfiguration = NO;
+    char *error = NULL;
+    void *captured = ot_launcher_item_capture_running(42, 1, 0, "org.optiontab.fixture", &error);
+    require(captured && !error, @"exact running capture failed");
+    OTLauncherItemScope *scope = (__bridge OTLauncherItemScope *)captured;
+    require(!scope.scoped && [scope.url.path isEqual:app.bundleURL.path],
+            @"running capture invented persisted/bookmark authority");
+    NSString *changedFile = [app.bundleURL.path stringByAppendingPathComponent:@"Changed"];
+    if ([kind isEqual:@"resource"])
+      require([@"changed" writeToFile:changedFile atomically:YES encoding:NSUTF8StringEncoding error:nil], @"resource mutation");
+    if ([kind isEqual:@"panel"]) panelAdmission = NO;
+    if ([kind isEqual:@"cancelPreparation"]) admission = NO;
+    if ([kind isEqual:@"reusePreparation"]) changeProcess = YES;
+    refuseTerminate = [kind isEqual:@"refused"];
+    holdTermination = [kind isEqual:@"timeout"];
+    afterTerminate = ^{
+      if ([kind isEqual:@"cancelAfterExit"]) admission = NO;
+      if ([kind isEqual:@"newProcess"]) running = @[other];
+    };
+    void *job = ot_launcher_item_open(captured, "relaunch", "fixture", 1, 42, 1, 0, "", 1);
+    drainMain();
+    char *reply = ot_launcher_item_poll(job);
+    BOOL success = [kind isEqual:@"current"];
+    require(reply != NULL && (success ? !strstr(reply, "error") : strstr(reply, "error") != NULL), [@"relaunch result " stringByAppendingString:kind]);
+    require(opened == (success ? 1 : 0), [@"relaunch dispatch " stringByAppendingString:kind]);
+    if (success)
+      require(terminateCount == 1 && safeOpenConfiguration && [openedURL isEqual:app.bundleURL], @"unsafe running relaunch URL/configuration");
+    if ([kind isEqual:@"resource"] || [kind isEqual:@"panel"] || [kind isEqual:@"cancelPreparation"] || [kind isEqual:@"reusePreparation"])
+      require(terminateCount == 0, @"retired preparation terminated app");
+    if ([kind isEqual:@"timeout"])
+      require(strstr(reply, "timeout") != NULL, @"graceful exit timeout missing");
+    free(reply);
+    ot_launcher_item_release(job);
+    ot_launcher_item_scope_release(captured);
+    afterTerminate = nil;
+    changeProcess = NO;
+    if ([kind isEqual:@"resource"])
+      [NSFileManager.defaultManager removeItemAtPath:changedFile error:nil];
+  }
+  admission = panelAdmission = YES;
+  refuseTerminate = holdTermination = NO;
+  terminateCount = opened = 0;
+  app.terminated = NO;
+  other.bundleURL = [NSURL fileURLWithPath:[dir stringByAppendingPathComponent:@"Other.app"]];
 }
 int main() {
   @autoreleasepool {
@@ -129,6 +220,12 @@ int main() {
       other.bundleIdentifier = app.bundleIdentifier;
       other.bundleURL = [NSURL
           fileURLWithPath:[dir stringByAppendingPathComponent:@"Other.app"]];
+      runningRelaunchCases(app, other, dir);
+      // Refresh the independently configured scope after the deliberate
+      // resource-replacement case; configured authority remains separate.
+      appRecord = itemSelect(app.bundleURL, @"app", 1);
+      appScope = itemResolve(appRecord);
+      require(appScope != nil, @"configured scope refresh");
       running = @[ app, other ];
       processReads = 0;
       require([itemRunning(appScope)[@"pid"] intValue] == 42,

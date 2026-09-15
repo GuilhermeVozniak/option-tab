@@ -2,6 +2,14 @@ package platform
 
 import "context"
 
+// LauncherAppRelauncher captures ephemeral bundle-resource authority from an
+// exact running process. It creates no selected reference or persisted grant.
+// The native operation must revalidate that authority and its panel before
+// terminating, wait for graceful exit, and revalidate before opening that URL.
+type LauncherAppRelauncher interface {
+	RelaunchLauncherApp(context.Context, LauncherAppTarget, func() error) error
+}
+
 // LauncherReference describes a private user-selected resource. Persistent
 // bookmark bytes and resolved filesystem paths never cross the renderer bridge.
 type LauncherReference struct {

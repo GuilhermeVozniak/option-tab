@@ -280,7 +280,9 @@ test.describe("overlay — interactive", () => {
       .toContainEqual(["PerformAction", "minimize", 1, 1]);
   });
 
-  test("consumes the click synthesized after a pointer swipe", async ({ page }) => {
+  test("does not interpret an ordinary mouse drag as a configured switcher swipe", async ({
+    page,
+  }) => {
     await emitShow(page, showState({ swipeUpAction: "minimize", mouseHover: false }));
     const box = await page.getByRole("option").first().boundingBox();
     if (!box) throw new Error("entry has no bounding box");
@@ -288,28 +290,20 @@ test.describe("overlay — interactive", () => {
     await page.mouse.down();
     await page.mouse.move(box.x + 40, box.y + 10, { steps: 5 });
     await page.mouse.up();
-    await expect
-      .poll(() => getCallRecords(page))
-      .toContainEqual(["PerformAction", "minimize", 1, 1]);
-    expect((await getCallRecords(page)).filter((call) => call[0] === "ConfirmWindow")).toHaveLength(
+    expect((await getCallRecords(page)).filter((call) => call[0] === "PerformAction")).toHaveLength(
       0,
     );
   });
 
-  test("accumulates small wheel deltas and fires once for uninterrupted momentum", async ({
-    page,
-  }) => {
+  test("keeps unqualified wheel streams from invoking switcher swipe actions", async ({ page }) => {
     await emitShow(page, showState({ swipeUpAction: "minimize" }));
     const entry = page.getByRole("option").first();
     for (let i = 0; i < 12; i++) await entry.dispatchEvent("wheel", { deltaY: -10 });
-    await expect
-      .poll(() => getCallRecords(page))
-      .toContainEqual(["PerformAction", "minimize", 1, 1]);
     for (let i = 0; i < 8; i++) {
       await entry.dispatchEvent("wheel", { deltaY: -60 });
       await page.waitForTimeout(60);
     }
-    expect((await getCallRecords(page)).filter((call) => call[1] === "minimize")).toHaveLength(1);
+    expect((await getCallRecords(page)).filter((call) => call[1] === "minimize")).toHaveLength(0);
   });
 
   test("retains the preview image node across live frames and remounts on selection", async ({

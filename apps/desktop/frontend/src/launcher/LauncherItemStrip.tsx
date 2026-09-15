@@ -3,6 +3,7 @@ import type { LauncherBadgeEntry } from "../lib/launcher-badge-types";
 import type { LauncherMutateCommand } from "../lib/launcher-item-runtime-bridge";
 import type { LauncherPresentation, LauncherPresentationItem } from "../lib/types";
 import { type LauncherItemMutation, reorderable, reorderChoices } from "./reorder";
+import { type LauncherAutoHideHold, useLauncherAutoHideHold } from "./useLauncherAutoHideHold";
 import { useLauncherReorder } from "./useLauncherReorder";
 
 import { useMagnification } from "./useMagnification";
@@ -23,6 +24,7 @@ export function LauncherItemStrip({
   onMutate,
   selectedItemID,
   onReorderTarget,
+  onAutoHideHold,
   badges,
   t,
 }: {
@@ -33,6 +35,7 @@ export function LauncherItemStrip({
   onMutate?: LauncherMutateCommand;
   selectedItemID?: string;
   onReorderTarget?: (itemID: string) => void;
+  onAutoHideHold?: LauncherAutoHideHold;
   badges?: ReadonlyMap<string, LauncherBadgeEntry>;
   t: (text: string) => string;
 }) {
@@ -58,6 +61,17 @@ export function LauncherItemStrip({
     itemsKey: `${itemsKey}:${group}`,
   });
   const [reorderMenu, setReorderMenu] = useState("");
+  const hold = useLauncherAutoHideHold(
+    presentation,
+    !!(group || contextItem || reorderMenu),
+    onAutoHideHold,
+    () => {
+      setGroup("");
+      setContextItem("");
+      setReorderMenu("");
+    },
+    itemsKey,
+  );
   const reorderOwner = `${presentation.epoch}:${presentation.displayUUID}:${presentation.session}:${presentation.profileID}:${presentation.revision}:${presentation.itemsRevision}`;
   const reorderEnabled =
     !!presentation.runtimeReorder && !!presentation.itemsRevision && !!onMutate;
@@ -135,8 +149,7 @@ export function LauncherItemStrip({
             ? t("Dock badge indicator")
             : ""
         : "";
-    const canRelaunch =
-      kind === "app" && ready && item.running && !!item.referenceRevision && !!onRelaunch;
+    const canRelaunch = kind === "app" && ready && item.running && !!onRelaunch;
     const status = ready
       ? item.running
         ? t("Running")
@@ -307,6 +320,7 @@ export function LauncherItemStrip({
   return (
     <ul
       ref={strip}
+      {...hold}
       onClickCapture={reorder.suppressClick}
       onDragOver={(event) => event.preventDefault()}
       onDrop={(event) => event.preventDefault()}

@@ -235,7 +235,7 @@ describe("AppSwitcher", () => {
     });
   });
 
-  it("honors gallery hover, middle click, and swipe actions without confirming a swipe", () => {
+  it("honors gallery middle click without treating a primary mouse drag as a swipe", () => {
     const h = handlers();
     render(
       <AppSwitcher
@@ -283,11 +283,11 @@ describe("AppSwitcher", () => {
     fireEvent(preview, pointer("pointerdown", 100));
     fireEvent(preview, pointer("pointermove", 40));
     fireEvent(preview, pointer("pointerup", 40));
-    expect(h.onClose).toHaveBeenCalledWith(101);
+    expect(h.onClose).not.toHaveBeenCalled();
     expect(h.onConfirmWindow).not.toHaveBeenCalled();
   });
 
-  it("keeps streamed frames out of app-icon and title styles and reduces wheel momentum once", () => {
+  it("keeps streamed frames out of compact styles and rejects unqualified DOM wheel actions", () => {
     vi.useFakeTimers();
     const h = handlers();
     const state = {
@@ -337,7 +337,7 @@ describe("AppSwitcher", () => {
       fireEvent.wheel(card, { deltaY: -10 });
       act(() => vi.advanceTimersByTime(60));
     }
-    expect(h.onClose).toHaveBeenCalledTimes(1);
+    expect(h.onClose).not.toHaveBeenCalled();
     expect(h.onConfirmWindow).not.toHaveBeenCalled();
     vi.useRealTimers();
   });

@@ -34,23 +34,24 @@ type DockItemView struct {
 }
 
 type DockViewState struct {
-	ContentKind        string            `json:"contentKind"`
-	ContentOptions     []string          `json:"contentOptions"`
-	Folder             *dock.FolderState `json:"folder,omitempty"`
-	Media              *MediaViewState   `json:"media,omitempty"`
-	Open               bool              `json:"open"`
-	Revision           uint64            `json:"revision"`
-	Session            uint64            `json:"session"`
-	Item               DockItemView      `json:"item"`
-	Entries            []switcher.Entry  `json:"entries"`
-	SelectedWindowID   domain.WindowID   `json:"selectedWindowId"`
-	Appearance         config.Appearance `json:"appearance"`
-	CardSpacingPx      int               `json:"cardSpacingPx"`
-	EmptyReason        string            `json:"emptyReason"`
-	Pointer            *DockPointer      `json:"pointer,omitempty"`
-	Error              string            `json:"error,omitempty"`
-	PreviewDragEnabled bool              `json:"previewDragEnabled"`
-	DragGestureFloor   uint64            `json:"dragGestureFloor"`
+	ContentKind        string               `json:"contentKind"`
+	ContentOptions     []string             `json:"contentOptions"`
+	Folder             *dock.FolderState    `json:"folder,omitempty"`
+	Media              *MediaViewState      `json:"media,omitempty"`
+	Open               bool                 `json:"open"`
+	Revision           uint64               `json:"revision"`
+	Session            uint64               `json:"session"`
+	Item               DockItemView         `json:"item"`
+	Entries            []switcher.Entry     `json:"entries"`
+	SelectedWindowID   domain.WindowID      `json:"selectedWindowId"`
+	Appearance         config.Appearance    `json:"appearance"`
+	CardSpacingPx      int                  `json:"cardSpacingPx"`
+	MiddleClickAction  config.PointerAction `json:"middleClickAction"`
+	EmptyReason        string               `json:"emptyReason"`
+	Pointer            *DockPointer         `json:"pointer,omitempty"`
+	Error              string               `json:"error,omitempty"`
+	PreviewDragEnabled bool                 `json:"previewDragEnabled"`
+	DragGestureFloor   uint64               `json:"dragGestureFloor"`
 }
 
 type DockPointer struct {
@@ -205,6 +206,11 @@ func (a *App) showDock(st dock.State, first bool) {
 		}
 	}
 	dto.PreviewDragEnabled = st.ContentKind == "windows" && a.settingsSnapshot().Dock.Input.PreviewDrag
+	if st.ContentKind == "windows" {
+		dto.MiddleClickAction = a.settingsSnapshot().Dock.Input.MiddleClickAction
+	} else {
+		dto.MiddleClickAction = config.PointerNone
+	}
 	if a.media != nil && st.ContentKind == "media" {
 		if p := a.media.panels[a.media.hover]; p != nil {
 			s := a.mediaViewLocked(p)

@@ -443,6 +443,47 @@ static BOOL itemProcess(int pid, uint64_t sec, uint64_t usec) {
   return pid > 0 && sec && OT_ITEM_PROCESS_INFO(pid, &info) &&
          info.pbi_start_tvsec == sec && info.pbi_start_tvusec == usec;
 }
+// Temporary authority comes only from the captured running application's URL,
+// never a renderer path, bookmark hint, bundle lookup or persisted reference.
+void *ot_launcher_item_capture_running(int pid, uint64_t sec, uint64_t usec,
+                                       const char *bundle, char **error) {
+  @autoreleasepool {
+    NSString *expected = bundle ? [NSString stringWithUTF8String:bundle] : nil;
+    NSRunningApplication *app = OT_ITEM_PROCESS_APP(pid);
+    if (!expected.length || expected.length > 1024 || !itemProcess(pid, sec, usec) ||
+        !app || app.processIdentifier != pid || app.terminated ||
+        ![app.bundleIdentifier isEqual:expected]) {
+      *error = strdup("changed");
+      return NULL;
+    }
+    OTLauncherItemScope *scope = [OTLauncherItemScope new];
+    scope.url = app.bundleURL;
+    scope.kind = @"app";
+    scope.bundle = expected;
+    NSString *actual = @"";
+    struct stat identity;
+    if (!itemKind(scope.url, scope.kind, &actual) || ![actual isEqual:expected] ||
+        lstat(scope.url.fileSystemRepresentation, &identity)) {
+      *error = strdup("changed");
+      return NULL;
+    }
+    scope.identity = identity;
+    NSDictionary *current = itemRunning(scope);
+    app = OT_ITEM_PROCESS_APP(pid);
+    if (![current[@"state"] isEqual:@"running"] ||
+        [current[@"pid"] intValue] != pid ||
+        [current[@"startSeconds"] unsignedLongLongValue] != sec ||
+        [current[@"startMicros"] unsignedLongLongValue] != usec ||
+        !app || app.processIdentifier != pid || app.terminated ||
+        ![app.bundleIdentifier isEqual:expected] ||
+        ![app.bundleURL.path isEqual:scope.url.path] ||
+        !itemSame(scope) || !itemProcess(pid, sec, usec)) {
+      *error = strdup("changed");
+      return NULL;
+    }
+    return (__bridge_retained void *)scope;
+  }
+}
 void *ot_launcher_item_open(void *p, const char *kind, const char *display,
                             uint64_t token, int pid, uint64_t sec,
                             uint64_t usec, const char *link, uintptr_t guard) {

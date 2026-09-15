@@ -131,7 +131,11 @@ func (a *App) widgetPackageLocked(w config.WidgetInstance) *widgets.Package {
 func widgetCatalogItem(p *widgets.Package) WidgetCatalogItem {
 	m := p.Manifest()
 	builtin, exists := widgets.Builtin(m.ID)
-	return WidgetCatalogItem{PackageID: m.ID, Digest: p.Digest(), Version: m.Version, Name: m.Name, Description: m.Description, RequiredCapabilities: append([]string{}, m.RequiredCapabilities...), OptionalCapabilities: append([]string{}, m.OptionalCapabilities...), Settings: append([]widgets.Setting{}, m.Settings...), Builtin: exists && builtin.Digest() == p.Digest()}
+	item := WidgetCatalogItem{PackageID: m.ID, Digest: p.Digest(), Version: m.Version, Name: m.Name, Description: m.Description, RequiredCapabilities: append([]string{}, m.RequiredCapabilities...), OptionalCapabilities: append([]string{}, m.OptionalCapabilities...), Settings: append([]widgets.Setting{}, m.Settings...), Builtin: exists && builtin.Digest() == p.Digest()}
+	if item.Builtin {
+		localizeBuiltinWidgetCatalog(&item)
+	}
+	return item
 }
 
 func (a *App) GetWidgetCatalog() []WidgetCatalogItem {
@@ -193,7 +197,7 @@ func widgetStackKey(session uint64, stack string) string {
 
 func (a *App) widgetNameLocked(w config.WidgetInstance) widgets.Localized {
 	if p := a.widgetPackageLocked(w); p != nil {
-		return p.Manifest().Name
+		return widgetCatalogItem(p).Name
 	}
 	return widgets.Localized{"en": w.PackageID}
 }

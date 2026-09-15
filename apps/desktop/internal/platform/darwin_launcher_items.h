@@ -4,6 +4,7 @@ void ot_launcher_item_cancel(void *);
 char *ot_launcher_item_poll(void *);
 void ot_launcher_item_release(void *);
 void *ot_launcher_item_resolve(const char *, char **);
+void *ot_launcher_item_capture_running(int, uint64_t, uint64_t, const char *, char **);
 char *ot_launcher_item_scope_info(void *);
 void ot_launcher_item_scope_release(void *);
 void *ot_launcher_item_open(void *, const char *, const char *, uint64_t, int,
