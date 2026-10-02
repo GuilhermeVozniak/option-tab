@@ -113,7 +113,7 @@ func main() {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte(page))
 	})}})
-	host := app.Window.NewWithOptions(application.WebviewWindowOptions{Name: "launcher-input-port-probe", Title: "Manual input port probe", Width: 420, Height: 260, Hidden: true, Frameless: true})
+	host := app.Window.NewWithOptions(application.WebviewWindowOptions{Name: "launcher-input-port-probe", Title: "Manual input port probe", Width: 420, Height: 260, Hidden: true, Frameless: true, Mac: application.MacWindow{CornerType: application.MacWindowCornerTypeSquare}})
 	app.Event.OnApplicationEvent(events.Mac.ApplicationDidFinishLaunching, func(*application.ApplicationEvent) {
 		go func() {
 			defer func() { cleaned.Store(true); app.Quit() }()

@@ -53,6 +53,8 @@ func main() {
 	// Wails from these options. AlwaysOnTop is NOT: for hidden windows Wails
 	// only applies it on WindowDidBecomeKey, which never fires for a
 	// never-activated window, so App.Show re-asserts it via SetAlwaysOnTop.
+	// Keep frameless windows truly borderless instead of Wails' default AppKit
+	// title frame. CSS and the owned native panels control visible corner clipping.
 	overlay := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:          "overlay",
 		Title:         "Option Tab",
@@ -64,6 +66,7 @@ func main() {
 		DisableResize: true,
 		Mac: application.MacWindow{
 			Backdrop:      application.MacBackdropTransparent,
+			CornerType:    application.MacWindowCornerTypeSquare,
 			DisableShadow: true, // the panel draws its own CSS shadow
 			Appearance:    application.NSAppearanceNameDarkAqua,
 		},
@@ -120,7 +123,7 @@ func main() {
 			window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 				Name: "dock-preview", Title: "Option Tab Dock preview", Width: 320, Height: 200,
 				Hidden: true, Frameless: true, DisableResize: true, URL: "/#/dock",
-				Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
+				Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, CornerType: application.MacWindowCornerTypeSquare, DisableShadow: true},
 			})
 			window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
 				if app.dockWindow != nil {
@@ -138,7 +141,7 @@ func main() {
 				window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 					Name: fmt.Sprintf("media-%s-%d", provider, session), Title: "Option Tab media", Width: 420, Height: 460,
 					Hidden: true, Frameless: true, DisableResize: true, URL: fmt.Sprintf("/#/media/%d", session),
-					Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
+					Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, CornerType: application.MacWindowCornerTypeSquare, DisableShadow: true},
 				})
 				window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
 					if scheduled.markHostClosedIf(window) {
@@ -161,7 +164,7 @@ func main() {
 				window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 					Name: fmt.Sprintf("automation-preview-%d", session), Title: "Option Tab app previews", Width: 420, Height: 300,
 					Hidden: true, Frameless: true, DisableResize: true, URL: fmt.Sprintf("/#/automation/%d", session),
-					Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
+					Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, CornerType: application.MacWindowCornerTypeSquare, DisableShadow: true},
 				})
 				window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
 					if scheduled.markHostClosedIf(window) {
@@ -185,7 +188,7 @@ func main() {
 					window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 						Name: fmt.Sprintf("%s-%d", route, session), Title: title, Width: width, Height: height,
 						Hidden: true, Frameless: true, DisableResize: true, URL: fmt.Sprintf("/#/%s/%d", route, session),
-						Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, DisableShadow: true},
+						Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent, CornerType: application.MacWindowCornerTypeSquare, DisableShadow: true},
 					})
 					window.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
 						if scheduled.markHostClosedIf(window) {

@@ -53,7 +53,7 @@ func main() {
 	}
 	probe := &Probe{ready: make(chan struct{}, 1), hits: make(chan hit, 8)}
 	app := application.New(application.Options{Name: "Option Tab isolated panel smoke", Services: []application.Service{application.NewService(probe)}, Mac: application.MacOptions{ActivationPolicy: application.ActivationPolicyAccessory}, Assets: application.AssetOptions{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(html)) })}})
-	host := app.Window.NewWithOptions(application.WebviewWindowOptions{Name: "hidden-dock-smoke-host", Title: "Hidden Dock smoke host", Width: 300, Height: 160, Hidden: true, Frameless: true})
+	host := app.Window.NewWithOptions(application.WebviewWindowOptions{Name: "hidden-dock-smoke-host", Title: "Hidden Dock smoke host", Width: 300, Height: 160, Hidden: true, Frameless: true, Mac: application.MacWindow{CornerType: application.MacWindowCornerTypeSquare}})
 	app.Event.OnApplicationEvent(events.Mac.ApplicationDidFinishLaunching, func(*application.ApplicationEvent) {
 		go func() {
 			fail := func(err any) { fmt.Fprintln(os.Stderr, "SMOKE FAIL:", err); os.Exit(2) }

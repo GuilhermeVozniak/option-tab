@@ -3,7 +3,7 @@ module option-tab
 go 1.26
 
 require (
-	github.com/wailsapp/wails/v3 v3.0.0-alpha2.117
+	github.com/wailsapp/wails/v3 v3.0.0-beta.5
 	golang.org/x/image v0.45.0
 )
 
