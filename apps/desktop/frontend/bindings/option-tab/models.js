@@ -2089,6 +2089,34 @@ export class SettingsState {
     }
 }
 
+export class SwitcherGestureCapabilities {
+    /**
+     * Creates a new SwitcherGestureCapabilities instance.
+     * @param {Partial<SwitcherGestureCapabilities>} [$$source = {}] - The source object to create the SwitcherGestureCapabilities.
+     */
+    constructor($$source = {}) {
+        if (!("available" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["available"] = false;
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new SwitcherGestureCapabilities instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {SwitcherGestureCapabilities}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new SwitcherGestureCapabilities(/** @type {Partial<SwitcherGestureCapabilities>} */($$parsedSource));
+    }
+}
+
 export class WidgetCatalogItem {
     /**
      * Creates a new WidgetCatalogItem instance.

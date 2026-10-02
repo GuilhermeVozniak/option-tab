@@ -104,9 +104,11 @@ func main() {
 	liveOverlay := app.overlay
 	overlay.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) {
 		liveOverlay.markClosed()
+		app.stopSwitcherGestures()
 		go app.materialHostClosed(liveOverlay)
 	})
 	overlay.OnWindowEvent(events.Common.WindowDidResize, func(*application.WindowEvent) {
+		app.retireSwitcherGestureGeometry()
 		epoch := liveOverlay.materialResized()
 		go app.materialHostResized(liveOverlay, epoch)
 	})

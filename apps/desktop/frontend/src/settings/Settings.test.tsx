@@ -13,6 +13,33 @@ const makeShortcuts = (n: number): Shortcut[] =>
   }));
 
 describe("Settings", () => {
+  it("enables native switcher swipes while keeping both modes' saved actions independent", () => {
+    const settings = structuredClone(defaultSettings);
+    settings.behavior.swipeUpAction = "close";
+    settings.appSwitcher.behavior.swipeUpAction = "minimize";
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <Settings settings={settings} onChange={onChange} switcherGesturesAvailable />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    expect(screen.getByLabelText("Swipe up action")).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("Swipe down action"), { target: { value: "hide" } });
+    expect(onChange.mock.lastCall?.[0].behavior.swipeDownAction).toBe("hide");
+    expect(onChange.mock.lastCall?.[0].appSwitcher.behavior).toEqual(settings.appSwitcher.behavior);
+    fireEvent.change(screen.getByLabelText("Switcher settings mode"), {
+      target: { value: "apps" },
+    });
+    expect(screen.getByLabelText("Swipe up action")).toHaveValue("minimize");
+    fireEvent.change(screen.getByLabelText("Swipe up action"), { target: { value: "quit" } });
+    expect(onChange.mock.lastCall?.[0].appSwitcher.behavior.swipeUpAction).toBe("quit");
+    expect(onChange.mock.lastCall?.[0].behavior).toEqual(settings.behavior);
+    rerender(
+      <Settings settings={settings} onChange={onChange} switcherGesturesAvailable={false} />,
+    );
+    expect(screen.getByLabelText("Swipe up action")).toBeDisabled();
+    expect(screen.getByLabelText("Swipe up action")).toHaveValue("minimize");
+    expect(screen.getByText("Native switcher gesture input is unavailable.")).toBeInTheDocument();
+  });
   it("keeps saved switcher swipe choices visible but unavailable without qualified native input", () => {
     const settings = structuredClone(defaultSettings);
     settings.behavior.swipeUpAction = "close";

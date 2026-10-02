@@ -2,6 +2,7 @@ package widgetproviders
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -195,5 +196,27 @@ func TestAudioLongDisplayNameKeepsChooserWithinRuntimeBounds(t *testing.T) {
 	}
 	if len([]rune(*got.Fields["outputName"].Text)) != 300 {
 		t.Fatal("shorter option bound incorrectly truncated ordinary display field")
+	}
+}
+
+func TestAudioGeneratedFallbackIsDistinctFromDeviceName(t *testing.T) {
+	source := &audioFake{sample: platform.AudioOutputSnapshot{Generation: 1, Sequence: 1, Status: "ready", Devices: []platform.AudioOutputDevice{
+		{UID: "empty", Name: "", Alive: true, OutputChannels: 2},
+		{UID: "named", Name: "Audio output", Alive: true, OutputChannels: 2},
+	}}}
+	var got widgets.Sample
+	if err := (Audio{Source: source}).Observe(context.Background(), []string{"audio.output.select"}, func(s widgets.Sample) { got = s }); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(got.Actions["selectOutput"].Options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var options []struct{ ID, Label, LabelKey string }
+	if err := json.Unmarshal(raw, &options); err != nil {
+		t.Fatal(err)
+	}
+	if len(options) != 2 || options[0].ID != "empty" || options[0].Label != "Audio output" || options[0].LabelKey != "audio.output" || options[1].ID != "named" || options[1].Label != "Audio output" || options[1].LabelKey != "" {
+		t.Fatalf("generated fallback lost provenance: %+v", options)
 	}
 }

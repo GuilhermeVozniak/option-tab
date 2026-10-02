@@ -435,7 +435,11 @@ export function WidgetSettings({
                       >
                         {setting.options?.map((option) => (
                           <option key={option} value={option}>
-                            {choiceLabel(option, language)}
+                            {item.builtin &&
+                            item.packageID === "org.optiontab.clock" &&
+                            setting.id === "format"
+                              ? choiceLabel(option, language)
+                              : option}
                           </option>
                         ))}
                       </select>

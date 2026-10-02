@@ -14,16 +14,21 @@ import (
 )
 
 type fakePanelWheel struct {
-	mu     sync.Mutex
-	policy DockPanelWheelPolicy
-	events chan DockPanelWheelEvent
-	closed bool
-	hook   func()
+	mu        sync.Mutex
+	policy    DockPanelWheelPolicy
+	events    chan DockPanelWheelEvent
+	closed    bool
+	hook      func()
+	closeHook func()
+	emptyHook func()
 }
 
 func (f *fakePanelWheel) Show(uint64, domain.Bounds) error { return nil }
 func (f *fakePanelWheel) Hide(uint64) error                { return nil }
 func (f *fakePanelWheel) Close(uint64) error {
+	if f.closeHook != nil {
+		f.closeHook()
+	}
 	f.mu.Lock()
 	f.closed = true
 	f.mu.Unlock()
@@ -47,9 +52,13 @@ func (f *fakePanelWheel) Next(uint64) (DockPanelWheelEvent, int) {
 	default:
 	}
 	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.closed {
+	closed := f.closed
+	f.mu.Unlock()
+	if closed {
 		return DockPanelWheelEvent{}, -1
+	}
+	if f.emptyHook != nil {
+		f.emptyHook()
 	}
 	return DockPanelWheelEvent{}, 0
 }
@@ -134,6 +143,102 @@ func TestDarwinPanelWheelNoGoLockAcrossNativePolicy(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("native reentry deadlocked")
+	}
+}
+
+func TestDarwinPanelWheelCloseDrainsCancellationAfterEmptyPoll(t *testing.T) {
+	closeEntered, finishClose, emptyDuringClose := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var releaseOnce, emptyOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(finishClose) }) }
+	t.Cleanup(release)
+	f := &fakePanelWheel{events: make(chan DockPanelWheelEvent, 1)}
+	f.closeHook = func() {
+		close(closeEntered)
+		<-finishClose
+		f.events <- DockPanelWheelEvent{Session: 1, Revision: 1, GestureID: 3, Phase: "cancelled"}
+	}
+	f.emptyHook = func() {
+		select {
+		case <-closeEntered:
+			emptyOnce.Do(func() { close(emptyDuringClose) })
+		default:
+		}
+	}
+	p := newDarwinWheelPanel(newDockPanel(1, f), f)
+	got := make(chan DockPanelWheelEvent, 1)
+	if err := p.SetDockPanelWheelPolicy(DockPanelWheelPolicy{Session: 1, Revision: 1, Enabled: true}, func(e DockPanelWheelEvent) { got <- e }); err != nil {
+		t.Fatal(err)
+	}
+	closed := make(chan error, 1)
+	go func() { closed <- p.Close() }()
+	select {
+	case <-closeEntered:
+	case <-time.After(time.Second):
+		t.Fatal("native close did not start")
+	}
+	p.wakeWheel()
+	select {
+	case <-emptyDuringClose:
+	case <-time.After(time.Second):
+		t.Fatal("worker did not poll before native close completed")
+	}
+	select {
+	case <-p.Done():
+		t.Fatal("drain completed before native cancellation was available")
+	case <-time.After(30 * time.Millisecond):
+	}
+	release()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("native close did not finish")
+	}
+	select {
+	case <-p.Done():
+	case <-time.After(time.Second):
+		t.Fatal("worker did not drain closed mailbox")
+	}
+	select {
+	case e := <-got:
+		if e.GestureID != 3 || e.Phase != "cancelled" {
+			t.Fatalf("wrong terminal event: %+v", e)
+		}
+	default:
+		t.Fatal("native cancellation was discarded")
+	}
+}
+
+func TestDarwinPanelWheelFirstPolicyCloseDrainsOwnedEvents(t *testing.T) {
+	f := &fakePanelWheel{events: make(chan DockPanelWheelEvent, 2)}
+	p := newDarwinWheelPanel(newDockPanel(1, f), f)
+	f.hook = func() {
+		f.events <- DockPanelWheelEvent{Session: 1, Revision: 1, GestureID: 3, Phase: "began"}
+		f.events <- DockPanelWheelEvent{Session: 1, Revision: 1, GestureID: 3, Phase: "cancelled"}
+		if err := p.Close(); err != nil {
+			t.Error(err)
+		}
+	}
+	got := make(chan DockPanelWheelEvent, 2)
+	if err := p.SetDockPanelWheelPolicy(DockPanelWheelPolicy{Session: 1, Revision: 1, Enabled: true}, func(e DockPanelWheelEvent) { got <- e }); err == nil {
+		t.Fatal("retired first policy was admitted")
+	}
+	select {
+	case <-p.Done():
+	case <-time.After(time.Second):
+		t.Fatal("closed first policy did not drain")
+	}
+	for _, phase := range []string{"began", "cancelled"} {
+		select {
+		case e := <-got:
+			if e.Phase != phase {
+				t.Fatalf("event order: got %q want %q", e.Phase, phase)
+			}
+		default:
+			t.Fatalf("owned %s event was discarded before worker start", phase)
+		}
 	}
 }
 

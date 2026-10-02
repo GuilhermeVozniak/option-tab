@@ -34,6 +34,13 @@ static BOOL nativeHide(int pid) {
   return app && [app hide];
 }
 static BOOL (*hideProcess)(int) = nativeHide;
+static BOOL nativeQuit(int pid) {
+  NSRunningApplication *app=[NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+  return app && !app.terminated && [app terminate];
+}
+static BOOL (*quitProcess)(int) = nativeQuit;
+#define OT_SWITCHER_POINTER_ACTION 1
+
 
 static int axStatus(AXError e) {
   switch (e) {
@@ -392,10 +399,10 @@ static int writeBoolean(AXUIElementRef root, CFStringRef attribute,
   return axStatus(setAttribute(root, attribute,
                                desired ? kCFBooleanTrue : kCFBooleanFalse));
 }
-int ot_automation_window_action(int action, OTAutomationIdentity id,
+static int capturedWindowAction(int action, OTAutomationIdentity id,
                                 int desired, uintptr_t guard) {
   @autoreleasepool {
-    if (action < 1 || action > 5 || !id.window || id.pid <= 0 || !id.sec ||
+    if (action < 1 || action > 8 || !id.window || id.pid <= 0 || !id.sec ||
         !guard)
       return 1;
     if (!trusted())
@@ -407,7 +414,14 @@ int ot_automation_window_action(int action, OTAutomationIdentity id,
     AXUIElementRef root = copyRoot(id, deadline, &status);
     if (!root)
       return status;
-    if (action == 3 || action == 5)
+    if (action == 6 || action == 7) {
+      CFStringRef attribute=action==6 ? kAXMinimizedAttribute : CFSTR("AXFullScreen");
+      CFTypeRef current=NULL;
+      status=axStatus(readAttribute(root,attribute,&current,deadline));
+      if(!status && (!current || CFGetTypeID(current)!=CFBooleanGetTypeID())) status=5;
+      if(!status) status=writeBoolean(root,attribute,!CFBooleanGetValue(current),id,deadline,guard);
+      if(current) CFRelease(current);
+    } else if (action == 3 || action == 5)
       status = writeBoolean(
           root, action == 3 ? kAXMinimizedAttribute : CFSTR("AXFullScreen"),
           action == 3 ? true : desired != 0, id, deadline, guard);
@@ -426,10 +440,10 @@ int ot_automation_window_action(int action, OTAutomationIdentity id,
       }
       if (button)
         CFRelease(button);
-    } else if (action == 4) {
+    } else if (action == 4 || action == 8) {
       status = finalAdmission(root, id, deadline, guard);
       if (!status)
-        status = hideProcess(id.pid) ? 0 : 6;
+        status = (action==4 ? hideProcess(id.pid) : quitProcess(id.pid)) ? 0 : 6;
     } else {
       AXUIElementRef app = AXUIElementCreateApplication(id.pid);
       AXUIElementSetMessagingTimeout(app, 0.10);
@@ -464,4 +478,14 @@ int ot_automation_window_action(int action, OTAutomationIdentity id,
     CFRelease(root);
     return status;
   }
+}
+
+int ot_automation_window_action(int action, OTAutomationIdentity id, int desired, uintptr_t guard) {
+  if(action<1 || action>5) return 1;
+  return capturedWindowAction(action,id,desired,guard);
+}
+int ot_switcher_pointer_action(int action, OTAutomationIdentity id, uintptr_t guard) {
+  if(action<1 || action>5) return 1;
+  const int mapping[]={0,2,6,7,4,8};
+  return capturedWindowAction(mapping[action],id,0,guard);
 }

@@ -121,10 +121,12 @@ func (p Audio) Observe(ctx context.Context, caps []string, emit func(widgets.Sam
 				}
 				if control {
 					label := []rune(strings.ReplaceAll(strings.ToValidUTF8(device.Name, "�"), "\x00", ""))
+					labelKey := ""
 					if len(label) == 0 {
+						labelKey = "audio.output"
 						label = []rune("Audio output")
 					}
-					options = append(options, widgets.ProviderOption{ID: device.UID, Label: string(label[:min(len(label), 160)])})
+					options = append(options, widgets.ProviderOption{ID: device.UID, Label: string(label[:min(len(label), 160)]), LabelKey: labelKey})
 				}
 			}
 			if status {

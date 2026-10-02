@@ -108,6 +108,7 @@ func (a *App) saveSettingsLocked(s config.Settings) error {
 			return err
 		}
 	}
+	a.invalidateSwitcherGestures()
 	a.settingsMu.Lock()
 	a.settings = s
 	if a.settingsRevision == 0 {

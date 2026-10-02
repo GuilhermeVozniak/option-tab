@@ -9,6 +9,7 @@ import { Events } from "@wailsio/runtime";
 import * as AppService from "../../bindings/option-tab/app.js";
 import type { MaterialRect, MaterialStatus } from "./material";
 import type { Permissions, PermKey, Settings, SwitcherState } from "./types";
+import type { SwitcherGesturePublication } from "./useSwitcherGestureRegions";
 
 // hasBackend resolves to true when a real Wails backend answers a cheap call.
 // Cached: the probe runs once and every consumer shares it. In a plain browser
@@ -53,6 +54,21 @@ export interface WindowActionResult {
 
 // switcher exposes the controller actions the overlay invokes.
 export const switcher = {
+  gestureCapabilities: async (): Promise<{ available: boolean }> => {
+    try {
+      const result = await AppService.GetSwitcherGestureCapabilities();
+      return { available: result?.available === true };
+    } catch {
+      return { available: false };
+    }
+  },
+  gestureRegions: async (publication: SwitcherGesturePublication): Promise<void> =>
+    AppService.SetSwitcherGestureRegions(
+      publication.session,
+      publication.stateRevision,
+      publication.sequence,
+      publication.regions,
+    ),
   // Action errors are deliberately returned to the caller for visible feedback.
   performAction: (kind: string, windowId: number, appId: number): Promise<WindowActionResult> =>
     AppService.PerformAction(kind, windowId, appId),
@@ -156,6 +172,7 @@ export interface SwitcherEventHandlers {
   onThumbnails?: (session: number, thumbs: Record<string, string>) => void;
   onPreview?: (session: number, previews: Record<string, string>) => void;
   onError?: (message: string) => void;
+  onGestureError?: (error: { session: number; revision: number; message: string }) => void;
 }
 
 // onSwitcherEvent subscribes to the Go controller's events and returns an
@@ -184,6 +201,9 @@ export function onSwitcherEvent(handlers: SwitcherEventHandlers): () => void {
     handlers.onPreview?.(session, frames);
   });
   const offError = Events.On("switcher:error", (ev) => handlers.onError?.(ev.data as string));
+  const offGestureError = Events.On("switcher:gestureError", (ev) =>
+    handlers.onGestureError?.(ev.data as { session: number; revision: number; message: string }),
+  );
   return () => {
     offShow();
     offUpdate();
@@ -191,6 +211,7 @@ export function onSwitcherEvent(handlers: SwitcherEventHandlers): () => void {
     offThumbs();
     offPreview();
     offError();
+    offGestureError();
   };
 }
 

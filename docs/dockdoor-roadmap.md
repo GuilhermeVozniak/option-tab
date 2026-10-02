@@ -3,7 +3,7 @@
 Baseline: v0.4.8. Branch: `feat/dockdoor-parity`.
 Status: approved narrowed scope; implementation in progress. Unchecked items have not passed all acceptance checks.
 
-Latest follow-up: [September 9 retained-feature corrections](superpowers/reports/2026-09-09-retained-feature-corrections.md). Native-Dock preview middle-click, unpinned-app relaunch, replacement-Dock interaction holds and remaining control/built-in metadata translations are implemented. Unqualified mouse drag/wheel switcher actions are removed; B08 remains unavailable until a qualified native trackpad route is implemented. Native diagnostics Save, Cancel, expiry and collision checks passed. The [earlier retest fixes](superpowers/reports/2026-09-09-native-retest-fixes.md) and [September 8 retest](superpowers/reports/2026-09-08-native-2496558-retest.md) retain their evidence. Full packaged UI, physical input and release gates remain open; historical checkpoint prose below does not supersede these reports.
+Latest follow-up: [October 2 native switcher gestures and widget readings](superpowers/reports/2026-10-02-native-switcher-gestures-and-widget-readings.md). Both switcher modes now have a qualified native input route, independent saved actions and exact target/lifetime guards. Built-in widget readings and action feedback are localized; omitted optional/empty values no longer hide readable content. Native capture completed 93 stress cycles with all source lifetimes drained. The [September 9 retained-feature corrections](superpowers/reports/2026-09-09-retained-feature-corrections.md), [earlier retest fixes](superpowers/reports/2026-09-09-native-retest-fixes.md) and [September 8 retest](superpowers/reports/2026-09-08-native-2496558-retest.md) retain their evidence. Full packaged UI, physical input and release gates remain open; historical checkpoint prose below does not supersede these reports.
 
 This scope was narrowed after reviewing the other projects in `~/Dev/pessoal`. It adds complementary Option Tab features rather than duplicating products we already maintain. Existing Option Tab features are retained. Native Dock enhancements come first. The subsequent instruction to work on all retained features includes the optional Dock replacement, delivered as a separate mode after the core enhancements.
 
@@ -53,11 +53,17 @@ B10 now has native material, guarded interior geometry and solid-fallback implem
 - [x] B05 Configurable middle-click actions, defaulting to close where enabled.
 - [x] B06 Automatic compact-list mode at a configurable window-count threshold, plus always-list mode.
 - [x] B07 Horizontal/vertical layout direction and corresponding navigation.
-- [ ] B08 Configurable qualified trackpad swipe actions inside the switcher. Saved choices are retained, but unqualified DOM mouse/wheel dispatch is disabled pending a native input route.
+- [ ] B08 Configurable qualified trackpad swipe actions inside the switcher. Native precise/phase input is implemented for both modes; physical input and packaged Wails delivery remain acceptance checks.
 - [x] B09 Complete the exposed app-badge and dismissal-animation settings.
 - [ ] B10 Native translucent material background where supported, with a solid fallback.
 
 ## C. Previews
+
+The [October 2 native capture stress](superpowers/reports/2026-10-02-capture-lifecycle-stress.md)
+completed 93 cycles with a four-stream peak and all 372 source lifetimes
+drained. Memory settled around 47 MiB in this bounded run. Full packaged
+surface arbitration, preference and permission-transition acceptance remain
+open; C06 stays unchecked.
 
 - [x] C01 Continuously refreshed previews while visible, with bounded resource use.
 - [ ] C02 Larger selected/hovered-window previews across switcher and Dock surfaces.

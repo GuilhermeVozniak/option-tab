@@ -7,6 +7,7 @@ static int writes = 0, presses = 0, guards = 0, focusReads = 0;
 static AXError writeError = kAXErrorSuccess;
 static AXError raiseError = kAXErrorSuccess;
 static CFTypeRef lastValue = NULL;
+static BOOL pointerBoolean;
 static AXUIElementRef firstRoot, secondRoot;
 static float messageTimeout;
 static BOOL slowFocusRaise, expireWhileFronting, expireWhileRaising,
@@ -76,7 +77,7 @@ static AXError fakeCopy(AXUIElementRef element, CFStringRef name,
   } else if (CFEqual(name, kAXTitleAttribute)) {
     *out = CFRetain(CFSTR("Disposable seam title"));
   } else {
-    *out = CFRetain(kCFBooleanFalse);
+    *out = CFRetain(pointerBoolean ? kCFBooleanTrue : kCFBooleanFalse);
   }
   return kAXErrorSuccess;
 }
@@ -146,6 +147,29 @@ int main(void) {
     isSettable = fakeSettable;
     hideProcess = fakeHide;
     OTAutomationIdentity id = {.window = 9, .pid = 7, .sec = 10, .usec = 2};
+#ifndef OT_SWITCHER_POINTER_ACTION
+    NSCAssert(NO, @"guarded pointer actions are missing");
+#else
+    quitProcess = fakeHide;
+    for(int action=1;action<=5;action++) {
+      int before=writes+presses;
+      guardAllowed=NO;
+      NSCAssert(ot_switcher_pointer_action(action,id,1)==7 && writes+presses==before,@"retired pointer action mutated");
+      guardAllowed=YES;
+      NSCAssert(ot_switcher_pointer_action(action,id,1)==0 && writes+presses==before+1,@"pointer action not acknowledged");
+    }
+    for(int action=2;action<=3;action++) {
+      pointerBoolean=YES;
+      NSCAssert(ot_switcher_pointer_action(action,id,1)==0 && lastValue==kCFBooleanFalse,@"pointer toggle did not restore/exit");
+      pointerBoolean=NO;
+      NSCAssert(ot_switcher_pointer_action(action,id,1)==0 && lastValue==kCFBooleanTrue,@"pointer toggle did not minimize/enter");
+      int before=writes;
+      changeDuringPreparation=YES;
+      NSCAssert(ot_switcher_pointer_action(action,id,1)==3 && writes==before,@"changed pointer identity mutated");
+      changeDuringPreparation=NO; identityValid=YES;
+    }
+    writes=presses=0;
+#endif
     guardAllowed = NO;
     NSCAssert(ot_automation_window_action(3, id, 0, 1) == 7 && writes == 0,
               @"cancelled preparation mutated");

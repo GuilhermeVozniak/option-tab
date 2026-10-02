@@ -33,6 +33,33 @@ export function makeT(lang: Lang): Translate {
 }
 
 const PT: Record<string, string> = {
+  "Accessibility permission is required for this action.":
+    "A permissão de Acessibilidade é necessária para esta ação.",
+  "This action is not supported for this window.": "Esta ação não é compatível com esta janela.",
+  "The window action could not be completed. Try again.":
+    "Não foi possível concluir a ação na janela. Tente novamente.",
+  Charging: "Carregando",
+  "Not charging": "Não está carregando",
+  "Battery power": "Alimentação por bateria",
+  "External power": "Alimentação externa",
+  "Unknown power source": "Fonte de alimentação desconhecida",
+  "No connection": "Sem conexão",
+  "Wi-Fi": "Wi-Fi",
+  Ethernet: "Ethernet",
+  VPN: "VPN",
+  "Other network": "Outra rede",
+  "Unknown network": "Rede desconhecida",
+  Muted: "Silenciado",
+  "Not muted": "Não silenciado",
+  "Choose output": "Escolher saída",
+  "Audio output": "Saída de áudio",
+  "Widget action in progress": "Ação do widget em andamento",
+  "This widget action is no longer available. Open it again.":
+    "Esta ação do widget não está mais disponível. Abra-a novamente.",
+  "Precise gesture input is used for switcher swipes. macOS does not reliably expose the number of fingers.":
+    "A entrada precisa de gestos é usada para deslizar no alternador. O macOS não informa o número de dedos de forma confiável.",
+  "Native switcher gesture input is unavailable.":
+    "A entrada nativa de gestos do alternador está indisponível.",
   Cancel: "Cancelar",
   "Select again": "Selecionar novamente",
   Opacity: "Opacidade",
@@ -402,6 +429,8 @@ const PT: Record<string, string> = {
   "Middle click": "Clique do meio",
   "Swipe up": "Deslizar para cima",
   "Swipe down": "Deslizar para baixo",
+  "Swipe up action": "Ação ao deslizar para cima",
+  "Swipe down action": "Ação ao deslizar para baixo",
   None: "Nenhuma",
   close: "Fechar",
   minimize: "Minimizar",
@@ -728,6 +757,33 @@ const PT: Record<string, string> = {
 };
 
 const ES: Record<string, string> = {
+  "Accessibility permission is required for this action.":
+    "Se necesita permiso de Accesibilidad para esta acción.",
+  "This action is not supported for this window.": "Esta acción no es compatible con esta ventana.",
+  "The window action could not be completed. Try again.":
+    "No se pudo completar la acción en la ventana. Inténtalo de nuevo.",
+  Charging: "Cargando",
+  "Not charging": "No está cargando",
+  "Battery power": "Alimentación por batería",
+  "External power": "Alimentación externa",
+  "Unknown power source": "Fuente de alimentación desconocida",
+  "No connection": "Sin conexión",
+  "Wi-Fi": "Wi-Fi",
+  Ethernet: "Ethernet",
+  VPN: "VPN",
+  "Other network": "Otra red",
+  "Unknown network": "Red desconocida",
+  Muted: "Silenciado",
+  "Not muted": "No silenciado",
+  "Choose output": "Elegir salida",
+  "Audio output": "Salida de audio",
+  "Widget action in progress": "Acción del widget en curso",
+  "This widget action is no longer available. Open it again.":
+    "Esta acción del widget ya no está disponible. Ábrela de nuevo.",
+  "Precise gesture input is used for switcher swipes. macOS does not reliably expose the number of fingers.":
+    "La entrada precisa de gestos se usa para deslizar en el selector. macOS no informa de forma fiable del número de dedos.",
+  "Native switcher gesture input is unavailable.":
+    "La entrada nativa de gestos del selector no está disponible.",
   Cancel: "Cancelar",
   "Select again": "Seleccionar de nuevo",
   Opacity: "Opacidad",
@@ -940,6 +996,8 @@ const ES: Record<string, string> = {
   "Middle click": "Clic central",
   "Swipe up": "Deslizar hacia arriba",
   "Swipe down": "Deslizar hacia abajo",
+  "Swipe up action": "Acción al deslizar hacia arriba",
+  "Swipe down action": "Acción al deslizar hacia abajo",
   None: "Ninguna",
   close: "Cerrar",
   minimize: "Minimizar",

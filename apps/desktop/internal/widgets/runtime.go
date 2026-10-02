@@ -26,6 +26,7 @@ type runtimeInstance struct {
 	previousActions map[string]runtimeAction
 	request         Request
 	manifest        Manifest
+	builtin         bool
 	state           InstanceState
 	actions         map[string]runtimeAction
 	assets          map[string]string
@@ -200,6 +201,8 @@ func (r *Runtime) Configure(requests []Request) error {
 		if i == nil || !reflect.DeepEqual(i.request, q) {
 			r.next++
 			i = &runtimeInstance{request: q, manifest: q.Package.Manifest(), actions: map[string]runtimeAction{}, assets: map[string]string{}, histories: map[string]runtimeHistory{}}
+			builtin, exists := Builtin(i.manifest.ID)
+			i.builtin = exists && builtin.Digest() == q.Package.Digest()
 			status := "preparing"
 			if !q.Enabled {
 				status = "disabled"

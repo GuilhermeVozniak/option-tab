@@ -54,6 +54,7 @@ type prefsSettingsSnapshot struct {
 // "Settings…" item and on first launch (onboarding).
 func (a *App) OpenPreferences() {
 	a.viewMu.Lock()
+	a.invalidateSwitcherGestures()
 	if a.dismissal != nil {
 		a.cancelDismissalLocked()
 		a.overlay.hide()

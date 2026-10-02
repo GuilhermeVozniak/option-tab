@@ -65,6 +65,7 @@ func (a *App) transitionSession(generation uint64, inactive bool) {
 	// Close admission before cancelling controller state and prior capture epochs.
 	invalidate := inactive || (generation != 0 && previous != 0)
 	if invalidate {
+		a.invalidateSwitcherGestures()
 		a.sessionInactive = true
 		if a.diagnostics != nil {
 			a.diagnostics.CancelExport()

@@ -10,6 +10,7 @@ import {
 } from "../lib/material";
 import { truncateTitle } from "../lib/text";
 import type { Entry, PointerAction, SwitcherState } from "../lib/types";
+import { useSwitcherGestureRegions } from "../lib/useSwitcherGestureRegions";
 import { StatusIcons } from "../overlay/StatusIcons";
 import type { OverlayHandlers } from "../overlay/types";
 import "./app-switcher.css";
@@ -66,7 +67,11 @@ function AppWindowCard({
     <span>{entry.appName.trim()[0] ?? "?"}</span>
   );
   return (
-    <article className={selected ? "is-selected" : ""}>
+    <article
+      className={selected ? "is-selected" : ""}
+      data-switcher-gesture-window={entry.windowId}
+      data-switcher-gesture-app={entry.appId}
+    >
       <button
         type="button"
         className="ot-app-preview"
@@ -121,7 +126,7 @@ function AppWindowCard({
         </span>
       ) : null}
       {showControls ? (
-        <div className="ot-app-window-actions">
+        <div className="ot-app-window-actions" data-switcher-gesture-exclude>
           <button
             className="ot-traffic ot-traffic-close"
             aria-label={t("Close window")}
@@ -168,6 +173,16 @@ export function AppSwitcher({
     layoutDirection: appearance.layoutDirection,
   });
   const [shown, setShown] = useState(appearance.apparitionDelayMs <= 0);
+  const [shownSession, setShownSession] = useState(state.session ?? 0);
+  const presented =
+    shown && (appearance.apparitionDelayMs <= 0 || shownSession === (state.session ?? 0));
+  const gestureRef = useSwitcherGestureRegions(
+    state.session ?? 0,
+    state.revision ?? 0,
+    state.entries,
+    state.open && presented,
+    handlers.onGestureRegions,
+  );
   const panelRef = useMaterialReporter(
     state.session ?? 0,
     state.revision ?? 0,
@@ -178,6 +193,7 @@ export function AppSwitcher({
   const wasOpen = useRef(false);
   useEffect(() => {
     if (!state.open) return;
+    setShownSession(state.session ?? 0);
     if (appearance.apparitionDelayMs <= 0) {
       setShown(true);
       return;
@@ -185,7 +201,7 @@ export function AppSwitcher({
     setShown(false);
     const timer = window.setTimeout(() => setShown(true), appearance.apparitionDelayMs);
     return () => window.clearTimeout(timer);
-  }, [state.open, appearance.apparitionDelayMs]);
+  }, [state.open, appearance.apparitionDelayMs, state.session]);
   useEffect(() => {
     if (state.open) {
       wasOpen.current = true;
@@ -295,7 +311,7 @@ export function AppSwitcher({
     window.addEventListener("keydown", dom);
     return () => window.removeEventListener("keydown", dom);
   }, [state, handlers, nativeKeys, app]);
-  if (state.open ? !shown : !closing) return null;
+  if (state.open ? !presented : !closing) return null;
   const focus = (entry: Entry) => {
     handlers.onSelectAppWindow?.(entry.windowId);
     handlers.onConfirmWindow(entry.windowId);
@@ -319,7 +335,10 @@ export function AppSwitcher({
       aria-label="Application switcher"
     >
       <section
-        ref={panelRef}
+        ref={(element) => {
+          panelRef(element);
+          gestureRef(element);
+        }}
         className={`ot-app-panel ${materialClass(appearance.blur, material?.status, state.session)}`}
       >
         {state.search ? <div className="ot-app-search">{state.search}</div> : null}

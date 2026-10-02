@@ -1,3 +1,5 @@
+#ifndef OT_DOCK_PANEL_H
+#define OT_DOCK_PANEL_H
 #include <stdint.h>
 uint64_t ot_dock_panel_create(void *host);
 int ot_dock_panel_show(uint64_t token, double x, double y, double w, double h);
@@ -25,3 +27,5 @@ int ot_launcher_panel_style(uint64_t token, const char *material, const char *th
 
 int ot_preview_material_target(uint64_t token,void **window,void **content,void **host);
 int ot_panel_material_host_owned(void *host);
+
+#endif

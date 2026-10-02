@@ -12,4 +12,5 @@ int ot_automation_window_current(OTAutomationIdentity identity);
 char *ot_automation_active_window(void);
 int ot_automation_window_action(int action, OTAutomationIdentity identity,
                                 int desired, uintptr_t guard);
+int ot_switcher_pointer_action(int action, OTAutomationIdentity identity, uintptr_t guard);
 #endif

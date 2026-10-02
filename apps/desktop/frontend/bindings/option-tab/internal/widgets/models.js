@@ -26,6 +26,13 @@ export class ActionOption {
              */
             this["label"] = "";
         }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["labelKey"] = undefined;
+        }
 
         Object.assign(this, $$source);
     }
@@ -291,6 +298,13 @@ export class RenderNode {
              */
             this["text"] = undefined;
         }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["textKey"] = undefined;
+        }
         if (!("status" in $$source)) {
             /**
              * @member
@@ -343,14 +357,14 @@ export class RenderNode {
      * @returns {RenderNode}
      */
     static createFrom($$source = {}) {
-        const $$createField5_0 = $$createType6;
-        const $$createField8_0 = $$createType7;
+        const $$createField6_0 = $$createType6;
+        const $$createField9_0 = $$createType7;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("history" in $$parsedSource) {
-            $$parsedSource["history"] = $$createField5_0($$parsedSource["history"]);
+            $$parsedSource["history"] = $$createField6_0($$parsedSource["history"]);
         }
         if ("children" in $$parsedSource) {
-            $$parsedSource["children"] = $$createField8_0($$parsedSource["children"]);
+            $$parsedSource["children"] = $$createField9_0($$parsedSource["children"]);
         }
         return new RenderNode(/** @type {Partial<RenderNode>} */($$parsedSource));
     }

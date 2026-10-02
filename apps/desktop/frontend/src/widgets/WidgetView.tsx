@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ActionOptions, RenderNode, WidgetActions, WidgetLease } from "../lib/widget-types";
+import { widgetActionError, widgetActionErrorText, widgetText } from "./widget-presentation";
 import "./widgets.css";
 
 export interface WidgetViewProps {
@@ -47,7 +48,8 @@ function validTree(root: RenderNode): boolean {
       node.key.length < 1 ||
       node.key.length > 128 ||
       keys.has(node.key) ||
-      typeof node.status !== "string"
+      typeof node.status !== "string" ||
+      (node.textKey !== undefined && (typeof node.textKey !== "string" || node.textKey.length > 64))
     )
       return false;
     keys.add(node.key);
@@ -56,7 +58,8 @@ function validTree(root: RenderNode): boolean {
     if (node.kind === "row" || node.kind === "column")
       return children.length > 0 && children.every((child) => walk(child, depth + 1));
     if (children.length !== 0) return false;
-    if (node.kind === "text") return typeof node.text === "string" && node.text.length <= 4096;
+    if (node.kind === "text")
+      return node.text === undefined || (typeof node.text === "string" && node.text.length <= 4096);
     if (node.kind === "icon")
       return (
         typeof node.assetToken === "string" &&
@@ -69,14 +72,20 @@ function validTree(root: RenderNode): boolean {
         (Number.isFinite(node.progress) && node.progress >= 0 && node.progress <= 1)
       );
     if (node.kind === "sparkline")
-      return !!node.history && node.history.length <= 120 && node.history.every(Number.isFinite);
+      return (
+        (node.status !== "ready" && node.history === undefined) ||
+        (Array.isArray(node.history) &&
+          node.history.length <= 120 &&
+          node.history.every(Number.isFinite))
+      );
     return (
       node.kind === "button" &&
       typeof node.text === "string" &&
       node.text.length <= 1024 &&
-      typeof node.actionToken === "string" &&
-      node.actionToken.length > 0 &&
-      node.actionToken.length <= 512
+      ((node.status !== "ready" && node.actionToken === undefined) ||
+        (typeof node.actionToken === "string" &&
+          node.actionToken.length > 0 &&
+          node.actionToken.length <= 512))
     );
   };
   return walk(root, 0);
@@ -91,7 +100,9 @@ function cleanOptions(value: ActionOptions): ActionOptions | null {
       option.token.length <= 512 &&
       typeof option.label === "string" &&
       option.label.length > 0 &&
-      option.label.length <= 256,
+      option.label.length <= 256 &&
+      (option.labelKey === undefined ||
+        (typeof option.labelKey === "string" && option.labelKey.length <= 64)),
   );
   if (options.length !== value.options.length) return null;
   if (!value.range) return { options };
@@ -158,12 +169,12 @@ function ActionNode({ node, lease, actions, t }: NodeProps) {
       .then((result) => {
         if (!alive.current) return;
         const clean = cleanOptions(result);
-        if (!clean) throw new Error(t("Action unavailable"));
+        if (!clean) throw new Error("widgets: unavailable");
         setAdmitted({ spec: clean, lease: admittedLease, actionToken });
         if (clean.range) setValue(clean.range.min);
       })
       .catch((reason) => {
-        if (alive.current) setError(String(reason));
+        if (alive.current) setError(widgetActionError(reason));
       })
       .finally(() => {
         if (alive.current) setLoading(false);
@@ -179,7 +190,7 @@ function ActionNode({ node, lease, actions, t }: NodeProps) {
         if (alive.current) setAdmitted(null);
       })
       .catch((reason) => {
-        if (alive.current) setError(String(reason));
+        if (alive.current) setError(widgetActionError(reason));
       })
       .finally(() => {
         if (alive.current) setBusy(false);
@@ -188,7 +199,7 @@ function ActionNode({ node, lease, actions, t }: NodeProps) {
   return (
     <div>
       <button type="button" disabled={loading || busy || node.status !== "ready"} onClick={open}>
-        {loading ? t("Loading…") : node.text}
+        {loading ? t("Loading…") : widgetText(node.text ?? "", node.textKey, t)}
       </button>
       <NodeStatus status={node.status} t={t} />
       {admitted ? (
@@ -202,7 +213,7 @@ function ActionNode({ node, lease, actions, t }: NodeProps) {
                   disabled={busy}
                   onClick={() => perform(option.token, null)}
                 >
-                  {option.label}
+                  {widgetText(option.label, option.labelKey, t)}
                 </button>
               ))}
             </div>
@@ -233,7 +244,7 @@ function ActionNode({ node, lease, actions, t }: NodeProps) {
       ) : null}
       {error ? (
         <p className="ot-widget-error" role="alert">
-          {error}
+          {widgetActionErrorText(error, t)}
         </p>
       ) : null}
     </div>
@@ -259,7 +270,7 @@ function TrustedNode(props: NodeProps): React.ReactNode {
     );
   if (node.kind === "text")
     return node.status === "ready" ? (
-      <span className="ot-widget-text">{node.text}</span>
+      <span className="ot-widget-text">{widgetText(node.text ?? "", node.textKey, t)}</span>
     ) : (
       <NodeStatus status={node.status} t={t} />
     );

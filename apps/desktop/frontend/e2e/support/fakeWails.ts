@@ -122,6 +122,8 @@ const METHOD = {
   GetVersion: 1049863377,
   GetSwitcherMaterialStatus: 3075636663,
   SetSwitcherMaterialRect: 724815411,
+  GetSwitcherGestureCapabilities: 2723477237,
+  SetSwitcherGestureRegions: 2891590312,
   InstallUpdate: 2443992793,
   PerformAction: 280563800,
   GetDockState: 1033939333,
@@ -235,6 +237,7 @@ export async function installFakeWails(page: Page): Promise<void> {
       __dockState?: Record<string, unknown> | null;
       __dockMaterialStatus?: Record<string, unknown>;
       __switcherMaterialStatus?: Record<string, unknown>;
+      __switcherGestureCapabilities?: { available: boolean };
       __dockContentError?: string;
       __dockLockState?: Record<string, unknown>;
       __dockLockDisplays?: unknown[];
@@ -407,6 +410,12 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json(await page.evaluate(() => (window as any).__dockMaterialStatus));
       case "GetSwitcherMaterialStatus":
         return json(await page.evaluate(() => (window as any).__switcherMaterialStatus));
+      case "GetSwitcherGestureCapabilities":
+        return json(
+          await page.evaluate(
+            () => (window as any).__switcherGestureCapabilities ?? { available: true },
+          ),
+        );
       case "GetDockMonitorLockState":
         return json(await page.evaluate(() => (window as any).__dockLockState));
       case "GetDockMonitorLockDisplays":
@@ -620,6 +629,7 @@ export async function installFakeWails(page: Page): Promise<void> {
         return json(null);
       }
       case "SetSwitcherMaterialRect":
+      case "SetSwitcherGestureRegions":
       case "SelectApp":
       case "SelectAppWindow":
       case "SelectDockWindow":

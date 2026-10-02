@@ -152,6 +152,7 @@ func (a *App) Show(st switcher.State) {
 	a.enrichIcons(&st)
 	a.switcherRevision++
 	st.Revision = a.switcherRevision
+	a.presentSwitcherGestures(st)
 	a.emit("switcher:show", st)
 	a.lastSelected = st.Selected
 	// Size the transparent window to the screen the Placement setting chose
@@ -185,6 +186,7 @@ func (a *App) Update(st switcher.State) {
 	a.enrichIcons(&st)
 	a.switcherRevision++
 	st.Revision = a.switcherRevision
+	a.presentSwitcherGestures(st)
 	a.emit("switcher:update", st)
 	a.syncSwitcherMaterialLocked(st)
 	if st.Selected != a.lastSelected {
@@ -215,6 +217,7 @@ func (a *App) HideSession(session uint64) {
 }
 
 func (a *App) hideSwitcherLocked() {
+	a.invalidateSwitcherGestures()
 	select {
 	case <-a.captureStop:
 		return

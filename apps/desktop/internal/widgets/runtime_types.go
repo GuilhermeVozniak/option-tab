@@ -45,6 +45,7 @@ type RenderNode struct {
 	Key         string       `json:"key"`
 	Kind        string       `json:"kind"`
 	Text        string       `json:"text,omitempty"`
+	TextKey     string       `json:"textKey,omitempty"`
 	Status      string       `json:"status"`
 	Progress    *float64     `json:"progress,omitempty"`
 	History     []float64    `json:"history,omitempty"`
@@ -59,7 +60,7 @@ type (
 		Reason string     `json:"reason,omitempty"`
 		Root   RenderNode `json:"root"`
 	}
-	ProviderOption struct{ ID, Label string }
+	ProviderOption struct{ ID, Label, LabelKey string }
 	NumberRange    struct {
 		Min  float64 `json:"min"`
 		Max  float64 `json:"max"`
@@ -96,8 +97,9 @@ type (
 		Now       func() time.Time
 	}
 	ActionOption struct {
-		Token string `json:"token"`
-		Label string `json:"label"`
+		Token    string `json:"token"`
+		Label    string `json:"label"`
+		LabelKey string `json:"labelKey,omitempty"`
 	}
 	ActionOptions struct {
 		Options []ActionOption `json:"options"`

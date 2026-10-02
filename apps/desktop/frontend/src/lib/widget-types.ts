@@ -15,6 +15,7 @@ export interface RenderNode {
   key: string;
   kind: "row" | "column" | "text" | "icon" | "progress" | "sparkline" | "button";
   text?: string;
+  textKey?: string;
   status: string;
   progress?: number;
   history?: number[];
@@ -33,6 +34,7 @@ export interface InstanceState {
 export interface ActionOption {
   token: string;
   label: string;
+  labelKey?: string;
 }
 
 export interface NumberRange {

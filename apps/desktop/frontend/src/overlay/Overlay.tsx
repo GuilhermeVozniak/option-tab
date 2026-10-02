@@ -9,6 +9,7 @@ import {
   useMaterialReporter,
 } from "../lib/material";
 import type { SwitcherState } from "../lib/types";
+import { useSwitcherGestureRegions } from "../lib/useSwitcherGestureRegions";
 import { EntryItem } from "./EntryItem";
 import type { OverlayHandlers } from "./types";
 
@@ -43,6 +44,15 @@ export function Overlay({ state, handlers, nativeKeys = true, material }: Overla
   // the overlay (AltTab parity). 0 renders immediately.
   const delay = appearance.apparitionDelayMs;
   const [shown, setShown] = useState(delay <= 0);
+  const [shownSession, setShownSession] = useState(state.session ?? 0);
+  const presented = shown && (delay <= 0 || shownSession === (state.session ?? 0));
+  const gestureRef = useSwitcherGestureRegions(
+    state.session ?? 0,
+    state.revision ?? 0,
+    state.entries,
+    open && presented,
+    handlers.onGestureRegions,
+  );
   const panelRef = useMaterialReporter(
     state.session ?? 0,
     state.revision ?? 0,
@@ -70,6 +80,7 @@ export function Overlay({ state, handlers, nativeKeys = true, material }: Overla
   }, []);
   useEffect(() => {
     if (!open) return;
+    setShownSession(state.session ?? 0);
     if (delay <= 0) {
       setShown(true);
       return;
@@ -77,7 +88,7 @@ export function Overlay({ state, handlers, nativeKeys = true, material }: Overla
     setShown(false);
     const t = setTimeout(() => setShown(true), delay);
     return () => clearTimeout(t);
-  }, [open, delay]);
+  }, [open, delay, state.session]);
 
   // Fade-out: keep the last frame mounted briefly with a closing class.
   const [closing, setClosing] = useState(false);
@@ -195,7 +206,7 @@ export function Overlay({ state, handlers, nativeKeys = true, material }: Overla
     state.session,
   ]);
 
-  if (open ? !shown : !closing) return null;
+  if (open ? !presented : !closing) return null;
 
   const layout = computeLayout({
     count: entries.length,
@@ -235,7 +246,10 @@ export function Overlay({ state, handlers, nativeKeys = true, material }: Overla
       }
     >
       <div
-        ref={panelRef}
+        ref={(element) => {
+          panelRef(element);
+          gestureRef(element);
+        }}
         className={`ot-panel ${materialClass(appearance.blur, material?.status, state.session)}`}
       >
         {appearance.showWindowControls && handlers.onAction && selectedEntry ? (

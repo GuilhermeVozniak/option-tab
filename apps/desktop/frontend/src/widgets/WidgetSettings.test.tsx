@@ -460,3 +460,31 @@ describe("WidgetSettings", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 });
+
+it("preserves community choice literals even when they match built-in clock formats", () => {
+  const community = { ...clock, builtin: false, digest: "c".repeat(64) };
+  const onChange = vi.fn();
+  render(
+    <WidgetSettings
+      instances={[
+        {
+          id: "community",
+          packageID: community.packageID,
+          digest: community.digest,
+          enabled: false,
+          grants: [],
+        },
+      ]}
+      stacks={[]}
+      catalog={[community]}
+      onChange={onChange}
+      language="es"
+    />,
+  );
+  expect(screen.getByRole("option", { name: "shortTime" })).toBeVisible();
+  fireEvent.change(screen.getByRole("combobox", { name: "Formato" }), {
+    target: { value: "longTime" },
+  });
+  expect(onChange.mock.calls[0][0].widgets[0].settings.format).toEqual({ text: "longTime" });
+  expect(onChange.mock.calls[0][0].widgets[0].grants).toEqual([]);
+});

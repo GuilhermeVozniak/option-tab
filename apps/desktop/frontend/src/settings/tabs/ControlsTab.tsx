@@ -109,7 +109,13 @@ function ActionBindingRow({
   );
 }
 
-export function ControlsTab({ ctx }: { ctx: TabContext }) {
+export function ControlsTab({
+  ctx,
+  switcherGesturesAvailable = false,
+}: {
+  ctx: TabContext;
+  switcherGesturesAvailable?: boolean;
+}) {
   const { settings, t, patch, patchModeBehavior: patchBehavior, modeBehavior, patchShortcut } = ctx;
 
   const addShortcut = () => {
@@ -301,9 +307,9 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
             <label className={ROW} key={field}>
               <span>{t(field === "swipeUpAction" ? "Swipe up" : "Swipe down")}</span>
               <Select
-                aria-label={field === "swipeUpAction" ? "Swipe up action" : "Swipe down action"}
-                disabled
-                aria-describedby="switcher-swipe-unavailable"
+                aria-label={t(field === "swipeUpAction" ? "Swipe up action" : "Swipe down action")}
+                disabled={!switcherGesturesAvailable}
+                aria-describedby="switcher-swipe-status"
                 value={modeBehavior[field]}
                 onChange={(e) => patchBehavior({ [field]: e.target.value as PointerAction })}
               >
@@ -315,9 +321,11 @@ export function ControlsTab({ ctx }: { ctx: TabContext }) {
               </Select>
             </label>
           ))}
-          <p id="switcher-swipe-unavailable" className={HINT}>
+          <p id="switcher-swipe-status" className={HINT}>
             {t(
-              "Switcher swipe actions are unavailable until native trackpad input is supported. Saved choices are preserved.",
+              switcherGesturesAvailable
+                ? "Precise gesture input is used for switcher swipes. macOS does not reliably expose the number of fingers."
+                : "Native switcher gesture input is unavailable.",
             )}
           </p>
           {Object.entries(modeBehavior.actionBindings).map(([code, action]) => (

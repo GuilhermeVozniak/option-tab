@@ -309,6 +309,9 @@ static BOOL handlePanelWheel(OTDockPanel *panel, NSEvent *event) {
   return admitWheel(r, input);
 }
 
+// The overlay adapter shares the exact wheel ownership and mailbox above.
+#import "darwin_switcher_wheel.inc"
+
 static BOOL handleLauncherGesture(OTDockPanel *panel,NSEvent *event){
  OTDockPanelRecord *r=panelRecords()[@(panel.panelToken)];
  if(!r||!r.launcherDisplay||!r.panel.visible||!r.panel.onActiveSpace)return NO;

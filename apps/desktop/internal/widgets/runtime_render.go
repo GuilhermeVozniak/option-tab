@@ -53,6 +53,9 @@ func (r *Runtime) renderLocked(i *runtimeInstance, n Node, key string) RenderNod
 	}
 	if n.Kind == "button" {
 		out.Text = n.Text
+		if i.builtin && n.Command.Provider == "audio" && n.Command.Action == "selectOutput" {
+			out.TextKey = "audio.chooseOutput"
+		}
 		o := r.owners[n.Command.Provider]
 		caps := map[string]bool{}
 		for _, c := range i.request.Grants {
@@ -160,6 +163,9 @@ func (r *Runtime) renderLocked(i *runtimeInstance, n Node, key string) RenderNod
 	case "duration":
 		seconds := int64(*v.Number / 1000)
 		out.Text = fmt.Sprintf("%d:%02d", seconds/60, seconds%60)
+	}
+	if i.builtin {
+		out.TextKey = builtinReadingKey(b, v)
 	}
 	return out
 }

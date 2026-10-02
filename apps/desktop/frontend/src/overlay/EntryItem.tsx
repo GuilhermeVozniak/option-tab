@@ -71,6 +71,8 @@ export function EntryItem({
 
   return (
     <li
+      data-switcher-gesture-window={entry.windowId}
+      data-switcher-gesture-app={entry.appId}
       role="option"
       aria-selected={selected}
       className={`ot-entry ot-entry-${style}${selected ? " ot-selected" : ""}`}
@@ -155,7 +157,11 @@ export function EntryItem({
       ) : null}
 
       {showControls ? (
-        <div className="ot-controls" onClick={(e) => e.stopPropagation()}>
+        <div
+          data-switcher-gesture-exclude
+          className="ot-controls"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             type="button"
             aria-label="Close window"

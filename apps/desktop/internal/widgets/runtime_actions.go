@@ -69,7 +69,7 @@ func (r *Runtime) ActionOptions(ctx context.Context, lease Lease, token string) 
 	}
 	out := ActionOptions{Options: []ActionOption{}, Range: copyRange(a.spec.Range)}
 	for j, o := range a.spec.Options {
-		out.Options = append(out.Options, ActionOption{Token: token + "/option" + strconv.Itoa(j), Label: o.Label})
+		out.Options = append(out.Options, ActionOption{Token: token + "/option" + strconv.Itoa(j), Label: o.Label, LabelKey: o.LabelKey})
 	}
 	return out, nil
 }

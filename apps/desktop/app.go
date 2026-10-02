@@ -59,6 +59,7 @@ type App struct {
 	// never be messaged again (see liveWindow).
 	overlay          *liveWindow
 	switcherMaterial *appSwitcherMaterial
+	switcherGestures appSwitcherGestures
 	dockMaterial     *appDockMaterial
 	materialRevision uint64
 	prefs            *liveWindow
@@ -323,6 +324,7 @@ func (a *App) emit(name string, data any) {
 
 // stopCapture is safe before startup and on repeated shutdown notifications.
 func (a *App) stopCapture() {
+	a.stopSwitcherGestures()
 	if a.diagnostics != nil {
 		a.diagnostics.Close()
 	}

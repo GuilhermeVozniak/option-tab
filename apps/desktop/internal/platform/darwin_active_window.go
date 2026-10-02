@@ -152,3 +152,32 @@ func (*darwinPlatform) PerformAutomationWindowAction(ctx context.Context, kind s
 	}
 	return nativeAutomationError(int(status))
 }
+
+// PerformPointerAction keeps pointer toggles distinct from explicit automation
+// setters while sharing the same bounded native identity/final-guard path.
+func (*darwinPlatform) PerformPointerAction(ctx context.Context, kind string, id AutomationWindowIdentity, guard func() error) error {
+	action := map[string]int{"close": 1, "minimize": 2, "fullscreen": 3, "hide": 4, "quit": 5}[kind]
+	if action == 0 {
+		return nativeAutomationError(1)
+	}
+	if err := ValidateAutomationWindowAction(ctx, "close", id, nil, guard); err != nil {
+		return err
+	}
+	if err := guard(); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	g := &automationWindowGuard{ctx: ctx, guard: guard}
+	token := cgo.NewHandle(g)
+	defer token.Delete()
+	status := C.ot_switcher_pointer_action(C.int(action), nativeIdentity(id), C.uintptr_t(token))
+	if g.err != nil {
+		return g.err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return nativeAutomationError(int(status))
+}

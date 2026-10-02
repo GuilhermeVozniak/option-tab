@@ -65,6 +65,7 @@ import {
   type Settings as SettingsModel,
   type SwitcherState,
 } from "./lib/types";
+import { createSwitcherGestureReporter } from "./lib/useSwitcherGestureRegions";
 import type { WidgetCatalogDescriptor, WidgetPackageStatus } from "./lib/widget-types";
 import type { OverlayHandlers } from "./overlay/Overlay";
 import { Overlay } from "./overlay/Overlay";
@@ -550,8 +551,15 @@ function AutomationRoute({ session }: { session: number }) {
 function OverlayRoute() {
   const t = useRuntimeTranslator();
   const [state, setState] = useState<SwitcherState>(emptyState);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | { gestureKey: string } | null>(null);
   const actionRevision = useRef(0);
+  const reportGestureRegions = useMemo(
+    () =>
+      createSwitcherGestureReporter((publication) => {
+        void switcher.gestureRegions(publication).catch(() => {});
+      }),
+    [],
+  );
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const currentSession = useRef(0);
@@ -656,6 +664,24 @@ function OverlayRoute() {
           setPreviews((prev) => ({ ...prev, ...next }));
       },
       onError: (message) => setActionError(message),
+      onGestureError: (error) => {
+        if (
+          error?.session > 0 &&
+          error.session === activeSession.current &&
+          error.revision === latestRevision.current &&
+          error.message
+        ) {
+          ++actionRevision.current;
+          setActionError({
+            gestureKey:
+              error.message === "accessibility permission is required"
+                ? "Accessibility permission is required for this action."
+                : error.message === "requested AX action is unsupported"
+                  ? "This action is not supported for this window."
+                  : "The window action could not be completed. Try again.",
+          });
+        }
+      },
     });
   }, []);
 
@@ -721,6 +747,7 @@ function OverlayRoute() {
 
   const handlers = useMemo<OverlayHandlers>(
     () => ({
+      onGestureRegions: reportGestureRegions,
       onAdvance: () => void switcher.advance(),
       onReverse: () => void switcher.reverse(),
       onConfirm: () => void performCommit(() => switcher.confirm()),
@@ -738,7 +765,7 @@ function OverlayRoute() {
       onSelectAppWindow: (windowId) => void switcher.selectAppWindow(windowId),
       onConfirmApp: (appId) => void performCommit(() => switcher.confirmApp(appId)),
     }),
-    [windowAction, performAction, performCommit],
+    [windowAction, performAction, performCommit, reportGestureRegions],
   );
 
   return (
@@ -767,7 +794,7 @@ function OverlayRoute() {
       )}
       {state.open && actionError ? (
         <div className="ot-action-notice" role="alert">
-          <span>{actionError}</span>
+          <span>{typeof actionError === "string" ? actionError : t(actionError.gestureKey)}</span>
           <button
             type="button"
             onClick={() => setActionError(null)}
@@ -1288,6 +1315,16 @@ function SettingsRoute() {
   const crash = useCrash();
   const [requestedTab, setRequestedTab] = useState<string | null>(null);
   const [dockInputError, setDockInputError] = useState("");
+  const [switcherGesturesAvailable, setSwitcherGesturesAvailable] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void switcher.gestureCapabilities().then((capability) => {
+      if (active) setSwitcherGesturesAvailable(capability.available);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   const dockInputRevision = useRef(0);
   const [lockState, setLockState] = useState<DockMonitorLockState>();
   const [lockDisplays, setLockDisplays] = useState<DockLockDisplay[]>([]);
@@ -1566,6 +1603,7 @@ function SettingsRoute() {
           crash={crash}
           requestedTab={requestedTab}
           dockInputError={dockInputError}
+          switcherGesturesAvailable={switcherGesturesAvailable}
           monitorLock={{
             state: lockState,
             displays: lockDisplays,

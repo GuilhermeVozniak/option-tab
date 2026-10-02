@@ -36,6 +36,7 @@ export {
     MediaLyricsView,
     MediaViewState,
     SettingsState,
+    SwitcherGestureCapabilities,
     WidgetCatalogItem,
     WidgetPackageReview,
     WidgetPackageStatus

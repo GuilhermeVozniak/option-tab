@@ -53,6 +53,7 @@ interface SettingsProps {
    */
   requestedTab?: string | null;
   dockInputError?: string;
+  switcherGesturesAvailable?: boolean;
   monitorLock?: {
     state?: DockMonitorLockState;
     displays: DockLockDisplay[];
@@ -116,6 +117,7 @@ export function Settings({
   crash,
   requestedTab,
   dockInputError,
+  switcherGesturesAvailable = false,
   monitorLock,
   media,
   diagnostics,
@@ -322,7 +324,7 @@ export function Settings({
           />
         </section>
         <section hidden={tab !== "Controls"} aria-label="Controls" className="space-y-4">
-          <ControlsTab ctx={ctx} />
+          <ControlsTab ctx={ctx} switcherGesturesAvailable={switcherGesturesAvailable} />
         </section>
         <section hidden={tab !== "Appearance"} aria-label="Appearance" className="space-y-4">
           <AppearanceTab ctx={ctx} />

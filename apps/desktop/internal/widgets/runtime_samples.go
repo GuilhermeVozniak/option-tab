@@ -76,6 +76,9 @@ func sanitizeSample(name string, caps []string, s Sample, now time.Time) Sample 
 		}
 		seen := map[string]bool{}
 		for _, o := range spec.Options {
+			if o.LabelKey != "" && (name != "audio" || action != "selectOutput" || o.LabelKey != "audio.output" || o.Label != "Audio output") {
+				return invalid
+			}
 			if !validText(o.ID, 1024) || !validText(o.Label, 160) || seen[o.ID] {
 				return invalid
 			}
