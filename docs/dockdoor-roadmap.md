@@ -3,6 +3,8 @@
 Baseline: v0.4.8. Branch: `feat/dockdoor-parity`.
 Status: approved narrowed scope; implementation in progress. Unchecked items have not passed all acceptance checks.
 
+The [October 2 native acceptance follow-up](superpowers/reports/2026-10-02-native-acceptance-follow-up.md) strengthens Dock ownership regression coverage and verifies Intel/universal compilation. Disposable bulk-action probes stopped at identity and foreground guards; A07/A08 native outcomes remain unverified. No capability gate or acceptance checkbox changed.
+
 The [October 2 conditional provider lyrics follow-up](superpowers/reports/2026-10-02-provider-lyrics.md) extends E05 with timestamped text supplied by the enabled, permitted Music process. Chosen local files retain priority. Plain text is explicitly unavailable for synchronization, and real-player acceptance remains open.
 
 The [October 2 preview actions and localization follow-up](superpowers/reports/2026-10-02-preview-actions-and-localization.md) fixes minimize/restore semantics in automation and launcher previews, exposes selected-app Hide/Quit controls, and translates retained controls and widget package feedback. A09/G06 acceptance remains open.

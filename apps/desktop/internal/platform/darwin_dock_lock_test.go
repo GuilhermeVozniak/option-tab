@@ -135,8 +135,30 @@ func TestNativeDockLockJoinedPlacementLifecycle(t *testing.T) {
 }
 
 func TestNativeDockLockQueuedCarrierAdmission(t *testing.T) {
-	if got := nativeDockLockDeliveryProbe(); got != 31 {
-		t.Fatalf("carrier delivery guards %b", got)
+	done := make(chan uint64, 1)
+	go func() { done <- nativeDockLockDeliveryProbe() }()
+	var got uint64
+	select {
+	case got = <-done:
+	case <-time.After(time.Second):
+		t.Fatal("isolated callback owner did not finish cleanup")
+	}
+	for _, check := range []struct {
+		bit  uint64
+		name string
+	}{
+		{1, "current tagged carrier converts to movement"},
+		{2, "queued carrier stays inert after unmarked PID0 input"},
+		{4, "cancelled request stays inert"},
+		{8, "cancellation permits restoration while ownership remains current"},
+		{16, "old generation stays inert"},
+		{32, "unmarked PID0 callback retires cursor ownership"},
+		{64, "unmarked PID0 input refuses new movement and restoration"},
+		{128, "unmarked nonzero-PID input preserves cursor ownership"},
+	} {
+		if got&check.bit == 0 {
+			t.Error(check.name)
+		}
 	}
 }
 

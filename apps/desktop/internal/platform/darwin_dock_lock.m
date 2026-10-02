@@ -615,6 +615,15 @@ uint64_t ot_lock_delivery_probe(void) {
   uint64_t g = ot_lock_generation(), result = 0;
   ot_lock_begin_placement(s, 1);
   CGEventRef e = CGEventCreate(NULL);
+  // Replay only in memory: no event tap, CGEventPost or pointer movement.
+  // Non-movement input exercises ownership without consulting live buttons.
+  CGEventRef input = CGEventCreate(NULL);
+  CGEventSetType(input, kCGEventKeyDown);
+  CGEventSetIntegerValueField(input, kCGEventSourceUserData, 0);
+  CGEventSetIntegerValueField(input, kCGEventSourceUnixProcessID, 4242);
+  if (callback(NULL, kCGEventKeyDown, input, s) == input &&
+      ot_lock_physical(s) == 0)
+    result |= 128;
   CGEventSetType(e, kCGEventNull);
   uint64_t id = LOCK_PREFIX | 42;
   CGEventSetIntegerValueField(e, kCGEventSourceUserData, id);
@@ -631,10 +640,16 @@ uint64_t ot_lock_delivery_probe(void) {
       CGEventGetIntegerValueField(e, kCGMouseEventDeltaY) == 3)
     result |= 1;
   CGEventSetType(e, kCGEventNull);
-  atomic_fetch_add(&s->physical, 1);
+  CGEventSetIntegerValueField(input, kCGEventSourceUnixProcessID, 0);
+  if (callback(NULL, kCGEventKeyDown, input, s) == input &&
+      CGEventGetType(input) == kCGEventKeyDown && ot_lock_physical(s) == 1)
+    result |= 32;
   if (callback(NULL, kCGEventNull, e, s) == NULL &&
       CGEventGetType(e) == kCGEventNull)
     result |= 2;
+  if (!ot_lock_move(s, g, 0, 1, 10, 20, 0, 3) &&
+      !ot_lock_restore(s, g, 0, 1, 0, 0) && s->testMoves == 0)
+    result |= 64;
   s->deliveryPhysical = 1;
   ot_lock_cancel_placement(s, 1);
   if (callback(NULL, kCGEventNull, e, s) == NULL)
@@ -646,7 +661,10 @@ uint64_t ot_lock_delivery_probe(void) {
   s->deliveryGeneration = g + 1;
   if (callback(NULL, kCGEventNull, e, s) == NULL)
     result |= 16;
+  CFRelease(input);
   CFRelease(e);
+  ot_lock_retire(s);
+  ot_lock_stop(s);
   ot_lock_destroy(s);
   return result;
 }
