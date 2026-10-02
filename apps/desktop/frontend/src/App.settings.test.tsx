@@ -372,8 +372,12 @@ it.each([
   } else fireEvent.click(screen.getByRole("button", { name: "Remove package" }));
   await waitFor(() => expect(screen.getByLabelText("Enable Status card")).not.toBeChecked());
   expect(screen.getByLabelText("Required · Network status")).not.toBeChecked();
-  if (operation === "failed removal")
-    expect(screen.getByRole("alert")).toHaveTextContent("package removal failed");
+  if (operation === "failed removal") {
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The widget package operation could not be completed. Try again.",
+    );
+    expect(screen.queryByText("package removal failed")).toBeNull();
+  }
 });
 
 beforeEach(() => {

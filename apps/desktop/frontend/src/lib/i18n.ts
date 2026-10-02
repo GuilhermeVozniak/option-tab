@@ -1,7 +1,7 @@
 // Minimal i18n for the preferences UI. Dictionaries are keyed by the English
 // source string; a missing entry falls back to English, so partially
-// translated languages degrade gracefully. Aria-labels stay English on purpose
-// (they are programmatic identifiers, not visible copy).
+// translated languages degrade gracefully. Accessible names are user-facing
+// copy and should be translated alongside visible labels.
 import type { Settings } from "./types";
 
 export type Lang = "en" | "pt-BR" | "es";
@@ -33,6 +33,57 @@ export function makeT(lang: Lang): Translate {
 }
 
 const PT: Record<string, string> = {
+  "Option Tab launcher": "Lançador do Option Tab",
+  "Switcher actions": "Ações do alternador",
+  "Open windows": "Janelas abertas",
+  "New window — {app}": "Nova janela — {app}",
+  "Force quit — {app}": "Forçar encerramento — {app}",
+  "Close all windows — {app}": "Fechar todas as janelas — {app}",
+  "Minimize all windows — {app}": "Minimizar todas as janelas — {app}",
+  "Hidden app": "Aplicativo oculto",
+  "On another Space": "Em outro Space",
+  "Application switcher": "Alternador de aplicativos",
+  "Sort folder contents by": "Ordenar conteúdo da pasta por",
+  "Switcher settings mode": "Modo de configuração do alternador",
+  "Dock app scope": "Escopo de apps do Dock",
+  "Middle click action": "Ação do clique do meio",
+  "Add action binding": "Adicionar atalho de ação",
+  "Physical key {key}": "Tecla física {key}",
+  "Action for {key}": "Ação para {key}",
+  "Remove action binding {key}": "Remover atalho de ação {key}",
+  "Shortcut {id} mode": "Modo do atalho {id}",
+  "This widget package file is invalid.": "Este arquivo de pacote de widget é inválido.",
+  "This widget package is invalid.": "Este pacote de widget é inválido.",
+  "This widget package requires a newer version of Option Tab.":
+    "Este pacote de widget requer uma versão mais recente do Option Tab.",
+  "Widget settings could not be saved. Try again.":
+    "Não foi possível salvar as configurações dos widgets. Tente novamente.",
+  "Another package operation is in progress. Try again.":
+    "Outra operação de pacote está em andamento. Tente novamente.",
+  "This package operation is no longer available. Try again.":
+    "Esta operação de pacote não está mais disponível. Tente novamente.",
+  "Some installed widget packages could not be loaded.":
+    "Não foi possível carregar alguns pacotes de widgets instalados.",
+  "The widget package could not be removed. Try again.":
+    "Não foi possível remover o pacote de widget. Tente novamente.",
+  "The widget package operation could not be completed. Try again.":
+    "Não foi possível concluir a operação do pacote de widget. Tente novamente.",
+  Profile: "Perfil",
+  "Reassign deleted profile to": "Reatribuir o perfil excluído a",
+  "Launcher theme": "Tema do Dock substituto",
+  "Launcher opacity": "Opacidade do Dock substituto",
+  "Show launcher labels": "Mostrar rótulos do Dock substituto",
+  "Show replacement Dock badges": "Mostrar indicadores do Dock substituto",
+  "Enable runtime launcher reordering": "Ativar reordenação diretamente no Dock substituto",
+  "Enable launcher magnification": "Ativar ampliação do Dock substituto",
+  "Launcher haptic feedback": "Resposta tátil do Dock substituto",
+  "{display} profile": "Perfil de {display}",
+  "Focus {title}": "Focar {title}",
+  "Open {app}": "Abrir {app}",
+  Minimized: "Minimizada",
+  "Space {number}": "Espaço {number}",
+  "Selected window preview": "Prévia da janela selecionada",
+  "Restore window": "Restaurar janela",
   "Accessibility permission is required for this action.":
     "A permissão de Acessibilidade é necessária para esta ação.",
   "This action is not supported for this window.": "Esta ação não é compatível com esta janela.",
@@ -758,6 +809,57 @@ const PT: Record<string, string> = {
 };
 
 const ES: Record<string, string> = {
+  "Option Tab launcher": "Lanzador de Option Tab",
+  "Switcher actions": "Acciones del conmutador",
+  "Open windows": "Ventanas abiertas",
+  "New window — {app}": "Nueva ventana — {app}",
+  "Force quit — {app}": "Forzar salida — {app}",
+  "Close all windows — {app}": "Cerrar todas las ventanas — {app}",
+  "Minimize all windows — {app}": "Minimizar todas las ventanas — {app}",
+  "Hidden app": "Aplicación oculta",
+  "On another Space": "En otro Space",
+  "Application switcher": "Conmutador de aplicaciones",
+  "Sort folder contents by": "Ordenar contenido de la carpeta por",
+  "Switcher settings mode": "Modo de ajustes del conmutador",
+  "Dock app scope": "Ámbito de apps del Dock",
+  "Middle click action": "Acción del clic central",
+  "Add action binding": "Añadir atajo de acción",
+  "Physical key {key}": "Tecla física {key}",
+  "Action for {key}": "Acción para {key}",
+  "Remove action binding {key}": "Eliminar atajo de acción {key}",
+  "Shortcut {id} mode": "Modo del atajo {id}",
+  "This widget package file is invalid.": "Este archivo de paquete de widget no es válido.",
+  "This widget package is invalid.": "Este paquete de widget no es válido.",
+  "This widget package requires a newer version of Option Tab.":
+    "Este paquete de widget requiere una versión más reciente de Option Tab.",
+  "Widget settings could not be saved. Try again.":
+    "No se pudieron guardar los ajustes de los widgets. Vuelve a intentarlo.",
+  "Another package operation is in progress. Try again.":
+    "Hay otra operación de paquete en curso. Vuelve a intentarlo.",
+  "This package operation is no longer available. Try again.":
+    "Esta operación de paquete ya no está disponible. Vuelve a intentarlo.",
+  "Some installed widget packages could not be loaded.":
+    "No se pudieron cargar algunos paquetes de widgets instalados.",
+  "The widget package could not be removed. Try again.":
+    "No se pudo eliminar el paquete de widget. Vuelve a intentarlo.",
+  "The widget package operation could not be completed. Try again.":
+    "No se pudo completar la operación del paquete de widget. Vuelve a intentarlo.",
+  Profile: "Perfil",
+  "Reassign deleted profile to": "Reasignar el perfil eliminado a",
+  "Launcher theme": "Tema del Dock sustituto",
+  "Launcher opacity": "Opacidad del Dock sustituto",
+  "Show launcher labels": "Mostrar etiquetas del Dock sustituto",
+  "Show replacement Dock badges": "Mostrar indicadores del Dock sustituto",
+  "Enable runtime launcher reordering": "Activar reordenación directamente en el Dock sustituto",
+  "Enable launcher magnification": "Activar ampliación del Dock sustituto",
+  "Launcher haptic feedback": "Respuesta háptica del Dock sustituto",
+  "{display} profile": "Perfil de {display}",
+  "Focus {title}": "Enfocar {title}",
+  "Open {app}": "Abrir {app}",
+  Minimized: "Minimizada",
+  "Space {number}": "Espacio {number}",
+  "Selected window preview": "Vista previa de la ventana seleccionada",
+  "Restore window": "Restaurar ventana",
   "Accessibility permission is required for this action.":
     "Se necesita permiso de Accesibilidad para esta acción.",
   "This action is not supported for this window.": "Esta acción no es compatible con esta ventana.",

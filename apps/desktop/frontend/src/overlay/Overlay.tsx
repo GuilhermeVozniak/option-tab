@@ -18,6 +18,7 @@ export type { OverlayHandlers };
 interface OverlayProps {
   state: SwitcherState;
   handlers: OverlayHandlers;
+  t?: (text: string) => string;
   // nativeKeys (default true): keyboard input arrives as native-tap
   // "switcher:key" events — the overlay window never becomes key in the real
   // app, so DOM keydown never fires there. False in browser dev, where the
@@ -27,16 +28,22 @@ interface OverlayProps {
 }
 
 const BULK_ACTION_LABEL = {
-  newWindow: (app: string) => `New window — ${app}`,
-  forceQuit: (app: string) => `Force quit — ${app}`,
-  closeAll: (app: string) => `Close all windows — ${app}`,
-  minimizeAll: (app: string) => `Minimize all windows — ${app}`,
+  newWindow: "New window — {app}",
+  forceQuit: "Force quit — {app}",
+  closeAll: "Close all windows — {app}",
+  minimizeAll: "Minimize all windows — {app}",
 } as const;
 
 // Overlay renders the window switcher in the configured visual style and wires
 // global keyboard handling. It is a controlled component: all state comes from
 // props (pushed by the Go controller) and all input flows out through handlers.
-export function Overlay({ state, handlers, nativeKeys = true, material }: OverlayProps) {
+export function Overlay({
+  state,
+  handlers,
+  nativeKeys = true,
+  material,
+  t = (text) => text,
+}: OverlayProps) {
   const { open, entries, selected, search, appearance } = state;
   const style = effectiveStyle(state.style, entries.length, appearance.compactThreshold);
 
@@ -230,7 +237,7 @@ export function Overlay({ state, handlers, nativeKeys = true, material }: Overla
       className={`ot-overlay ot-theme-${appearance.theme}${appearance.blur ? "" : " ot-no-blur"}${closing && !open ? " ot-closing" : ""}`}
       data-style={style}
       role="dialog"
-      aria-label="Window switcher"
+      aria-label={t("Window switcher")}
       onClick={(e) => {
         // The window now covers the whole screen; clicking the empty backdrop
         // outside the panel dismisses the switcher.
@@ -253,18 +260,17 @@ export function Overlay({ state, handlers, nativeKeys = true, material }: Overla
         className={`ot-panel ${materialClass(appearance.blur, material?.status, state.session)}`}
       >
         {appearance.showWindowControls && handlers.onAction && selectedEntry ? (
-          <div className="ot-bulk-actions" aria-label="Switcher actions">
+          <div className="ot-bulk-actions" aria-label={t("Switcher actions")}>
             {(["newWindow", "forceQuit", "closeAll", "minimizeAll"] as const).map((kind) => (
               <button
                 key={kind}
                 type="button"
-                aria-label={kind}
-                title={BULK_ACTION_LABEL[kind](selectedEntry.appName)}
+                title={t(BULK_ACTION_LABEL[kind]).replace("{app}", () => selectedEntry.appName)}
                 onClick={() =>
                   handlers.onAction?.(kind, selectedEntry.windowId, selectedEntry.appId)
                 }
               >
-                {BULK_ACTION_LABEL[kind](selectedEntry.appName)}
+                {t(BULK_ACTION_LABEL[kind]).replace("{app}", () => selectedEntry.appName)}
               </button>
             ))}
           </div>
@@ -273,7 +279,7 @@ export function Overlay({ state, handlers, nativeKeys = true, material }: Overla
         <ul
           className="ot-list"
           role="listbox"
-          aria-label="Open windows"
+          aria-label={t("Open windows")}
           style={
             style === "titles"
               ? undefined
@@ -311,13 +317,14 @@ export function Overlay({ state, handlers, nativeKeys = true, material }: Overla
               activeSpaceId={state.activeSpaceId}
               handlers={handlers}
               middleClickAction={state.middleClickAction}
+              t={t}
             />
           ))}
         </ul>
         {appearance.previewSelected && (selectedEntry?.preview || selectedEntry?.thumbnail) ? (
           <div
             className={`ot-preview${appearance.previewFade ? " ot-preview-fade" : ""}`}
-            aria-label="Selected window preview"
+            aria-label={t("Selected window preview")}
           >
             <img
               // Keyed by source so switching windows remounts the image and

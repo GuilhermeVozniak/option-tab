@@ -25,6 +25,7 @@ interface EntryItemProps {
   activeSpaceId: number;
   handlers: OverlayHandlers;
   middleClickAction: PointerAction;
+  t?: (text: string) => string;
 }
 
 // EntryItem renders one window in the active visual style: a titled thumbnail
@@ -48,6 +49,7 @@ export function EntryItem({
   activeSpaceId,
   handlers,
   middleClickAction,
+  t = (text) => text,
 }: EntryItemProps) {
   const runAction = (action: PointerAction) => {
     if (action === "close") handlers.onClose(entry.windowId);
@@ -142,6 +144,7 @@ export function EntryItem({
           hidden={entry.hidden}
           fullscreen={entry.fullscreen}
           otherSpace={otherSpace}
+          t={t}
         />
       ) : null}
 
@@ -149,8 +152,8 @@ export function EntryItem({
         <span
           className="ot-space-badge"
           role="img"
-          aria-label={`Space ${spaceNumber}`}
-          title={`Space ${spaceNumber}`}
+          aria-label={t("Space {number}").replace("{number}", String(spaceNumber))}
+          title={t("Space {number}").replace("{number}", String(spaceNumber))}
         >
           {spaceNumber}
         </span>
@@ -164,7 +167,7 @@ export function EntryItem({
         >
           <button
             type="button"
-            aria-label="Close window"
+            aria-label={t("Close window")}
             className="ot-ctl ot-ctl-close"
             onClick={() => handlers.onClose(entry.windowId)}
           >
@@ -172,7 +175,7 @@ export function EntryItem({
           </button>
           <button
             type="button"
-            aria-label="Minimize window"
+            aria-label={t(entry.minimized ? "Restore window" : "Minimize window")}
             className="ot-ctl ot-ctl-min"
             onClick={() => handlers.onMinimize(entry.windowId)}
           >
@@ -180,7 +183,7 @@ export function EntryItem({
           </button>
           <button
             type="button"
-            aria-label="Fullscreen window"
+            aria-label={t("Fullscreen window")}
             className="ot-ctl ot-ctl-fs"
             onClick={() => handlers.onFullscreen(entry.windowId)}
           >
@@ -188,8 +191,8 @@ export function EntryItem({
           </button>
           <button
             type="button"
-            aria-label="Hide app"
-            title="Hide app"
+            aria-label={t("Hide app")}
+            title={t("Hide app")}
             className="ot-ctl ot-ctl-hide"
             onClick={() => handlers.onHide(entry.appId)}
           >
@@ -197,8 +200,8 @@ export function EntryItem({
           </button>
           <button
             type="button"
-            aria-label="Quit app"
-            title="Quit app"
+            aria-label={t("Quit app")}
+            title={t("Quit app")}
             className="ot-ctl ot-ctl-quit"
             onClick={() => handlers.onQuit(entry.appId)}
           >

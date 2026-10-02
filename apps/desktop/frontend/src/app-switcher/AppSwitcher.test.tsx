@@ -23,6 +23,62 @@ const handlers = () => ({
 });
 
 describe("AppSwitcher", () => {
+  it("translates preview state and restore controls without interpreting window-title tokens", () => {
+    const h = handlers();
+    render(
+      <AppSwitcher
+        nativeKeys={false}
+        handlers={h}
+        t={(text) => `translated:${text}`}
+        state={{
+          ...emptyState,
+          open: true,
+          mode: "apps",
+          activeSpaceId: 1,
+          selectedWindowId: 101,
+          appearance: { ...emptyState.appearance, showWindowControls: true, showStatusIcons: true },
+          apps: [
+            {
+              appId: 10,
+              appName: "Editor $&",
+              bundleId: "editor",
+              hidden: true,
+              windowCount: 1,
+              windowPresence: "present",
+            },
+          ],
+          entries: [
+            {
+              windowId: 101,
+              appId: 10,
+              appName: "Editor",
+              bundleId: "editor",
+              title: "Document $&",
+              minimized: true,
+              hidden: true,
+              fullscreen: true,
+              spaceId: 2,
+            },
+          ],
+        }}
+      />,
+    );
+    expect(
+      screen.getByRole("dialog", { name: "translated:Application switcher" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("listbox", { name: "translated:Applications" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "translated:Focus Document $&" }),
+    ).toBeInTheDocument();
+    for (const name of ["Minimized", "Hidden app", "Fullscreen", "On another Space"])
+      expect(screen.getByRole("img", { name: `translated:${name}` })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "translated:Restore window" }));
+    expect(h.onMinimize).toHaveBeenCalledWith(101);
+    expect(h.onConfirmWindow).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "translated:Open Editor $&" }));
+    expect(h.onConfirmApp).toHaveBeenCalledWith(10);
+  });
+
   it("uses native material only after a truthful matching status", () => {
     const { container, rerender } = render(
       <AppSwitcher

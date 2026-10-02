@@ -301,7 +301,7 @@ export function Settings({
           <label className="mb-4 flex items-center justify-end gap-3 text-[13px]">
             <span>{t("Editing")}</span>
             <Select
-              aria-label="Switcher settings mode"
+              aria-label={t("Switcher settings mode")}
               value={mode}
               onChange={(e) => setMode(e.target.value as SwitcherMode)}
             >

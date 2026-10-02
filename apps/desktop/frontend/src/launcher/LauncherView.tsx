@@ -145,7 +145,7 @@ export function LauncherView({
           "--ot-launcher-gap": `${presentation.appearance.itemSpacingPx}px`,
         } as React.CSSProperties
       }
-      aria-label="Option Tab launcher"
+      aria-label={t("Option Tab launcher")}
     >
       <LauncherItemStrip
         key={`${presentation.epoch}:${presentation.session}:${presentation.displayUUID}`}

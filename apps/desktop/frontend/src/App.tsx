@@ -787,6 +787,7 @@ function OverlayRoute() {
           state={stateWithThumbs}
           handlers={handlers}
           nativeKeys={nativeKeys}
+          t={t}
           material={{
             status: materialStatus,
             onRect: (rect) => void switcher.materialRect(rect).catch(() => {}),

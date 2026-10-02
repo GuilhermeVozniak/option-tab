@@ -75,7 +75,7 @@ function AppWindowCard({
       <button
         type="button"
         className="ot-app-preview"
-        aria-label={`Focus ${entry.title || entry.appName}`}
+        aria-label={t("Focus {title}").replace("{title}", () => entry.title || entry.appName)}
         onMouseEnter={hover ? () => handlers.onSelectAppWindow?.(entry.windowId) : undefined}
         onAuxClick={(event) => {
           if (event.button === 1) runPointerAction(middle, entry, handlers);
@@ -118,10 +118,15 @@ function AppWindowCard({
           hidden={entry.hidden}
           fullscreen={entry.fullscreen}
           otherSpace={!!entry.spaceId && !!activeSpaceId && entry.spaceId !== activeSpaceId}
+          t={t}
         />
       ) : null}
       {spaceNumber !== undefined ? (
-        <span className="ot-space-badge" role="img" aria-label={`Space ${spaceNumber}`}>
+        <span
+          className="ot-space-badge"
+          role="img"
+          aria-label={t("Space {number}").replace("{number}", String(spaceNumber))}
+        >
           {spaceNumber}
         </span>
       ) : null}
@@ -134,7 +139,7 @@ function AppWindowCard({
           />
           <button
             className="ot-traffic ot-traffic-minimize"
-            aria-label={t("Minimize window")}
+            aria-label={t(entry.minimized ? "Restore window" : "Minimize window")}
             onClick={() => handlers.onMinimize(entry.windowId)}
           />
           <button
@@ -332,7 +337,7 @@ export function AppSwitcher({
         } as React.CSSProperties
       }
       role="dialog"
-      aria-label="Application switcher"
+      aria-label={t("Application switcher")}
     >
       <section
         ref={(element) => {
@@ -342,7 +347,7 @@ export function AppSwitcher({
         className={`ot-app-panel ${materialClass(appearance.blur, material?.status, state.session)}`}
       >
         {state.search ? <div className="ot-app-search">{state.search}</div> : null}
-        <div className="ot-app-rail" role="listbox" aria-label="Applications">
+        <div className="ot-app-rail" role="listbox" aria-label={t("Applications")}>
           {apps.map((item, index) => (
             <button
               type="button"
@@ -370,7 +375,7 @@ export function AppSwitcher({
               <button
                 type="button"
                 onClick={() => handlers.onConfirmApp?.(app.appId)}
-                aria-label={`Open ${app.appName}`}
+                aria-label={t("Open {app}").replace("{app}", () => app.appName)}
               >
                 {t("Open app")}
               </button>
@@ -417,7 +422,7 @@ export function AppSwitcher({
             return source ? (
               <div
                 className={`ot-app-expanded-preview${state.appearance.previewFade ? " is-fading" : ""}`}
-                aria-label="Selected window preview"
+                aria-label={t("Selected window preview")}
                 style={
                   {
                     "--ot-preview-width": `${Math.round(layout.thumbnailPx * 1.6)}px`,

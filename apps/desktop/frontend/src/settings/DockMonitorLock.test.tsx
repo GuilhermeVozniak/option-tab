@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
+import { makeT } from "../lib/i18n";
 import { DockMonitorLock } from "./DockMonitorLock";
 
 const value = {
@@ -17,6 +18,14 @@ const props = {
   onPlace: vi.fn(),
   onCancel: vi.fn(),
 };
+
+it.each(["pt-BR", "es"] as const)("localizes monitor controls in %s", (language) => {
+  const t = makeT(language);
+  render(<DockMonitorLock {...props} t={t} />);
+  expect(screen.getByRole("checkbox", { name: t("Lock Dock to a monitor") })).toBeChecked();
+  expect(screen.getByRole("combobox", { name: t("Target monitor") })).toHaveValue("gone-uuid");
+  expect(screen.getByRole("combobox", { name: t("Bypass modifier") })).toHaveValue("option");
+});
 
 it("preserves a disconnected UUID and requests accessibility only on explicit enable", () => {
   const onChange = vi.fn(),

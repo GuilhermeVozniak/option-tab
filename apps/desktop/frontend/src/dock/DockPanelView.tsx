@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { DockPointer } from "../lib/dock-bridge";
 import { computeLayout, effectiveStyle } from "../lib/layout";
 import { type MaterialStatus, materialClass } from "../lib/material";
@@ -64,6 +64,7 @@ export function DockPanelView({
   onClose,
   nativeHeader = false,
   materialStatus,
+  appActions,
 }: {
   state: DockPanelState;
   handlers: DockPanelHandlers;
@@ -74,6 +75,7 @@ export function DockPanelView({
   onClose?: () => void;
   nativeHeader?: boolean;
   materialStatus?: MaterialStatus | null;
+  appActions?: ReactNode;
 }) {
   dockDragGesture = Math.max(dockDragGesture, state.dragGestureFloor ?? 0);
   const drag = useRef<DragState | null>(null);
@@ -404,7 +406,10 @@ export function DockPanelView({
                         <button
                           type="button"
                           className={`ot-dock-preview${drag.current?.windowId === e.windowId && drag.current.dragging ? " is-dragging" : ""}`}
-                          aria-label={`Focus ${e.title || e.appName}`}
+                          aria-label={t("Focus {title}").replace(
+                            "{title}",
+                            () => e.title || e.appName,
+                          )}
                           draggable={false}
                           onMouseDown={(event) => {
                             if (event.button !== 1) return;
@@ -529,9 +534,9 @@ export function DockPanelView({
                             <span
                               className="ot-dock-status"
                               aria-label={[
-                                e.minimized && "Minimized",
-                                e.hidden && "Hidden",
-                                e.fullscreen && "Fullscreen",
+                                e.minimized && t("Minimized"),
+                                e.hidden && t("Hidden"),
+                                e.fullscreen && t("Fullscreen"),
                               ]
                                 .filter(Boolean)
                                 .join(", ")}
@@ -542,7 +547,13 @@ export function DockPanelView({
                             </span>
                           ) : null}
                           {a.showSpaceNumbers && e.spaceId ? (
-                            <span className="ot-dock-space" aria-label={`Space ${e.spaceId}`}>
+                            <span
+                              className="ot-dock-space"
+                              aria-label={t("Space {number}").replace(
+                                "{number}",
+                                String(e.spaceId),
+                              )}
+                            >
                               {e.spaceId}
                             </span>
                           ) : null}
@@ -558,7 +569,7 @@ export function DockPanelView({
                               ×
                             </button>
                             <button
-                              aria-label={t("Minimize window")}
+                              aria-label={t(e.minimized ? "Restore window" : "Minimize window")}
                               onClick={() =>
                                 handlers.onAction(state.session, "minimize", e.windowId, e.appId)
                               }
@@ -598,7 +609,7 @@ export function DockPanelView({
             {preview ? (
               <div
                 className={`ot-dock-selected-preview${a.previewFade ? " ot-dock-preview-fade" : ""}`}
-                aria-label="Selected window preview"
+                aria-label={t("Selected window preview")}
               >
                 <img key={selected?.windowId} src={preview} alt="" />
               </div>
@@ -618,6 +629,7 @@ export function DockPanelView({
                 </button>
               </div>
             ) : null}
+            {appActions}
           </>
         )}
       </div>

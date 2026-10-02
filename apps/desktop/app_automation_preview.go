@@ -533,6 +533,11 @@ func (a *App) automationPreviewGuard(p *automationPreviewOwner, revision uint64,
 }
 
 func (a *App) PerformAutomationPreviewAction(session, revision uint64, kind string, windowID domain.WindowID, fullscreen bool) error {
+	switch kind {
+	case "focus", "close", "minimize", "fullscreen", "hide", "quit":
+	default:
+		return previewError("unsupported", "unsupported preview window action")
+	}
 	if revision == 0 {
 		return previewRetired()
 	}
@@ -547,12 +552,19 @@ func (a *App) PerformAutomationPreviewAction(session, revision uint64, kind stri
 	if !ok {
 		return previewError("notFound", "window is not in this preview")
 	}
-	var value *bool
-	if kind == "fullscreen" {
-		value = &fullscreen
-	}
 	guard := func() error { return a.automationPreviewGuard(p, revision, id) }
-	err = actions.New(a.platform).PerformAutomationWindowAction(p.ctx, kind, id, value, guard)
+	// These are pointer controls, even when AppleScript opened the preview.
+	// Keep the legacy fullscreen argument for the RPC contract; native toggles
+	// read current state rather than applying the rendered snapshot's intent.
+	if kind == "focus" {
+		err = actions.New(a.platform).PerformAutomationWindowAction(p.ctx, kind, id, nil, guard)
+	} else if err = guard(); err == nil {
+		if native, ok := a.platform.(platform.GuardedPointerPerformer); ok {
+			err = native.PerformPointerAction(p.ctx, kind, id, guard)
+		} else {
+			err = previewError("unsupported", "guarded preview window actions unavailable")
+		}
+	}
 	if err == nil {
 		var windows []domain.Window
 		windows, err = a.platform.Windows()

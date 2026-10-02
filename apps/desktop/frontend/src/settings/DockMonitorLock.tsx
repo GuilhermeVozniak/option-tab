@@ -52,7 +52,7 @@ export function DockMonitorLock({
       <label className={ROW}>
         <span>{t("Lock Dock to a monitor")}</span>
         <Checkbox
-          aria-label="Lock Dock to a monitor"
+          aria-label={t("Lock Dock to a monitor")}
           checked={value.enabled}
           onChange={(e) => {
             onChange({ ...value, enabled: e.target.checked });
@@ -63,7 +63,7 @@ export function DockMonitorLock({
       <label className={ROW}>
         <span>{t("Target monitor")}</span>
         <Select
-          aria-label="Target monitor"
+          aria-label={t("Target monitor")}
           value={value.target === "main" ? "main" : value.displayUUID}
           onChange={(e) =>
             onChange({
@@ -89,7 +89,7 @@ export function DockMonitorLock({
       <label className={ROW}>
         <span>{t("Bypass modifier")}</span>
         <Select
-          aria-label="Bypass modifier"
+          aria-label={t("Bypass modifier")}
           value={value.bypassModifier}
           onChange={(e) =>
             onChange({

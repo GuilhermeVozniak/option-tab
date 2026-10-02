@@ -180,6 +180,7 @@ describe("native switcher gesture route", () => {
     native.settings.mockResolvedValue(JSON.stringify({ behavior: { language: "en" } }));
     render(<App />);
     emit("switcher:show", state(7));
+    expect(screen.getByRole("dialog", { name: "Window switcher" })).toBeInTheDocument();
     emit("switcher:gestureError", {
       session: 7,
       revision: 1,
@@ -206,6 +207,7 @@ describe("native switcher gesture route", () => {
     expect(
       screen.getByRole("button", { name: "Descartar error de la acción" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Conmutador de ventanas" })).toBeInTheDocument();
   });
 
   it("ignores delayed language replies from retired sessions and loads only once per opening", async () => {

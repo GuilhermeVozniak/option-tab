@@ -265,7 +265,7 @@ test.describe("overlay — interactive", () => {
       };
     });
     await emitShow(page, showState({}));
-    await page.getByRole("button", { name: "closeAll" }).click();
+    await page.getByRole("button", { name: "Close all windows — Editor", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("Notes refused to close");
     await expect
       .poll(() => getCallRecords(page))

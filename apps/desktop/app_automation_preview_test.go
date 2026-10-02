@@ -113,8 +113,13 @@ func TestAutomationPreviewGuardAfterFactoryAndBeforeCommit(t *testing.T) {
 
 type previewActionPlatform struct {
 	*appAutomationPlatform
-	prepare    func()
-	dispatched int
+	prepare      func()
+	dispatched   int
+	pointerCalls []string
+	setterCalls  []string
+	target       platform.AutomationWindowIdentity
+	minimized    bool
+	fullscreen   bool
 }
 
 func (p *previewActionPlatform) PerformAutomationWindowAction(ctx context.Context, kind string, id platform.AutomationWindowIdentity, fullscreen *bool, guard func() error) error {
@@ -125,24 +130,137 @@ func (p *previewActionPlatform) PerformAutomationWindowAction(ctx context.Contex
 		return err
 	}
 	p.dispatched++
+	p.setterCalls = append(p.setterCalls, kind)
+	p.target = id
+	if kind == "minimize" {
+		p.minimized = true
+	}
+	if kind == "fullscreen" && fullscreen != nil {
+		p.fullscreen = *fullscreen
+	}
 	return nil
 }
 
-func TestAutomationPreviewActionRechecksAfterNativePreparation(t *testing.T) {
+func (p *previewActionPlatform) PerformPointerAction(_ context.Context, kind string, id platform.AutomationWindowIdentity, guard func() error) error {
+	if p.prepare != nil {
+		p.prepare()
+	}
+	if err := guard(); err != nil {
+		return err
+	}
+	p.dispatched++
+	p.pointerCalls = append(p.pointerCalls, kind)
+	p.target = id
+	if kind == "minimize" {
+		p.minimized = !p.minimized
+	}
+	if kind == "fullscreen" {
+		p.fullscreen = !p.fullscreen
+	}
+	return nil
+}
+
+func TestAutomationPreviewActionsUseGuardedPointerSemantics(t *testing.T) {
+	for _, kind := range []string{"close", "minimize", "fullscreen", "hide", "quit", "focus"} {
+		t.Run(kind, func(t *testing.T) {
+			a, p := automationPreviewFixture(t)
+			native := &previewActionPlatform{appAutomationPlatform: p, minimized: true, fullscreen: true}
+			a.platform = native
+			session := showAutomationFixture(t, a, p)
+			state := a.GetAutomationPreviewState(session)
+			// A stale fullscreen snapshot must not turn a pointer toggle into a setter.
+			if err := a.PerformAutomationPreviewAction(session, state.Revision, kind, 1, true); err != nil {
+				t.Fatal(err)
+			}
+			assertPreviewActionRoute(t, native, kind)
+		})
+	}
+}
+
+func TestAppleScriptActionsKeepExplicitSettersWithPointerPortAvailable(t *testing.T) {
+	native := &previewActionPlatform{appAutomationPlatform: &appAutomationPlatform{fake.New()}, minimized: true, fullscreen: true}
+	native.SetWindows([]domain.Window{{ID: 1, AppID: 1, Title: "Owned", OnScreen: true}})
+	a := newApp(native, config.Default(), "")
+	a.wireAutomation(nil)
+	t.Cleanup(a.stopCapture)
+	desired := true
+	for _, kind := range []string{"minimize", "fullscreen"} {
+		request := platform.AutomationRequest{ID: 1, Operation: platform.AutomationWindowAction, WindowID: 1, Action: kind}
+		if kind == "fullscreen" {
+			request.Fullscreen = &desired
+		}
+		if reply := a.automation.service.Handle(context.Background(), request); reply.ErrorCode != "" {
+			t.Fatalf("explicit %s refused: %+v", kind, reply)
+		}
+	}
+	if !native.minimized || !native.fullscreen || len(native.setterCalls) != 2 || len(native.pointerCalls) != 0 {
+		t.Fatal("AppleScript explicit setters changed to pointer toggles")
+	}
+}
+
+func TestAutomationPreviewActionsRejectUnrenderedTargets(t *testing.T) {
 	a, p := automationPreviewFixture(t)
 	native := &previewActionPlatform{appAutomationPlatform: p}
 	a.platform = native
 	session := showAutomationFixture(t, a, p)
-	state := a.GetAutomationPreviewState(session)
-	native.prepare = func() { showAutomationFixture(t, a, p) }
-	if err := a.PerformAutomationPreviewAction(session, state.Revision, "close", 1, false); err == nil {
-		t.Fatal("obsolete prepared close accepted")
+	s := a.GetAutomationPreviewState(session)
+	for _, kind := range []string{"close", "minimize", "fullscreen", "hide", "quit", "focus"} {
+		if err := a.PerformAutomationPreviewAction(session, s.Revision, kind, 2, false); err == nil {
+			t.Fatalf("%s admitted unrendered window", kind)
+		}
+		if err := a.PerformAutomationPreviewAction(session, 0, kind, 1, false); err == nil {
+			t.Fatalf("%s admitted unrendered revision", kind)
+		}
 	}
-	if native.dispatched != 0 {
-		t.Fatal("obsolete prepared close dispatched")
+	if err := a.PerformAutomationPreviewAction(session, s.Revision, "forceQuit", 1, false); err == nil {
+		t.Fatal("unadvertised action admitted")
 	}
-	if a.automation.preview.state.Session == session {
-		t.Fatal("replacement missing")
+	if native.dispatched != 0 || a.GetAutomationPreviewState(session).Revision != s.Revision {
+		t.Fatal("refused command changed owner or dispatched")
+	}
+}
+
+func assertPreviewActionRoute(t *testing.T, native *previewActionPlatform, kind string) {
+	t.Helper()
+	if native.target != (platform.AutomationWindowIdentity{ID: 1, Process: platform.ProcessIdentity{PID: 1, StartSeconds: 123}}) {
+		t.Fatalf("wrong captured target: %+v", native.target)
+	}
+	if kind == "focus" {
+		if len(native.setterCalls) != 1 || len(native.pointerCalls) != 0 {
+			t.Fatal("focus lost guarded focus route")
+		}
+		return
+	}
+	if len(native.pointerCalls) != 1 || native.pointerCalls[0] != kind || len(native.setterCalls) != 0 {
+		t.Fatalf("pointer action %q used explicit setter: pointer=%v setter=%v", kind, native.pointerCalls, native.setterCalls)
+	}
+	if kind == "minimize" && native.minimized {
+		t.Fatal("pointer action did not restore minimized window")
+	}
+	if kind == "fullscreen" && native.fullscreen {
+		t.Fatal("pointer action obeyed stale fullscreen desired state")
+	}
+}
+
+func TestAutomationPreviewActionRechecksAfterNativePreparation(t *testing.T) {
+	for _, kind := range []string{"close", "minimize", "fullscreen", "hide", "quit", "focus"} {
+		t.Run(kind, func(t *testing.T) {
+			a, p := automationPreviewFixture(t)
+			native := &previewActionPlatform{appAutomationPlatform: p}
+			a.platform = native
+			session := showAutomationFixture(t, a, p)
+			state := a.GetAutomationPreviewState(session)
+			native.prepare = func() { showAutomationFixture(t, a, p) }
+			if err := a.PerformAutomationPreviewAction(session, state.Revision, kind, 1, false); err == nil {
+				t.Fatal("obsolete prepared close accepted")
+			}
+			if native.dispatched != 0 {
+				t.Fatal("obsolete prepared close dispatched")
+			}
+			if a.automation.preview.state.Session == session {
+				t.Fatal("replacement missing")
+			}
+		})
 	}
 }
 

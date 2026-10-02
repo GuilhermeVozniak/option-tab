@@ -96,6 +96,40 @@ const noopHandlers = () => ({
 });
 
 describe("Overlay", () => {
+  it("translates window controls and state while preserving literal app names and targets", () => {
+    const h = noopHandlers();
+    const state = stateWith({});
+    state.entries[0] = {
+      ...state.entries[0],
+      appName: "Editor $&",
+      minimized: true,
+      hidden: true,
+      fullscreen: true,
+      spaceId: 2,
+      preview: "data:image/png;base64,AQ==",
+    };
+    state.entries[1] = { ...state.entries[1], spaceId: 1 };
+    state.activeSpaceId = 1;
+    state.appearance = {
+      ...state.appearance,
+      showWindowControls: true,
+      showStatusIcons: true,
+      showSpaceNumbers: true,
+      previewSelected: true,
+    };
+    render(<Overlay state={state} handlers={h} t={(text) => `translated:${text}`} />);
+    expect(screen.getByRole("dialog", { name: "translated:Window switcher" })).toBeInTheDocument();
+    expect(screen.getByRole("listbox", { name: "translated:Open windows" })).toBeInTheDocument();
+    for (const name of ["Minimized", "Hidden app", "Fullscreen", "On another Space", "Space 2"])
+      expect(screen.getByRole("img", { name: `translated:${name}` })).toBeInTheDocument();
+    expect(screen.getByLabelText("translated:Selected window preview")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "translated:Restore window" }));
+    expect(h.onMinimize).toHaveBeenCalledWith(1);
+    fireEvent.click(screen.getByRole("button", { name: "translated:Force quit — Editor $&" }));
+    expect(h.onAction).toHaveBeenCalledWith("forceQuit", 1, 1);
+    expect(h.onConfirmWindow).not.toHaveBeenCalled();
+  });
+
   it("renders nothing when closed", () => {
     const { container } = render(
       <Overlay state={{ ...emptyState, open: false }} handlers={noopHandlers()} />,
@@ -254,7 +288,7 @@ describe("Overlay", () => {
     s.entries[0] = { ...s.entries[0], thumbnail: "thumb.png", icon: "icon.png" };
     const { container } = render(<Overlay state={s} handlers={h} />);
     expect(container.querySelector(".ot-thumb-icon-badge img")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "forceQuit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Force quit — Editor" }));
     expect(h.onAction).toHaveBeenCalledWith("forceQuit", 1, 1);
   });
 

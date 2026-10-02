@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { makeT } from "../lib/i18n";
 import type { DockFolderState } from "../lib/types";
 import { FolderPanel } from "./FolderPanel";
 
@@ -39,6 +40,20 @@ const handlers = () => ({
 });
 
 describe("FolderPanel", () => {
+  it.each([
+    ["pt-BR", "Ordenar conteúdo da pasta por"],
+    ["es", "Ordenar contenido de la carpeta por"],
+  ] as const)("localizes folder sorting controls in %s", (language, sortLabel) => {
+    const h = handlers();
+    const t = makeT(language);
+    render(<FolderPanel session={7} revision={9} folder={ready()} handlers={h} t={t} />);
+    fireEvent.change(screen.getByRole("combobox", { name: sortLabel }), {
+      target: { value: "size" },
+    });
+    expect(h.onSort).toHaveBeenCalledWith(7, 9, "size", "asc", true);
+    expect(screen.getByRole("checkbox", { name: t("Folders first") })).toBeChecked();
+  });
+
   it("renders accessible exact items and opens only opaque IDs", () => {
     const h = handlers();
     render(<FolderPanel session={7} revision={9} folder={ready()} handlers={h} />);

@@ -60,7 +60,7 @@ function ActionBindingRow({
     <div className="flex items-center gap-2 py-1">
       <Input
         className="w-24"
-        aria-label={`Physical key ${code}`}
+        aria-label={t("Physical key {key}").replace("{key}", () => code)}
         aria-invalid={!valid}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -70,7 +70,7 @@ function ActionBindingRow({
         }}
       />
       <Select
-        aria-label={`Action for ${code}`}
+        aria-label={t("Action for {key}").replace("{key}", () => code)}
         value={action}
         onChange={(e) =>
           patchBehavior({ actionBindings: { ...bindings, [code]: e.target.value as WindowAction } })
@@ -96,7 +96,7 @@ function ActionBindingRow({
         type="button"
         variant="ghost"
         size="icon"
-        aria-label={`Remove action binding ${code}`}
+        aria-label={t("Remove action binding {key}").replace("{key}", () => code)}
         onClick={() => {
           const next = { ...bindings };
           delete next[code];
@@ -166,7 +166,7 @@ export function ControlsTab({
                   onChordChange={(chord) => patchShortcut(s.id, { chord })}
                 />
                 <Select
-                  aria-label={`Shortcut ${s.id} mode`}
+                  aria-label={t("Shortcut {id} mode").replace("{id}", String(s.id))}
                   value={s.mode ?? "windows"}
                   onChange={(e) => patchShortcut(s.id, { mode: e.target.value as SwitcherMode })}
                 >
@@ -292,7 +292,7 @@ export function ControlsTab({
           <label className={ROW}>
             <span>{t("Middle click")}</span>
             <Select
-              aria-label="Middle click action"
+              aria-label={t("Middle click action")}
               value={modeBehavior.middleClickAction}
               onChange={(e) =>
                 patchBehavior({ middleClickAction: e.target.value as PointerAction })
@@ -340,7 +340,7 @@ export function ControlsTab({
           ))}
           <Button
             type="button"
-            aria-label="Add action binding"
+            aria-label={t("Add action binding")}
             variant="dashed"
             disabled={Object.keys(modeBehavior.actionBindings).length >= 26}
             onClick={() => {

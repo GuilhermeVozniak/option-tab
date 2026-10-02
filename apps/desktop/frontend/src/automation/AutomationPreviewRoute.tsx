@@ -108,6 +108,31 @@ export function AutomationPreviewRoute({
       state={visible}
       item={null}
       title={state.title}
+      appActions={
+        state.entries.some((entry) => entry.windowId === state.selectedWindowId) ? (
+          <div className="ot-dock-app-actions">
+            {(["hide", "quit"] as const).map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                onClick={() =>
+                  void request(state.revision, () =>
+                    automationPreview.action(
+                      session,
+                      state.revision,
+                      kind,
+                      state.selectedWindowId,
+                      false,
+                    ),
+                  )
+                }
+              >
+                {t(kind === "hide" ? "Hide app" : "Quit app")}
+              </button>
+            ))}
+          </div>
+        ) : null
+      }
       onClose={() =>
         void request(state.revision, () => automationPreview.close(session, state.revision))
       }

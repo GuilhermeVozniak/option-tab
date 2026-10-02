@@ -13,6 +13,30 @@ export interface WidgetPackageActions {
   remove(digest: string): Promise<void>;
 }
 
+const packageFeedback = {
+  invalidFile: "This widget package file is invalid.",
+  invalidPackage: "This widget package is invalid.",
+  incompatibleVersion: "This widget package requires a newer version of Option Tab.",
+  settingsSaveFailed: "Widget settings could not be saved. Try again.",
+  busy: "Another package operation is in progress. Try again.",
+  unavailable: "Local package management is unavailable.",
+  retired: "This package operation is no longer available. Try again.",
+  reviewExpired: "This package review expired. Choose the file again.",
+  catalogInvalid: "Some installed widget packages could not be loaded.",
+  removeFailed: "The widget package could not be removed. Try again.",
+  failed: "The widget package operation could not be completed. Try again.",
+} as const;
+type PackageFeedback = keyof typeof packageFeedback | "";
+
+function packageFeedbackCategory(reason: unknown): PackageFeedback {
+  const message = (reason instanceof Error ? reason.message : String(reason))
+    .replace(/^Error: /, "")
+    .trim();
+  if (message === "context canceled") return "";
+  const code = message.replace(/^widget package: /, "");
+  return Object.hasOwn(packageFeedback, code) ? (code as PackageFeedback) : "failed";
+}
+
 export function WidgetPackages({
   catalog,
   status,
@@ -31,7 +55,7 @@ export function WidgetPackages({
   const [review, setReview] = useState<WidgetPackageReview | null>(null);
   const [pendingReview, setPendingReview] = useState(false);
   const [pendingMutation, setPendingMutation] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<PackageFeedback>("");
   const owner = useRef(0);
   useEffect(() => {
     if (status.available) return;
@@ -42,13 +66,9 @@ export function WidgetPackages({
   }, [status.available]);
   useEffect(() => () => void owner.current++, []);
   const fail = (reason: unknown) => {
-    const message = String(reason);
-    setError(
-      message.includes("reviewExpired")
-        ? t("This package review expired. Choose the file again.")
-        : message,
-    );
+    setError(packageFeedbackCategory(reason));
   };
+  const statusFeedback = status.reason ? packageFeedbackCategory(status.reason) : "";
   const isAction = (capability: string) =>
     capability.endsWith(".control") || capability.endsWith(".select");
   return (
@@ -86,9 +106,9 @@ export function WidgetPackages({
         <button
           type="button"
           onClick={() => {
-            owner.current++;
+            const operation = ++owner.current;
             setPendingReview(false);
-            void actions.cancel("").catch(fail);
+            void actions.cancel("").catch((reason) => owner.current === operation && fail(reason));
           }}
         >
           {t("Cancel review")}
@@ -159,9 +179,11 @@ export function WidgetPackages({
               disabled={status.busy || pendingMutation}
               onClick={() => {
                 const token = review.token;
-                owner.current++;
+                const operation = ++owner.current;
                 setReview(null);
-                void actions.cancel(token).catch(fail);
+                void actions
+                  .cancel(token)
+                  .catch((reason) => owner.current === operation && fail(reason));
               }}
             >
               {t("Close review")}
@@ -199,8 +221,10 @@ export function WidgetPackages({
         </ul>
       ) : null}
       {!status.available ? <p>{t("Local package management is unavailable.")}</p> : null}
-      {status.reason ? <p role="status">{status.reason}</p> : null}
-      {error ? <p role="alert">{error}</p> : null}
+      {statusFeedback && (status.available || statusFeedback !== "unavailable") ? (
+        <p role="status">{t(packageFeedback[statusFeedback])}</p>
+      ) : null}
+      {error ? <p role="alert">{t(packageFeedback[error])}</p> : null}
     </section>
   );
 }

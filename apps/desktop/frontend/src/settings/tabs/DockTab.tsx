@@ -116,7 +116,7 @@ export function DockTab({
           <label className={ROW}>
             <span>{t("Enable Dock previews")}</span>
             <Checkbox
-              aria-label="Enable Dock previews"
+              aria-label={t("Enable Dock previews")}
               checked={d.enabled}
               onChange={(e) => {
                 patchDock({ enabled: e.target.checked });
@@ -137,7 +137,7 @@ export function DockTab({
           <label className={ROW}>
             <span>{t("Enable Folder Pop")}</span>
             <Checkbox
-              aria-label="Enable Folder Pop"
+              aria-label={t("Enable Folder Pop")}
               checked={d.folderPop?.enabled ?? false}
               onChange={(event) => {
                 patchDock({ folderPop: { enabled: event.target.checked } });
@@ -169,7 +169,7 @@ export function DockTab({
           <label className={ROW}>
             <span>{t("Enable media controls")}</span>
             <Checkbox
-              aria-label="Enable media controls"
+              aria-label={t("Enable media controls")}
               checked={d.media?.enabled ?? false}
               onChange={(e) =>
                 patchDock({
@@ -197,7 +197,7 @@ export function DockTab({
                 <label className={ROW}>
                   <span>{t(`Enable ${label}`)}</span>
                   <Checkbox
-                    aria-label={`Enable ${label}`}
+                    aria-label={t(`Enable ${label}`)}
                     checked={d.media?.[field] ?? false}
                     onChange={(e) =>
                       patchDock({ media: { ...d.media, [field]: e.target.checked } })
@@ -230,7 +230,7 @@ export function DockTab({
           <label className={ROW}>
             <span>{t("Allow remote artwork")}</span>
             <Checkbox
-              aria-label="Allow remote artwork"
+              aria-label={t("Allow remote artwork")}
               checked={d.media?.remoteArtwork ?? false}
               onChange={(e) =>
                 patchDock({ media: { ...d.media, remoteArtwork: e.target.checked } })
@@ -291,7 +291,7 @@ export function DockTab({
             <label className={ROW} key={field}>
               <span>{t(label)}</span>
               <Checkbox
-                aria-label={label}
+                aria-label={t(label)}
                 checked={input[field]}
                 onChange={(event) => patchInput({ [field]: event.target.checked })}
               />
@@ -300,7 +300,7 @@ export function DockTab({
           <label className={ROW}>
             <span>{t("Dock middle-click action")}</span>
             <Select
-              aria-label="Dock middle-click action"
+              aria-label={t("Dock middle-click action")}
               value={input.middleClickAction}
               onChange={(event) =>
                 patchInput({ middleClickAction: event.target.value as PointerAction })
@@ -322,7 +322,7 @@ export function DockTab({
             <label className={ROW} key={field}>
               <span>{t(label)}</span>
               <Select
-                aria-label={label}
+                aria-label={t(label)}
                 value={input[field]}
                 onChange={(event) => patchInput({ [field]: event.target.value as PointerAction })}
               >
@@ -346,7 +346,7 @@ export function DockTab({
           <label className={ROW}>
             <span>{t("Aero Shake action")}</span>
             <Select
-              aria-label="Aero Shake action"
+              aria-label={t("Aero Shake action")}
               value={input.aeroShakeAction}
               onChange={(event) =>
                 patchInput({
@@ -380,7 +380,7 @@ export function DockTab({
               <Input
                 className="w-24"
                 type="number"
-                aria-label={label}
+                aria-label={t(label)}
                 min={min}
                 max={max}
                 value={d[field]}
@@ -398,7 +398,7 @@ export function DockTab({
           <label className={ROW}>
             <span>{t("Applications")}</span>
             <Select
-              aria-label="Dock app scope"
+              aria-label={t("Dock app scope")}
               value={d.scope.appScope}
               onChange={(e) =>
                 patchDock({ scope: { ...d.scope, appScope: e.target.value as AppScopeMode } })

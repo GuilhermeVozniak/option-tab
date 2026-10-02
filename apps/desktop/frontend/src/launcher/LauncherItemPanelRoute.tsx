@@ -181,24 +181,6 @@ export function LauncherItemPanelRoute({
     const windows = state.windows;
     return (
       <div className="ot-launcher-child is-windows" ref={root}>
-        {windows.entries.some((entry) => entry.windowId === windows.selectedWindowId) ? (
-          <button
-            type="button"
-            onClick={() =>
-              request(state, () =>
-                transport.windowAction!(
-                  state.session,
-                  state.revision,
-                  "hide",
-                  windows.selectedWindowId,
-                  false,
-                ),
-              )
-            }
-          >
-            {t("Hide app")}
-          </button>
-        ) : null}
         <DockPanelView
           state={{
             ...windows,
@@ -213,6 +195,31 @@ export function LauncherItemPanelRoute({
           }}
           item={null}
           title={state.title}
+          appActions={
+            windows.entries.some((entry) => entry.windowId === windows.selectedWindowId) ? (
+              <div className="ot-dock-app-actions">
+                {(["hide", "quit"] as const).map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() =>
+                      request(state, () =>
+                        transport.windowAction!(
+                          state.session,
+                          state.revision,
+                          kind,
+                          windows.selectedWindowId,
+                          false,
+                        ),
+                      )
+                    }
+                  >
+                    {t(kind === "hide" ? "Hide app" : "Quit app")}
+                  </button>
+                ))}
+              </div>
+            ) : null
+          }
           nativeHeader
           onClose={() => request(state, () => transport.close(state.session, state.revision))}
           handlers={{

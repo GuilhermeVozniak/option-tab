@@ -51,7 +51,7 @@ function ProfileNameInput({
     <label>
       <span>{t("Profile name")}</span>
       <Input
-        aria-label="Profile name"
+        aria-label={t("Profile name")}
         maxLength={80}
         value={draft}
         onChange={(event) => {
@@ -164,7 +164,7 @@ export function ReplacementDock({
       <CardContent className="space-y-2">
         <div className="flex flex-wrap gap-2">
           <Select
-            aria-label="Profile"
+            aria-label={t("Profile")}
             value={profile?.id}
             onChange={(event) => setProfileID(event.target.value)}
           >
@@ -246,7 +246,7 @@ export function ReplacementDock({
           </Button>
           {value.profiles.length > 1 ? (
             <Select
-              aria-label="Reassign deleted profile to"
+              aria-label={t("Reassign deleted profile to")}
               value={replacementID}
               onChange={(event) => setReplacementID(event.target.value)}
             >
@@ -297,7 +297,7 @@ export function ReplacementDock({
         <label className={ROW}>
           <span>{t("Enable replacement Dock")}</span>
           <Checkbox
-            aria-label="Enable replacement Dock"
+            aria-label={t("Enable replacement Dock")}
             checked={value.enabled}
             onChange={(event) => onChange({ ...value, enabled: event.target.checked })}
           />
@@ -330,7 +330,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Edge")}</span>
               <Select
-                aria-label="Edge"
+                aria-label={t("Edge")}
                 value={profile.edge}
                 onChange={(event) =>
                   patchProfile({ edge: event.target.value as typeof profile.edge })
@@ -346,7 +346,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Layout")}</span>
               <Select
-                aria-label="Layout"
+                aria-label={t("Layout")}
                 value={profile.layout}
                 onChange={(event) =>
                   patchProfile({ layout: event.target.value as typeof profile.layout })
@@ -359,7 +359,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Alignment")}</span>
               <Select
-                aria-label="Alignment"
+                aria-label={t("Alignment")}
                 value={profile.alignment}
                 onChange={(event) =>
                   patchProfile({ alignment: event.target.value as typeof profile.alignment })
@@ -375,7 +375,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Theme")}</span>
               <Select
-                aria-label="Launcher theme"
+                aria-label={t("Launcher theme")}
                 value={profile.appearance.theme}
                 onChange={(event) =>
                   patchProfile({
@@ -396,7 +396,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Material")}</span>
               <Select
-                aria-label="Material"
+                aria-label={t("Material")}
                 value={profile.appearance.material}
                 onChange={(event) =>
                   patchProfile({
@@ -414,7 +414,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Tint")}</span>
               <Input
-                aria-label="Tint"
+                aria-label={t("Tint")}
                 type="color"
                 value={profile.appearance.tint}
                 onChange={(event) =>
@@ -425,7 +425,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Opacity")}</span>
               <Input
-                aria-label="Launcher opacity"
+                aria-label={t("Launcher opacity")}
                 type="number"
                 min={0.35}
                 max={1}
@@ -441,7 +441,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Border opacity")}</span>
               <Input
-                aria-label="Border opacity"
+                aria-label={t("Border opacity")}
                 type="number"
                 min={0}
                 max={0.5}
@@ -460,7 +460,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Corner radius")}</span>
               <Input
-                aria-label="Corner radius"
+                aria-label={t("Corner radius")}
                 type="number"
                 min={0}
                 max={28}
@@ -478,7 +478,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Item spacing")}</span>
               <Input
-                aria-label="Item spacing"
+                aria-label={t("Item spacing")}
                 type="number"
                 min={2}
                 max={20}
@@ -496,7 +496,7 @@ export function ReplacementDock({
             <label className={ROW}>
               <span>{t("Show labels")}</span>
               <Checkbox
-                aria-label="Show launcher labels"
+                aria-label={t("Show launcher labels")}
                 checked={profile.appearance.showLabels}
                 onChange={(event) =>
                   patchProfile({
@@ -508,7 +508,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Icon size")}</span>
               <Input
-                aria-label="Icon size"
+                aria-label={t("Icon size")}
                 type="number"
                 min={24}
                 max={64}
@@ -519,7 +519,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Maximum length")}</span>
               <Input
-                aria-label="Maximum length"
+                aria-label={t("Maximum length")}
                 type="number"
                 min={0.25}
                 max={0.9}
@@ -533,7 +533,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Dock thickness")}</span>
               <Input
-                aria-label="Dock thickness"
+                aria-label={t("Dock thickness")}
                 type="number"
                 min={48}
                 max={112}
@@ -544,7 +544,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Screen inset")}</span>
               <Input
-                aria-label="Screen inset"
+                aria-label={t("Screen inset")}
                 type="number"
                 min={12}
                 max={64}
@@ -555,7 +555,7 @@ export function ReplacementDock({
             <label className={ROW}>
               <span>{t("Auto-hide")}</span>
               <Checkbox
-                aria-label="Auto-hide replacement Dock"
+                aria-label={t("Auto-hide replacement Dock")}
                 checked={profile.autoHide}
                 onChange={(event) => patchProfile({ autoHide: event.target.checked })}
               />
@@ -564,7 +564,7 @@ export function ReplacementDock({
               <label className={ROW}>
                 <span>{t("Show Dock badges")}</span>
                 <Checkbox
-                  aria-label="Show replacement Dock badges"
+                  aria-label={t("Show replacement Dock badges")}
                   checked={profile.showBadges ?? false}
                   onChange={(event) => patchProfile({ showBadges: event.target.checked })}
                 />
@@ -577,7 +577,7 @@ export function ReplacementDock({
               <label className={ROW}>
                 <span>{t("Reorder items on the Dock")}</span>
                 <Checkbox
-                  aria-label="Enable runtime launcher reordering"
+                  aria-label={t("Enable runtime launcher reordering")}
                   checked={profile.runtimeReorder ?? false}
                   onChange={(event) => patchProfile({ runtimeReorder: event.target.checked })}
                 />
@@ -593,7 +593,7 @@ export function ReplacementDock({
             <label className={`${ROW} col-span-2`}>
               <span>{t("Enable magnification")}</span>
               <Checkbox
-                aria-label="Enable launcher magnification"
+                aria-label={t("Enable launcher magnification")}
                 checked={magnification.enabled}
                 onChange={(event) =>
                   patchProfile({
@@ -605,7 +605,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Magnification scale")}</span>
               <Input
-                aria-label="Magnification scale"
+                aria-label={t("Magnification scale")}
                 type="number"
                 min={1}
                 max={2}
@@ -622,7 +622,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Magnification reach")}</span>
               <Input
-                aria-label="Magnification reach"
+                aria-label={t("Magnification reach")}
                 type="number"
                 min={0}
                 max={4}
@@ -645,7 +645,7 @@ export function ReplacementDock({
             <label className={`${ROW} col-span-2`}>
               <span>{t("Enable launcher interactions")}</span>
               <Checkbox
-                aria-label="Enable launcher interactions"
+                aria-label={t("Enable launcher interactions")}
                 checked={interactions.enabled}
                 onChange={(event) =>
                   patchProfile({
@@ -668,7 +668,7 @@ export function ReplacementDock({
                   {!interactionCapabilities[key] ? ` · ${t("Unavailable on this device")}` : ""}
                 </span>
                 <Checkbox
-                  aria-label={label}
+                  aria-label={t(label)}
                   checked={interactions[key]}
                   disabled={!interactions.enabled || !interactionCapabilities[key]}
                   onChange={(event) =>
@@ -682,7 +682,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Primary gesture action")}</span>
               <Select
-                aria-label="Primary gesture action"
+                aria-label={t("Primary gesture action")}
                 disabled={!interactions.enabled}
                 value={interactions.primaryAction}
                 onChange={(event) =>
@@ -702,7 +702,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Toward gesture action")}</span>
               <Select
-                aria-label="Toward gesture action"
+                aria-label={t("Toward gesture action")}
                 disabled={!interactions.enabled}
                 value={interactions.towardAction}
                 onChange={(event) =>
@@ -722,7 +722,7 @@ export function ReplacementDock({
             <label>
               <span>{t("Pinch gesture action")}</span>
               <Select
-                aria-label="Pinch gesture action"
+                aria-label={t("Pinch gesture action")}
                 disabled={!interactions.enabled || !interactions.pinch}
                 value={interactions.pinchAction}
                 onChange={(event) =>
@@ -745,7 +745,7 @@ export function ReplacementDock({
                 {!interactionCapabilities.haptics ? ` · ${t("Unavailable on this device")}` : ""}
               </span>
               <Checkbox
-                aria-label="Launcher haptic feedback"
+                aria-label={t("Launcher haptic feedback")}
                 checked={interactions.haptics}
                 disabled={!interactions.enabled || !interactionCapabilities.haptics}
                 onChange={(event) =>
@@ -758,7 +758,7 @@ export function ReplacementDock({
             <label className={`${ROW} col-span-2`}>
               <span>{t("Enter activates the selected item")}</span>
               <Checkbox
-                aria-label="Enter activates the selected item"
+                aria-label={t("Enter activates the selected item")}
                 checked={interactions.enterActivates}
                 disabled={!interactions.enabled || !interactions.letterNavigation}
                 onChange={(event) =>
@@ -775,7 +775,7 @@ export function ReplacementDock({
             <div className={ROW} key={binding.id}>
               <span>{bindingLabel(binding)}</span>
               <Select
-                aria-label={`${binding.id} profile`}
+                aria-label={t("{display} profile").replace("{display}", binding.id)}
                 value={binding.profileID}
                 onChange={(event) =>
                   onChange({
@@ -928,7 +928,7 @@ export function ReplacementDock({
                   <label>
                     <span>{t("Running app")}</span>
                     <Select
-                      aria-label="Running app"
+                      aria-label={t("Running app")}
                       value={
                         appChoices.some((choice) => choice.bundleID === rule.bundleID)
                           ? rule.bundleID

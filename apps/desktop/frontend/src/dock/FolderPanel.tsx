@@ -103,7 +103,7 @@ export function FolderPanel({
           <label>
             <span>{t("Sort by")}</span>
             <select
-              aria-label="Sort folder contents by"
+              aria-label={t("Sort folder contents by")}
               value={folder.sort.field}
               onChange={(event) =>
                 void run(() =>
@@ -144,7 +144,7 @@ export function FolderPanel({
           <label className="ot-folder-first">
             <input
               type="checkbox"
-              aria-label="Folders first"
+              aria-label={t("Folders first")}
               checked={folder.sort.foldersFirst}
               onChange={(event) =>
                 void run(() =>

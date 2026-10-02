@@ -49,6 +49,27 @@ const value: ReplacementDockSettings = {
 };
 
 describe("ReplacementDock", () => {
+  it.each([
+    "pt-BR",
+    "es",
+  ] as const)("localizes profile and interaction accessible names in %s", (language) => {
+    const t = makeT(language);
+    render(<ReplacementDock value={value} t={t} language={language} onChange={() => {}} />);
+    for (const [role, key] of [
+      ["textbox", "Profile name"],
+      ["combobox", "Edge"],
+      ["combobox", "Launcher theme"],
+      ["combobox", "Primary gesture action"],
+      ["checkbox", "Precise trackpad scrolling"],
+      ["checkbox", "Pinch gestures"],
+      ["checkbox", "Keyboard navigation"],
+    ] as const) {
+      expect(t(key)).not.toBe(key);
+      expect(screen.getByRole(role, { name: t(key) })).toBeInTheDocument();
+    }
+    expect(screen.getByRole("combobox", { name: "Perfil de main" })).toBeInTheDocument();
+  });
+
   it("keeps launcher and clock independently opt in", () => {
     const onChange = vi.fn();
     render(<ReplacementDock value={value} t={makeT("en")} onChange={onChange} />);

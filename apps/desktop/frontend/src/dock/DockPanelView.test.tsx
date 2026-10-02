@@ -33,6 +33,59 @@ const state: DockViewState = {
   emptyReason: "",
   error: "refused",
 };
+it.each([
+  [
+    "pt-BR",
+    "Minimizada, Oculto, Tela cheia",
+    "Espaço 3",
+    "Prévia da janela selecionada",
+    "Restaurar janela",
+    "Focar Document $& B",
+  ],
+  [
+    "es",
+    "Minimizada, Oculto, Pantalla completa",
+    "Espacio 3",
+    "Vista previa de la ventana seleccionada",
+    "Restaurar ventana",
+    "Enfocar Document $& B",
+  ],
+] as const)("localizes window status, Space and preview labels in %s", (language, statusLabel, spaceLabel, previewLabel, restoreLabel, focusLabel) => {
+  const h = { onSelectWindow: vi.fn(), onFocusWindow: vi.fn(), onAction: vi.fn(), onSize: vi.fn() };
+  render(
+    <DockPanelView
+      state={{
+        ...state,
+        appearance: {
+          ...state.appearance,
+          showStatusIcons: true,
+          showSpaceNumbers: true,
+          previewSelected: true,
+        },
+        entries: [
+          {
+            ...state.entries[0],
+            title: "Document $& B",
+            minimized: true,
+            hidden: true,
+            fullscreen: true,
+            spaceId: 3,
+            preview: "data:image/png;base64,fixture",
+          },
+        ],
+      }}
+      handlers={h}
+      t={makeT(language)}
+    />,
+  );
+  expect(screen.getByLabelText(statusLabel)).toBeInTheDocument();
+  expect(screen.getByLabelText(spaceLabel)).toHaveTextContent("3");
+  expect(screen.getByLabelText(previewLabel)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: focusLabel })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: restoreLabel }));
+  expect(h.onAction).toHaveBeenCalledExactlyOnceWith(7, "minimize", 102, 10);
+});
+
 it("keeps a solid fallback until the preview host reports native material", () => {
   const h = { onSelectWindow: vi.fn(), onFocusWindow: vi.fn(), onAction: vi.fn(), onSize: vi.fn() };
   const { container, rerender } = render(<DockPanelView state={state} handlers={h} />);

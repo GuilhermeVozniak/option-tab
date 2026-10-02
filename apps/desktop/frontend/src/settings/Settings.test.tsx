@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { makeT } from "../lib/i18n";
 import { defaultSettings, type Shortcut } from "../lib/types";
 import { PROJECT_URL, Settings } from "./Settings";
 
@@ -13,6 +14,48 @@ const makeShortcuts = (n: number): Shortcut[] =>
   }));
 
 describe("Settings", () => {
+  it.each([
+    ["pt-BR", "Modo de configuração do alternador"],
+    ["es", "Modo de ajustes del conmutador"],
+  ] as const)("localizes retained switcher and Dock controls in %s", (language, modeLabel) => {
+    const t = makeT(language);
+    render(
+      <Settings
+        settings={{ ...defaultSettings, behavior: { ...defaultSettings.behavior, language } }}
+        onChange={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: t("Controls") }));
+    expect(screen.getByRole("combobox", { name: modeLabel })).toHaveValue("windows");
+    for (const [role, key] of [
+      ["combobox", "Middle click action"],
+      ["button", "Add action binding"],
+    ] as const) {
+      expect(t(key)).not.toBe(key);
+      expect(screen.getByRole(role, { name: t(key) })).toBeInTheDocument();
+    }
+    expect(
+      screen.getByRole("textbox", { name: t("Physical key {key}").replace("{key}", "KeyW") }),
+    ).toHaveValue("KeyW");
+    expect(
+      screen.getByRole("combobox", { name: t("Action for {key}").replace("{key}", "KeyW") }),
+    ).toHaveValue("close");
+    fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    for (const [role, key] of [
+      ["checkbox", "Enable Dock previews"],
+      ["checkbox", "Enable Folder Pop"],
+      ["checkbox", "Enable media controls"],
+      ["checkbox", "Enable Spotify"],
+      ["checkbox", "Allow remote artwork"],
+      ["checkbox", "Drag previews to move windows"],
+      ["combobox", "Swipe toward Dock"],
+      ["spinbutton", "Dock hover delay"],
+    ] as const) {
+      expect(t(key)).not.toBe(key);
+      expect(screen.getByRole(role, { name: t(key) })).toBeInTheDocument();
+    }
+  });
+
   it("enables native switcher swipes while keeping both modes' saved actions independent", () => {
     const settings = structuredClone(defaultSettings);
     settings.behavior.swipeUpAction = "close";

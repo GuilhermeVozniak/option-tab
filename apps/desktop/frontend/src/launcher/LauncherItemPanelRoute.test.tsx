@@ -99,6 +99,38 @@ it("renders list and grid with exact child scope actions", async () => {
   expect(t.api.open).toHaveBeenCalledWith(8, 2, "opaque");
 });
 
+it("routes app and pointer controls through the exact selected child window", async () => {
+  const initial = windowsState();
+  initial.windows!.appearance.showWindowControls = true;
+  initial.windows!.entries[0].minimized = true;
+  initial.windows!.entries[0].fullscreen = true;
+  const t = transport(initial);
+  t.api.windowAction = vi.fn().mockResolvedValue(undefined);
+  render(<LauncherItemPanelRoute session={8} transport={t.api} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Quit app" }));
+  fireEvent.click(screen.getByRole("button", { name: "Hide app" }));
+  fireEvent.click(screen.getByRole("button", { name: /^(Minimize|Restore) window$/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Fullscreen window" }));
+  for (const kind of ["quit", "hide", "minimize", "fullscreen"])
+    expect(t.api.windowAction).toHaveBeenCalledWith(8, 1, kind, 44, false);
+  expect(screen.queryByRole("button", { name: "New window" })).toBeNull();
+  expect(
+    document
+      .querySelector(".ot-dock-panel")
+      ?.contains(screen.getByRole("button", { name: "Quit app" })),
+  ).toBe(true);
+});
+
+it("withholds app actions when the selected child window is no longer present", async () => {
+  const initial = windowsState();
+  initial.windows!.selectedWindowId = 999;
+  const t = transport(initial);
+  render(<LauncherItemPanelRoute session={8} transport={t.api} />);
+  await screen.findByText("Documents");
+  expect(screen.queryByRole("button", { name: "Hide app" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Quit app" })).toBeNull();
+});
+
 it("rejects stale snapshots and terminally tombstones late updates", async () => {
   let resolve!: (value: LauncherItemPanelState) => void;
   const t = transport(null);

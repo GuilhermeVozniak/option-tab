@@ -413,7 +413,7 @@ func (a *App) launcherWindowActionGuard(p *launcherItemPanel, revision uint64, i
 
 func (a *App) PerformLauncherWindowAction(session, revision uint64, kind string, id domain.WindowID, fullscreen bool) error {
 	switch kind {
-	case "focus", "close", "minimize", "hide", "fullscreen":
+	case "focus", "close", "minimize", "hide", "fullscreen", "quit":
 	default:
 		return launcher.ErrUnavailable
 	}
@@ -440,12 +440,18 @@ func (a *App) PerformLauncherWindowAction(session, revision uint64, kind string,
 	p.wg.Add(1)
 	a.viewMu.Unlock()
 	defer func() { a.viewMu.Lock(); p.actionBusy = false; a.viewMu.Unlock(); p.wg.Done() }()
-	var value *bool
-	if kind == "fullscreen" {
-		value = &fullscreen
-	}
 	guard := func() error { return a.launcherWindowActionGuard(p, revision, identity) }
-	err = actions.New(a.platform).PerformAutomationWindowAction(p.ctx, kind, identity, value, guard)
+	// The retained fullscreen RPC argument is a rendered snapshot; pointer
+	// controls toggle current native state instead of using automation setters.
+	if kind == "focus" {
+		err = actions.New(a.platform).PerformAutomationWindowAction(p.ctx, kind, identity, nil, guard)
+	} else if err = guard(); err == nil {
+		if native, ok := a.platform.(platform.GuardedPointerPerformer); ok {
+			err = native.PerformPointerAction(p.ctx, kind, identity, guard)
+		} else {
+			err = launcher.ErrUnavailable
+		}
+	}
 	a.viewMu.Lock()
 	defer a.viewMu.Unlock()
 	current, scopeErr := a.childForCommandLocked(session, revision)

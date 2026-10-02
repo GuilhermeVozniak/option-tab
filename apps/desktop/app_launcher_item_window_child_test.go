@@ -65,37 +65,39 @@ func TestLauncherWindowChildExactInventoryCopiedAndScoped(t *testing.T) {
 }
 
 func TestLauncherWindowChildActionRetiresDuringNativePreparation(t *testing.T) {
-	for _, change := range []string{"hide", "parent", "settings", "identity"} {
-		t.Run(change, func(t *testing.T) {
-			a, p, core := windowChildFixture(t)
-			s := waitWindowChild(t, a, showChild(t, a).Session)
-			p.prepare = func() {
-				switch change {
-				case "hide":
-					a.viewMu.Lock()
-					a.retireLauncherItemPanelLocked(1)
-					a.viewMu.Unlock()
-				case "parent":
-					core.retired.Store(true)
-				case "settings":
-					v := a.settingsSnapshot()
-					v.Appearance.ThumbnailMaxPx++
-					a.settingsMu.Lock()
-					a.settings = v
-					a.settingsMu.Unlock()
-				case "identity":
-					a.viewMu.Lock()
-					a.launcherItemPanels.owners[1].windows.identities[1] = platform.AutomationWindowIdentity{ID: 1}
-					a.viewMu.Unlock()
+	for _, kind := range []string{"close", "minimize", "fullscreen", "hide", "quit", "focus"} {
+		for _, change := range []string{"hide", "parent", "settings", "identity"} {
+			t.Run(kind+"/"+change, func(t *testing.T) {
+				a, p, core := windowChildFixture(t)
+				s := waitWindowChild(t, a, showChild(t, a).Session)
+				p.prepare = func() {
+					switch change {
+					case "hide":
+						a.viewMu.Lock()
+						a.retireLauncherItemPanelLocked(1)
+						a.viewMu.Unlock()
+					case "parent":
+						core.retired.Store(true)
+					case "settings":
+						v := a.settingsSnapshot()
+						v.Appearance.ThumbnailMaxPx++
+						a.settingsMu.Lock()
+						a.settings = v
+						a.settingsMu.Unlock()
+					case "identity":
+						a.viewMu.Lock()
+						a.launcherItemPanels.owners[1].windows.identities[1] = platform.AutomationWindowIdentity{ID: 1}
+						a.viewMu.Unlock()
+					}
 				}
-			}
-			if err := a.PerformLauncherWindowAction(s.Session, s.Revision, "close", 1, false); err == nil {
-				t.Fatal("retired action accepted")
-			}
-			if p.dispatched != 0 {
-				t.Fatal("native mutation occurred after retirement")
-			}
-		})
+				if err := a.PerformLauncherWindowAction(s.Session, s.Revision, kind, 1, false); err == nil {
+					t.Fatal("retired action accepted")
+				}
+				if p.dispatched != 0 {
+					t.Fatal("native mutation occurred after retirement")
+				}
+			})
+		}
 	}
 }
 
@@ -195,11 +197,16 @@ func TestLauncherWindowReplacementJoinsCanceledInventory(t *testing.T) {
 func TestLauncherWindowActionDispatchesOnlyExactRenderedIdentity(t *testing.T) {
 	a, p, _ := windowChildFixture(t)
 	s := waitWindowChild(t, a, showChild(t, a).Session)
-	if err := a.PerformLauncherWindowAction(s.Session, s.Revision, "quit", 1, false); err == nil {
+	if err := a.PerformLauncherWindowAction(s.Session, s.Revision, "forceQuit", 1, false); err == nil {
 		t.Fatal("unadvertised app action accepted")
 	}
-	if err := a.PerformLauncherWindowAction(s.Session, s.Revision, "close", 2, false); err == nil {
-		t.Fatal("other window accepted")
+	for _, kind := range []string{"close", "minimize", "fullscreen", "hide", "quit", "focus"} {
+		if err := a.PerformLauncherWindowAction(s.Session, s.Revision, kind, 2, false); err == nil {
+			t.Fatalf("%s accepted other window", kind)
+		}
+		if err := a.PerformLauncherWindowAction(s.Session, 0, kind, 1, false); err == nil {
+			t.Fatalf("%s accepted unrendered revision", kind)
+		}
 	}
 	if p.dispatched != 0 {
 		t.Fatal("refused command dispatched")
@@ -209,6 +216,20 @@ func TestLauncherWindowActionDispatchesOnlyExactRenderedIdentity(t *testing.T) {
 	}
 	if p.dispatched != 1 {
 		t.Fatal("exact action not dispatched")
+	}
+}
+
+func TestLauncherWindowActionsUseGuardedPointerSemantics(t *testing.T) {
+	for _, kind := range []string{"close", "minimize", "fullscreen", "hide", "quit", "focus"} {
+		t.Run(kind, func(t *testing.T) {
+			a, p, _ := windowChildFixture(t)
+			p.minimized, p.fullscreen = true, true
+			s := waitWindowChild(t, a, showChild(t, a).Session)
+			if err := a.PerformLauncherWindowAction(s.Session, s.Revision, kind, 1, true); err != nil {
+				t.Fatal(err)
+			}
+			assertPreviewActionRoute(t, p, kind)
+		})
 	}
 }
 

@@ -100,6 +100,17 @@ describe("i18n", () => {
 
   it("retains coverage for selected controls whose keys may be chosen dynamically", () => {
     const keys = [
+      "This widget package file is invalid.",
+      "This widget package is invalid.",
+      "This widget package requires a newer version of Option Tab.",
+      "Widget settings could not be saved. Try again.",
+      "Another package operation is in progress. Try again.",
+      "This package operation is no longer available. Try again.",
+      "Some installed widget packages could not be loaded.",
+      "The widget package could not be removed. Try again.",
+      "The widget package operation could not be completed. Try again.",
+      "Local package management is unavailable.",
+      "This package review expired. Choose the file again.",
       "Previous",
       "Capture windows in the background",
       "Keeps thumbnails fresh so the switcher opens with previews instantly. While enabled, macOS shows the screen-recording indicator.",

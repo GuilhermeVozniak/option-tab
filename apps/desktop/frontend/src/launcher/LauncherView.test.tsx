@@ -42,6 +42,20 @@ const presentation: LauncherPresentation = {
 };
 
 describe("LauncherView", () => {
+  it("translates the launcher landmark when its language changes", () => {
+    const { rerender } = render(<LauncherView presentation={presentation} onActivate={() => {}} />);
+    expect(screen.getByRole("main", { name: "Option Tab launcher" })).toBeInTheDocument();
+    rerender(
+      <LauncherView
+        presentation={presentation}
+        onActivate={() => {}}
+        t={(text) => `translated:${text}`}
+      />,
+    );
+    expect(
+      screen.getByRole("main", { name: "translated:Option Tab launcher" }),
+    ).toBeInTheDocument();
+  });
   it("renders bounded badge counts without changing item activation or inventing unavailable counts", () => {
     const activate = vi.fn();
     const { container, rerender } = render(
