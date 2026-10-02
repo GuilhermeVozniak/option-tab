@@ -4,6 +4,8 @@
 
 **Goal:** Deliver E04 Spotify/Apple Music details and transport, E05 synchronized lyrics from explicitly supplied timestamped files, and E06 independent pinned media panels.
 
+**October 2 continuation:** The [conditional Music lyrics plan](2026-10-02-provider-lyrics.md) extends E05 beyond this local-file baseline using timestamped text supplied by the enabled, permitted Music process. It preserves local-file priority, the existing timeline and all no-prompt/no-launch constraints. Plain text remains unavailable for synchronization; this is not a catalog timed-lyrics API.
+
 **Architecture:** Optional typed native AppleEvent adapters feed a bounded Go media owner. Dock hover selects the provider by exact app identity; pinned presentations share its observations but own independent presentation sessions. A pure lyric timeline follows sampled player position, pause, seeks, and track changes. No private MediaRemote, general script evaluator, audio capture, or additional gesture tap.
 
 **Tech Stack:** Go, Objective-C/Foundation AppleEvents, existing Wails nonactivating NSPanel host, React/TypeScript, native file chooser/security-scoped bookmark support.
@@ -107,6 +109,8 @@ Commands are only `play`, `pause`, `previous`, `next`, `seek`; no toggle whose m
 - [ ] Show provider attribution and disclosure before opt-in: fetching cover art contacts the provider's image host and reveals the connection. Network failure leaves metadata/transport usable. Native decode/URL tests and focused race must pass.
 
 ### Task 4: Local LRC provider with real synchronization
+
+The conditional Music source is covered by the October 2 continuation above. The local chooser and association requirements below remain in force.
 
 **Files:** create `apps/desktop/internal/media/lrc.go`, `lrc_test.go`, `lyrics.go`, `lyrics_test.go`; native explicit import helper `platform/media_lyrics.go`, `darwin_media_lyrics.go/m/h`, unsupported stub; app-private `media-lyrics.json` association metadata outside settings export.
 

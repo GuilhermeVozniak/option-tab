@@ -25,11 +25,19 @@ folder chooser; listing does not silently open one. Opening a selected entry pas
 that exact revalidated entry to macOS and its associated application. The receiving
 application may have its own network behavior.
 
-Lyrics come from an explicitly chosen local timestamped LRC file. Option Tab reads
-and parses its text in memory and synchronizes lines with playback position. It may
-read that associated file again when its track is presented. Removing the association
-removes its stored reference; it does not delete the original lyric file. There is no
-lyrics search/download service or bundled third-party lyrics database.
+An explicitly chosen local timestamped LRC file takes priority for its associated
+track. Option Tab parses its text in memory and synchronizes lines with playback
+position. It may read that file again when its track is presented. A failed local
+file read stays visible as an error; it does not silently select another source.
+Removing the association removes its stored reference, not the original file.
+
+Without a local association, the enabled Music adapter may read the current track's
+lyric text through an existing Automation grant. Only text containing usable
+timestamps becomes synchronized lyrics. Music may return plain text or no lyrics;
+this interface does not promise access to Music's catalog synchronized-lyrics UI.
+Provider text stays in memory and is not stored in lyric associations, exported
+settings or diagnostics. Option Tab adds no lyrics search/download service or
+bundled third-party lyrics database. Music itself may have its own network behavior.
 
 To remove all saved folder grants or lyric associations, quit Option Tab and remove
 only the corresponding store file above. Removing `settings.json` resets preferences
@@ -77,7 +85,7 @@ observation and prevents late results from returning to that Dock session.
 
 Media previews, each player adapter, and remote artwork are off by default. Enabled
 Music/Spotify adapters communicate with the installed running player through fixed
-AppleEvents for metadata and supported playback controls; Option Tab does not launch
+AppleEvents for metadata, available Music lyric text and supported playback controls; Option Tab does not launch
 a player just to poll it. Explicit permission requests may show macOS Automation
 consent. Normal polling does not silently request that consent.
 

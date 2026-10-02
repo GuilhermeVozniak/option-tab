@@ -135,6 +135,45 @@ func (darwinMediaTransport) artwork(ctx context.Context, scope MediaScope, token
 	return normalizeMediaArtworkPNG(data)
 }
 
+func (darwinMediaTransport) lyrics(ctx context.Context, scope MediaScope, guard func() error) (MediaProviderLyrics, error) {
+	result := MediaProviderLyrics{Scope: scope, Status: "unavailable", Reason: "Music lyrics are unavailable"}
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	if guard == nil {
+		return result, errors.New("media lyric guard required")
+	}
+	p, fp := mediaCString(string(scope.Provider))
+	defer fp()
+	b, fb := mediaCString(scope.Process.LaunchID)
+	defer fb()
+	t, ft := mediaCString(scope.TrackID)
+	defer ft()
+	call := &mediaGuardCall{guard: guard}
+	handle := cgo.NewHandle(call)
+	defer handle.Delete()
+	var reply struct {
+		Status string `json:"status"`
+		Reason string `json:"reason"`
+		Text   string `json:"text"`
+	}
+	err := mediaJSON(C.ot_media_lyrics(p, C.int(scope.Process.PID), b, t, C.uintptr_t(handle)), &reply)
+	if call.err != nil {
+		return result, call.err
+	}
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
+	if err != nil || reply.Status == "unavailable" {
+		return result, errors.New("music lyrics are unavailable")
+	}
+	result.Status, result.Reason = reply.Status, reply.Reason
+	if reply.Status == "ready" {
+		result.Data = []byte(reply.Text)
+	}
+	return result, nil
+}
+
 func readRemoteMediaArtwork(ctx context.Context, rawURL string) ([]byte, error) {
 	client := newMediaArtworkClient(nil, nil)
 	defer client.CloseIdleConnections()

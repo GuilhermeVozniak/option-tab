@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 type MediaProvider string
@@ -68,6 +71,21 @@ type MediaArtwork struct {
 	Status string
 	Reason string
 }
+
+// MediaProviderLyrics contains provider-supplied text, not verified timestamps.
+// Data is transient; consumers must validate it before presenting timed cues.
+type MediaProviderLyrics struct {
+	Scope  MediaScope
+	Data   []byte
+	Status string
+	Reason string
+}
+
+// MediaProviderLyricsSource is optional; local lyric associations are separate.
+type MediaProviderLyricsSource interface {
+	ReadMediaProviderLyricsGuarded(context.Context, MediaScope, func() error) (MediaProviderLyrics, error)
+}
+
 type MediaProviderSource interface {
 	ObserveMedia(context.Context, MediaProvider, func(MediaSample)) error
 	RequestMediaPermission(context.Context, MediaProvider) (MediaPermission, error)
@@ -82,6 +100,9 @@ type mediaTransport interface {
 	permission(context.Context, MediaProvider, bool) (MediaPermission, error)
 	command(context.Context, MediaCommand, func() error) error
 	artwork(context.Context, MediaScope, string) ([]byte, error)
+}
+type mediaLyricsTransport interface {
+	lyrics(context.Context, MediaScope, func() error) (MediaProviderLyrics, error)
 }
 type mediaOwner struct {
 	observation context.Context
@@ -292,4 +313,66 @@ func (s *mediaSource) ReadMediaArtwork(ctx context.Context, scope MediaScope, to
 		return MediaArtwork{Status: "unavailable", Reason: readErr.Error()}, readErr
 	}
 	return MediaArtwork{PNG: data, Status: "ready"}, nil
+}
+
+func (s *mediaSource) ReadMediaProviderLyricsGuarded(ctx context.Context, scope MediaScope, guard func() error) (MediaProviderLyrics, error) {
+	unavailable := func(err error) (MediaProviderLyrics, error) {
+		return MediaProviderLyrics{Scope: scope, Status: "unavailable", Reason: "Music lyrics are unavailable"}, err
+	}
+	transport, supported := s.transport.(mediaLyricsTransport)
+	if scope.Provider != MediaMusic || !supported {
+		return MediaProviderLyrics{Scope: scope, Status: "unsupported", Reason: "Provider lyrics are unavailable"}, nil
+	}
+	if scope.Process.PID <= 0 || scope.Process.PID > math.MaxInt32 || scope.Process.LaunchID == "" || len(scope.Process.LaunchID) > 4096 ||
+		scope.Generation == 0 || scope.TrackEpoch == 0 || scope.TrackID == "" || len(scope.TrackID) > 4096 ||
+		!utf8.ValidString(scope.Process.LaunchID) || !utf8.ValidString(scope.TrackID) ||
+		strings.ContainsRune(scope.Process.LaunchID, 0) || strings.ContainsRune(scope.TrackID, 0) || guard == nil {
+		return unavailable(errors.New("media lyric scope or guard is invalid"))
+	}
+	o, err := s.acquire(ctx, scope.Provider)
+	if err != nil {
+		return unavailable(err)
+	}
+	defer mediaRelease(o)
+	current := func() error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !o.active || o.observation == nil || o.observation.Err() != nil || o.sample.Status != "ready" || mediaScope(o.sample) != scope {
+			return errors.New("media lyrics retired")
+		}
+		return nil
+	}
+	admit := func() error {
+		if err := current(); err != nil {
+			return err
+		}
+		if err := guard(); err != nil {
+			return err
+		}
+		return current()
+	}
+	if err := admit(); err != nil {
+		return unavailable(err)
+	}
+	result, err := transport.lyrics(ctx, scope, admit)
+	if admissionErr := admit(); admissionErr != nil {
+		return unavailable(admissionErr)
+	}
+	if err != nil || result.Scope != scope || len(result.Data) > 1<<20 || !utf8.Valid(result.Data) {
+		return unavailable(errors.New("music lyrics are unavailable"))
+	}
+	switch result.Status {
+	case "ready":
+		if len(result.Data) == 0 {
+			return MediaProviderLyrics{Scope: scope, Status: "missing", Reason: "Music has no lyrics for this track"}, nil
+		}
+		return MediaProviderLyrics{Scope: scope, Status: "ready", Data: append([]byte(nil), result.Data...)}, nil
+	case "missing":
+		return MediaProviderLyrics{Scope: scope, Status: "missing", Reason: "Music has no lyrics for this track"}, nil
+	case "unsupported":
+		return MediaProviderLyrics{Scope: scope, Status: "unsupported", Reason: "Provider lyrics are unavailable"}, nil
+	default:
+		return unavailable(errors.New("music lyrics are unavailable"))
+	}
 }

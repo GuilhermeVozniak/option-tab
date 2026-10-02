@@ -1001,21 +1001,28 @@ function DockRoute() {
           retiredMediaSessions.current.add(session);
           setState((old) => (old?.media?.session === session ? { ...old, media: undefined } : old));
         },
-        progress: (next) =>
+        progress: (next) => {
+          if (
+            next.session !== activeMediaSession.current ||
+            next.revision !== latestMediaRevision.current ||
+            next.sequence <= mediaProgressSequence.current
+          )
+            return;
+          // Event admission happens once; React may replay the state updater.
+          mediaProgressSequence.current = next.sequence;
           setState((old) => {
             if (
               !old?.media ||
               old.media.session !== next.session ||
-              old.media.revision !== next.revision ||
-              next.sequence <= mediaProgressSequence.current
+              old.media.revision !== next.revision
             )
               return old;
-            mediaProgressSequence.current = next.sequence;
             return {
               ...old,
               media: { ...old.media, positionMS: next.positionMS, activeCue: next.activeCue },
             };
-          }),
+          });
+        },
       }),
     [retire],
   );

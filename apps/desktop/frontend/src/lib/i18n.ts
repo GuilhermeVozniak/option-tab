@@ -661,8 +661,14 @@ const PT: Record<string, string> = {
   Replace: "Substituir",
   Remove: "Remover",
   Follow: "Acompanhar",
-  "Lyrics stay on this Mac. Use a timestamped .lrc file.":
-    "As letras ficam neste Mac. Use um arquivo .lrc com marcações de tempo.",
+  "Lyrics from Music": "Letras fornecidas pelo Music",
+  "Music has no lyrics for this track": "O Music não tem letras para esta faixa",
+  "Music lyrics are unavailable": "As letras do Music estão indisponíveis",
+  "Music does not supply synchronized lyrics for this track":
+    "O Music não fornece letras sincronizadas para esta faixa",
+  "Provider lyrics are unavailable": "As letras do provedor estão indisponíveis",
+  "Use timestamped lyrics from Music when available, or import a local .lrc file. Music lyrics are kept in memory; local files stay on this Mac.":
+    "Use letras com marcações de tempo do Music quando disponíveis ou importe um arquivo .lrc local. As letras do Music ficam na memória; os arquivos locais ficam neste Mac.",
   "Lyrics timing offset (ms)": "Ajuste de tempo da letra (ms)",
   "No synchronized lyrics": "Sem letras sincronizadas",
   "Nothing playing": "Nada em reprodução",
@@ -1440,8 +1446,14 @@ const ES: Record<string, string> = {
   Replace: "Reemplazar",
   Remove: "Eliminar",
   Follow: "Seguir",
-  "Lyrics stay on this Mac. Use a timestamped .lrc file.":
-    "Las letras permanecen en este Mac. Usa un archivo .lrc con marcas de tiempo.",
+  "Lyrics from Music": "Letras de Music",
+  "Music has no lyrics for this track": "Music no tiene letras para esta pista",
+  "Music lyrics are unavailable": "Las letras de Music no están disponibles",
+  "Music does not supply synchronized lyrics for this track":
+    "Music no proporciona letras sincronizadas para esta pista",
+  "Provider lyrics are unavailable": "Las letras del proveedor no están disponibles",
+  "Use timestamped lyrics from Music when available, or import a local .lrc file. Music lyrics are kept in memory; local files stay on this Mac.":
+    "Usa letras con marcas de tiempo de Music cuando estén disponibles o importa un archivo .lrc local. Las letras de Music se mantienen en memoria; los archivos locales permanecen en este Mac.",
   "Lyrics timing offset (ms)": "Ajuste de tiempo de la letra (ms)",
   "No synchronized lyrics": "Sin letras sincronizadas",
   "Nothing playing": "Nada en reproducción",

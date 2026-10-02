@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the Wails v3 seams: the generated App service bindings and the
@@ -569,10 +570,14 @@ describe("App", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Exact action refused");
   });
 
-  it("resets hover progress admission when embedded media scope changes", () => {
+  it("resets hover progress admission when embedded media scope changes", async () => {
     window.location.hash = "#dock";
-    render(<App />);
-    act(() =>
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+    await act(async () =>
       eventHandlers.get("dock:show")?.({ data: dockMediaState(1, dockMedia(70, 2, "First")) }),
     );
     act(() =>
@@ -580,6 +585,7 @@ describe("App", () => {
         data: { session: 70, revision: 2, sequence: 20, positionMS: 800, activeCue: -1 },
       }),
     );
+    expect(screen.getByRole("slider", { name: "Playback position" })).toHaveValue("800");
     act(() =>
       eventHandlers.get("dock:update")?.({
         data: dockMediaState(2, dockMedia(70, 3, "Replacement")),
@@ -591,6 +597,43 @@ describe("App", () => {
       }),
     );
     expect(screen.getByRole("slider", { name: "Playback position" })).toHaveValue("500");
+  });
+
+  it("rejects reordered hover progress without poisoning the next admitted sequence in StrictMode", async () => {
+    window.location.hash = "#dock";
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+    const progress = (session: number, revision: number, sequence: number, positionMS: number) =>
+      eventHandlers.get("media:progress")?.({
+        data: { session, revision, sequence, positionMS, activeCue: -1 },
+      });
+    await act(async () => {
+      eventHandlers.get("dock:show")?.({ data: dockMediaState(1, dockMedia(70, 2, "First")) });
+      progress(70, 1, 90, 900);
+      progress(70, 3, 90, 900);
+      progress(71, 2, 90, 900);
+      progress(70, 2, 2, 600);
+      progress(70, 2, 1, 400);
+      progress(70, 2, 2, 700);
+    });
+    expect(screen.getByRole("slider", { name: "Playback position" })).toHaveValue("600");
+    act(() => {
+      eventHandlers.get("media:update")?.({ data: dockMedia(70, 3, "Replacement") });
+      progress(70, 2, 100, 900);
+      progress(70, 3, 1, 500);
+    });
+    expect(screen.getByRole("slider", { name: "Playback position" })).toHaveValue("500");
+    act(() => {
+      eventHandlers.get("media:hide")?.({ data: { session: 70, revision: 4 } });
+      progress(70, 4, 100, 900);
+      eventHandlers.get("dock:update")?.({ data: dockMediaState(2, dockMedia(72, 1, "New")) });
+      progress(70, 4, 101, 900);
+      progress(72, 1, 1, 300);
+    });
+    expect(screen.getByRole("slider", { name: "Playback position" })).toHaveValue("300");
   });
 
   it("tombstones hidden hover media against delayed Dock updates", () => {

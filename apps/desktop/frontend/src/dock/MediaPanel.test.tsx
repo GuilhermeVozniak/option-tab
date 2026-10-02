@@ -80,6 +80,118 @@ describe("MediaPanel", () => {
     expect(screen.getByText("No synchronized lyrics")).toBeInTheDocument();
   });
 
+  it("attributes Music lyrics while keeping reload and local override separate from local-file controls", async () => {
+    const h = handlers();
+    render(
+      <MediaPanel
+        state={{ ...state, lyrics: { ...state.lyrics, source: "music", documentID: "" } }}
+        handlers={h}
+      />,
+    );
+    expect(screen.getByText("Lyrics from Music")).toBeVisible();
+    expect(screen.getByText("Current")).toHaveAttribute("aria-current", "true");
+    expect(screen.queryByRole("button", { name: "Replace" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove" })).toBeNull();
+    expect(screen.queryByRole("spinbutton", { name: "Lyrics timing offset (ms)" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+    expect(h.onReload).toHaveBeenCalledWith(9, 4);
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Import .lrc" })));
+    expect(h.onImport).toHaveBeenCalledWith(9, 4);
+    expect(h.onRemove).not.toHaveBeenCalled();
+    expect(h.onOffset).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "pt-BR",
+      "Letras fornecidas pelo Music",
+      "O Music não fornece letras sincronizadas para esta faixa",
+      "Use letras com marcações de tempo do Music quando disponíveis ou importe um arquivo .lrc local. As letras do Music ficam na memória; os arquivos locais ficam neste Mac.",
+    ],
+    [
+      "es",
+      "Letras de Music",
+      "Music no proporciona letras sincronizadas para esta pista",
+      "Usa letras con marcas de tiempo de Music cuando estén disponibles o importa un archivo .lrc local. Las letras de Music se mantienen en memoria; los archivos locales permanecen en este Mac.",
+    ],
+  ] as const)("explains unsynchronized Music lyrics truthfully in %s without showing stale cues", (language, attribution, reason, disclosure) => {
+    render(
+      <MediaPanel
+        state={{
+          ...state,
+          lyrics: {
+            ...state.lyrics,
+            source: "music",
+            documentID: "",
+            status: "unavailable",
+            reason: "Music does not supply synchronized lyrics for this track",
+          },
+        }}
+        handlers={handlers()}
+        t={makeT(language)}
+      />,
+    );
+    expect(screen.getByText(attribution)).toBeVisible();
+    expect(screen.getByText(reason)).toBeVisible();
+    expect(screen.getByText(disclosure)).toBeVisible();
+    expect(screen.queryByText("Current")).toBeNull();
+    expect(screen.queryByRole("spinbutton")).toBeNull();
+    expect(screen.getByRole("button", { name: makeT(language)("Reload") })).toBeEnabled();
+    expect(screen.getByRole("button", { name: makeT(language)("Import .lrc") })).toBeEnabled();
+  });
+
+  it("retains local document actions independently of optional source metadata", () => {
+    const h = handlers();
+    const { rerender } = render(<MediaPanel state={state} handlers={h} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reload" }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Lyrics timing offset (ms)" }), {
+      target: { value: "500" },
+    });
+    expect(h.onReload).toHaveBeenCalledWith(9, 4);
+    expect(h.onOffset).toHaveBeenCalledWith(9, 4, 500);
+    rerender(
+      <MediaPanel
+        state={{ ...state, lyrics: { ...state.lyrics, source: "local" } }}
+        handlers={h}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Replace" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(h.onRemove).toHaveBeenCalledWith(9, 4);
+    expect(screen.queryByText("Lyrics from Music")).toBeNull();
+  });
+
+  it.each([
+    "source",
+    "document",
+  ] as const)("resets manual lyric reading when the %s changes on the same track", (changed) => {
+    const cues = Array.from({ length: 100 }, (_, i) => ({ atMs: i * 1000, text: `Old line ${i}` }));
+    const previous = {
+      ...state,
+      activeCue: 30,
+      lyrics: {
+        ...state.lyrics,
+        source: changed === "source" ? ("music" as const) : ("local" as const),
+        documentID: changed === "source" ? "" : "old-doc",
+        cues,
+      },
+    };
+    const { rerender } = render(<MediaPanel state={previous} handlers={handlers()} />);
+    const list = document.querySelector(".ot-media-lyrics")!;
+    fireEvent.wheel(list);
+    fireEvent.scroll(list);
+    expect(screen.getByRole("button", { name: "Follow" })).toBeVisible();
+    rerender(
+      <MediaPanel
+        state={{ ...state, lyrics: { ...state.lyrics, source: "local", documentID: "new-doc" } }}
+        handlers={handlers()}
+      />,
+    );
+    expect(screen.getByText("Current")).toHaveAttribute("aria-current", "true");
+    expect(screen.queryByRole("button", { name: "Follow" })).toBeNull();
+    expect(screen.queryByText("Old line 30")).toBeNull();
+  });
+
   it("localizes icon-only hover and pinned media controls", () => {
     const h = handlers();
     const first = render(<MediaPanel state={state} handlers={h} t={makeT("pt-BR")} />);
@@ -174,6 +286,53 @@ describe("MediaPanel", () => {
     expect(screen.getByRole("button", { name: "Follow" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Follow" }));
     expect(screen.queryByRole("button", { name: "Follow" })).toBeNull();
+  });
+
+  it.each([
+    "local",
+    "music",
+  ] as const)("keeps %s lyric mutations disabled until an accepted import drains", async (source) => {
+    let finish!: () => void;
+    const h = handlers();
+    h.onImport.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    const current = {
+      ...state,
+      error: "LRC file has no usable timestamps",
+      lyrics: { ...state.lyrics, source, documentID: source === "local" ? "doc" : "" },
+    };
+    render(<MediaPanel state={current} handlers={h} />);
+    const startLabel = source === "local" ? "Replace" : "Import .lrc";
+    const start = screen.getByRole("button", { name: startLabel });
+    expect(start).toBeEnabled();
+    fireEvent.click(start);
+    expect(start).toBeDisabled();
+    if (source === "local")
+      expect(screen.getByRole("spinbutton", { name: "Lyrics timing offset (ms)" })).toBeDisabled();
+    const reload = screen.getByRole("button", { name: "Reload" });
+    expect(reload).toBeDisabled();
+    fireEvent.click(reload);
+    if (source === "local") {
+      const remove = screen.getByRole("button", { name: "Remove" });
+      expect(remove).toBeDisabled();
+      fireEvent.click(remove);
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Cancel import" }));
+    expect(h.onCancelImport).toHaveBeenCalledWith(9, 4);
+    expect(reload).toBeDisabled();
+    expect(h.onReload).not.toHaveBeenCalled();
+    expect(h.onRemove).not.toHaveBeenCalled();
+    expect(screen.getByText("Current")).toHaveAttribute("aria-current", "true");
+    await act(async () => finish());
+    expect(reload).toBeEnabled();
+    expect(start).toBeEnabled();
+    if (source === "local") {
+      expect(screen.getByRole("button", { name: "Remove" })).toBeEnabled();
+      expect(screen.getByRole("spinbutton", { name: "Lyrics timing offset (ms)" })).toBeEnabled();
+    }
   });
 
   it("cancels an accepted import with its captured revision", async () => {

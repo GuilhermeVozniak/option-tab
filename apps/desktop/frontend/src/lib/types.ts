@@ -195,6 +195,7 @@ export interface MediaViewState {
   appearance: Appearance;
   artwork: { status: string; reason: string; image: string };
   lyrics: {
+    source?: "local" | "music" | "";
     documentID: string;
     status: string;
     reason: string;

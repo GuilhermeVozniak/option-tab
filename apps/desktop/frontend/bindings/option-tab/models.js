@@ -1850,6 +1850,13 @@ export class MediaLyricsView {
      * @param {Partial<MediaLyricsView>} [$$source = {}] - The source object to create the MediaLyricsView.
      */
     constructor($$source = {}) {
+        if (!("source" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["source"] = "";
+        }
         if (!("documentID" in $$source)) {
             /**
              * @member
@@ -1895,10 +1902,10 @@ export class MediaLyricsView {
      * @returns {MediaLyricsView}
      */
     static createFrom($$source = {}) {
-        const $$createField3_0 = $$createType39;
+        const $$createField4_0 = $$createType39;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("cues" in $$parsedSource) {
-            $$parsedSource["cues"] = $$createField3_0($$parsedSource["cues"]);
+            $$parsedSource["cues"] = $$createField4_0($$parsedSource["cues"]);
         }
         return new MediaLyricsView(/** @type {Partial<MediaLyricsView>} */($$parsedSource));
     }

@@ -209,3 +209,61 @@ test("media panels inherit light and dark Dock text colors without narrow clippi
   await expect(media).toHaveCSS("color", "rgb(245, 247, 255)");
   await page.screenshot({ path: path.join(evidence, "media-dark-pin-narrow.png") });
 });
+
+test("Music lyrics from the generated state route keep local overrides and actions scoped", async ({
+  page,
+}) => {
+  await installFakeWails(page);
+  await page.setViewportSize({ width: 440, height: 620 });
+  const provider = mediaState({
+    session: 92,
+    pinned: true,
+    pinnable: false,
+    lyrics: {
+      source: "music",
+      documentID: "",
+      status: "ready",
+      reason: "",
+      cues: [
+        { atMs: 0, text: "Music opening line" },
+        { atMs: 1000, text: "Music current line" },
+      ],
+      offsetMS: 0,
+    },
+  });
+  await page.addInitScript((state) => {
+    (window as any).__mediaState = state;
+  }, provider);
+  await page.goto("/#media/92");
+  await expect(page.getByText("Lyrics from Music", { exact: true })).toBeVisible();
+  await expect(page.getByText("Music current line")).toHaveAttribute("aria-current", "true");
+  await expect(page.getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Replace", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("spinbutton", { name: "Lyrics timing offset (ms)" })).toHaveCount(0);
+  const panel = page.locator(".ot-media-panel");
+  await expect(panel).toHaveJSProperty("scrollWidth", await panel.evaluate((el) => el.clientWidth));
+  await page.getByRole("button", { name: "Reload", exact: true }).click();
+  await expect.poll(() => getCallRecords(page)).toContainEqual(["ReloadMediaLyrics", 92, 3]);
+  await page.getByRole("button", { name: "Import .lrc", exact: true }).click();
+  await expect.poll(() => getCallRecords(page)).toContainEqual(["ImportMediaLyrics", 92, 3]);
+
+  await dispatch(page, "media:update", {
+    ...provider,
+    revision: 4,
+    activeCue: 0,
+    lyrics: {
+      source: "local",
+      documentID: "local-override",
+      status: "ready",
+      reason: "",
+      cues: [{ atMs: 0, text: "Local override line" }],
+      offsetMS: 0,
+    },
+  });
+  await expect(page.getByText("Local override line")).toHaveAttribute("aria-current", "true");
+  await expect(page.getByText("Music current line")).toHaveCount(0);
+  await expect(page.getByText("Lyrics from Music", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Replace", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Remove", exact: true })).toBeEnabled();
+  await expect(page.getByRole("spinbutton", { name: "Lyrics timing offset (ms)" })).toBeEnabled();
+});

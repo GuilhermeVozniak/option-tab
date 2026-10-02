@@ -19,6 +19,7 @@ type MediaArtworkView struct {
 	Image  string `json:"image"`
 }
 type MediaLyricsView struct {
+	Source     string      `json:"source"`
 	DocumentID string      `json:"documentID"`
 	Status     string      `json:"status"`
 	Reason     string      `json:"reason"`
@@ -74,12 +75,13 @@ type appMediaRuntime struct {
 	permissions    map[platform.MediaProvider]platform.MediaPermission
 	permissionJobs map[platform.MediaProvider]*mediaPermissionOwner
 	importJob      *mediaImportOwner
+	lyricsChanges  map[platform.MediaProvider]*mediaLyricsChange
 	remoteArtwork  bool
 }
 
 func (a *App) wireMedia(source platform.MediaProviderSource, lyrics platform.MediaLyricsSource) {
 	ctx, cancel := context.WithCancel(context.Background())
-	r := &appMediaRuntime{source: source, lyrics: lyrics, ctx: ctx, cancel: cancel, panels: map[uint64]*mediaPresentation{}, assets: map[platform.MediaProvider]*mediaTrackAssets{}, permissions: map[platform.MediaProvider]platform.MediaPermission{}, permissionJobs: map[platform.MediaProvider]*mediaPermissionOwner{}}
+	r := &appMediaRuntime{source: source, lyrics: lyrics, ctx: ctx, cancel: cancel, panels: map[uint64]*mediaPresentation{}, assets: map[platform.MediaProvider]*mediaTrackAssets{}, permissions: map[platform.MediaProvider]platform.MediaPermission{}, permissionJobs: map[platform.MediaProvider]*mediaPermissionOwner{}, lyricsChanges: map[platform.MediaProvider]*mediaLyricsChange{}}
 	r.controller = media.NewController(media.Deps{Source: source, Changed: a.acceptMedia})
 	r.artwork = media.NewArtworkCache(source)
 	r.remoteArtwork = a.settingsSnapshot().Dock.Media.RemoteArtwork

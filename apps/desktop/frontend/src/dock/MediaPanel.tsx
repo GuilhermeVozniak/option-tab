@@ -49,8 +49,11 @@ export function MediaPanel({
   useEffect(() => {
     setSeek(null);
     seekScope.current = "";
-    setReadingStart(null);
   }, [interactionKey]);
+  useEffect(() => {
+    setReadingStart(null);
+    userScroll.current = false;
+  }, [interactionKey, state.lyrics.source, state.lyrics.documentID]);
   useEffect(() => {
     setPendingImport(null);
   }, [state.session]);
@@ -250,20 +253,39 @@ export function MediaPanel({
         <span>{t("Synchronized lyrics")}</span>
         {state.lyrics.documentID ? (
           <>
-            <button type="button" onClick={() => handlers.onReload(state.session, state.revision)}>
+            <button
+              type="button"
+              disabled={pendingImport !== null}
+              onClick={() => handlers.onReload(state.session, state.revision)}
+            >
               {t("Reload")}
             </button>
             <button type="button" disabled={pendingImport !== null} onClick={startImport}>
               {t("Replace")}
             </button>
-            <button type="button" onClick={() => handlers.onRemove(state.session, state.revision)}>
+            <button
+              type="button"
+              disabled={pendingImport !== null}
+              onClick={() => handlers.onRemove(state.session, state.revision)}
+            >
               {t("Remove")}
             </button>
           </>
         ) : (
-          <button type="button" disabled={pendingImport !== null} onClick={startImport}>
-            {t("Import .lrc")}
-          </button>
+          <>
+            {state.lyrics.source === "music" ? (
+              <button
+                type="button"
+                disabled={pendingImport !== null}
+                onClick={() => handlers.onReload(state.session, state.revision)}
+              >
+                {t("Reload")}
+              </button>
+            ) : null}
+            <button type="button" disabled={pendingImport !== null} onClick={startImport}>
+              {t("Import .lrc")}
+            </button>
+          </>
         )}
         {pendingImport !== null ? (
           <button
@@ -274,8 +296,13 @@ export function MediaPanel({
           </button>
         ) : null}
       </div>
+      {state.lyrics.source === "music" && !state.lyrics.documentID ? (
+        <p className="ot-media-status">{t("Lyrics from Music")}</p>
+      ) : null}
       <p className="ot-media-disclosure">
-        {t("Lyrics stay on this Mac. Use a timestamped .lrc file.")}
+        {t(
+          "Use timestamped lyrics from Music when available, or import a local .lrc file. Music lyrics are kept in memory; local files stay on this Mac.",
+        )}
       </p>
       {state.lyrics.status === "ready" ? (
         <>
@@ -316,23 +343,26 @@ export function MediaPanel({
               {t("Follow")}
             </button>
           ) : null}
-          <label className="ot-media-offset">
-            {t("Lyrics timing offset (ms)")}
-            <input
-              aria-label={t("Lyrics timing offset (ms)")}
-              type="number"
-              min={-30000}
-              max={30000}
-              value={state.lyrics.offsetMS}
-              onChange={(e) =>
-                handlers.onOffset(
-                  state.session,
-                  state.revision,
-                  Math.max(-30000, Math.min(30000, Number(e.target.value))),
-                )
-              }
-            />
-          </label>
+          {state.lyrics.documentID ? (
+            <label className="ot-media-offset">
+              {t("Lyrics timing offset (ms)")}
+              <input
+                aria-label={t("Lyrics timing offset (ms)")}
+                type="number"
+                disabled={pendingImport !== null}
+                min={-30000}
+                max={30000}
+                value={state.lyrics.offsetMS}
+                onChange={(e) =>
+                  handlers.onOffset(
+                    state.session,
+                    state.revision,
+                    Math.max(-30000, Math.min(30000, Number(e.target.value))),
+                  )
+                }
+              />
+            </label>
+          ) : null}
         </>
       ) : (
         <p className="ot-media-status">{t(state.lyrics.reason || "No synchronized lyrics")}</p>

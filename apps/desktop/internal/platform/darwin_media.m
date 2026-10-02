@@ -108,6 +108,31 @@ char *ot_media_command(const char *provider,int pid,const char *birth,const char
  mediaSend(a,value?kAECoreSuite:([p isEqual:@"music"]?'hook':'spfy'),code,object,value,deadline,&error);
  return error?strdup(error.localizedDescription.UTF8String):NULL;
 }}
+char *ot_media_lyrics(const char *provider,int pid,const char *birth,const char *track,uintptr_t guard){@autoreleasepool{
+ NSDictionary *unavailable=failure(@"unavailable",@"Music lyrics are unavailable");
+ if(!provider||!birth||!track||pid<=0||!guard)return json(unavailable);
+ NSString *p=@(provider),*born=@(birth),*identity=@(track);
+ if(![p isEqual:@"music"])return json(failure(@"unsupported",@"Provider lyrics are unavailable"));
+ double deadline=NSProcessInfo.processInfo.systemUptime+2;
+ NSRunningApplication *a=running(p);
+ if(!a||a.processIdentifier!=pid||![launch(a)isEqual:born]||!identity.length||permission(a,NO))return json(unavailable);
+ NSError *error=nil;
+ NSString *before=trackID(a,p,deadline,&error);
+ if(error||![before isEqual:identity])return json(unavailable);
+ // The callback runs after native preparation; recheck incarnation afterwards
+ // because the caller may retire or the process may exit during admission.
+ if(!ot_media_guard(guard)||!same(p,pid,born)||NSProcessInfo.processInfo.systemUptime>=deadline)return json(unavailable);
+ NSAppleEventDescriptor *descriptor=get(a,'pLyr',YES,deadline,&error);
+ DescType type=descriptor.descriptorType;
+ if(error||!descriptor||(type!=typeUnicodeText&&type!=typeUTF8Text&&type!=typeChar&&type!=typeCString))return json(unavailable);
+ NSString *value=descriptor.stringValue;
+ NSData *bytes=[value dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:NO];
+ if(!value||!bytes||bytes.length>1024*1024)return json(unavailable);
+ NSString *after=trackID(a,p,deadline,&error);
+ if(error||![after isEqual:identity]||!same(p,pid,born)||NSProcessInfo.processInfo.systemUptime>=deadline)return json(unavailable);
+ if(bytes.length==0)return json(failure(@"missing",@"Music has no lyrics for this track"));
+ return json(@{@"status":@"ready",@"text":value});
+}}
 char *ot_media_artwork(const char *provider,int pid,const char *birth,const char *track){@autoreleasepool{
  NSString *p=@(provider);if(![p isEqual:@"music"]||!same(p,pid,@(birth)))return NULL;
  NSRunningApplication *a=running(p);if(permission(a,NO))return NULL;

@@ -56,9 +56,7 @@ func (a *App) ensureMediaAssetsLocked(st media.State) {
 		return
 	}
 	a.queueMediaArtworkLocked(asset, a.settingsSnapshot().Dock.Media.RemoteArtwork)
-	if r.lyrics != nil {
-		a.queueMediaLyricsLocked(asset)
-	}
+	a.queueMediaLyricsLocked(asset)
 }
 
 func (a *App) publishMediaAssetsLocked(asset *mediaTrackAssets) {
@@ -117,49 +115,6 @@ func (a *App) readMediaArtwork(asset *mediaTrackAssets, ctx context.Context, rev
 	a.publishMediaAssetsLocked(asset)
 }
 
-func (a *App) queueMediaLyricsLocked(asset *mediaTrackAssets) {
-	if a.media.lyrics == nil {
-		return
-	}
-	if asset.lyricsCancel != nil {
-		asset.lyricsCancel()
-	}
-	ctx, cancel := context.WithCancel(asset.ctx)
-	asset.lyricsCancel = cancel
-	asset.lyricsRevision++
-	revision := asset.lyricsRevision
-	asset.lyrics = MediaLyricsView{Status: "loading", Cues: []media.Cue{}}
-	_ = asset.timeline.Load(media.LyricsScope{Provider: string(asset.scope.Provider), TrackID: asset.scope.TrackID}, asset.scope.TrackEpoch, nil, 0)
-	go func() {
-		defer cancel()
-		document, err := a.media.lyrics.LoadMediaLyrics(ctx, platform.MediaLyricsScope{Provider: asset.scope.Provider, TrackID: asset.scope.TrackID})
-		var cues []media.Cue
-		if err == nil && document.Status == "ready" {
-			cues, err = media.ParseLRC(document.Data)
-		}
-		a.viewMu.Lock()
-		defer a.viewMu.Unlock()
-		if ctx.Err() != nil || !a.mediaAssetsCurrentLocked(asset) || asset.lyricsRevision != revision {
-			return
-		}
-		asset.lyrics = MediaLyricsView{DocumentID: document.DocumentID, Status: document.Status, Reason: document.Reason, Cues: cues, OffsetMS: document.OffsetMS}
-		if err == nil && document.Status == "ready" {
-			expected := platform.MediaLyricsScope{Provider: asset.scope.Provider, TrackID: asset.scope.TrackID}
-			if document.Scope != expected {
-				err = errors.New("lyric document does not match the current track")
-			} else {
-				err = asset.timeline.Load(media.LyricsScope{Provider: string(asset.scope.Provider), TrackID: asset.scope.TrackID}, asset.scope.TrackEpoch, cues, document.OffsetMS)
-			}
-		}
-		if err != nil {
-			asset.lyrics.Status = "unavailable"
-			asset.lyrics.Reason = err.Error()
-			asset.lyrics.Cues = nil
-		}
-		a.publishMediaAssetsLocked(asset)
-	}()
-}
-
 func (a *App) ImportMediaLyrics(session, revision uint64) error {
 	a.viewMu.Lock()
 	p, err := a.mediaTargetLocked(session, revision)
@@ -171,18 +126,24 @@ func (a *App) ImportMediaLyrics(session, revision uint64) error {
 		a.viewMu.Unlock()
 		return errMediaLyricsUnavailable
 	}
-	if a.media.importJob != nil {
+	if a.media.importJob != nil || a.mediaLyricsBusyLocked(localMediaLyricsScope(p.state.Scope)) {
 		a.viewMu.Unlock()
 		return media.ErrBusy
 	}
 	ctx, cancel := context.WithCancel(a.media.ctx)
 	owner := &mediaImportOwner{session: session, revision: revision, scope: platform.MediaLyricsScope{Provider: p.state.Provider, TrackID: p.state.Scope.TrackID}, ctx: ctx, cancel: cancel}
 	a.media.importJob = owner
+	if asset := a.media.assets[owner.scope.Provider]; asset != nil && localMediaLyricsScope(asset.scope) == owner.scope {
+		suspendMediaLyricsRead(asset)
+	}
 	a.viewMu.Unlock()
 	_, err = a.media.lyrics.ChooseMediaLyrics(ctx, owner.scope, func(data []byte) error { _, err := media.ParseLRC(data); return err })
 	a.viewMu.Lock()
 	defer a.viewMu.Unlock()
 	defer cancel()
+	defer func() {
+		a.resumeMediaLyricsLocked(owner.scope, err == nil && !owner.userCancelled && ctx.Err() == nil)
+	}()
 	if a.media.importJob == owner {
 		a.media.importJob = nil
 	}
@@ -200,8 +161,6 @@ func (a *App) ImportMediaLyrics(session, revision uint64) error {
 		if a.mediaPresentationLocked(session) == p && p.state.Scope.TrackID == owner.scope.TrackID {
 			p.state.Error = ""
 		}
-		a.queueMediaLyricsLocked(asset)
-		a.publishMediaAssetsLocked(asset)
 	}
 	if err != nil && a.mediaPresentationLocked(session) == p && p.state.Scope.TrackID == owner.scope.TrackID {
 		p.state.Error = err.Error()
@@ -233,8 +192,11 @@ func (a *App) ReloadMediaLyrics(session, revision uint64) error {
 		return err
 	}
 	asset := a.media.assets[p.state.Provider]
-	if a.media.lyrics == nil || asset == nil || asset.scope != p.state.Scope || asset.scope.TrackID == "" {
+	if !a.mediaLyricsAvailableLocked(p.state.Provider) || asset == nil || asset.scope != p.state.Scope || asset.scope.TrackID == "" {
 		return errMediaLyricsUnavailable
+	}
+	if a.mediaLyricsBusyLocked(localMediaLyricsScope(asset.scope)) {
+		return media.ErrBusy
 	}
 	p.state.Error = ""
 	a.queueMediaLyricsLocked(asset)
@@ -255,6 +217,17 @@ func (a *App) changeMediaLyrics(session, revision uint64, change func(context.Co
 		return errMediaLyricsUnavailable
 	}
 	scope := platform.MediaLyricsScope{Provider: asset.scope.Provider, TrackID: asset.scope.TrackID}
+	if a.mediaLyricsBusyLocked(scope) || a.media.lyricsChanges[scope.Provider] != nil {
+		a.viewMu.Unlock()
+		return media.ErrBusy
+	}
+	if asset.lyrics.Source != "local" || asset.lyrics.DocumentID == "" {
+		a.viewMu.Unlock()
+		return errMediaLyricsUnavailable
+	}
+	owner := &mediaLyricsChange{scope: scope}
+	a.media.lyricsChanges[scope.Provider] = owner
+	suspendMediaLyricsRead(asset)
 	ctx, cancel := context.WithCancel(asset.ctx)
 	stop := context.AfterFunc(p.ctx, cancel)
 	a.viewMu.Unlock()
@@ -263,6 +236,10 @@ func (a *App) changeMediaLyrics(session, revision uint64, change func(context.Co
 	err = change(ctx, scope)
 	a.viewMu.Lock()
 	defer a.viewMu.Unlock()
+	if a.media.lyricsChanges[scope.Provider] == owner {
+		delete(a.media.lyricsChanges, scope.Provider)
+	}
+	defer func() { a.resumeMediaLyricsLocked(scope, err == nil && ctx.Err() == nil) }()
 	if ctx.Err() != nil || !a.mediaAssetsCurrentLocked(asset) || a.mediaPresentationLocked(session) != p {
 		return media.ErrRetired
 	}
@@ -271,8 +248,6 @@ func (a *App) changeMediaLyrics(session, revision uint64, change func(context.Co
 		a.publishMediaLocked(p)
 	} else {
 		p.state.Error = ""
-		a.queueMediaLyricsLocked(asset)
-		a.publishMediaAssetsLocked(asset)
 	}
 	return err
 }
