@@ -40,6 +40,44 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
 
+test("a reopened switcher uses the newly saved language through the native settings binding", async ({
+  page,
+}) => {
+  for (const [session, language, expected] of [
+    [7, "en", "This action is not supported for this window."],
+    [8, "es", "Esta acción no es compatible con esta ventana."],
+  ] as const) {
+    await page.evaluate(
+      ({ session, language }) => {
+        const w = window as any;
+        w._wails.dispatchWailsEvent({
+          name: "switcher:hide",
+          data: { session: session - 1, revision: 2 },
+        });
+        const settings = JSON.parse(w.__settingsJSON);
+        settings.behavior.language = language;
+        w.__settingsJSON = JSON.stringify(settings);
+      },
+      { session, language },
+    );
+    await emitShow(page, showState({ session, revision: 1, entries: entries.slice(0, 1) }));
+    await page.evaluate(
+      (session) =>
+        (window as any)._wails.dispatchWailsEvent({
+          name: "switcher:gestureError",
+          data: { session, revision: 1, message: "requested AX action is unsupported" },
+        }),
+      session,
+    );
+    await expect(page.getByRole("alert")).toContainText(expected);
+    await expect(
+      page.getByRole("button", {
+        name: language === "es" ? "Descartar error de la acción" : "Dismiss action error",
+      }),
+    ).toBeVisible();
+  }
+});
+
 for (const mode of ["windows", "apps"] as const) {
   test(`${mode} does not turn DOM wheel or primary drags into native swipe actions`, async ({
     page,

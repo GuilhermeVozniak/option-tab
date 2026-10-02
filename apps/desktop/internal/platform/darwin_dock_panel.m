@@ -235,8 +235,9 @@ static BOOL admitWheel(OTDockPanelRecord *r, OTPanelWheelInput input) {
   } else if (r.wheelBypass)
     return NO;
   if (!r.wheelGesture) {
-    if (input.momentum || (input.phase != 1 && input.phase != 2) ||
-        r.wheelValidGesture)
+    // A replaced policy cannot turn the old physical stream's continuation
+    // into a new gesture on another card. Only a fresh began owns a target.
+    if (input.momentum || input.phase != 1 || r.wheelValidGesture)
       return NO;
     NSDictionary *target = nil;
     for (NSDictionary *region in r.wheelRegions) {

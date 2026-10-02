@@ -176,6 +176,76 @@ describe("native switcher gesture route", () => {
     );
   });
 
+  it("uses the newly saved language when the persistent switcher opens again", async () => {
+    native.settings.mockResolvedValue(JSON.stringify({ behavior: { language: "en" } }));
+    render(<App />);
+    emit("switcher:show", state(7));
+    emit("switcher:gestureError", {
+      session: 7,
+      revision: 1,
+      message: "requested AX action is unsupported",
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "This action is not supported for this window.",
+      ),
+    );
+    emit("switcher:hide", { session: 7, revision: 2 });
+    native.settings.mockResolvedValue(JSON.stringify({ behavior: { language: "es" } }));
+    emit("switcher:show", state(8));
+    emit("switcher:gestureError", {
+      session: 8,
+      revision: 1,
+      message: "requested AX action is unsupported",
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Esta acción no es compatible con esta ventana.",
+      ),
+    );
+    expect(
+      screen.getByRole("button", { name: "Descartar error de la acción" }),
+    ).toBeInTheDocument();
+  });
+
+  it("ignores delayed language replies from retired sessions and loads only once per opening", async () => {
+    const replies: ((value: string) => void)[] = [];
+    native.settings.mockImplementation(
+      () => new Promise<string>((resolve) => replies.push(resolve)),
+    );
+    render(<App />);
+    expect(native.settings).not.toHaveBeenCalled();
+    emit("switcher:show", state(7));
+    await waitFor(() => expect(replies).toHaveLength(1));
+    emit("switcher:update", state(7, 2));
+    expect(native.settings).toHaveBeenCalledTimes(1);
+    emit("switcher:hide", { session: 7, revision: 3 });
+    await act(async () => replies[0](JSON.stringify({ behavior: { language: "pt-BR" } })));
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    emit("switcher:show", state(8));
+    await waitFor(() => expect(replies).toHaveLength(2));
+    emit("switcher:hide", { session: 8, revision: 2 });
+    emit("switcher:show", state(9));
+    await waitFor(() => expect(replies).toHaveLength(3));
+    emit("switcher:gestureError", {
+      session: 9,
+      revision: 1,
+      message: "requested AX action is unsupported",
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "This action is not supported for this window.",
+    );
+    await act(async () => replies[2](JSON.stringify({ behavior: { language: "es" } })));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Esta acción no es compatible con esta ventana.",
+    );
+    await act(async () => replies[1](JSON.stringify({ behavior: { language: "pt-BR" } })));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Esta acción no es compatible con esta ventana.",
+    );
+  });
+
   it("keeps geometry sequence increasing across renderer changes and ignores stale RPC replies", async () => {
     let rejectOld: (reason: unknown) => void = () => {};
     native.regions.mockImplementationOnce(

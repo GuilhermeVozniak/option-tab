@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { LauncherPresentation } from "../lib/types";
+import type { LauncherInteractionState, LauncherPresentation } from "../lib/types";
 import { LauncherView } from "./LauncherView";
 import type { LauncherInteractionTransport } from "./useLauncherInteractions";
 
@@ -189,8 +189,81 @@ it("requires an explicit keyboard mode and keeps letter selection separate from 
   expect(transport.activate).not.toHaveBeenCalled();
   fireEvent.keyDown(activeInput, { key: "Enter" });
   expect(transport.activate).toHaveBeenCalledWith(9, "display-main", 12, 4, 4, 2);
-  fireEvent.keyDown(input, { key: "Escape" });
+  fireEvent.keyDown(activeInput, { key: "Escape" });
   expect(transport.keyboard).toHaveBeenLastCalledWith(9, "display-main", 12, 4, 4, false);
+});
+
+it.each([
+  "mode exit",
+  "admission replacement",
+])("discards unfinished composition after keyboard %s", async (retirement) => {
+  let publish = (_state: LauncherInteractionState) => {};
+  const state: LauncherInteractionState = {
+    epoch: 9,
+    displayUUID: "display-main",
+    session: 12,
+    presentationRevision: 4,
+    admission: 2,
+    sequence: 1,
+    visible: true,
+    selectedItemID: "opaque-2",
+    keyboardMode: true,
+    gestureAvailable: true,
+    pinchAvailable: false,
+    swipeAvailable: false,
+    letterInputAvailable: true,
+    hapticsAvailable: true,
+    configured: {
+      enabled: true,
+      preciseScroll: false,
+      pinch: false,
+      swipe: false,
+      primaryAction: "next",
+      towardAction: "showPreview",
+      pinchAction: "showPreview",
+      haptics: false,
+      letterNavigation: true,
+      enterActivates: true,
+    },
+    reason: "",
+  };
+  const transport: LauncherInteractionTransport = {
+    getState: async () => state,
+    subscribe: (handler) => {
+      publish = handler;
+      return () => {};
+    },
+    keyboard: vi.fn().mockResolvedValue(undefined),
+    letter: vi.fn().mockResolvedValue(undefined),
+    activate: vi.fn().mockResolvedValue(undefined),
+  };
+  render(
+    <LauncherView
+      presentation={presentation}
+      onActivate={() => {}}
+      interactionTransport={transport}
+    />,
+  );
+  const oldInput = await screen.findByRole("textbox", { name: "Type a letter" });
+  fireEvent.compositionStart(oldInput);
+  fireEvent.input(oldInput, {
+    target: { value: "に" },
+    inputType: "insertCompositionText",
+    isComposing: true,
+  });
+  fireEvent.keyDown(oldInput, { key: "Enter" });
+  expect(transport.activate).not.toHaveBeenCalled();
+  if (retirement === "mode exit") {
+    act(() => publish({ ...state, sequence: 2, keyboardMode: false }));
+    expect(screen.queryByRole("textbox")).toBeNull();
+  }
+  act(() => publish({ ...state, admission: 3 }));
+  const input = await screen.findByRole("textbox", { name: "Type a letter" });
+  fireEvent.keyDown(input, { key: "Enter" });
+  expect(transport.activate).toHaveBeenCalledExactlyOnceWith(9, "display-main", 12, 4, 3, 2);
+  expect(input).toHaveValue("");
+  fireEvent.compositionEnd(oldInput, { data: "に" });
+  expect(transport.letter).not.toHaveBeenCalled();
 });
 
 it("keeps decorations unfocusable and opens group members individually", () => {

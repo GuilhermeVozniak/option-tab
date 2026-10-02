@@ -109,9 +109,10 @@ function LauncherChildAppRoute({ session }: { session: number }) {
   return <LauncherItemPanelRoute session={session} t={t} />;
 }
 
-function useRuntimeTranslator() {
+function useRuntimeTranslator(session?: number | null) {
   const [language, setLanguage] = useState("");
   useEffect(() => {
+    if (session === null) return;
     let active = true;
     void loadSettings().then((settings) => {
       if (active && settings?.behavior) setLanguage(settings.behavior.language);
@@ -119,7 +120,7 @@ function useRuntimeTranslator() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [session]);
   return useMemo(() => makeT(resolveLang(language)), [language]);
 }
 
@@ -549,8 +550,8 @@ function AutomationRoute({ session }: { session: number }) {
 }
 
 function OverlayRoute() {
-  const t = useRuntimeTranslator();
   const [state, setState] = useState<SwitcherState>(emptyState);
+  const t = useRuntimeTranslator(state.open ? state.session : null);
   const [actionError, setActionError] = useState<string | { gestureKey: string } | null>(null);
   const actionRevision = useRef(0);
   const reportGestureRegions = useMemo(
@@ -798,7 +799,7 @@ function OverlayRoute() {
           <button
             type="button"
             onClick={() => setActionError(null)}
-            aria-label="Dismiss action error"
+            aria-label={t("Dismiss action error")}
           >
             ×
           </button>
@@ -809,8 +810,8 @@ function OverlayRoute() {
 }
 
 function DockRoute() {
-  const t = useRuntimeTranslator();
   const [state, setState] = useState<DockViewState | null>(null);
+  const t = useRuntimeTranslator(state?.session ?? null);
   const [frames, setFrames] = useState<Record<string, string>>({});
   const [nativePointer, setNativePointer] = useState<DockPointer | null>(null);
   const [materialStatus, setMaterialStatus] = useState<MaterialStatus | null>(null);

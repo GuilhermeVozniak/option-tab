@@ -64,8 +64,59 @@ static OTDockPanelRecord *record(void) {
                           } ]));
   return r;
 }
+static BOOL replacementRequiresNewBegin(int retirement) {
+  const char *names[] = {"replacement", "disable/re-enable", "hide/reopen"};
+  OTDockPanelRecord *r = record();
+  OTPanelWheelInput e = input(10, 10, 1, 0);
+  assert(admitWheel(r, e));
+  uint64_t original = r.wheelGesture;
+  if (retirement == 1)
+    assert(applyWheelPolicy(r, 0, 0, NO, @[]));
+  if (retirement == 2) {
+    cancelWheel(r, 2);
+    r.wheelVisible = NO;
+  }
+  assert(applyWheelPolicy(r, 9, 2, YES, @[
+    @{@"window": @99, @"app": @8, @"x": @0, @"y": @0, @"w": @100, @"h": @100}
+  ]));
+  r.wheelVisible = YES;
+  e.phase = wheelPhase(NSEventPhaseChanged);
+  e.dy = 90;
+  e.timestamp = 1.1;
+  if (admitWheel(r, e)) {
+    fprintf(stderr, "FAIL %s: cancelled continuation captured replacement window %llu\n",
+            names[retirement], (unsigned long long)r.wheelWindow);
+    return NO;
+  }
+  assert(!r.wheelGesture && !r.wheelValidGesture);
+  e.phase = wheelPhase(NSEventPhaseStationary);
+  assert(!admitWheel(r, e));
+  e.phase = wheelPhase(NSEventPhaseMayBegin);
+  assert(e.phase == 0 && !admitWheel(r, e));
+  e.momentum = 1;
+  assert(!admitWheel(r, e));
+  e.momentum = 3;
+  assert(!admitWheel(r, e));
+  e.momentum = 0;
+  e.phase = wheelPhase(NSEventPhaseBegan);
+  assert(admitWheel(r, e));
+  assert(r.wheelGesture != original && r.wheelWindow == 99 && r.wheelApp == 8);
+  uint64_t current = r.wheelGesture;
+  e.phase = wheelPhase(NSEventPhaseChanged);
+  assert(admitWheel(r, e) && r.wheelGesture == current);
+  e.phase = wheelPhase(NSEventPhaseEnded);
+  assert(admitWheel(r, e) && r.wheelValidGesture == current);
+  acknowledgeWheel(r, 9, 2, current);
+  assert(!r.wheelValidGesture);
+  return YES;
+}
 int main(void) {
   @autoreleasepool {
+    BOOL freshBegins = YES;
+    for (int retirement = 0; retirement < 3; retirement++)
+      freshBegins = replacementRequiresNewBegin(retirement) && freshBegins;
+    if (!freshBegins)
+      return 1;
     OTDockPanelRecord *r = record();
     OTPanelWheelInput e = input(10, 10, 1, 0);
     e.precise = 0;
@@ -169,6 +220,7 @@ int main(void) {
     puts("PASS native precise/momentum/immutable "
          "target/normalization/ack/backpressure/coarse/miss/disabled/overflow "
          "classification");
+    puts("PASS replacement/disable/hide require fresh began; changed/stationary/MayBegin/momentum cannot retarget");
   }
   return 0;
 }

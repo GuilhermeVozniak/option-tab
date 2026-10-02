@@ -200,6 +200,7 @@ const METHOD = {
   RemoveWidgetPackage: 2737711739,
   ReviewLocalWidgetPackage: 460648480,
   UseNativeDock: 421143656,
+  GetSettings: 2554697378,
   GetSettingsState: 620781575,
   SaveSettingsAtRevision: 1896415605,
   MutateLauncherItems: 3805544533,
@@ -396,6 +397,8 @@ export async function installFakeWails(page: Page): Promise<void> {
       }
       case "GetVersion":
         return json("0.0.0-e2e");
+      case "GetSettings":
+        return json(await page.evaluate(() => (window as any).__settingsJSON));
       case "GetSettingsState":
         return json(
           await page.evaluate(() => {

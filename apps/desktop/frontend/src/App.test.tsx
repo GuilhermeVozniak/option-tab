@@ -907,6 +907,38 @@ describe("App", () => {
     expect(mocked.Advance).toHaveBeenCalledTimes(1);
   });
 
+  it("uses the newly saved language when the persistent Dock preview opens again", async () => {
+    window.location.hash = "#dock";
+    mocked.GetSettings.mockResolvedValueOnce(
+      JSON.stringify({ behavior: { language: "en" } }),
+    ).mockResolvedValueOnce(JSON.stringify({ behavior: { language: "es" } }));
+    const state = {
+      session: 30,
+      revision: 1,
+      open: true,
+      item: {
+        appId: 4,
+        bundleId: "app",
+        path: "/App.app",
+        title: "App",
+        bounds: { x: 0, y: 0, w: 40, h: 40 },
+        screenId: 1,
+        edge: "bottom",
+        kind: "app",
+      },
+      entries: [{ ...appEntry(8, "Window"), appId: 4 }],
+      selectedWindowId: 8,
+      appearance: { ...emptyState.appearance, showWindowControls: true },
+      emptyReason: "",
+    };
+    render(<App />);
+    act(() => eventHandlers.get("dock:show")?.({ data: state }));
+    expect(await screen.findByRole("button", { name: "Close window" })).toBeInTheDocument();
+    act(() => eventHandlers.get("dock:hide")?.({ data: { session: 30, revision: 2 } }));
+    act(() => eventHandlers.get("dock:show")?.({ data: { ...state, session: 31 } }));
+    expect(await screen.findByRole("button", { name: "Cerrar ventana" })).toBeInTheDocument();
+  });
+
   it("rejects stale Dock snapshots, frames, hides, and errors", async () => {
     let resolveSnapshot: (value: never) => void = () => {};
     (AppService as any).GetDockState.mockReturnValueOnce(

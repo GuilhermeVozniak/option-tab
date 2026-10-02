@@ -258,6 +258,55 @@ test("keyboard navigation is explicitly admitted and selects without activating"
   expect((await getCallRecords(page)).some(([name]) => name === "ActivateLauncherSelection")).toBe(
     false,
   );
+  for (const [admission, retireMode] of [
+    [7, false],
+    [8, true],
+  ] as const) {
+    const input = page.getByRole("textbox", { name: "Type a letter" });
+    const oldInput = await input.elementHandle();
+    await input.dispatchEvent("compositionstart", { data: "" });
+    if (retireMode) {
+      await page.evaluate(
+        ({ state, admission }) =>
+          (window as any)._wails.dispatchWailsEvent({
+            name: "launcher:interaction",
+            data: { ...state, admission: admission - 1, sequence: 3, keyboardMode: false },
+          }),
+        { state: interaction, admission },
+      );
+      await expect(input).toHaveCount(0);
+    }
+    await page.evaluate(
+      ({ state, admission }) => {
+        const w = window as any;
+        w._wails.dispatchWailsEvent({
+          name: "launcher:interaction",
+          data: {
+            ...state,
+            admission,
+            keyboardMode: true,
+            configured: { ...state.configured, enterActivates: true },
+          },
+        });
+      },
+      { state: interaction, admission },
+    );
+    await expect(input).toBeFocused();
+    await input.press("Enter");
+    await expect
+      .poll(() => getCallRecords(page))
+      .toContainEqual(["ActivateLauncherSelection", 7, "display-main", 41, 2, admission, 2]);
+    // A retired input must neither commit its composition nor blur the new owner.
+    await oldInput?.dispatchEvent("compositionend", { data: "に" });
+    expect(
+      (await getCallRecords(page)).filter(([name]) => name === "CommitLauncherLetter"),
+    ).toHaveLength(1);
+    expect(
+      (await getCallRecords(page)).some(
+        ([name, ...args]) => name === "SetLauncherKeyboardMode" && args.at(-1) === false,
+      ),
+    ).toBe(false);
+  }
 });
 
 for (const edge of ["bottom", "top", "left", "right"] as const) {

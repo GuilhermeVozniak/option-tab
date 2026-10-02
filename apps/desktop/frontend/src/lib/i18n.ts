@@ -36,6 +36,7 @@ const PT: Record<string, string> = {
   "Accessibility permission is required for this action.":
     "A permissão de Acessibilidade é necessária para esta ação.",
   "This action is not supported for this window.": "Esta ação não é compatível com esta janela.",
+  "Dismiss action error": "Dispensar erro da ação",
   "The window action could not be completed. Try again.":
     "Não foi possível concluir a ação na janela. Tente novamente.",
   Charging: "Carregando",
@@ -760,6 +761,7 @@ const ES: Record<string, string> = {
   "Accessibility permission is required for this action.":
     "Se necesita permiso de Accesibilidad para esta acción.",
   "This action is not supported for this window.": "Esta acción no es compatible con esta ventana.",
+  "Dismiss action error": "Descartar error de la acción",
   "The window action could not be completed. Try again.":
     "No se pudo completar la acción en la ventana. Inténtalo de nuevo.",
   Charging: "Cargando",

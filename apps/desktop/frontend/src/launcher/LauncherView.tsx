@@ -21,6 +21,73 @@ function WidgetNode({ node }: { node: LauncherWidgetNode }) {
   );
 }
 
+// Composition and modifier state belong to one admitted keyboard session.
+// Remounting also discards partial input when the native owner is replaced.
+function LauncherLetterInput({
+  t,
+  enterActivates,
+  onCommit,
+  onActivate,
+  onExit,
+}: {
+  t: (text: string) => string;
+  enterActivates: boolean;
+  onCommit: (text: string) => void;
+  onActivate: () => void;
+  onExit: () => void;
+}) {
+  const modifiedInput = useRef(false);
+  const composingInput = useRef(false);
+  return (
+    <input
+      autoFocus
+      className="ot-launcher-letter-input"
+      aria-label={t("Type a letter")}
+      placeholder={t("Type a letter")}
+      onInput={(event) => {
+        const native = event.nativeEvent as InputEvent;
+        if (native.isComposing) return;
+        const text = event.currentTarget.value;
+        if (native.inputType === "insertText" && !modifiedInput.current && text) onCommit(text);
+        event.currentTarget.value = "";
+      }}
+      onCompositionEnd={(event) => {
+        const text = event.data;
+        composingInput.current = false;
+        if (!modifiedInput.current && text) onCommit(text);
+        event.currentTarget.value = "";
+      }}
+      onCompositionStart={() => {
+        composingInput.current = true;
+      }}
+      onKeyDown={(event) => {
+        modifiedInput.current = event.metaKey || event.ctrlKey || event.altKey || event.shiftKey;
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.currentTarget.blur();
+        } else if (
+          event.key === "Enter" &&
+          enterActivates &&
+          !modifiedInput.current &&
+          !composingInput.current &&
+          !event.nativeEvent.isComposing &&
+          event.keyCode !== 229
+        ) {
+          event.preventDefault();
+          onActivate();
+        }
+      }}
+      onKeyUp={() => {
+        modifiedInput.current = false;
+      }}
+      onBlur={() => {
+        modifiedInput.current = false;
+        onExit();
+      }}
+    />
+  );
+}
+
 export function LauncherView({
   presentation,
   onActivate,
@@ -57,8 +124,6 @@ export function LauncherView({
   onAutoHideHold?: LauncherAutoHideHold;
 }) {
   const interaction = useLauncherInteractions(presentation, interactionTransport);
-  const modifiedInput = useRef(false);
-  const composingInput = useRef(false);
   const policy = interaction.state?.configured;
   const canUseKeyboard =
     !!policy?.enabled && !!policy.letterNavigation && !!interaction.state?.letterInputAvailable;
@@ -97,53 +162,13 @@ export function LauncherView({
       />
       {canUseKeyboard ? (
         interaction.state?.keyboardMode ? (
-          <input
-            autoFocus
-            className="ot-launcher-letter-input"
-            aria-label={t("Type a letter")}
-            placeholder={t("Type a letter")}
-            onInput={(event) => {
-              const native = event.nativeEvent as InputEvent;
-              if (native.isComposing) return;
-              const text = event.currentTarget.value;
-              if (native.inputType === "insertText" && !modifiedInput.current && text)
-                interaction.commitLetter(text);
-              event.currentTarget.value = "";
-            }}
-            onCompositionEnd={(event) => {
-              const text = event.data;
-              composingInput.current = false;
-              if (!modifiedInput.current && text) interaction.commitLetter(text);
-              event.currentTarget.value = "";
-            }}
-            onCompositionStart={() => {
-              composingInput.current = true;
-            }}
-            onKeyDown={(event) => {
-              modifiedInput.current =
-                event.metaKey || event.ctrlKey || event.altKey || event.shiftKey;
-              if (event.key === "Escape") {
-                event.preventDefault();
-                event.currentTarget.blur();
-              } else if (
-                event.key === "Enter" &&
-                policy.enterActivates &&
-                !modifiedInput.current &&
-                !composingInput.current &&
-                !event.nativeEvent.isComposing &&
-                event.keyCode !== 229
-              ) {
-                event.preventDefault();
-                interaction.activateSelection();
-              }
-            }}
-            onKeyUp={() => {
-              modifiedInput.current = false;
-            }}
-            onBlur={() => {
-              modifiedInput.current = false;
-              interaction.setKeyboardMode(false);
-            }}
+          <LauncherLetterInput
+            key={`${presentation.epoch}:${presentation.displayUUID}:${presentation.session}:${interaction.state.admission}`}
+            t={t}
+            enterActivates={policy.enterActivates}
+            onCommit={interaction.commitLetter}
+            onActivate={interaction.activateSelection}
+            onExit={() => interaction.setKeyboardMode(false)}
           />
         ) : (
           <button
