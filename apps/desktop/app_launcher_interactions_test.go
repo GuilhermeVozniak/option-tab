@@ -11,6 +11,7 @@ import (
 	"option-tab/internal/config"
 	"option-tab/internal/launcher"
 	"option-tab/internal/platform"
+	"option-tab/internal/platform/fake"
 )
 
 type interactionTestPanel struct {
@@ -84,6 +85,13 @@ func (h interactionTestHost) CreateLauncherPanel(unsafe.Pointer, string) (platfo
 
 func interactionFixture(t *testing.T, cfg func(*config.LauncherInteractions), prepare ...func(*interactionTestPanel)) (*App, *launcherIntegrationPlatform, *interactionTestPanel, launcher.Presentation) {
 	t.Helper()
+	return interactionFixtureCapabilities(t, cfg, func() LauncherInteractionCapabilities {
+		return LauncherInteractionCapabilities{GestureAvailable: true, PinchAvailable: true, SwipeAvailable: true, LetterInputAvailable: true}
+	}, prepare...)
+}
+
+func interactionFixtureCapabilities(t *testing.T, cfg func(*config.LauncherInteractions), capabilities func() LauncherInteractionCapabilities, prepare ...func(*interactionTestPanel)) (*App, *launcherIntegrationPlatform, *interactionTestPanel, launcher.Presentation) {
+	t.Helper()
 	a, p, q, base := launcherIntegrationApp(t)
 	panel := &interactionTestPanel{launcherIntegrationPanel: base}
 	for _, preparePanel := range prepare {
@@ -99,9 +107,7 @@ func interactionFixture(t *testing.T, cfg func(*config.LauncherInteractions), pr
 		d.onFailure = failed
 		return d
 	}
-	a.launcher.interactionCapabilities = func() LauncherInteractionCapabilities {
-		return LauncherInteractionCapabilities{GestureAvailable: true, PinchAvailable: true, SwipeAvailable: true, LetterInputAvailable: true}
-	}
+	a.launcher.interactionCapabilities = capabilities
 	s := a.settingsSnapshot()
 	c := config.DefaultLauncherInteractions()
 	c.Enabled = true
@@ -147,6 +153,50 @@ func interactionFixture(t *testing.T, cfg func(*config.LauncherInteractions), pr
 
 func keyboardInteraction(a *App, s LauncherInteractionState, on bool) error {
 	return a.SetLauncherKeyboardMode(s.Epoch, s.DisplayUUID, s.Session, s.PresentationRevision, s.Admission, on)
+}
+
+func TestLauncherInteractionDefaultGestureCapabilitiesRequireHost(t *testing.T) {
+	base := &launcherIntegrationPlatform{Fake: fake.New()}
+	for _, tc := range []struct {
+		name      string
+		backend   platform.Platform
+		available bool
+	}{
+		{"host", interactionTestPlatform{base, &interactionTestPanel{}}, true},
+		{"no host", base, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a := &App{platform: tc.backend}
+			caps := a.GetLauncherInteractionCapabilities()
+			if caps.GestureAvailable != tc.available || caps.PinchAvailable != tc.available || caps.SwipeAvailable != tc.available {
+				t.Fatalf("host-backed gesture capabilities unavailable or overstated: %+v", caps)
+			}
+			if caps.LetterInputAvailable || caps.Reason != "deliveryUnverified" {
+				t.Fatalf("physical keyboard/delivery acceptance overstated: %+v", caps)
+			}
+		})
+	}
+}
+
+func TestLauncherInteractionDefaultCapabilitiesInstallOptedInGestures(t *testing.T) {
+	// A nil override exercises the same host-derived capabilities as production.
+	a, _, panel, _ := interactionFixtureCapabilities(t, func(c *config.LauncherInteractions) {
+		c.PreciseScroll = false
+		c.Pinch = true
+		c.Swipe = true
+	}, nil)
+	panel.mu.Lock()
+	policy := panel.policy
+	panel.mu.Unlock()
+	if !policy.Enabled || !policy.Magnify || !policy.Swipe || policy.Scroll {
+		t.Fatalf("opted-in native policy missing: %+v", policy)
+	}
+	state := a.GetLauncherInteractionState(policy.Session)
+	if state.LetterInputAvailable || keyboardInteraction(a, state, true) == nil {
+		t.Fatal("gesture availability enabled gated keyboard input")
+	}
+	panel.send("swipe", 1, 1)
+	launcherEventually(t, func() bool { return a.GetLauncherInteractionState(policy.Session).SelectedItemID == "pin:alpha" })
 }
 
 func TestLauncherInteractionDiscreteNoActionAcknowledged(t *testing.T) {
@@ -342,6 +392,10 @@ func TestLauncherInteractionDisabledHasNoSelectionOrOwnership(t *testing.T) {
 type interactionTestPlatform struct {
 	*launcherIntegrationPlatform
 	panel *interactionTestPanel
+}
+
+func (p interactionTestPlatform) CreateLauncherPanel(unsafe.Pointer, string) (platform.LauncherPanel, error) {
+	return p.panel, nil
 }
 
 func (p interactionTestPlatform) HapticTick() { p.panel.haptics.Add(1) }

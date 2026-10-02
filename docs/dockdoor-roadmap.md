@@ -3,6 +3,8 @@
 Baseline: v0.4.8. Branch: `feat/dockdoor-parity`.
 Status: approved narrowed scope; implementation in progress. Unchecked items have not passed all acceptance checks.
 
+The user waived physical gesture testing on October 2. [Pinch and swipe availability](superpowers/reports/2026-10-02-gesture-availability.md) now exposes the existing opt-in replacement-Dock implementations on supported hosts. Physical delivery is assumed at the user's request, not verified; keyboard/letter input retains its separate gate.
+
 The [October 2 native acceptance follow-up](superpowers/reports/2026-10-02-native-acceptance-follow-up.md) strengthens Dock ownership regression coverage and verifies Intel/universal compilation. Disposable bulk-action probes stopped at identity and foreground guards; A07/A08 native outcomes remain unverified. No capability gate or acceptance checkbox changed.
 
 The [October 2 conditional provider lyrics follow-up](superpowers/reports/2026-10-02-provider-lyrics.md) extends E05 with timestamped text supplied by the enabled, permitted Music process. Chosen local files retain priority. Plain text is explicitly unavailable for synchronization, and real-player acceptance remains open.
@@ -59,7 +61,7 @@ B10 now has native material, guarded interior geometry and solid-fallback implem
 - [x] B05 Configurable middle-click actions, defaulting to close where enabled.
 - [x] B06 Automatic compact-list mode at a configurable window-count threshold, plus always-list mode.
 - [x] B07 Horizontal/vertical layout direction and corresponding navigation.
-- [ ] B08 Configurable qualified trackpad swipe actions inside the switcher. Native precise/phase input is implemented for both modes; physical input and packaged Wails delivery remain acceptance checks.
+- [ ] B08 Configurable qualified trackpad swipe actions inside the switcher. Native precise/phase input is implemented for both modes; physical gesture testing was waived by the user on October 2 and is not recorded as passed.
 - [x] B09 Complete the exposed app-badge and dismissal-animation settings.
 - [ ] B10 Native translucent material background where supported, with a solid fallback.
 
@@ -162,7 +164,7 @@ H06 spring magnification is implemented with per-profile scale/reach, resolved n
 
 H05 runtime dragging and keyboard grouping are implemented with exact presentation/native admission and revision-aware Settings saves. Reopening Preferences refreshes the canonical model before edits resume; stale full-settings saves cannot overwrite runtime pin changes. See the [runtime reordering checkpoint](superpowers/reports/2026-09-07-launcher-runtime-reorder.md) for verification and native acceptance limits.
 
-H15 adds per-profile gesture reduction, selection haptics and explicit keyboard-mode navigation, with exact native ownership and compact controls on all four edges. Production pinch, swipe and letter input remain gated on physical delivery acceptance. H16 adds optional native-Dock status badges with exact application matching, typed counts/indicators, shared observation and serial recovery. Unknown values stay hidden. See the [input and badge checkpoint](superpowers/reports/2026-09-08-launcher-input-badges.md) for combined verification and the remaining native acceptance limits. The planned H areas have implementation, but production pinch/swipe/letter delivery remains unavailable. The September 9 follow-up adds missing unpinned relaunch and interaction holds; physical acceptance checkboxes remain open.
+H15 adds per-profile gesture reduction, selection haptics and explicit keyboard-mode navigation, with exact native ownership and compact controls on all four edges. Pinch and swipe are available as opt-in settings after the user's October 2 physical-testing waiver; letter input remains gated on native input/focus acceptance. H16 adds optional native-Dock status badges with exact application matching, typed counts/indicators, shared observation and serial recovery. Unknown values stay hidden. See the [input and badge checkpoint](superpowers/reports/2026-09-08-launcher-input-badges.md) for combined verification and the remaining native acceptance limits. The September 9 follow-up adds missing unpinned relaunch and interaction holds; native acceptance checkboxes remain open.
 
 The controlled H16 fixture has verified actual source count/indicator changes and clearing to unavailable on macOS 26.6.2 arm64, with exact identity and joined cleanup. Known absence, live launcher rendering, permission recovery and the broader display/application matrix remain unverified; H16 stays open for that acceptance.
 

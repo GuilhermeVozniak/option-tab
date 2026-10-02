@@ -69,7 +69,7 @@ func (a *App) launcherInteractionCapabilitiesLocked() LauncherInteractionCapabil
 	}
 	_, source := a.platform.(platform.LauncherPanelHost)
 	_, haptic := a.platform.(platform.HapticFeedback)
-	return LauncherInteractionCapabilities{GestureAvailable: source, HapticsAvailable: haptic, Reason: "deliveryUnverified"}
+	return LauncherInteractionCapabilities{GestureAvailable: source, PinchAvailable: source, SwipeAvailable: source, HapticsAvailable: haptic, Reason: "deliveryUnverified"}
 }
 
 func (a *App) syncLauncherInteractionsLocked() {
