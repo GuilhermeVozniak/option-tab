@@ -5,7 +5,9 @@ Status: approved narrowed scope; implementation in progress. Unchecked items hav
 
 The user waived physical gesture testing on October 2. [Pinch and swipe availability](superpowers/reports/2026-10-02-gesture-availability.md) now exposes the existing opt-in replacement-Dock implementations on supported hosts. Physical delivery is assumed at the user's request, not verified; keyboard/letter input retains its separate gate.
 
-The [October 2 native acceptance follow-up](superpowers/reports/2026-10-02-native-acceptance-follow-up.md) strengthens Dock ownership regression coverage and verifies Intel/universal compilation. Disposable bulk-action probes stopped at identity and foreground guards; A07/A08 native outcomes remain unverified. No capability gate or acceptance checkbox changed.
+The [October 2 live bulk-action follow-up](superpowers/reports/2026-10-02-live-bulk-acceptance.md) confirms minimize/idempotency for three disposable TextEdit documents, clean-document closure and real save prompts whose Cancel actions preserved the edited documents. Enumeration warnings and close-action uncertainty remain; broader A07/A08 acceptance stays open.
+
+The [earlier October 2 native acceptance follow-up](superpowers/reports/2026-10-02-native-acceptance-follow-up.md) strengthens Dock ownership regression coverage and verifies Intel/universal compilation. Its disposable bulk-action probes stopped at identity and foreground guards without establishing A07/A08 outcomes. No capability gate or acceptance checkbox changed in that follow-up.
 
 The [October 2 conditional provider lyrics follow-up](superpowers/reports/2026-10-02-provider-lyrics.md) extends E05 with timestamped text supplied by the enabled, permitted Music process. Chosen local files retain priority. Plain text is explicitly unavailable for synchronization, and real-player acceptance remains open.
 

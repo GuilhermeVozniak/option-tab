@@ -109,7 +109,7 @@ export function DockMonitorLock({
         {t("Status")}: {t(statusLabel[state?.status || "disabled"] || state?.status || "Disabled")}
         {state?.reason ? `: ${state.reason}` : ""}
       </p>
-      {state?.status === "awaitingPlacement" ? (
+      {state?.placementAvailable && state.status === "awaitingPlacement" ? (
         <p className={HINT}>{t("Return the Dock manually or use Move Dock here.")}</p>
       ) : null}
       {error ? (
