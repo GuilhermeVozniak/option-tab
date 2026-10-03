@@ -671,6 +671,10 @@ test("settings keeps launcher opt-in separate and offers native Dock recovery", 
   await page.goto("/#/settings");
   await page.getByRole("tab", { name: "Dock" }).click();
   await expect(page.getByRole("checkbox", { name: "Enable replacement Dock" })).not.toBeChecked();
+  await page
+    .getByRole("navigation", { name: "Launcher sections" })
+    .getByRole("button", { name: "Widgets", exact: true })
+    .click();
   await expect(page.getByRole("checkbox", { name: "Enable Clock" })).not.toBeChecked();
   await page.getByRole("checkbox", { name: "Enable Clock" }).click();
   await expect(

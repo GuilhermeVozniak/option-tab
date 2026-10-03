@@ -1,5 +1,13 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
+
+function openLauncherSection(name: "Widgets" | "Items" | "Focus rules") {
+  fireEvent.click(
+    within(screen.getByRole("navigation", { name: "Launcher sections" })).getByRole("button", {
+      name,
+    }),
+  );
+}
 
 // Mock the Wails v3 seams: the generated App service bindings and the
 // @wailsio/runtime event bus, with a handler registry so tests can fire Go-side
@@ -161,7 +169,7 @@ it("keeps a new blacklist draft until a valid entry survives canonical save and 
   const stored = canonicalBlacklistBackend();
   const first = render(<App />);
   await act(async () => {});
-  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Excluded apps" }));
   fireEvent.click(screen.getByText("+ Add app"));
   await act(async () => {});
   expect(screen.getByLabelText("Blacklist entry 1")).toBeVisible();
@@ -182,7 +190,7 @@ it("keeps a new blacklist draft until a valid entry survives canonical save and 
   first.unmount();
   render(<App />);
   await act(async () => {});
-  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Excluded apps" }));
   expect(screen.getByLabelText("Blacklist entry 1")).toHaveValue("com.example.Acceptance");
   expect(screen.getByLabelText("Blacklist hide 1")).toHaveValue("whenNoWindow");
   expect(screen.getByLabelText("Blacklist ignore shortcuts 1")).toBeChecked();
@@ -193,7 +201,7 @@ it("preserves blacklist drafts across unrelated canonical saves and cancels them
   const stored = canonicalBlacklistBackend();
   render(<App />);
   await act(async () => {});
-  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Excluded apps" }));
   fireEvent.click(screen.getByText("+ Add app"));
   fireEvent.change(screen.getByLabelText("Blacklist entry 1"), {
     target: { value: "Unfinished app" },
@@ -201,7 +209,7 @@ it("preserves blacklist drafts across unrelated canonical saves and cancels them
   fireEvent.click(screen.getByRole("tab", { name: "General" }));
   fireEvent.click(screen.getByLabelText("Capture windows in the background"));
   await waitFor(() => expect(stored().revision).toBe(2));
-  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Excluded apps" }));
   expect(screen.getByLabelText("Blacklist entry 1")).toHaveValue("Unfinished app");
   expect(JSON.parse(stored().json).filters.appBlacklist).toEqual([]);
   act(() => eventHandlers.get("prefs:settings")?.({ data: { ...stored(), generation: 1 } }));
@@ -217,7 +225,7 @@ it("edits and deletes persisted blacklist entries without saving an empty matche
   await mocked.SaveSettingsAtRevision(JSON.stringify(seeded), 1);
   render(<App />);
   await act(async () => {});
-  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Excluded apps" }));
   const input = screen.getByLabelText("Blacklist entry 1");
   fireEvent.change(input, { target: { value: "" } });
   await act(async () => {});
@@ -239,7 +247,7 @@ it("discards a failed blacklist save in favor of canonical settings", async () =
   const stored = canonicalBlacklistBackend();
   render(<App />);
   await act(async () => {});
-  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Excluded apps" }));
   fireEvent.click(screen.getByText("+ Add app"));
   fireEvent.change(screen.getByLabelText("Blacklist entry 1"), {
     target: { value: "Unsaved app" },
@@ -290,7 +298,7 @@ it("discards an unsaved blacklist draft when settings are imported", async () =>
   const stored = canonicalBlacklistBackend();
   const { container } = render(<App />);
   await act(async () => {});
-  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Excluded apps" }));
   fireEvent.click(screen.getByText("+ Add app"));
   fireEvent.change(screen.getByLabelText("Blacklist entry 1"), { target: { value: "Old draft" } });
   fireEvent.click(screen.getByRole("tab", { name: "General" }));
@@ -298,7 +306,7 @@ it("discards an unsaved blacklist draft when settings are imported", async () =>
   Object.defineProperty(file, "text", { value: () => Promise.resolve(stored().json) });
   fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
   await screen.findByText("Settings imported.");
-  fireEvent.click(screen.getByRole("tab", { name: "Blacklists" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Excluded apps" }));
   expect(screen.queryByLabelText("Blacklist entry 1")).toBeNull();
   expect(JSON.parse(stored().json).filters.appBlacklist).toEqual([]);
 });
@@ -362,6 +370,7 @@ it.each([
   render(<App />);
   await act(async () => {});
   fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  openLauncherSection("Widgets");
   expect(
     screen.getByLabelText(installed ? "Enable Status card" : "Enable org.example.status"),
   ).toBeChecked();
@@ -428,6 +437,7 @@ it("loads exact launcher app choices only for the settings editor", async () => 
   render(<App />);
   await act(async () => {});
   fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  openLauncherSection("Focus rules");
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Add focus rule" })));
   expect(mocked.GetLauncherAppChoices).toHaveBeenCalledTimes(1);
   expect(mocked.GetWidgetCatalog).toHaveBeenCalledTimes(1);
@@ -451,7 +461,8 @@ it("shows persistence errors without unmounting preferences", async () => {
   expect(mocked.ConnectMediaProvider).not.toHaveBeenCalled();
   fireEvent.click(screen.getByLabelText("Start at login"));
   await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("disk full"));
-  expect(screen.getByText(/Preferences/)).toBeInTheDocument();
+  expect(screen.getByRole("tablist", { name: "Settings sections" })).toBeVisible();
+  expect(screen.getByRole("tabpanel", { name: "General" })).toBeVisible();
 });
 
 it("keeps preferences usable after an invalid import and loads canonical partial settings", async () => {
@@ -578,6 +589,7 @@ it("queues launcher item CAS saves behind settings writes and blocks stale fallb
   await act(async () => {});
   fireEvent.click(screen.getByLabelText("Start at login"));
   fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  openLauncherSection("Items");
   fireEvent.click(await screen.findByRole("button", { name: "Add spacer" }));
   fireEvent.click(screen.getByRole("button", { name: "Save launcher items" }));
   expect(mocked.SetLauncherItems).not.toHaveBeenCalled();
@@ -608,6 +620,7 @@ it("retires a queued native settings mutation when preferences unmount", async (
   const mutationsBefore = mocked.SetLauncherItems.mock.calls.length;
   fireEvent.click(screen.getByLabelText("Start at login"));
   fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  openLauncherSection("Items");
   fireEvent.click(await screen.findByRole("button", { name: "Add spacer" }));
   fireEvent.click(screen.getByRole("button", { name: "Save launcher items" }));
   await waitFor(() => expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(savesBefore + 1));

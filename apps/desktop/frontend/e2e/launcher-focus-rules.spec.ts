@@ -5,6 +5,10 @@ test("builds an ordered exact-app focus rule from the settings inventory", async
   await installFakeWails(page);
   await page.goto("/#settings");
   await page.getByRole("tab", { name: "Dock" }).click();
+  await page
+    .getByRole("navigation", { name: "Launcher sections" })
+    .getByRole("button", { name: "Focus rules", exact: true })
+    .click();
 
   await page.getByRole("button", { name: "Add focus rule" }).click();
   const app = page.getByLabel("Running app");

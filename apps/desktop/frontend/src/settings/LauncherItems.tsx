@@ -12,6 +12,7 @@ import type {
   LauncherItemStatus,
   LauncherReferenceView,
 } from "../lib/types";
+import "./editor-settings.css";
 
 export interface LauncherItemSettingsActions {
   load(profileID: string): Promise<LauncherItemSettings>;
@@ -252,12 +253,17 @@ export function LauncherItems({
     });
   };
   return (
-    <section className="space-y-2" aria-label={t("Launcher items")}>
-      <h3>{t("Launcher items")}</h3>
-      <p>{t("Pins and groups are stored per profile. Choosing a file never opens it.")}</p>
+    <section
+      className="ot-settings-editor ot-launcher-items-editor"
+      aria-label={t("Launcher items")}
+    >
+      <header className="ot-editor-heading">
+        <h3>{t("Launcher items")}</h3>
+        <p>{t("Pins and groups are stored per profile. Choosing a file never opens it.")}</p>
+      </header>
       {error ? <p role="alert">{t(error)}</p> : null}
       {status?.available === false ? <p>{t("Launcher item selection is unavailable.")}</p> : null}
-      <div className="flex flex-wrap gap-2">
+      <div className="ot-editor-actions">
         <Button type="button" onClick={() => addRef("app")} disabled={blocked}>
           {t("Add application")}
         </Button>
@@ -291,18 +297,24 @@ export function LauncherItems({
           </Button>
         ) : null}
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Input
-          aria-label={t("Link label")}
-          value={linkLabel}
-          maxLength={80}
-          onChange={(e) => setLinkLabel(e.target.value)}
-        />
-        <Input
-          aria-label={t("Web address")}
-          value={linkURL}
-          onChange={(e) => setLinkURL(e.target.value)}
-        />
+      <div className="ot-editor-draft ot-editor-link-draft">
+        <label className="ot-editor-field">
+          <span>{t("Link label")}</span>
+          <Input
+            aria-label={t("Link label")}
+            value={linkLabel}
+            maxLength={80}
+            onChange={(e) => setLinkLabel(e.target.value)}
+          />
+        </label>
+        <label className="ot-editor-field">
+          <span>{t("Web address")}</span>
+          <Input
+            aria-label={t("Web address")}
+            value={linkURL}
+            onChange={(e) => setLinkURL(e.target.value)}
+          />
+        </label>
         <Button
           type="button"
           disabled={!snapshot || !linkLabel || !linkURL || full}
@@ -319,11 +331,11 @@ export function LauncherItems({
         </Button>
       </div>
       {!snapshot ? (
-        <p>{t("Loading launcher items…")}</p>
+        <p className="ot-editor-empty">{t("Loading launcher items…")}</p>
       ) : items.length === 0 ? (
-        <p>{t("No launcher items yet.")}</p>
+        <p className="ot-editor-empty">{t("No launcher items yet.")}</p>
       ) : (
-        <div>
+        <div className="ot-editor-item-list">
           {items.map((x, index) => {
             const ref = x.referenceID ? refs.get(x.referenceID) : undefined,
               icon = x.iconID ? icons[x.iconID] : undefined;
@@ -331,7 +343,7 @@ export function LauncherItems({
               <article
                 data-testid="launcher-item"
                 key={x.id}
-                className="rounded-md border p-2"
+                className="ot-editor-item"
                 draggable
                 onDragStart={(event) => {
                   event.dataTransfer.effectAllowed = "move";
@@ -351,18 +363,19 @@ export function LauncherItems({
                   }
                 }}
               >
-                <div className="flex items-center gap-2">
+                <div className="ot-editor-item-heading">
                   {icon ? (
                     <img src={icon.dataURL} alt={t("Custom icon")} width={32} height={32} />
                   ) : null}
                   <strong>{x.label || t(x.kind)}</strong>
-                  <span>{t(x.kind)}</span>
+                  <span className="ot-editor-kind">{t(x.kind)}</span>
                   {ref && ref.state !== "ready" ? (
-                    <span>{t(referenceStatus(ref.state))}</span>
+                    <span className="ot-editor-item-status">{t(referenceStatus(ref.state))}</span>
                   ) : null}
                 </div>
-                <div className="flex flex-wrap gap-1">
+                <div className="ot-editor-actions">
                   <Button
+                    size="icon"
                     aria-label={t("Move up")}
                     disabled={index === 0}
                     onClick={() => move(index, -1)}
@@ -370,13 +383,16 @@ export function LauncherItems({
                     ↑
                   </Button>
                   <Button
+                    size="icon"
                     aria-label={t("Move down")}
                     disabled={index === items.length - 1}
                     onClick={() => move(index, 1)}
                   >
                     ↓
                   </Button>
-                  <Button onClick={() => removeItem(x.id)}>{t("Remove item")}</Button>
+                  <Button variant="ghost" onClick={() => removeItem(x.id)}>
+                    {t("Remove item")}
+                  </Button>
                   {x.referenceID && (!ref || ref.state !== "ready") ? (
                     <Button
                       onClick={() =>
@@ -484,14 +500,17 @@ export function LauncherItems({
           })}
         </div>
       )}
-      <fieldset>
+      <fieldset className="ot-editor-draft ot-editor-group-draft">
         <legend>{t("New application group")}</legend>
-        <Input
-          aria-label={t("Group name")}
-          value={groupName}
-          maxLength={80}
-          onChange={(e) => setGroupName(e.target.value)}
-        />
+        <label className="ot-editor-field">
+          <span>{t("Group name")}</span>
+          <Input
+            aria-label={t("Group name")}
+            value={groupName}
+            maxLength={80}
+            onChange={(e) => setGroupName(e.target.value)}
+          />
+        </label>
         {items
           .filter(
             (x) =>
@@ -499,7 +518,7 @@ export function LauncherItems({
               !items.some((g) => g.kind === "group" && g.members?.includes(x.id)),
           )
           .map((x) => (
-            <label key={x.id}>
+            <label key={x.id} className="ot-editor-check-row">
               <Checkbox
                 aria-label={x.label}
                 checked={members.includes(x.id)}
@@ -529,7 +548,7 @@ export function LauncherItems({
       {(snapshot?.references ?? [])
         .filter((r) => !usedRefs.has(r.id))
         .map((r) => (
-          <div key={r.id}>
+          <div key={r.id} className="ot-editor-cleanup-row">
             <span>{r.label}</span>
             <Button
               onClick={() =>
@@ -554,7 +573,7 @@ export function LauncherItems({
       {(snapshot?.iconIDs ?? [])
         .filter((id) => !items.some((item) => item.iconID === id))
         .map((id) => (
-          <div key={id}>
+          <div key={id} className="ot-editor-cleanup-row">
             <span>{t("Unused custom icon")}</span>
             <Button
               onClick={() =>
@@ -572,6 +591,8 @@ export function LauncherItems({
           </div>
         ))}
       <Button
+        variant="default"
+        className="ot-editor-save"
         disabled={!snapshot || working}
         onClick={() =>
           snapshot &&

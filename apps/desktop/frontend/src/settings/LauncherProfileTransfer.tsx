@@ -7,6 +7,7 @@ import type {
   LauncherProfileTransferActions,
 } from "../lib/launcher-profile-transfer-bridge";
 import { ACTIONS_ROW, HINT } from "./shared";
+import "./editor-settings.css";
 
 const MAX_DOCUMENT_BYTES = 256 * 1024;
 
@@ -141,17 +142,24 @@ export function LauncherProfileTransfer({
   };
 
   return (
-    <section className="space-y-2" aria-label={t("Profile transfer")}>
-      <div className={ACTIONS_ROW}>
+    <section
+      className="ot-settings-editor ot-profile-transfer-editor"
+      aria-label={t("Profile transfer")}
+    >
+      <header className="ot-editor-heading">
+        <h3>{t("Profile transfer")}</h3>
+        <p>{t("Exports omit private access, custom icons and display assignments.")}</p>
+      </header>
+      <div className="ot-editor-actions ot-profile-transfer-actions">
         <Button disabled={Boolean(pending)} variant="outline" onClick={() => void exportProfile()}>
           {pending === "export" ? t("Exporting…") : t("Export profile")}
         </Button>
-        <label>
-          <span className="sr-only">{t("Import profile file")}</span>
+        <label className="ot-editor-file-field">
+          <span>{t("Import profile file")}</span>
           <input
             aria-label={t("Import profile file")}
             accept="application/json,.json"
-            className="max-w-56 text-sm"
+            className="ot-editor-file-input"
             disabled={Boolean(pending)}
             type="file"
             onChange={(event) => {
@@ -161,22 +169,15 @@ export function LauncherProfileTransfer({
           />
         </label>
       </div>
-      <p className={HINT}>
-        {t("Exports omit private access, custom icons and display assignments.")}
-      </p>
       {review ? (
-        <div
-          className="rounded-lg border border-white/12 p-3"
-          aria-label={t("Import review")}
-          role="region"
-        >
+        <div className="ot-editor-review" aria-label={t("Import review")} role="region">
           <strong>{review.name}</strong>
-          <p>
+          <p className={HINT}>
             {t("{items} items · {widgets} widgets")
               .replace("{items}", String(review.itemCount))
               .replace("{widgets}", String(review.widgetCount))}
           </p>
-          <ul className="list-disc pl-5 text-sm">
+          <ul className="ot-editor-notices">
             {review.notices.map((notice) => (
               <li key={notice}>
                 {t(noticeCopy[notice] ?? "The imported profile requires review.")}
@@ -184,7 +185,7 @@ export function LauncherProfileTransfer({
             ))}
           </ul>
           <div className={ACTIONS_ROW}>
-            <Button disabled={Boolean(pending)} onClick={() => void commit()}>
+            <Button variant="default" disabled={Boolean(pending)} onClick={() => void commit()}>
               {pending === "import" ? t("Importing…") : t("Import reviewed profile")}
             </Button>
             <Button

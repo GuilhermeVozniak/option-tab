@@ -172,6 +172,14 @@ import { defaultSettings, emptyState } from "./lib/types";
 
 const mocked = vi.mocked(AppService);
 
+function openMediaSection(t = makeT("en")) {
+  fireEvent.click(
+    within(screen.getByRole("navigation", { name: t("Dock sections") })).getByRole("button", {
+      name: t("Media"),
+    }),
+  );
+}
+
 function appEntry(windowId: number, title: string): Entry {
   return {
     windowId,
@@ -295,7 +303,8 @@ describe("App", () => {
     render(<App />);
     await act(async () => {});
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
-    const dock = within(screen.getByRole("region", { name: "Dock" }));
+    openMediaSection();
+    const dock = within(screen.getByRole("tabpanel", { name: "Dock" }));
     expect(dock.getByRole("button", { name: "Connect" })).toBeDisabled();
     if (newerEvent)
       act(() =>
@@ -342,7 +351,8 @@ describe("App", () => {
     render(<App />);
     await act(async () => {});
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
-    const dock = within(screen.getByRole("region", { name: "Dock" }));
+    openMediaSection();
+    const dock = within(screen.getByRole("tabpanel", { name: "Dock" }));
     fireEvent.click(dock.getAllByRole("button", { name: "Connect" })[0]);
     const pending = dock.getByRole("button", { name: "Connecting…" });
     expect(pending).toBeDisabled();
@@ -388,6 +398,7 @@ describe("App", () => {
     const initial = render(<App />);
     await act(async () => {});
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    openMediaSection();
     fireEvent.click(screen.getByRole("button", { name: "Connect" }));
     initial.unmount();
     mocked.GetMediaPermissions.mockResolvedValueOnce({
@@ -397,6 +408,7 @@ describe("App", () => {
     render(<App />);
     await act(async () => {});
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    openMediaSection();
     expect(screen.getByRole("button", { name: "Connecting…" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Connecting…" }));
     expect(mocked.ConnectMediaProvider).toHaveBeenCalledTimes(1);
@@ -433,6 +445,7 @@ describe("App", () => {
     render(<App />);
     await act(async () => {});
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    openMediaSection();
     expect(screen.getByRole("button", { name: "Connect" })).toBeDisabled();
     act(() =>
       eventHandlers.get("media:permission")?.({
@@ -452,7 +465,8 @@ describe("App", () => {
   it.each([
     ["pt-BR", "media provider command is busy", "Outro comando de mídia está em andamento"],
     ["es", "context deadline exceeded", "Se ha agotado el tiempo de espera de la operación"],
-  ])("localizes a rejected native media Connect error in %s", async (language, message, expected) => {
+  ] as const)("localizes a rejected native media Connect error in %s", async (language, message, expected) => {
+    const t = makeT(language);
     window.location.hash = "#settings";
     mocked.GetSettingsState.mockResolvedValueOnce({
       revision: 1,
@@ -471,7 +485,8 @@ describe("App", () => {
     render(<App />);
     await act(async () => {});
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
-    fireEvent.click(screen.getByRole("button", { name: "Conectar" }));
+    openMediaSection(t);
+    fireEvent.click(screen.getByRole("button", { name: t("Connect") }));
     await waitFor(() => expect(mocked.ConnectMediaProvider).toHaveBeenCalledWith("music"));
     expect(await screen.findByText(expected)).toBeVisible();
     expect(screen.queryByText(`RuntimeError: ${message}`)).not.toBeInTheDocument();
@@ -817,7 +832,7 @@ describe("App", () => {
   it("renders the settings route at #settings", () => {
     window.location.hash = "#settings";
     render(<App />);
-    expect(screen.getByText(/Preferences/)).toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: "Settings sections" })).toBeInTheDocument();
   });
 
   it("renders app mode and confirms an explicit app/window target", async () => {

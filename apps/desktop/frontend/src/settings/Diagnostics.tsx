@@ -7,6 +7,7 @@ import {
 } from "../lib/diagnostics-bridge";
 import type { Translate } from "../lib/i18n";
 import { ACTIONS_ROW, HINT } from "./shared";
+import "./editor-settings.css";
 
 export interface DiagnosticsClient {
   review: () => Promise<DiagnosticsReview>;
@@ -81,16 +82,16 @@ export function Diagnostics({
   const busy = /(^|\W)busy(\W|$)/i.test(error);
 
   return (
-    <details className="rounded-xl border border-border/70 bg-card/55 p-4">
-      <summary className="cursor-pointer text-sm font-semibold">{t("Diagnostics")}</summary>
-      <div className="mt-3 space-y-3">
+    <details className="ot-settings-diagnostics">
+      <summary>{t("Diagnostics")}</summary>
+      <div className="ot-settings-editor ot-diagnostics-content">
         <p className={HINT}>
           {t(
             "Review a bounded local report with the app version, coarse statuses and diagnostic events. It excludes window, media and file content and is never uploaded automatically.",
           )}
         </p>
         {!review ? (
-          <Button disabled={!!pending} onClick={() => void loadReview()}>
+          <Button className="ot-editor-save" disabled={!!pending} onClick={() => void loadReview()}>
             {t(pending === "review" ? "Preparing preview…" : "Review diagnostics")}
           </Button>
         ) : (
@@ -123,29 +124,26 @@ export function Diagnostics({
               >
                 {t("Clear diagnostics")}
               </Button>
-              <Button disabled={!!pending} onClick={() => void save()}>
+              <Button variant="default" disabled={!!pending} onClick={() => void save()}>
                 {t("Save report…")}
               </Button>
             </div>
             <p className={HINT}>
               {t("Choose a new filename. Existing files will not be replaced.")}
             </p>
-            <p className={HINT}>
+            <p className={`${HINT} ot-diagnostics-recording`}>
               {review.recording
                 ? t("Recording stops automatically after 10 minutes.")
                 : t("Recording is off.")}{" "}
               {t("Dropped events")}: {review.dropped}
             </p>
-            <pre
-              aria-label={t("Diagnostics report preview")}
-              className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-black/20 p-3 text-xs"
-            >
+            <pre aria-label={t("Diagnostics report preview")} className="ot-diagnostics-preview">
               {review.json}
             </pre>
           </>
         )}
         {error ? (
-          <div role="alert" className="text-sm text-red-600 dark:text-red-400">
+          <div role="alert" className="ot-editor-feedback">
             <span>
               {destinationExists
                 ? t("That filename already exists. Choose a new name.")

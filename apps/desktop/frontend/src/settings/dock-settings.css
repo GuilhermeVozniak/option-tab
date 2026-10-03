@@ -1,0 +1,161 @@
+.ot-dock-settings-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 20px;
+  padding: 4px;
+  border: 1px solid var(--settings-border);
+  border-radius: 10px;
+  background: var(--settings-surface-muted);
+}
+
+.ot-dock-settings-navigation > button {
+  flex: 1 0 auto;
+  min-height: 34px;
+  padding: 7px 14px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.ot-dock-settings-navigation > button:hover {
+  color: var(--foreground);
+  background: var(--settings-surface);
+}
+
+.ot-dock-settings-navigation > button[aria-current="page"] {
+  color: var(--foreground);
+  border-color: var(--settings-border);
+  background: var(--settings-surface);
+  font-weight: 650;
+}
+
+.ot-dock-settings-navigation > button:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+}
+
+.ot-dock-settings-navigation-compact {
+  gap: 2px;
+  margin: 20px 0;
+  padding: 0 0 8px;
+  border: 0;
+  border-bottom: 1px solid var(--settings-border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.ot-dock-settings-navigation-compact > button {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  min-height: 30px;
+}
+
+.ot-dock-settings-panel[hidden],
+.ot-dock-settings-section[hidden] {
+  display: none !important;
+}
+
+.ot-dock-settings-panel:not([hidden]) {
+  display: grid;
+  gap: 20px;
+}
+
+.ot-dock-settings-essentials {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--settings-border);
+}
+
+.ot-dock-settings-profile-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 16px;
+  font-size: 13px;
+}
+
+.ot-dock-settings-section:not([hidden]) {
+  display: grid;
+  gap: 16px;
+}
+
+.ot-dock-settings-section-heading h3,
+.ot-dock-settings-group h4 {
+  margin: 0 0 5px;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ot-dock-settings-section-heading p,
+.ot-dock-settings-group > p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.ot-dock-settings-group {
+  display: grid;
+  gap: 10px;
+}
+
+.ot-dock-settings-group + .ot-dock-settings-group {
+  padding-top: 18px;
+  border-top: 1px solid var(--settings-border);
+}
+
+.ot-dock-settings-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+}
+
+.ot-dock-settings-fields > label:not(.ot-settings-row),
+.ot-dock-settings-profile-name {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.ot-dock-settings-fields [data-slot="select"],
+.ot-dock-settings-fields select,
+.ot-dock-settings-profile-name input {
+  width: 100%;
+}
+
+.ot-dock-settings-profile-name {
+  max-width: 360px;
+}
+
+.ot-dock-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ot-dock-settings-rule {
+  padding: 16px;
+  border: 1px solid var(--settings-border);
+  border-radius: 10px;
+  background: var(--settings-surface-muted);
+}
+
+@media (max-width: 640px) {
+  .ot-dock-settings-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ot-dock-settings-fields > .col-span-2 {
+    grid-column: auto;
+  }
+}

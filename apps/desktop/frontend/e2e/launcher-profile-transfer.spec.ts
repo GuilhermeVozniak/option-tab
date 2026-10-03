@@ -51,6 +51,10 @@ test("saves a profile through the native bridge and explicitly imports reviewed 
   );
   await page.goto("/#/settings");
   await page.getByRole("tab", { name: "Dock" }).click();
+  await page
+    .getByRole("navigation", { name: "Launcher sections" })
+    .getByRole("button", { name: "Profile", exact: true })
+    .click();
 
   await page.getByRole("button", { name: "Export profile" }).click();
   await expect

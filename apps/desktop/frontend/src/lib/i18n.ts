@@ -2,6 +2,7 @@
 // source string; a missing entry falls back to English, so partially
 // translated languages degrade gracefully. Accessible names are user-facing
 // copy and should be translated alongside visible labels.
+import { SETTINGS_ES, SETTINGS_PT } from "./settings-translations";
 import type { Settings } from "./types";
 
 export type Lang = "en" | "pt-BR" | "es";
@@ -1730,6 +1731,6 @@ const ES: Record<string, string> = {
 };
 
 export const TRANSLATIONS: Record<Exclude<Lang, "en">, Record<string, string>> = {
-  "pt-BR": PT,
-  es: ES,
+  "pt-BR": { ...SETTINGS_PT, ...PT },
+  es: { ...SETTINGS_ES, ...ES },
 };

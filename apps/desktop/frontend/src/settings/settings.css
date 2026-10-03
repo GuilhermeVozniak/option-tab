@@ -1,0 +1,821 @@
+/* Settings owns this palette. Runtime switchers and previews retain their own
+   tokens, materials and accent colors outside this root. */
+.ot-settings[data-theme] {
+  --background: #ffffff;
+  --foreground: #181818;
+  --card: #ffffff;
+  --muted-foreground: #696969;
+  --primary: #202020;
+  --primary-foreground: #ffffff;
+  --ring: #606060;
+  --settings-surface: #ffffff;
+  --settings-surface-muted: #f5f5f5;
+  --settings-sidebar: #f6f6f6;
+  --settings-border: #e3e3e3;
+  --settings-control-border: #cfcfcf;
+  --settings-hover: #ededed;
+  --settings-selected: #e5e5e5;
+  --settings-danger: #b42324;
+  --settings-danger-bg: #fff0f0;
+  --settings-success: #216344;
+  --settings-success-bg: #edf8f1;
+  --settings-warning: #825600;
+  --settings-warning-bg: #fff6df;
+  color-scheme: light;
+  color: var(--foreground);
+  background: var(--background);
+  font:
+    13px / 1.5 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  text-rendering: optimizeLegibility;
+}
+
+.ot-settings[data-theme="dark"] {
+  --background: #171717;
+  --foreground: #f2f2f2;
+  --card: #1e1e1e;
+  --muted-foreground: #a7a7a7;
+  --primary: #efefef;
+  --primary-foreground: #161616;
+  --ring: #bcbcbc;
+  --settings-surface: #1e1e1e;
+  --settings-surface-muted: #252525;
+  --settings-sidebar: #111111;
+  --settings-border: #343434;
+  --settings-control-border: #4c4c4c;
+  --settings-hover: #303030;
+  --settings-selected: #323232;
+  --settings-danger: #ffaaaa;
+  --settings-danger-bg: #3c2020;
+  --settings-success: #99d5b0;
+  --settings-success-bg: #1d3428;
+  --settings-warning: #e8c16f;
+  --settings-warning-bg: #362d1b;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ot-settings[data-theme="system"] {
+    --background: #171717;
+    --foreground: #f2f2f2;
+    --card: #1e1e1e;
+    --muted-foreground: #a7a7a7;
+    --primary: #efefef;
+    --primary-foreground: #161616;
+    --ring: #bcbcbc;
+    --settings-surface: #1e1e1e;
+    --settings-surface-muted: #252525;
+    --settings-sidebar: #111111;
+    --settings-border: #343434;
+    --settings-control-border: #4c4c4c;
+    --settings-hover: #303030;
+    --settings-selected: #323232;
+    --settings-danger: #ffaaaa;
+    --settings-danger-bg: #3c2020;
+    --settings-success: #99d5b0;
+    --settings-success-bg: #1d3428;
+    --settings-warning: #e8c16f;
+    --settings-warning-bg: #362d1b;
+    color-scheme: dark;
+  }
+}
+
+.ot-settings *,
+.ot-settings *::before,
+.ot-settings *::after {
+  box-sizing: border-box;
+}
+.ot-settings [hidden] {
+  display: none !important;
+}
+.ot-settings :where(button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+.ot-settings :where(button, input, select, textarea):disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.ot-settings-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  padding: 28px 14px 18px;
+  border-right: 1px solid var(--settings-border);
+  background: var(--settings-sidebar);
+  overflow: auto;
+}
+.ot-settings-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+}
+.ot-settings-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 33px;
+  height: 33px;
+  border-radius: 9px;
+  color: var(--primary-foreground);
+  background: var(--primary);
+  font-size: 26px;
+  line-height: 1;
+  font-weight: 400;
+}
+.ot-settings-brand strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.3px;
+}
+.ot-settings-brand div > span {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.ot-settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ot-settings-nav [role="tab"] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 0;
+  border-radius: 7px;
+  text-align: left;
+  color: var(--muted-foreground);
+  background: transparent;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.ot-settings-nav [role="tab"] svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+.ot-settings-nav [role="tab"]:hover {
+  background: var(--settings-hover);
+  color: var(--foreground);
+}
+.ot-settings-nav [role="tab"][aria-selected="true"] {
+  color: var(--foreground);
+  background: var(--settings-selected);
+  font-weight: 600;
+}
+.ot-settings-nav [role="tab"]:nth-child(2),
+.ot-settings-nav [role="tab"]:nth-child(6),
+.ot-settings-nav [role="tab"]:last-child {
+  margin-top: 12px;
+}
+.ot-settings-sidebar-footer {
+  margin-top: auto;
+  padding: 0 4px;
+}
+.ot-settings-theme-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 550;
+  color: var(--muted-foreground);
+}
+.ot-settings-theme-picker {
+  display: flex;
+  padding: 3px;
+  background: var(--settings-selected);
+  border-radius: 7px;
+  gap: 2px;
+}
+.ot-settings-theme-picker button {
+  flex: 1;
+  padding: 5px 2px;
+  border-radius: 5px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ot-settings-theme-picker button[aria-pressed="true"] {
+  background: var(--settings-surface);
+  color: var(--foreground);
+  box-shadow: 0 1px 3px #00000012;
+}
+.ot-settings-sidebar-footer p {
+  margin: 9px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.ot-settings-main {
+  overflow: auto;
+  min-width: 0;
+  scroll-padding: 24px;
+}
+.ot-settings-page-header {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 30px 32px 22px;
+}
+.ot-settings-page-header h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: -0.8px;
+}
+.ot-settings-page-header p {
+  margin: 0;
+  max-width: 65ch;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.ot-settings-content {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 32px 36px;
+}
+.ot-settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.ot-settings-mode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 12px 14px;
+  margin-bottom: 22px;
+  border: 1px solid var(--settings-border);
+  border-radius: 8px;
+  background: var(--settings-surface-muted);
+}
+.ot-settings-mode label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 550;
+}
+.ot-settings-mode > span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+/* Quiet groups and a common control rhythm, including less frequently used
+   editors which still use native HTML controls. */
+.ot-settings [data-slot="card"] {
+  border: 1px solid var(--settings-border);
+  background: var(--settings-surface);
+  border-radius: 10px;
+  box-shadow: none;
+  backdrop-filter: none;
+  overflow: visible;
+}
+.ot-settings [data-slot="card-header"] {
+  padding: 17px 20px 0;
+  gap: 4px;
+}
+.ot-settings [data-slot="card-title"] {
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.15px;
+}
+.ot-settings [data-slot="card-description"] {
+  font-size: 12px;
+  line-height: 1.55;
+  max-width: 70ch;
+}
+.ot-settings [data-slot="card-content"] {
+  padding: 12px 20px 18px;
+}
+.ot-settings-row {
+  min-height: 42px;
+  padding: 8px 0;
+  gap: 16px;
+  line-height: 1.45;
+}
+.ot-settings-row + .ot-settings-row {
+  border-top: 1px solid var(--settings-border);
+}
+.ot-settings-row > span:first-child {
+  min-width: 0;
+}
+.ot-settings-row > :last-child {
+  flex-shrink: 0;
+}
+.ot-settings-row [data-slot="select"] {
+  max-width: 58%;
+}
+.ot-settings-row [data-slot="select"] select {
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+.ot-settings-hint {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.55;
+  max-width: 72ch;
+}
+.ot-settings-check-label {
+  min-height: 27px;
+  gap: 9px;
+}
+.ot-settings-actions {
+  gap: 8px;
+  padding-top: 8px;
+}
+.ot-settings
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(
+      [type="file"]
+    ),
+    select,
+    textarea
+  ) {
+  min-height: 32px;
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 1px solid var(--settings-control-border);
+  border-radius: 6px;
+  background: var(--settings-surface);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.ot-settings [data-slot="select"] select {
+  padding-right: 29px;
+}
+.ot-settings select option {
+  color: var(--foreground);
+  background: var(--settings-surface);
+}
+.ot-settings :where(input, textarea)::placeholder {
+  color: var(--muted-foreground);
+  opacity: 0.75;
+}
+.ot-settings input[type="color"] {
+  width: 36px;
+  height: 29px;
+  padding: 3px;
+  background: var(--settings-surface);
+  border: 1px solid var(--settings-control-border);
+  border-radius: 6px;
+}
+.ot-settings input[type="checkbox"],
+.ot-settings input[type="radio"] {
+  accent-color: var(--primary);
+}
+.ot-settings [data-slot="checkbox"] {
+  width: 32px;
+  height: 19px;
+}
+.ot-settings [data-slot="checkbox"] > span:nth-child(2) {
+  background: var(--settings-control-border);
+  border: 1px solid transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.ot-settings [data-slot="checkbox"] > span:last-child {
+  background: #ffffff;
+  width: 13px;
+  height: 13px;
+  left: 3px;
+  box-shadow: 0 1px 2px #0003;
+}
+.ot-settings [data-slot="checkbox"] input:checked ~ span:nth-child(2) {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.ot-settings [data-slot="checkbox"] input:checked ~ span:last-child {
+  left: 16px;
+  background: var(--primary-foreground);
+}
+.ot-settings [data-slot="checkbox"]:has(input:disabled) {
+  opacity: 0.45;
+}
+.ot-settings [data-slot="checkbox"] input:focus-visible ~ span:nth-child(2) {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.ot-settings [data-slot="radio"] {
+  background: var(--settings-surface);
+  border: 1px solid var(--settings-control-border);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.ot-settings [data-slot="radio"]:checked {
+  border: 5px solid var(--primary);
+  background: var(--primary-foreground);
+}
+.ot-settings [data-slot="button"],
+.ot-settings :where(button:not([class]):not([role="tab"])) {
+  min-height: 30px;
+  padding: 5px 11px;
+  border: 1px solid var(--settings-control-border);
+  border-radius: 6px;
+  background: var(--settings-surface);
+  color: var(--foreground);
+  box-shadow: 0 1px 1px #00000006;
+  backdrop-filter: none;
+  font-size: 12px;
+  line-height: 1.5;
+  transition: background-color 120ms;
+  cursor: pointer;
+}
+.ot-settings [data-slot="button"]:hover:not(:disabled) {
+  background: var(--settings-hover);
+}
+.ot-settings [data-slot="button"][data-variant="default"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+.ot-settings [data-slot="button"][data-variant="default"]:hover:not(:disabled) {
+  opacity: 0.85;
+}
+.ot-settings [data-slot="button"][data-variant="destructive"] {
+  color: var(--settings-danger);
+  background: var(--settings-danger-bg);
+  border-color: color-mix(in srgb, var(--settings-danger) 25%, transparent);
+}
+.ot-settings [data-slot="button"][data-variant="ghost"] {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.ot-settings [data-slot="button"][data-variant="dashed"] {
+  border-style: dashed;
+  background: transparent;
+}
+.ot-settings [data-slot="segmented"] {
+  background: var(--settings-surface-muted);
+  border: 1px solid var(--settings-border);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.ot-settings [data-slot="segmented"] button {
+  color: var(--muted-foreground);
+  padding: 5px 10px;
+}
+.ot-settings [data-slot="segmented"] button[aria-pressed="true"] {
+  background: var(--settings-surface);
+  color: var(--foreground);
+  box-shadow: 0 1px 3px #00000012;
+}
+.ot-settings [data-slot="slider"] {
+  background: var(--settings-control-border);
+  box-shadow: none;
+  max-width: 100%;
+}
+.ot-settings [data-slot="slider"]::-webkit-slider-thumb {
+  background: var(--primary);
+  border: 0;
+  box-shadow: none;
+}
+.ot-settings [data-slot="badge"] {
+  border-color: var(--settings-border);
+  background: var(--settings-surface-muted);
+  color: var(--muted-foreground);
+  backdrop-filter: none;
+}
+.ot-settings [data-slot="badge"][data-variant="success"] {
+  color: var(--settings-success);
+  background: var(--settings-success-bg);
+}
+.ot-settings [data-slot="badge"][data-variant="warning"] {
+  color: var(--settings-warning);
+  background: var(--settings-warning-bg);
+}
+.ot-settings [data-slot="badge"][data-variant="destructive"] {
+  color: var(--settings-danger);
+  background: var(--settings-danger-bg);
+}
+.ot-settings [data-slot="separator"] {
+  background: var(--settings-border);
+}
+.ot-settings-update,
+.ot-settings-alert {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 16px;
+  margin: 0 0 18px;
+  border: 1px solid var(--settings-border);
+  border-radius: 8px;
+  background: var(--settings-surface-muted);
+}
+.ot-settings-alert,
+.ot-settings [role="alert"] {
+  color: var(--settings-danger);
+}
+.ot-settings summary {
+  cursor: pointer;
+}
+.ot-settings details {
+  border-color: var(--settings-border);
+}
+.ot-settings :where(pre, code) {
+  font-size: 11px;
+}
+.ot-settings pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ot-settings :where(.text-red-300, .text-red-200) {
+  color: var(--settings-danger);
+}
+.ot-settings :where(.text-emerald-300, .text-emerald-200) {
+  color: var(--settings-success);
+}
+.ot-settings :where(.text-amber-300, .text-amber-200) {
+  color: var(--settings-warning);
+}
+.ot-settings-onboarding[data-theme] {
+  display: block;
+  overflow: auto;
+  padding: 32px;
+}
+.ot-settings-style-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.ot-settings-style-options button {
+  height: 90px;
+  border-color: var(--settings-border);
+  background: var(--settings-surface-muted);
+  color: var(--muted-foreground);
+  box-shadow: none;
+}
+.ot-settings-style-options button[aria-pressed="true"] {
+  color: var(--foreground);
+  border-color: var(--foreground);
+  background: var(--settings-surface-muted);
+  box-shadow: inset 0 0 0 1px var(--foreground);
+}
+.ot-settings-style-options button span > span {
+  background: color-mix(in srgb, var(--foreground) 14%, transparent);
+  border-color: color-mix(in srgb, var(--foreground) 24%, transparent);
+}
+.ot-settings-shortcut {
+  position: relative;
+  padding: 16px;
+  border: 1px solid var(--settings-border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  background: var(--settings-surface-muted);
+}
+.ot-settings-shortcut-main {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px;
+  padding-right: 26px;
+}
+.ot-settings-shortcut-main > .ot-settings-check-label {
+  align-self: center;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.ot-settings-shortcut-main > input {
+  width: 100%;
+}
+.ot-settings-shortcut-main > button {
+  position: absolute;
+  right: 8px;
+  top: 16px;
+  padding: 2px;
+  min-height: 26px;
+  width: 26px;
+}
+.ot-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.ot-settings-field > span:first-child {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+}
+.ot-settings-field [data-slot="select"],
+.ot-settings-field select {
+  width: 100%;
+  min-width: 0;
+}
+.ot-settings-shortcut-details {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--settings-border);
+}
+.ot-settings-shortcut-details summary {
+  font-size: 12px;
+  font-weight: 550;
+}
+.ot-settings-shortcut-details > p {
+  margin: 8px 0 12px;
+}
+.ot-settings-shortcut-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.ot-settings-exclusion-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 15px;
+  margin-bottom: 12px;
+  border: 1px solid var(--settings-border);
+  border-radius: 8px;
+  background: var(--settings-surface-muted);
+}
+.ot-settings-exclusion-row > label {
+  flex-basis: 100%;
+}
+.ot-settings-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 16px;
+}
+.ot-settings-empty > span {
+  font-size: 32px;
+  color: var(--muted-foreground);
+  line-height: 1;
+  margin-bottom: 14px;
+}
+.ot-settings-empty h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.ot-settings-empty p {
+  color: var(--muted-foreground);
+  max-width: 38ch;
+  margin: 0;
+  font-size: 12px;
+}
+.ot-settings-about-card [data-slot="card-header"] {
+  padding-top: 28px;
+  align-items: center;
+  text-align: center;
+}
+.ot-settings-about-mark {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 15px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 32px;
+  letter-spacing: -3px;
+  margin-bottom: 12px;
+}
+.ot-settings-about-card [data-slot="card-title"] {
+  font-size: 22px;
+}
+.ot-settings-about-card [data-slot="card-content"] {
+  padding: 16px 24px 24px;
+}
+.ot-settings-about-card p {
+  margin: 0 auto;
+  text-align: center;
+  max-width: 50ch;
+}
+.ot-settings-about-card .ot-settings-actions {
+  justify-content: center;
+  padding-top: 18px;
+}
+
+@media (max-width: 760px) {
+  .ot-settings[data-theme] {
+    grid-template-columns: 166px minmax(0, 1fr);
+  }
+  .ot-settings-sidebar {
+    padding: 24px 10px 16px;
+  }
+  .ot-settings-page-header {
+    padding: 25px 22px 20px;
+  }
+  .ot-settings-content {
+    padding: 0 22px 28px;
+  }
+  .ot-settings [data-slot="card-header"] {
+    padding: 15px 16px 0;
+  }
+  .ot-settings [data-slot="card-content"] {
+    padding: 10px 16px 16px;
+  }
+  .ot-settings-row {
+    gap: 10px;
+  }
+}
+@media (max-width: 560px) {
+  .ot-settings[data-theme] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .ot-settings-sidebar {
+    display: block;
+    padding: 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--settings-border);
+    overflow: visible;
+  }
+  .ot-settings-brand {
+    display: none;
+  }
+  .ot-settings-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 3px;
+    padding: 3px;
+  }
+  .ot-settings-nav [role="tab"] {
+    margin: 0 !important;
+    flex-shrink: 0;
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  .ot-settings-nav [role="tab"] svg {
+    display: none;
+  }
+  .ot-settings-sidebar-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 10px 4px 0;
+    padding: 0;
+    gap: 12px;
+  }
+  .ot-settings-theme-label {
+    margin: 0;
+  }
+  .ot-settings-theme-picker {
+    width: 155px;
+  }
+  .ot-settings-sidebar-footer p {
+    display: none;
+  }
+  .ot-settings-page-header {
+    padding: 22px 16px 18px;
+  }
+  .ot-settings-content {
+    padding: 0 16px 24px;
+  }
+  .ot-settings-mode {
+    align-items: stretch;
+  }
+  .ot-settings-row {
+    flex-wrap: wrap;
+  }
+  .ot-settings-row [data-slot="select"] {
+    max-width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ot-settings *,
+  .ot-settings *::before,
+  .ot-settings *::after {
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.ot-settings-menubar-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 16px;
+  padding: 12px 0;
+}
+.ot-settings-menubar-options legend {
+  padding-top: 10px;
+}

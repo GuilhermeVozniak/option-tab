@@ -108,6 +108,10 @@ test("Folder Pop setting remains independent from Dock window previews", async (
   await installFakeWails(page);
   await page.goto("/#settings");
   await page.getByRole("tab", { name: "Dock" }).click();
+  await page
+    .getByRole("navigation", { name: "Dock sections" })
+    .getByRole("button", { name: "Window previews", exact: true })
+    .click();
   const previews = page.getByLabel("Enable Dock previews");
   const folders = page.getByLabel("Enable Folder Pop");
   await expect(previews).not.toBeChecked();

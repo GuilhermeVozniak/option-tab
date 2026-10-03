@@ -257,7 +257,7 @@ for (const available of [false, true]) {
       (window as any).__switcherGestureCapabilities = { available: value };
     }, available);
     await page.goto(`/?nativeGestures=${available}#settings`);
-    await page.getByRole("tab", { name: "Controls", exact: true }).click();
+    await page.getByRole("tab", { name: "Shortcuts", exact: true }).click();
     const up = page.getByLabel("Swipe up action");
     const down = page.getByLabel("Swipe down action");
     if (available) {

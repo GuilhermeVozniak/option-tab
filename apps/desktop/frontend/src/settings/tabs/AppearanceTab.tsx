@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
@@ -69,9 +69,36 @@ export function AppearanceTab({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>{t("Appearance")}</CardTitle>
+          <CardTitle>{t("Style and theme")}</CardTitle>
+          <CardDescription>
+            {t(
+              variant === "dock"
+                ? "Choose how windows are represented in Dock previews."
+                : "Choose how windows are represented in this switcher.",
+            )}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-1">
+          <div className="ot-settings-style-options">
+            {STYLES.map((style) => (
+              <button
+                key={style}
+                type="button"
+                aria-label={aria(`Visual style ${style}`)}
+                aria-pressed={a.style === style}
+                className={cn(
+                  "flex h-24 flex-1 cursor-pointer flex-col items-center justify-center gap-2.5 rounded-xl border transition-all",
+                  a.style === style
+                    ? "border-primary/60 bg-primary/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_10px_28px_-12px_rgba(59,130,246,0.7)]"
+                    : "border-white/12 bg-white/5 hover:bg-white/10",
+                )}
+                onClick={() => patchModeAppearance({ style })}
+              >
+                {STYLE_PREVIEWS[style]}
+                <span className="text-xs font-medium">{t(STYLE_LABEL[style])}</span>
+              </button>
+            ))}
+          </div>
           <label className={ROW}>
             <span>{t("Layout direction")}</span>
             <Select
@@ -97,26 +124,6 @@ export function AppearanceTab({
               onChange={(e) => patchModeAppearance({ compactThreshold: Number(e.target.value) })}
             />
           </label>
-          <div className="mb-3 flex gap-3">
-            {STYLES.map((style) => (
-              <button
-                key={style}
-                type="button"
-                aria-label={aria(`Visual style ${style}`)}
-                aria-pressed={a.style === style}
-                className={cn(
-                  "flex h-24 flex-1 cursor-pointer flex-col items-center justify-center gap-2.5 rounded-xl border transition-all",
-                  a.style === style
-                    ? "border-primary/60 bg-primary/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_10px_28px_-12px_rgba(59,130,246,0.7)]"
-                    : "border-white/12 bg-white/5 hover:bg-white/10",
-                )}
-                onClick={() => patchModeAppearance({ style })}
-              >
-                {STYLE_PREVIEWS[style]}
-                <span className="text-xs font-medium">{t(STYLE_LABEL[style])}</span>
-              </button>
-            ))}
-          </div>
           <div className={ROW}>
             <span>{t("Size")}</span>
             <Segmented<SizePreset>
@@ -186,7 +193,10 @@ export function AppearanceTab({
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("Advanced")}</CardTitle>
+          <CardTitle>{t("Layout and sizing")}</CardTitle>
+          <CardDescription>
+            {t("Fine-tune the grid and the amount of detail in each item.")}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-1">
           <label className={ROW}>
@@ -262,6 +272,24 @@ export function AppearanceTab({
             />
           </label>
           <label className={ROW}>
+            <span>{t("Auto-size thumbnails")}</span>
+            <Checkbox
+              aria-label={aria("Auto-size thumbnails")}
+              checked={a.autoSize}
+              onChange={(e) => patchModeAppearance({ autoSize: e.target.checked })}
+            />
+          </label>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Surface and effects")}</CardTitle>
+          <CardDescription>
+            {t("Adjust transparency, corners, and background blur.")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          <label className={ROW}>
             <span>{t("Background opacity")}</span>
             <Slider
               aria-label={aria("Background opacity")}
@@ -292,6 +320,30 @@ export function AppearanceTab({
               onChange={(e) => patchModeAppearance({ blur: e.target.checked })}
             />
           </label>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Window information")}</CardTitle>
+          <CardDescription>
+            {t("Choose the labels, badges, and controls shown on each window.")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          <label className={ROW}>
+            <span>{t("Window title truncation")}</span>
+            <Select
+              aria-label={aria("Window title truncation")}
+              value={a.titleTruncation}
+              onChange={(e) =>
+                patchModeAppearance({ titleTruncation: e.target.value as TruncationMode })
+              }
+            >
+              <option value="end">{t("End")}</option>
+              <option value="middle">{t("Middle")}</option>
+              <option value="start">{t("Start")}</option>
+            </Select>
+          </label>
           <label className={ROW}>
             <span>{t("Show window titles")}</span>
             <Checkbox
@@ -306,14 +358,6 @@ export function AppearanceTab({
               aria-label={aria("Show app badge")}
               checked={a.showAppBadge}
               onChange={(e) => patchModeAppearance({ showAppBadge: e.target.checked })}
-            />
-          </label>
-          <label className={ROW}>
-            <span>{t("Auto-size thumbnails")}</span>
-            <Checkbox
-              aria-label={aria("Auto-size thumbnails")}
-              checked={a.autoSize}
-              onChange={(e) => patchModeAppearance({ autoSize: e.target.checked })}
             />
           </label>
           <label className={ROW}>
@@ -340,6 +384,20 @@ export function AppearanceTab({
               onChange={(e) => patchModeAppearance({ showSpaceNumbers: e.target.checked })}
             />
           </label>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Motion and timing")}</CardTitle>
+          <CardDescription>
+            {t(
+              variant === "dock"
+                ? "Control how Dock window previews animate."
+                : "Control when the switcher appears and how previews animate.",
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-1">
           {variant !== "dock" && (
             <label className={ROW}>
               <span>{t("Fade out animation")}</span>
@@ -378,20 +436,6 @@ export function AppearanceTab({
               </span>
             </label>
           )}
-          <label className={ROW}>
-            <span>{t("Window title truncation")}</span>
-            <Select
-              aria-label={aria("Window title truncation")}
-              value={a.titleTruncation}
-              onChange={(e) =>
-                patchModeAppearance({ titleTruncation: e.target.value as TruncationMode })
-              }
-            >
-              <option value="end">{t("End")}</option>
-              <option value="middle">{t("Middle")}</option>
-              <option value="start">{t("Start")}</option>
-            </Select>
-          </label>
         </CardContent>
       </Card>
     </>

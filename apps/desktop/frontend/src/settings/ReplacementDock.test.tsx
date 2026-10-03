@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { makeT } from "../lib/i18n";
 import type { LauncherStatus, ReplacementDockSettings } from "../lib/types";
@@ -48,7 +48,55 @@ const value: ReplacementDockSettings = {
   rules: [],
 };
 
+function openSection(name: string, t = makeT("en")) {
+  fireEvent.click(
+    within(screen.getByRole("navigation", { name: t("Launcher sections") })).getByRole("button", {
+      name: t(name),
+    }),
+  );
+}
+
 describe("ReplacementDock", () => {
+  it("keeps a launcher item draft mounted when switching configuration sections", async () => {
+    const itemActions: LauncherItemSettingsActions = {
+      load: vi.fn().mockResolvedValue({
+        profileID: "default",
+        revision: "saved",
+        items: [],
+        references: [],
+        iconIDs: [],
+      }),
+      save: vi.fn(),
+      chooseReference: vi.fn(),
+      relinkReference: vi.fn(),
+      cancelSelection: vi.fn(),
+      chooseIcon: vi.fn(),
+      removeReference: vi.fn(),
+      removeIcon: vi.fn(),
+    };
+    render(
+      <ReplacementDock
+        value={value}
+        t={makeT("en")}
+        onChange={() => {}}
+        itemActions={itemActions}
+      />,
+    );
+    const navigation = within(screen.getByRole("navigation", { name: "Launcher sections" }));
+    expect(screen.getByRole("textbox", { name: "Profile name" })).toBeVisible();
+    expect(screen.queryByRole("textbox", { name: "Link label" })).toBeNull();
+    fireEvent.click(navigation.getByRole("button", { name: "Items" }));
+    await screen.findByText("No launcher items yet.");
+    const label = screen.getByRole("textbox", { name: "Link label" });
+    fireEvent.change(label, { target: { value: "Research" } });
+    fireEvent.click(navigation.getByRole("button", { name: "Widgets" }));
+    expect(label).toBeInTheDocument();
+    expect(label).not.toBeVisible();
+    fireEvent.click(navigation.getByRole("button", { name: "Items" }));
+    expect(screen.getByRole("textbox", { name: "Link label" })).toBe(label);
+    expect(label).toHaveValue("Research");
+  });
+
   it("translates runtime Space refusal and hides unknown backend details", () => {
     const status: LauncherStatus = {
       epoch: 1,
@@ -89,18 +137,20 @@ describe("ReplacementDock", () => {
   ] as const)("localizes profile and interaction accessible names in %s", (language) => {
     const t = makeT(language);
     render(<ReplacementDock value={value} t={t} language={language} onChange={() => {}} />);
-    for (const [role, key] of [
-      ["textbox", "Profile name"],
-      ["combobox", "Edge"],
-      ["combobox", "Launcher theme"],
-      ["combobox", "Primary gesture action"],
-      ["checkbox", "Precise trackpad scrolling"],
-      ["checkbox", "Pinch gestures"],
-      ["checkbox", "Keyboard navigation"],
+    for (const [role, key, section] of [
+      ["textbox", "Profile name", "Profile"],
+      ["combobox", "Edge", "Layout"],
+      ["combobox", "Launcher theme", "Layout"],
+      ["combobox", "Primary gesture action", "Interactions"],
+      ["checkbox", "Precise trackpad scrolling", "Interactions"],
+      ["checkbox", "Pinch gestures", "Interactions"],
+      ["checkbox", "Keyboard navigation", "Interactions"],
     ] as const) {
+      openSection(section, t);
       expect(t(key)).not.toBe(key);
       expect(screen.getByRole(role, { name: t(key) })).toBeInTheDocument();
     }
+    openSection("Displays", t);
     expect(screen.getByRole("combobox", { name: "Perfil de main" })).toBeInTheDocument();
   });
 
@@ -114,6 +164,7 @@ describe("ReplacementDock", () => {
 
   it("binds profiles to main and stable display UUID targets", () => {
     render(<ReplacementDock value={value} t={makeT("en")} onChange={() => {}} />);
+    openSection("Displays");
     expect(screen.getByText("Main display")).toBeVisible();
     expect(screen.getByText(/display-studio/)).toBeVisible();
     expect(screen.getAllByText("Default").length).toBeGreaterThanOrEqual(2);
@@ -141,6 +192,7 @@ describe("ReplacementDock", () => {
         ]}
       />,
     );
+    openSection("Widgets");
     fireEvent.click(screen.getByRole("checkbox", { name: "Enable Clock" }));
     const next = onChange.mock.calls[0][0];
     expect(next.profiles[0].widgets[0]).toMatchObject({
@@ -190,10 +242,12 @@ describe("ReplacementDock", () => {
         }}
       />,
     );
+    openSection("Layout");
     fireEvent.change(screen.getByLabelText("Icon size"), { target: { value: "52" } });
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ profiles: [expect.objectContaining({ iconPx: 52 })] }),
     );
+    openSection("Displays");
     fireEvent.click(screen.getByRole("button", { name: "Add Projector" }));
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -218,6 +272,7 @@ describe("ReplacementDock", () => {
     const { rerender } = render(
       <ReplacementDock value={configured} t={makeT("en")} onChange={onChange} />,
     );
+    openSection("Layout");
     expect(screen.getByLabelText("Enable launcher magnification")).not.toBeChecked();
     expect(screen.getByLabelText("Magnification scale")).toHaveValue(1.6);
     expect(screen.getByLabelText("Magnification reach")).toHaveValue(3);
@@ -255,6 +310,7 @@ describe("ReplacementDock", () => {
   it("uses off defaults when a legacy profile has no magnification object", () => {
     const onChange = vi.fn();
     render(<ReplacementDock value={value} t={makeT("en")} onChange={onChange} />);
+    openSection("Layout");
     expect(screen.getByLabelText("Enable launcher magnification")).not.toBeChecked();
     expect(screen.getByLabelText("Magnification scale")).toHaveValue(1.35);
     expect(screen.getByLabelText("Magnification reach")).toHaveValue(2);
@@ -271,6 +327,7 @@ describe("ReplacementDock", () => {
     ["es" as const, "Activar ampliación", "Escala de ampliación"],
   ])("renders localized magnification controls in %s", (language, enable, scale) => {
     render(<ReplacementDock value={value} t={makeT(language)} onChange={() => {}} />);
+    openSection("Layout", makeT(language));
     expect(screen.getByText(enable)).toBeVisible();
     expect(screen.getByText(scale)).toBeVisible();
   });
@@ -278,6 +335,7 @@ describe("ReplacementDock", () => {
   it("keeps launcher interactions off and unavailable capabilities honest", () => {
     const onChange = vi.fn();
     render(<ReplacementDock value={value} t={makeT("en")} onChange={onChange} />);
+    openSection("Interactions");
     expect(screen.getByLabelText("Enable launcher interactions")).not.toBeChecked();
     expect(screen.getByLabelText("Precise trackpad scrolling")).toBeDisabled();
     expect(screen.getByLabelText("Pinch gestures")).toBeDisabled();
@@ -329,6 +387,7 @@ describe("ReplacementDock", () => {
         interactionCapabilities={{ preciseScroll: true, letterNavigation: true, haptics: true }}
       />,
     );
+    openSection("Interactions");
     expect(screen.getByLabelText("Precise trackpad scrolling")).toBeEnabled();
     expect(screen.getByLabelText("Keyboard navigation")).toBeEnabled();
     expect(screen.getByLabelText("Pinch gestures")).toBeDisabled();
@@ -349,6 +408,7 @@ describe("ReplacementDock", () => {
     ["es" as const, "Trackpad y teclado", "No disponible en este dispositivo"],
   ])("renders localized interaction controls in %s", (language, heading, unavailable) => {
     render(<ReplacementDock value={value} t={makeT(language)} onChange={() => {}} />);
+    openSection("Interactions", makeT(language));
     expect(screen.getByText(heading)).toBeVisible();
     expect(screen.getAllByText(new RegExp(unavailable))).toHaveLength(5);
   });
@@ -512,6 +572,7 @@ describe("ReplacementDock", () => {
         status={status}
       />,
     );
+    openSection("Items");
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Save the profile before editing its items.",
     );
@@ -607,6 +668,7 @@ describe("ReplacementDock", () => {
         ]}
       />,
     );
+    openSection("Focus rules");
     fireEvent.click(screen.getByRole("button", { name: "Add focus rule" }));
     const created = onChange.mock.calls.at(-1)?.[0];
     expect(created.rules).toEqual([
@@ -649,6 +711,7 @@ describe("ReplacementDock", () => {
       },
     ];
     render(<ReplacementDock value={{ ...value, rules }} t={makeT("en")} onChange={onChange} />);
+    openSection("Focus rules");
     fireEvent.click(screen.getByRole("checkbox", { name: "Enable rule com.example.a" }));
     expect(onChange.mock.calls.at(-1)?.[0].rules[0].enabled).toBe(false);
     fireEvent.change(screen.getByLabelText("Display scope com.example.a"), {
@@ -698,6 +761,7 @@ describe("ReplacementDock", () => {
     expect(onChange.mock.calls.at(-1)?.[0].rules[0].profileID).toBe("default");
 
     rerender(<ReplacementDock value={withRules} t={makeT("en")} onChange={onChange} />);
+    openSection("Displays");
     fireEvent.click(screen.getByRole("button", { name: "Remove assignment studio" }));
     expect(onChange.mock.calls.at(-1)?.[0].rules).toEqual([withRules.rules?.[0]]);
     expect(screen.getByText(/removes focus rules scoped only to that display/i)).toBeVisible();
@@ -722,6 +786,7 @@ describe("ReplacementDock", () => {
         onChange={() => {}}
       />,
     );
+    openSection("Focus rules");
     expect(screen.getByRole("alert")).toHaveTextContent("Enter an exact bundle identifier");
     expect(screen.getByLabelText("Exact bundle identifier Editor App")).toHaveValue("Editor App");
   });
@@ -730,6 +795,7 @@ describe("ReplacementDock", () => {
 it("runtime reordering is opt-in and updates only the selected profile", () => {
   const onChange = vi.fn();
   render(<ReplacementDock value={value} onChange={onChange} t={(s) => s} />);
+  openSection("Items");
   const control = screen.getByLabelText("Enable runtime launcher reordering");
   expect(control).not.toBeChecked();
   fireEvent.click(control);
@@ -740,6 +806,7 @@ it("runtime reordering is opt-in and updates only the selected profile", () => {
 it("Dock badge observation is opt-in and keeps the Dock disabled", () => {
   const onChange = vi.fn();
   render(<ReplacementDock value={value} onChange={onChange} t={(s) => s} />);
+  openSection("Items");
   const control = screen.getByLabelText("Show replacement Dock badges");
   expect(control).not.toBeChecked();
   fireEvent.click(control);

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import "../settings/editor-settings.css";
 import type {
   WidgetCatalogDescriptor,
   WidgetInstanceConfig,
@@ -38,6 +40,8 @@ const copy = {
     active: "Shown widget",
     stack: "Stack",
     invalid: "Enter a valid value.",
+    empty: "No widgets added yet. Choose a package to add your first widget.",
+    stackHelp: "Select two to four widgets to show in one Dock slot.",
   },
   "pt-BR": {
     package: "Pacote do widget",
@@ -57,6 +61,8 @@ const copy = {
     active: "Widget exibido",
     stack: "Pilha",
     invalid: "Insira um valor válido.",
+    empty: "Nenhum widget adicionado. Escolha um pacote para adicionar o primeiro widget.",
+    stackHelp: "Selecione de dois a quatro widgets para exibir em um espaço do Dock.",
   },
   es: {
     package: "Paquete del widget",
@@ -76,6 +82,8 @@ const copy = {
     active: "Widget mostrado",
     stack: "Pila",
     invalid: "Introduce un valor válido.",
+    empty: "No hay widgets añadidos. Elige un paquete para añadir el primer widget.",
+    stackHelp: "Selecciona de dos a cuatro widgets para mostrarlos en un espacio del Dock.",
   },
 } as const;
 
@@ -315,7 +323,7 @@ export function WidgetSettings({
   };
 
   return (
-    <section className="ot-widget-settings" aria-label={tr(c.widgets)}>
+    <section className="ot-widget-settings ot-settings-editor" aria-label={tr(c.widgets)}>
       <div className="ot-widget-settings-add">
         <label>
           {tr(c.package)}
@@ -331,7 +339,7 @@ export function WidgetSettings({
             ))}
           </select>
         </label>
-        <button
+        <Button
           type="button"
           disabled={!byDigest.has(selectedDigest) || slots >= 4 || instances.length >= 16}
           onClick={() => {
@@ -351,9 +359,10 @@ export function WidgetSettings({
           }}
         >
           {tr(c.add)}
-        </button>
+        </Button>
       </div>
 
+      {instances.length === 0 ? <p className="ot-editor-empty">{tr(c.empty)}</p> : null}
       <div className="ot-widget-settings-list">
         {instances.map((instance, index) => {
           const item = descriptorFor(instance);
@@ -368,7 +377,7 @@ export function WidgetSettings({
                 <span>{item?.version}</span>
               </header>
               <p>{item ? localized(item.description, language) : instance.packageID}</p>
-              <label>
+              <label className="ot-editor-check-row ot-widget-enable">
                 <input
                   aria-label={`${tr(c.enabled)} ${name}`}
                   type="checkbox"
@@ -473,7 +482,7 @@ export function WidgetSettings({
                 );
               })}
               <div className="ot-widget-settings-buttons">
-                <button
+                <Button
                   type="button"
                   aria-label={`${tr(c.up)} ${name}`}
                   disabled={index === 0}
@@ -484,8 +493,8 @@ export function WidgetSettings({
                   }}
                 >
                   ↑
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   aria-label={`${tr(c.down)} ${name}`}
                   disabled={index === instances.length - 1}
@@ -496,8 +505,8 @@ export function WidgetSettings({
                   }}
                 >
                   ↓
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   aria-label={`${tr(c.remove)} ${name}`}
                   onClick={() => {
@@ -520,10 +529,10 @@ export function WidgetSettings({
                   }}
                 >
                   {tr(c.remove)}
-                </button>
+                </Button>
               </div>
               {!stacks.some((stack) => stack.members.includes(instance.id)) ? (
-                <label>
+                <label className="ot-editor-check-row">
                   <input
                     aria-label={`${tr(c.stack)} ${instance.id}`}
                     type="checkbox"
@@ -545,7 +554,10 @@ export function WidgetSettings({
       </div>
 
       <section className="ot-widget-stacks">
-        <h4>{tr(c.stacks)}</h4>
+        <header className="ot-editor-heading">
+          <h4>{tr(c.stacks)}</h4>
+          <p>{tr(c.stackHelp)}</p>
+        </header>
         <label>
           {tr(c.stackName)}
           <input
@@ -555,7 +567,7 @@ export function WidgetSettings({
             onChange={(event) => setStackName(event.target.value)}
           />
         </label>
-        <button
+        <Button
           type="button"
           disabled={selectedMembers.length < 2 || stacks.length >= 4 || projectedSlots > 4}
           onClick={() => {
@@ -574,7 +586,7 @@ export function WidgetSettings({
           }}
         >
           {tr(c.createStack)}
-        </button>
+        </Button>
         {stacks.map((stack, index) => (
           <article className="ot-widget-stack" key={stack.id}>
             <input
@@ -614,7 +626,7 @@ export function WidgetSettings({
                 (other) => other.id !== stack.id && other.members.includes(instance.id),
               );
               return (
-                <label key={instance.id}>
+                <label key={instance.id} className="ot-editor-check-row">
                   <input
                     type="checkbox"
                     aria-label={`${stack.name} · ${instance.id}`}
@@ -649,7 +661,7 @@ export function WidgetSettings({
                 </label>
               );
             })}
-            <button
+            <Button
               type="button"
               disabled={index === 0}
               onClick={() => {
@@ -659,8 +671,8 @@ export function WidgetSettings({
               }}
             >
               ↑
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               disabled={index === stacks.length - 1}
               onClick={() => {
@@ -670,8 +682,8 @@ export function WidgetSettings({
               }}
             >
               ↓
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               disabled={slots + stack.members.length - 1 > 4}
               onClick={() =>
@@ -682,7 +694,7 @@ export function WidgetSettings({
               }
             >
               {tr(c.dissolve)}
-            </button>
+            </Button>
           </article>
         ))}
       </section>

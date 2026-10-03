@@ -133,7 +133,10 @@ export function GeneralTab({
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("General")}</CardTitle>
+          <CardTitle>{t("App behavior")}</CardTitle>
+          <CardDescription>
+            {t("Choose how Option Tab starts and appears in the menu bar.")}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <label className={ROW}>
@@ -144,20 +147,7 @@ export function GeneralTab({
               onChange={(e) => patchBehavior({ startAtLogin: e.target.checked })}
             />
           </label>
-          <label className={ROW}>
-            <span>{t("Capture windows in the background")}</span>
-            <Checkbox
-              aria-label="Capture windows in the background"
-              checked={settings.behavior.captureInBackground}
-              onChange={(e) => patchBehavior({ captureInBackground: e.target.checked })}
-            />
-          </label>
-          <p className={HINT}>
-            {t(
-              "Keeps thumbnails fresh so the switcher opens with previews instantly. While enabled, macOS shows the screen-recording indicator.",
-            )}
-          </p>
-          <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
+          <fieldset className="ot-settings-menubar-options m-0 border-0 p-0">
             <legend className="mb-1 p-0 text-[13px] font-semibold">{t("Menubar icon")}</legend>
             {(
               [
@@ -206,6 +196,62 @@ export function GeneralTab({
           </label>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Window capture")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <label className={ROW}>
+            <span>{t("Capture windows in the background")}</span>
+            <Checkbox
+              aria-label="Capture windows in the background"
+              checked={settings.behavior.captureInBackground}
+              onChange={(e) => patchBehavior({ captureInBackground: e.target.checked })}
+            />
+          </label>
+          <p className={HINT}>
+            {t(
+              "Keeps thumbnails fresh so the switcher opens with previews instantly. While enabled, macOS shows the screen-recording indicator.",
+            )}
+          </p>
+        </CardContent>
+      </Card>
+
+      {permissions ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("Permissions")}</CardTitle>
+            <CardDescription>
+              {t("Option Tab needs these macOS permissions to work.")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <PermissionRow
+              label="Accessibility"
+              display={t("Accessibility")}
+              hint={t(
+                "Required for the global shortcut and window actions (focus, close, minimize).",
+              )}
+              state={permissions.state.accessibility}
+              t={t}
+              onRequest={() => permissions.onRequest("accessibility")}
+              onOpenSettings={() => permissions.onOpenSettings("accessibility")}
+            />
+            <PermissionRow
+              label="Screen Recording"
+              display={t("Screen Recording")}
+              hint={t(
+                "Required for live window thumbnails; without it, app icons are shown instead.",
+              )}
+              state={permissions.state.screenRecording}
+              t={t}
+              onRequest={() => permissions.onRequest("screenRecording")}
+              onOpenSettings={() => permissions.onOpenSettings("screenRecording")}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card ref={updatesRef}>
         <CardHeader>
@@ -281,7 +327,12 @@ export function GeneralTab({
 
       <Card>
         <CardHeader>
-          <CardTitle>{t("Settings file")}</CardTitle>
+          <CardTitle>{t("Backup and reset")}</CardTitle>
+          <CardDescription>
+            {t(
+              "Export a backup or import an existing setup. Reset restores all feature settings to their defaults.",
+            )}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {importError ? (
@@ -328,41 +379,6 @@ export function GeneralTab({
           </div>
         </CardContent>
       </Card>
-
-      {permissions ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t("Permissions")}</CardTitle>
-            <CardDescription>
-              {t("Option Tab needs these macOS permissions to work.")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <PermissionRow
-              label="Accessibility"
-              display={t("Accessibility")}
-              hint={t(
-                "Required for the global shortcut and window actions (focus, close, minimize).",
-              )}
-              state={permissions.state.accessibility}
-              t={t}
-              onRequest={() => permissions.onRequest("accessibility")}
-              onOpenSettings={() => permissions.onOpenSettings("accessibility")}
-            />
-            <PermissionRow
-              label="Screen Recording"
-              display={t("Screen Recording")}
-              hint={t(
-                "Required for live window thumbnails; without it, app icons are shown instead.",
-              )}
-              state={permissions.state.screenRecording}
-              t={t}
-              onRequest={() => permissions.onRequest("screenRecording")}
-              onOpenSettings={() => permissions.onOpenSettings("screenRecording")}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
     </>
   );
 }

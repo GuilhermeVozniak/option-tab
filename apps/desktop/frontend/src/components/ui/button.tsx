@@ -40,6 +40,7 @@ function Button({
     <button
       type="button"
       data-slot="button"
+      data-variant={variant ?? "glass"}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
