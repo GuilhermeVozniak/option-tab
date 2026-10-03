@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 — 2026-10-03
+
+- Redesign Settings with a responsive sidebar, compact aligned controls, and independent System, Light, and Dark themes.
+- Organize preferences around General, Shortcuts, Appearance, Window rules, Excluded apps, Dock, and About, with clearer labels and feature explanations.
+- Split Dock settings into Launcher, Window previews, Media, and Monitor, with focused Launcher sections for profiles, items, widgets, layout, interactions, displays, and focus rules.
+- Improve profile import/export, widget configuration, diagnostics, keyboard navigation, and Portuguese/Spanish Settings translations.
+- Preserve existing settings, deep links, and the switcher and preview appearance.
+
+The native feature limitations and hardware checks documented for 0.5.0 remain unchanged. Windows and Linux downloads remain demonstration builds without native window switching.
+
 ## 0.5.0 — 2026-10-03
 
 - Add app-grouped switching, live window previews, per-mode preferences, and guarded individual and bulk window actions.
