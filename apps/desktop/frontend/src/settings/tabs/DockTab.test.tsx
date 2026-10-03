@@ -36,15 +36,15 @@ it("shows one Dock area at a time and preserves the launcher draft while navigat
     "aria-current",
     "page",
   );
-  expect(screen.queryByRole("checkbox", { name: "Enable Dock previews" })).toBeNull();
+  expect(screen.queryByRole("switch", { name: "Enable Dock previews" })).toBeNull();
   fireEvent.click(navigation.getByRole("button", { name: "Window previews" }));
-  expect(screen.getByRole("checkbox", { name: "Enable Dock previews" })).toBeVisible();
+  expect(screen.getByRole("switch", { name: "Enable Dock previews" })).toBeVisible();
   expect(name).toBeInTheDocument();
   expect(name).not.toBeVisible();
-  expect(screen.queryByRole("checkbox", { name: "Enable media controls" })).toBeNull();
+  expect(screen.queryByRole("switch", { name: "Enable media controls" })).toBeNull();
 
   fireEvent.click(navigation.getByRole("button", { name: "Media" }));
-  expect(screen.getByRole("checkbox", { name: "Enable media controls" })).toBeVisible();
+  expect(screen.getByRole("switch", { name: "Enable media controls" })).toBeVisible();
   fireEvent.click(navigation.getByRole("button", { name: "Monitor" }));
   expect(screen.getByRole("heading", { name: "Dock monitor lock" })).toBeVisible();
   fireEvent.click(navigation.getByRole("button", { name: "Launcher" }));
@@ -82,7 +82,7 @@ it("keeps preview permissions explicit and media connection gates intact after n
   expect(onConnect).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Window previews" }));
   expect(onRequest).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("checkbox", { name: "Enable Dock previews" }));
+  fireEvent.click(screen.getByRole("switch", { name: "Enable Dock previews" }));
   expect(ctx.patch).toHaveBeenCalledWith(
     expect.objectContaining({ dock: expect.objectContaining({ enabled: true }) }),
   );

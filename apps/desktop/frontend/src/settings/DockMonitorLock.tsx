@@ -1,6 +1,8 @@
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Switch } from "@/components/ui/switch";
 import type { DockLockDisplay, DockMonitorLockSettings, DockMonitorLockState } from "../lib/types";
 import { HINT, ROW } from "./shared";
 
@@ -72,20 +74,20 @@ export function DockMonitorLock({
     (state.status === "protected" || state.status === "awaitingPlacement");
   return (
     <div className="space-y-2">
-      <label className={ROW}>
+      <Label appearance="unstyled" className={ROW}>
         <span>{t("Lock Dock to a monitor")}</span>
-        <Checkbox
+        <Switch
           aria-label={t("Lock Dock to a monitor")}
           checked={value.enabled}
-          onChange={(e) => {
-            onChange({ ...value, enabled: e.target.checked });
-            if (e.target.checked) onEnable();
+          onCheckedChange={(checked) => {
+            onChange({ ...value, enabled: checked });
+            if (checked) onEnable();
           }}
         />
-      </label>
-      <label className={ROW}>
+      </Label>
+      <Label appearance="unstyled" className={ROW}>
         <span>{t("Target monitor")}</span>
-        <Select
+        <NativeSelect
           aria-label={t("Target monitor")}
           value={value.target === "main" ? "main" : value.displayUUID}
           onChange={(e) =>
@@ -96,22 +98,22 @@ export function DockMonitorLock({
             })
           }
         >
-          <option value="main">{t("Main display")}</option>
+          <NativeSelectOption value="main">{t("Main display")}</NativeSelectOption>
           {disconnected ? (
-            <option value={value.displayUUID}>
+            <NativeSelectOption value={value.displayUUID}>
               {t("Disconnected display")} ({value.displayUUID})
-            </option>
+            </NativeSelectOption>
           ) : null}
           {displays.map((d) => (
-            <option value={d.uuid} key={d.uuid}>
+            <NativeSelectOption value={d.uuid} key={d.uuid}>
               {d.name}
-            </option>
+            </NativeSelectOption>
           ))}
-        </Select>
-      </label>
-      <label className={ROW}>
+        </NativeSelect>
+      </Label>
+      <Label appearance="unstyled" className={ROW}>
         <span>{t("Bypass modifier")}</span>
-        <Select
+        <NativeSelect
           aria-label={t("Bypass modifier")}
           value={value.bypassModifier}
           onChange={(e) =>
@@ -122,12 +124,12 @@ export function DockMonitorLock({
           }
         >
           {["option", "control", "command", "shift"].map((m) => (
-            <option key={m} value={m}>
+            <NativeSelectOption key={m} value={m}>
               {t(m[0].toUpperCase() + m.slice(1))}
-            </option>
+            </NativeSelectOption>
           ))}
-        </Select>
-      </label>
+        </NativeSelect>
+      </Label>
       <p className={HINT}>
         {t("Status")}: {t(statusLabel[state?.status || "disabled"] || "Unavailable")}
         {state?.reason ? `: ${t(monitorReason(state.reason))}` : ""}
@@ -136,9 +138,11 @@ export function DockMonitorLock({
         <p className={HINT}>{t("Return the Dock manually or use Move Dock here.")}</p>
       ) : null}
       {error ? (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {t(monitorReason(error))}
-        </p>
+        <Alert appearance="unstyled" asChild>
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            {t(monitorReason(error))}
+          </p>
+        </Alert>
       ) : null}
       {!state?.placementAvailable ? (
         <p className={HINT}>

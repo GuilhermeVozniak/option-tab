@@ -188,10 +188,18 @@
 }
 
 .ot-settings .ot-editor-file-input {
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
   width: 100%;
   min-width: 0;
   max-width: 280px;
   font-size: 12px;
+  line-height: 1.5;
   color: var(--muted-foreground);
 }
 
@@ -325,12 +333,38 @@
   font: inherit;
 }
 
-.ot-settings .ot-widget-settings input[type="checkbox"] {
+.ot-settings .ot-widget-settings input:not([type="checkbox"]) {
+  height: auto;
+}
+
+.ot-settings .ot-widget-settings [data-slot="native-select"] {
+  width: 100%;
+  padding: 5px 9px;
+  appearance: auto;
+}
+.ot-settings .ot-widget-settings [data-slot="native-select-icon"] {
+  display: none;
+}
+
+.ot-settings .ot-widget-settings [data-slot="checkbox"] {
   flex-shrink: 0;
   width: 15px;
   height: 15px;
   margin: 0;
-  accent-color: var(--primary);
+  padding: 0;
+  border: 1px solid light-dark(#767676, #858585);
+  border-radius: 2px;
+  background: light-dark(#ffffff, #3b3b3b);
+  box-shadow: none;
+}
+.ot-settings .ot-widget-settings [data-slot="checkbox"][data-state="checked"] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.ot-settings .ot-widget-settings [data-slot="checkbox-indicator"] svg {
+  width: 13px;
+  height: 13px;
 }
 
 .ot-settings .ot-widget-enable {
@@ -378,7 +412,7 @@
   background: var(--settings-surface);
 }
 
-.ot-settings .ot-settings-diagnostics > summary {
+.ot-settings .ot-settings-diagnostics > [data-slot="collapsible-trigger"] {
   padding: 16px 18px;
   font-size: 14px;
   font-weight: 600;

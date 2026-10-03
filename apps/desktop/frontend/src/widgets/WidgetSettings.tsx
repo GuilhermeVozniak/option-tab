@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import "../settings/editor-settings.css";
 import type {
   WidgetCatalogDescriptor,
@@ -215,7 +220,7 @@ function TimezoneInput({
     if (zone !== value) onCommit(zone);
   };
   return (
-    <input
+    <Input
       aria-label={label}
       type="text"
       maxLength={80}
@@ -325,20 +330,20 @@ export function WidgetSettings({
   return (
     <section className="ot-widget-settings ot-settings-editor" aria-label={tr(c.widgets)}>
       <div className="ot-widget-settings-add">
-        <label>
+        <Label appearance="unstyled">
           {tr(c.package)}
-          <select
+          <NativeSelect
             aria-label={tr(c.package)}
             value={selectedDigest}
             onChange={(event) => setPackageDigest(event.target.value)}
           >
             {catalog.map((item) => (
-              <option key={`${item.packageID}:${item.digest}`} value={item.digest}>
+              <NativeSelectOption key={`${item.packageID}:${item.digest}`} value={item.digest}>
                 {localized(item.name, language)} · {item.version}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
-        </label>
+          </NativeSelect>
+        </Label>
         <Button
           type="button"
           disabled={!byDigest.has(selectedDigest) || slots >= 4 || instances.length >= 16}
@@ -377,40 +382,43 @@ export function WidgetSettings({
                 <span>{item?.version}</span>
               </header>
               <p>{item ? localized(item.description, language) : instance.packageID}</p>
-              <label className="ot-editor-check-row ot-widget-enable">
-                <input
+              <Label appearance="unstyled" className="ot-editor-check-row ot-widget-enable">
+                <Checkbox
                   aria-label={`${tr(c.enabled)} ${name}`}
-                  type="checkbox"
                   checked={instance.enabled}
-                  onChange={(event) => {
+                  onCheckedChange={(checked) => {
                     const next = cloneWidgets(instances);
-                    next[index] = { ...editable(next[index]), enabled: event.target.checked };
+                    next[index] = { ...editable(next[index]), enabled: checked === true };
                     emit(next);
                   }}
                 />
                 {tr(c.enabled)}
-              </label>
+              </Label>
               {item
                 ? [...item.requiredCapabilities, ...item.optionalCapabilities].map((capability) => {
                     const required = item.requiredCapabilities.includes(capability);
                     const purpose = capabilityPurpose(capability, language);
                     return (
-                      <label className="ot-widget-capability" key={capability}>
-                        <input
-                          type="checkbox"
+                      <Label
+                        appearance="unstyled"
+                        className="ot-widget-capability"
+                        key={capability}
+                      >
+                        <Checkbox
                           checked={instance.grants.includes(capability)}
-                          onChange={(event) => {
+                          onCheckedChange={(checked) => {
                             const next = cloneWidgets(instances);
                             const target = editable(next[index]);
-                            target.grants = event.target.checked
-                              ? [...target.grants, capability]
-                              : target.grants.filter((grant) => grant !== capability);
+                            target.grants =
+                              checked === true
+                                ? [...target.grants, capability]
+                                : target.grants.filter((grant) => grant !== capability);
                             next[index] = target;
                             emit(next);
                           }}
                         />
                         {tr(required ? c.required : c.optional)} · {purpose}
-                      </label>
+                      </Label>
                     );
                   })
                 : null}
@@ -434,30 +442,31 @@ export function WidgetSettings({
                     ? configured.boolean
                     : (setting.defaultBool ?? false);
                 return (
-                  <label className="ot-widget-setting" key={setting.id}>
+                  <Label appearance="unstyled" className="ot-widget-setting" key={setting.id}>
                     {label}
                     {setting.type === "choice" ? (
-                      <select
+                      <NativeSelect
                         aria-label={label}
                         value={text}
                         onChange={(event) => updateSetting(instance, setting, event.target.value)}
                       >
                         {setting.options?.map((option) => (
-                          <option key={option} value={option}>
+                          <NativeSelectOption key={option} value={option}>
                             {item.builtin &&
                             item.packageID === "org.optiontab.clock" &&
                             setting.id === "format"
                               ? choiceLabel(option, language)
                               : option}
-                          </option>
+                          </NativeSelectOption>
                         ))}
-                      </select>
+                      </NativeSelect>
                     ) : setting.type === "boolean" ? (
-                      <input
+                      <Checkbox
                         aria-label={label}
-                        type="checkbox"
                         checked={checked}
-                        onChange={(event) => updateSetting(instance, setting, event.target.checked)}
+                        onCheckedChange={(checked) =>
+                          updateSetting(instance, setting, checked === true)
+                        }
                       />
                     ) : setting.type === "timezone" ? (
                       <TimezoneInput
@@ -468,7 +477,7 @@ export function WidgetSettings({
                         onRestore={() => setErrors((current) => ({ ...current, [key]: false }))}
                       />
                     ) : (
-                      <input
+                      <Input
                         aria-label={label}
                         type={setting.type === "number" ? "number" : "text"}
                         value={setting.type === "number" ? number : text}
@@ -477,8 +486,12 @@ export function WidgetSettings({
                         onChange={(event) => updateSetting(instance, setting, event.target.value)}
                       />
                     )}
-                    {errors[key] ? <span role="alert">{tr(c.invalid)}</span> : null}
-                  </label>
+                    {errors[key] ? (
+                      <Alert appearance="unstyled" asChild>
+                        <span role="alert">{tr(c.invalid)}</span>
+                      </Alert>
+                    ) : null}
+                  </Label>
                 );
               })}
               <div className="ot-widget-settings-buttons">
@@ -532,21 +545,20 @@ export function WidgetSettings({
                 </Button>
               </div>
               {!stacks.some((stack) => stack.members.includes(instance.id)) ? (
-                <label className="ot-editor-check-row">
-                  <input
+                <Label appearance="unstyled" className="ot-editor-check-row">
+                  <Checkbox
                     aria-label={`${tr(c.stack)} ${instance.id}`}
-                    type="checkbox"
                     checked={selectedMembers.includes(instance.id)}
-                    onChange={(event) =>
+                    onCheckedChange={(checked) =>
                       setStackMembers(
-                        event.target.checked
+                        checked === true
                           ? [...selectedMembers, instance.id].slice(0, 4)
                           : selectedMembers.filter((id) => id !== instance.id),
                       )
                     }
                   />
                   {tr(c.stack)}
-                </label>
+                </Label>
               ) : null}
             </article>
           );
@@ -558,15 +570,15 @@ export function WidgetSettings({
           <h4>{tr(c.stacks)}</h4>
           <p>{tr(c.stackHelp)}</p>
         </header>
-        <label>
+        <Label appearance="unstyled">
           {tr(c.stackName)}
-          <input
+          <Input
             aria-label={tr(c.stackName)}
             maxLength={80}
             value={stackName}
             onChange={(event) => setStackName(event.target.value)}
           />
-        </label>
+        </Label>
         <Button
           type="button"
           disabled={selectedMembers.length < 2 || stacks.length >= 4 || projectedSlots > 4}
@@ -589,7 +601,7 @@ export function WidgetSettings({
         </Button>
         {stacks.map((stack, index) => (
           <article className="ot-widget-stack" key={stack.id}>
-            <input
+            <Input
               aria-label={`${tr(c.stackName)} ${index + 1}`}
               maxLength={80}
               defaultValue={stack.name}
@@ -602,9 +614,9 @@ export function WidgetSettings({
                 );
               }}
             />
-            <label>
+            <Label appearance="unstyled">
               {tr(c.active)}
-              <select
+              <NativeSelect
                 value={stack.activeID}
                 onChange={(event) =>
                   emit(
@@ -616,19 +628,18 @@ export function WidgetSettings({
                 }
               >
                 {stack.members.map((id) => (
-                  <option key={id}>{id}</option>
+                  <NativeSelectOption key={id}>{id}</NativeSelectOption>
                 ))}
-              </select>
-            </label>
+              </NativeSelect>
+            </Label>
             {instances.map((instance) => {
               const included = stack.members.includes(instance.id);
               const usedElsewhere = stacks.some(
                 (other) => other.id !== stack.id && other.members.includes(instance.id),
               );
               return (
-                <label key={instance.id} className="ot-editor-check-row">
-                  <input
-                    type="checkbox"
+                <Label appearance="unstyled" key={instance.id} className="ot-editor-check-row">
+                  <Checkbox
                     aria-label={`${stack.name} · ${instance.id}`}
                     checked={included}
                     disabled={
@@ -637,10 +648,11 @@ export function WidgetSettings({
                         ? stack.members.length <= 2 || slots >= 4
                         : stack.members.length >= 4)
                     }
-                    onChange={(event) => {
-                      const members = event.target.checked
-                        ? [...stack.members, instance.id]
-                        : stack.members.filter((id) => id !== instance.id);
+                    onCheckedChange={(checked) => {
+                      const members =
+                        checked === true
+                          ? [...stack.members, instance.id]
+                          : stack.members.filter((id) => id !== instance.id);
                       emit(
                         instances,
                         stacks.map((item) =>
@@ -658,7 +670,7 @@ export function WidgetSettings({
                     }}
                   />
                   {instance.id}
-                </label>
+                </Label>
               );
             })}
             <Button

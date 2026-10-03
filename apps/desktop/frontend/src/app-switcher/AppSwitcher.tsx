@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { type KeyPayload, onSwitcherKey } from "../lib/bridge";
 import { keyToAction } from "../lib/keymap";
 import { computeLayout, effectiveStyle } from "../lib/layout";
@@ -67,89 +70,98 @@ function AppWindowCard({
     <span>{entry.appName.trim()[0] ?? "?"}</span>
   );
   return (
-    <article
-      className={selected ? "is-selected" : ""}
-      data-switcher-gesture-window={entry.windowId}
-      data-switcher-gesture-app={entry.appId}
-    >
-      <button
-        type="button"
-        className="ot-app-preview"
-        aria-label={t("Focus {title}").replace("{title}", () => entry.title || entry.appName)}
-        onMouseEnter={hover ? () => handlers.onSelectAppWindow?.(entry.windowId) : undefined}
-        onAuxClick={(event) => {
-          if (event.button === 1) runPointerAction(middle, entry, handlers);
-        }}
-        onClick={() => focus(entry)}
-        style={{ width: style === "titles" ? appearance.titleMaxWidthPx : thumbnailPx }}
+    <Card appearance="unstyled" asChild>
+      <article
+        className={selected ? "is-selected" : ""}
+        data-switcher-gesture-window={entry.windowId}
+        data-switcher-gesture-app={entry.appId}
       >
-        {style === "titles" ? (
-          <span className={`ot-app-card-title ot-trunc-${appearance.titleTruncation}`}>
-            {title}
-          </span>
-        ) : (
-          <>
-            {appearance.showTitle ? (
-              <span
-                className={`ot-app-card-title ot-trunc-${appearance.titleTruncation}`}
-                style={{ maxWidth: appearance.titleMaxWidthPx }}
-              >
-                {title}
-              </span>
-            ) : null}
-            <span className="ot-app-card-media">
-              {style === "appIcons" ? (
-                <span className="ot-app-card-fallback">{icon}</span>
-              ) : entry.thumbnail ? (
-                <img src={entry.thumbnail} alt="" />
-              ) : (
-                <span className="ot-app-card-fallback">{icon}</span>
-              )}
-              {style === "thumbnails" && appearance.showAppBadge && entry.thumbnail ? (
-                <span className="ot-app-badge">{icon}</span>
-              ) : null}
-            </span>
-          </>
-        )}
-      </button>
-      {appearance.showStatusIcons ? (
-        <StatusIcons
-          minimized={entry.minimized}
-          hidden={entry.hidden}
-          fullscreen={entry.fullscreen}
-          otherSpace={!!entry.spaceId && !!activeSpaceId && entry.spaceId !== activeSpaceId}
-          t={t}
-        />
-      ) : null}
-      {spaceNumber !== undefined ? (
-        <span
-          className="ot-space-badge"
-          role="img"
-          aria-label={t("Space {number}").replace("{number}", String(spaceNumber))}
+        <Button
+          variant="unstyled"
+          type="button"
+          className="ot-app-preview"
+          aria-label={t("Focus {title}").replace("{title}", () => entry.title || entry.appName)}
+          onMouseEnter={hover ? () => handlers.onSelectAppWindow?.(entry.windowId) : undefined}
+          onAuxClick={(event) => {
+            if (event.button === 1) runPointerAction(middle, entry, handlers);
+          }}
+          onClick={() => focus(entry)}
+          style={{ width: style === "titles" ? appearance.titleMaxWidthPx : thumbnailPx }}
         >
-          {spaceNumber}
-        </span>
-      ) : null}
-      {showControls ? (
-        <div className="ot-app-window-actions" data-switcher-gesture-exclude>
-          <button
-            className="ot-traffic ot-traffic-close"
-            aria-label={t("Close window")}
-            onClick={() => handlers.onClose(entry.windowId)}
+          {style === "titles" ? (
+            <span className={`ot-app-card-title ot-trunc-${appearance.titleTruncation}`}>
+              {title}
+            </span>
+          ) : (
+            <>
+              {appearance.showTitle ? (
+                <span
+                  className={`ot-app-card-title ot-trunc-${appearance.titleTruncation}`}
+                  style={{ maxWidth: appearance.titleMaxWidthPx }}
+                >
+                  {title}
+                </span>
+              ) : null}
+              <span className="ot-app-card-media">
+                {style === "appIcons" ? (
+                  <span className="ot-app-card-fallback">{icon}</span>
+                ) : entry.thumbnail ? (
+                  <img src={entry.thumbnail} alt="" />
+                ) : (
+                  <span className="ot-app-card-fallback">{icon}</span>
+                )}
+                {style === "thumbnails" && appearance.showAppBadge && entry.thumbnail ? (
+                  <Badge variant="unstyled" className="ot-app-badge">
+                    {icon}
+                  </Badge>
+                ) : null}
+              </span>
+            </>
+          )}
+        </Button>
+        {appearance.showStatusIcons ? (
+          <StatusIcons
+            minimized={entry.minimized}
+            hidden={entry.hidden}
+            fullscreen={entry.fullscreen}
+            otherSpace={!!entry.spaceId && !!activeSpaceId && entry.spaceId !== activeSpaceId}
+            t={t}
           />
-          <button
-            className="ot-traffic ot-traffic-minimize"
-            aria-label={t(entry.minimized ? "Restore window" : "Minimize window")}
-            onClick={() => handlers.onMinimize(entry.windowId)}
-          />
-          <button
-            className="ot-traffic ot-traffic-fullscreen"
-            aria-label={t("Fullscreen window")}
-            onClick={() => handlers.onFullscreen(entry.windowId)}
-          />
-        </div>
-      ) : null}
-    </article>
+        ) : null}
+        {spaceNumber !== undefined ? (
+          <Badge
+            variant="unstyled"
+            className="ot-space-badge"
+            role="img"
+            aria-label={t("Space {number}").replace("{number}", String(spaceNumber))}
+          >
+            {spaceNumber}
+          </Badge>
+        ) : null}
+        {showControls ? (
+          <div className="ot-app-window-actions" data-switcher-gesture-exclude>
+            <Button
+              variant="unstyled"
+              className="ot-traffic ot-traffic-close"
+              aria-label={t("Close window")}
+              onClick={() => handlers.onClose(entry.windowId)}
+            />
+            <Button
+              variant="unstyled"
+              className="ot-traffic ot-traffic-minimize"
+              aria-label={t(entry.minimized ? "Restore window" : "Minimize window")}
+              onClick={() => handlers.onMinimize(entry.windowId)}
+            />
+            <Button
+              variant="unstyled"
+              className="ot-traffic ot-traffic-fullscreen"
+              aria-label={t("Fullscreen window")}
+              onClick={() => handlers.onFullscreen(entry.windowId)}
+            />
+          </div>
+        ) : null}
+      </article>
+    </Card>
   );
 }
 
@@ -339,106 +351,120 @@ export function AppSwitcher({
       role="dialog"
       aria-label={t("Application switcher")}
     >
-      <section
-        ref={(element) => {
-          panelRef(element);
-          gestureRef(element);
-        }}
-        className={`ot-app-panel ${materialClass(appearance.blur, material?.status, state.session)}`}
-      >
-        {state.search ? <div className="ot-app-search">{state.search}</div> : null}
-        <div className="ot-app-rail" role="listbox" aria-label={t("Applications")}>
-          {apps.map((item, index) => (
-            <button
-              type="button"
-              role="option"
-              aria-selected={index === selected}
-              aria-label={`${item.appName} (${item.appId})`}
-              key={item.appId}
-              className={index === selected ? "is-selected" : ""}
-              onMouseEnter={state.mouseHover ? () => handlers.onSelectApp?.(item.appId) : undefined}
-              onClick={() => handlers.onSelectApp?.(item.appId)}
-            >
-              {item.icon ? (
-                <img src={item.icon} alt="" />
-              ) : (
-                <span>{item.appName.trim()[0] ?? "?"}</span>
-              )}
-              <small>{item.appName}</small>
-            </button>
-          ))}
-        </div>
-        {app ? (
-          <div className="ot-app-toolbar">
-            <strong>{app.appName}</strong>
-            <div>
-              <button
+      <Card appearance="unstyled" asChild>
+        <section
+          ref={(element) => {
+            panelRef(element);
+            gestureRef(element);
+          }}
+          className={`ot-app-panel ${materialClass(appearance.blur, material?.status, state.session)}`}
+        >
+          {state.search ? (
+            <Badge variant="unstyled" asChild>
+              <div className="ot-app-search">{state.search}</div>
+            </Badge>
+          ) : null}
+          <div className="ot-app-rail" role="listbox" aria-label={t("Applications")}>
+            {apps.map((item, index) => (
+              <Button
+                variant="unstyled"
                 type="button"
-                onClick={() => handlers.onConfirmApp?.(app.appId)}
-                aria-label={t("Open {app}").replace("{app}", () => app.appName)}
-              >
-                {t("Open app")}
-              </button>
-              <button type="button" onClick={() => handlers.onAction?.("newWindow", 0, app.appId)}>
-                {t("New window")}
-              </button>
-              <button type="button" onClick={() => handlers.onHide(app.appId)}>
-                {t("Hide app")}
-              </button>
-              <button type="button" onClick={() => handlers.onQuit(app.appId)}>
-                {t("Quit app")}
-              </button>
-            </div>
-          </div>
-        ) : null}
-        <div className="ot-app-gallery">
-          {state.entries.map((entry) => (
-            <AppWindowCard
-              key={entry.windowId}
-              entry={entry}
-              selected={entry.windowId === state.selectedWindowId}
-              handlers={handlers}
-              focus={focus}
-              hover={state.mouseHover}
-              showControls={state.appearance.showWindowControls}
-              middle={state.middleClickAction}
-              appearance={appearance}
-              style={style}
-              thumbnailPx={layout.thumbnailPx}
-              spaceNumber={
-                appearance.showSpaceNumbers && entry.spaceId
-                  ? spaceOrdinals.get(entry.spaceId)
-                  : undefined
-              }
-              activeSpaceId={state.activeSpaceId}
-              t={t}
-            />
-          ))}
-        </div>
-        {state.appearance.previewSelected &&
-          (() => {
-            const entry = state.entries.find((item) => item.windowId === state.selectedWindowId);
-            const source = entry?.preview ?? entry?.thumbnail;
-            return source ? (
-              <div
-                className={`ot-app-expanded-preview${state.appearance.previewFade ? " is-fading" : ""}`}
-                aria-label={t("Selected window preview")}
-                style={
-                  {
-                    "--ot-preview-width": `${Math.round(layout.thumbnailPx * 1.6)}px`,
-                  } as React.CSSProperties
+                role="option"
+                aria-selected={index === selected}
+                aria-label={`${item.appName} (${item.appId})`}
+                key={item.appId}
+                className={index === selected ? "is-selected" : ""}
+                onMouseEnter={
+                  state.mouseHover ? () => handlers.onSelectApp?.(item.appId) : undefined
                 }
+                onClick={() => handlers.onSelectApp?.(item.appId)}
               >
-                <img key={entry?.windowId} src={source} alt="" />
+                {item.icon ? (
+                  <img src={item.icon} alt="" />
+                ) : (
+                  <span>{item.appName.trim()[0] ?? "?"}</span>
+                )}
+                <small>{item.appName}</small>
+              </Button>
+            ))}
+          </div>
+          {app ? (
+            <div className="ot-app-toolbar">
+              <strong>{app.appName}</strong>
+              <div>
+                <Button
+                  variant="unstyled"
+                  type="button"
+                  onClick={() => handlers.onConfirmApp?.(app.appId)}
+                  aria-label={t("Open {app}").replace("{app}", () => app.appName)}
+                >
+                  {t("Open app")}
+                </Button>
+                <Button
+                  variant="unstyled"
+                  type="button"
+                  onClick={() => handlers.onAction?.("newWindow", 0, app.appId)}
+                >
+                  {t("New window")}
+                </Button>
+                <Button variant="unstyled" type="button" onClick={() => handlers.onHide(app.appId)}>
+                  {t("Hide app")}
+                </Button>
+                <Button variant="unstyled" type="button" onClick={() => handlers.onQuit(app.appId)}>
+                  {t("Quit app")}
+                </Button>
               </div>
-            ) : null;
-          })()}
-        {!state.entries.length && app ? (
-          <p className="ot-app-empty">
-            {t(app.windowPresence === "unknown" ? "Windows unavailable" : "No open windows")}
-          </p>
-        ) : null}
-      </section>
+            </div>
+          ) : null}
+          <div className="ot-app-gallery">
+            {state.entries.map((entry) => (
+              <AppWindowCard
+                key={entry.windowId}
+                entry={entry}
+                selected={entry.windowId === state.selectedWindowId}
+                handlers={handlers}
+                focus={focus}
+                hover={state.mouseHover}
+                showControls={state.appearance.showWindowControls}
+                middle={state.middleClickAction}
+                appearance={appearance}
+                style={style}
+                thumbnailPx={layout.thumbnailPx}
+                spaceNumber={
+                  appearance.showSpaceNumbers && entry.spaceId
+                    ? spaceOrdinals.get(entry.spaceId)
+                    : undefined
+                }
+                activeSpaceId={state.activeSpaceId}
+                t={t}
+              />
+            ))}
+          </div>
+          {state.appearance.previewSelected &&
+            (() => {
+              const entry = state.entries.find((item) => item.windowId === state.selectedWindowId);
+              const source = entry?.preview ?? entry?.thumbnail;
+              return source ? (
+                <div
+                  className={`ot-app-expanded-preview${state.appearance.previewFade ? " is-fading" : ""}`}
+                  aria-label={t("Selected window preview")}
+                  style={
+                    {
+                      "--ot-preview-width": `${Math.round(layout.thumbnailPx * 1.6)}px`,
+                    } as React.CSSProperties
+                  }
+                >
+                  <img key={entry?.windowId} src={source} alt="" />
+                </div>
+              ) : null;
+            })()}
+          {!state.entries.length && app ? (
+            <p className="ot-app-empty">
+              {t(app.windowPresence === "unknown" ? "Windows unavailable" : "No open windows")}
+            </p>
+          ) : null}
+        </section>
+      </Card>
     </div>
   );
 }

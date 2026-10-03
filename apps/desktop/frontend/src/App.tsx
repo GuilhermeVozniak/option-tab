@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AppSwitcher } from "./app-switcher/AppSwitcher";
 import { AutomationPreviewRoute } from "./automation/AutomationPreviewRoute";
@@ -798,16 +799,17 @@ function OverlayRoute() {
         />
       )}
       {state.open && actionError ? (
-        <div className="ot-action-notice" role="alert">
+        <Alert appearance="unstyled" className="ot-action-notice">
           <span>{formatActionFeedback(actionError, t)}</span>
-          <button
+          <Button
+            variant="unstyled"
             type="button"
             onClick={() => setActionError(null)}
             aria-label={t("Dismiss action error")}
           >
             ×
-          </button>
-        </div>
+          </Button>
+        </Alert>
       ) : null}
     </>
   );
@@ -1605,6 +1607,7 @@ function SettingsRoute() {
       >
         <Settings
           settings={settings}
+          disabled={importing || settingsStale}
           draftAuthority={settingsAuthority}
           onChange={onChange}
           onImport={onImport}

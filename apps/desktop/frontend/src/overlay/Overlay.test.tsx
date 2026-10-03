@@ -656,9 +656,9 @@ describe("Overlay", () => {
   });
 
   it("relayouts thumbnails via the window resize fallback when the viewport shrinks", () => {
-    // jsdom has no ResizeObserver, so the Overlay must fall back to the
-    // window "resize" listener — the path the first-show relayout relies on.
-    expect(typeof ResizeObserver).toBe("undefined");
+    // Exercise the fallback explicitly even when the shared Radix test setup
+    // supplies a ResizeObserver shim for its form controls.
+    const resizeObserver = globalThis.ResizeObserver;
     const originalWidth = window.innerWidth;
     const dozen = Array.from({ length: 12 }, (_, i) => ({
       windowId: i + 1,
@@ -671,6 +671,8 @@ describe("Overlay", () => {
       fullscreen: false,
     }));
     try {
+      vi.stubGlobal("ResizeObserver", undefined);
+      expect(typeof ResizeObserver).toBe("undefined");
       const { container } = render(
         <Overlay state={stateWith({ entries: dozen })} handlers={noopHandlers()} />,
       );
@@ -685,6 +687,7 @@ describe("Overlay", () => {
       fireEvent(window, new Event("resize"));
       expect(thumbWidth()).toBeLessThan(before);
     } finally {
+      vi.stubGlobal("ResizeObserver", resizeObserver);
       Object.defineProperty(window, "innerWidth", {
         configurable: true,
         writable: true,

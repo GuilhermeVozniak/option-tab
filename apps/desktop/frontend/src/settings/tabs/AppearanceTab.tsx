@@ -1,9 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Segmented } from "@/components/ui/segmented";
-import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { SIZE_PRESET_PX } from "../../lib/layout";
 import type {
@@ -79,40 +80,49 @@ export function AppearanceTab({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-1">
-          <div className="ot-settings-style-options">
+          <ToggleGroup
+            appearance="unstyled"
+            type="single"
+            value={a.style}
+            onValueChange={(style) => {
+              if (style) patchModeAppearance({ style: style as VisualStyle });
+            }}
+            aria-label={aria("Visual style")}
+            className="ot-settings-style-options"
+          >
             {STYLES.map((style) => (
-              <button
+              <ToggleGroupItem
+                appearance="unstyled"
+                value={style}
                 key={style}
                 type="button"
                 aria-label={aria(`Visual style ${style}`)}
-                aria-pressed={a.style === style}
                 className={cn(
                   "flex h-24 flex-1 cursor-pointer flex-col items-center justify-center gap-2.5 rounded-xl border transition-all",
                   a.style === style
                     ? "border-primary/60 bg-primary/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_10px_28px_-12px_rgba(59,130,246,0.7)]"
                     : "border-white/12 bg-white/5 hover:bg-white/10",
                 )}
-                onClick={() => patchModeAppearance({ style })}
               >
                 {STYLE_PREVIEWS[style]}
                 <span className="text-xs font-medium">{t(STYLE_LABEL[style])}</span>
-              </button>
+              </ToggleGroupItem>
             ))}
-          </div>
-          <label className={ROW}>
+          </ToggleGroup>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Layout direction")}</span>
-            <Select
+            <NativeSelect
               aria-label={aria("Layout direction")}
               value={a.layoutDirection}
               onChange={(e) =>
                 patchModeAppearance({ layoutDirection: e.target.value as LayoutDirection })
               }
             >
-              <option value="horizontal">{t("Horizontal")}</option>
-              <option value="vertical">{t("Vertical")}</option>
-            </Select>
-          </label>
-          <label className={ROW}>
+              <NativeSelectOption value="horizontal">{t("Horizontal")}</NativeSelectOption>
+              <NativeSelectOption value="vertical">{t("Vertical")}</NativeSelectOption>
+            </NativeSelect>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Use titles at window count (0 disables)")}</span>
             <Input
               aria-label={aria("Compact threshold")}
@@ -123,71 +133,109 @@ export function AppearanceTab({
               value={a.compactThreshold}
               onChange={(e) => patchModeAppearance({ compactThreshold: Number(e.target.value) })}
             />
-          </label>
+          </Label>
           <div className={ROW}>
             <span>{t("Size")}</span>
-            <Segmented<SizePreset>
-              ariaLabel={aria("Size")}
+            <ToggleGroup
+              appearance="unstyled"
+              type="single"
+              data-slot="segmented"
+              aria-label={aria("Size")}
               value={a.sizePreset}
-              options={[
-                { value: "small", label: t("Small") },
-                { value: "medium", label: t("Medium") },
-                { value: "large", label: t("Large") },
-              ]}
-              onChange={(v) =>
+              onValueChange={(value) => {
+                if (!value) return;
+                const sizePreset = value as SizePreset;
                 patchModeAppearance({
-                  sizePreset: v,
-                  thumbnailMaxPx: SIZE_PRESET_PX[v].thumbnail,
-                  iconSizePx: SIZE_PRESET_PX[v].icon,
-                })
-              }
-            />
+                  sizePreset,
+                  thumbnailMaxPx: SIZE_PRESET_PX[sizePreset].thumbnail,
+                  iconSizePx: SIZE_PRESET_PX[sizePreset].icon,
+                });
+              }}
+              className="inline-flex gap-0.5 rounded-lg border border-white/12 bg-white/6 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md"
+            >
+              {(["small", "medium", "large"] as const).map((value) => (
+                <ToggleGroupItem
+                  appearance="unstyled"
+                  key={value}
+                  value={value}
+                  aria-label={aria(`Size ${value}`)}
+                  className={cn(
+                    "cursor-pointer rounded-md px-3 py-1 text-xs font-medium text-foreground/60 transition-colors hover:text-foreground",
+                    a.sizePreset === value &&
+                      "bg-white/15 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]",
+                  )}
+                >
+                  {t(value === "small" ? "Small" : value === "medium" ? "Medium" : "Large")}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           </div>
           <div className={ROW}>
             <span>{t("Theme")}</span>
-            <Segmented<Theme>
-              ariaLabel={aria("Theme")}
+            <ToggleGroup
+              appearance="unstyled"
+              type="single"
+              data-slot="segmented"
+              aria-label={aria("Theme")}
               value={a.theme}
-              options={[
-                { value: "light", label: t("Light") },
-                { value: "dark", label: t("Dark") },
-                { value: "system", label: t("System") },
-              ]}
-              onChange={(theme) => patchModeAppearance({ theme })}
-            />
+              onValueChange={(theme) => {
+                if (theme) patchModeAppearance({ theme: theme as Theme });
+              }}
+              className="inline-flex gap-0.5 rounded-lg border border-white/12 bg-white/6 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-md"
+            >
+              {(["light", "dark", "system"] as const).map((value) => (
+                <ToggleGroupItem
+                  appearance="unstyled"
+                  key={value}
+                  value={value}
+                  aria-label={aria(`Theme ${value}`)}
+                  className={cn(
+                    "cursor-pointer rounded-md px-3 py-1 text-xs font-medium text-foreground/60 transition-colors hover:text-foreground",
+                    a.theme === value &&
+                      "bg-white/15 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]",
+                  )}
+                >
+                  {t(value === "light" ? "Light" : value === "dark" ? "Dark" : "System")}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           </div>
-          <label className={ROW}>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Preview the selected window")}</span>
-            <Checkbox
+            <Switch
               aria-label={aria("Preview selected window")}
               checked={a.previewSelected}
-              onChange={(e) => patchModeAppearance({ previewSelected: e.target.checked })}
+              onCheckedChange={(checked) => patchModeAppearance({ previewSelected: checked })}
             />
-          </label>
+          </Label>
           {variant !== "dock" && (
-            <label className={ROW}>
+            <Label appearance="unstyled" className={ROW}>
               <span>{t("Show on")}</span>
-              <Select
+              <NativeSelect
                 aria-label={aria("Overlay placement")}
                 value={modePlacement}
                 onChange={(e) => patchModePreferences({ placement: e.target.value as Placement })}
               >
-                <option value="cursorScreen">{t("Screen under cursor")}</option>
-                <option value="activeScreen">{t("Active screen")}</option>
-                <option value="focusedWindowScreen">{t("Screen of focused window")}</option>
-              </Select>
-            </label>
+                <NativeSelectOption value="cursorScreen">
+                  {t("Screen under cursor")}
+                </NativeSelectOption>
+                <NativeSelectOption value="activeScreen">{t("Active screen")}</NativeSelectOption>
+                <NativeSelectOption value="focusedWindowScreen">
+                  {t("Screen of focused window")}
+                </NativeSelectOption>
+              </NativeSelect>
+            </Label>
           )}
-          <label className={ROW}>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Accent color")}</span>
-            <input
+            <Input
               aria-label={aria("Accent color")}
               type="color"
               className="h-8 w-12 cursor-pointer rounded-lg border border-white/15 bg-white/10 p-1 backdrop-blur-md"
               value={a.accentColor}
               onChange={(e) => patchModeAppearance({ accentColor: e.target.value })}
             />
-          </label>
+          </Label>
         </CardContent>
       </Card>
 
@@ -199,7 +247,7 @@ export function AppearanceTab({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-1">
-          <label className={ROW}>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Max columns")}</span>
             <Input
               aria-label={aria("Max columns")}
@@ -210,8 +258,8 @@ export function AppearanceTab({
               value={a.maxColumns}
               onChange={(e) => patchModeAppearance({ maxColumns: Number(e.target.value) })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Max rows")}</span>
             <Input
               aria-label={aria("Max rows")}
@@ -222,8 +270,8 @@ export function AppearanceTab({
               value={a.maxRows}
               onChange={(e) => patchModeAppearance({ maxRows: Number(e.target.value) })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Thumbnail size (px)")}</span>
             <Input
               aria-label={aria("Thumbnail size")}
@@ -234,8 +282,8 @@ export function AppearanceTab({
               value={a.thumbnailMaxPx}
               onChange={(e) => patchModeAppearance({ thumbnailMaxPx: Number(e.target.value) })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Icon size (px)")}</span>
             <Input
               aria-label={aria("Icon size")}
@@ -246,8 +294,8 @@ export function AppearanceTab({
               value={a.iconSizePx}
               onChange={(e) => patchModeAppearance({ iconSizePx: Number(e.target.value) })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Title max width (px)")}</span>
             <Input
               aria-label={aria("Title max width")}
@@ -258,8 +306,8 @@ export function AppearanceTab({
               value={a.titleMaxWidthPx}
               onChange={(e) => patchModeAppearance({ titleMaxWidthPx: Number(e.target.value) })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Font size (px)")}</span>
             <Input
               aria-label={aria("Font size")}
@@ -270,15 +318,15 @@ export function AppearanceTab({
               value={a.fontSizePx}
               onChange={(e) => patchModeAppearance({ fontSizePx: Number(e.target.value) })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Auto-size thumbnails")}</span>
-            <Checkbox
+            <Switch
               aria-label={aria("Auto-size thumbnails")}
               checked={a.autoSize}
-              onChange={(e) => patchModeAppearance({ autoSize: e.target.checked })}
+              onCheckedChange={(checked) => patchModeAppearance({ autoSize: checked })}
             />
-          </label>
+          </Label>
         </CardContent>
       </Card>
       <Card>
@@ -289,18 +337,18 @@ export function AppearanceTab({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-1">
-          <label className={ROW}>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Background opacity")}</span>
             <Slider
               aria-label={aria("Background opacity")}
               min={0}
               max={1}
               step={0.05}
-              value={a.backgroundOpacity}
-              onChange={(e) => patchModeAppearance({ backgroundOpacity: Number(e.target.value) })}
+              value={[a.backgroundOpacity]}
+              onValueChange={([value]) => patchModeAppearance({ backgroundOpacity: value })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Corner radius (px)")}</span>
             <Input
               aria-label={aria("Corner radius")}
@@ -311,15 +359,15 @@ export function AppearanceTab({
               value={a.cornerRadiusPx}
               onChange={(e) => patchModeAppearance({ cornerRadiusPx: Number(e.target.value) })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Background blur")}</span>
-            <Checkbox
+            <Switch
               aria-label={aria("Background blur")}
               checked={a.blur}
-              onChange={(e) => patchModeAppearance({ blur: e.target.checked })}
+              onCheckedChange={(checked) => patchModeAppearance({ blur: checked })}
             />
-          </label>
+          </Label>
         </CardContent>
       </Card>
       <Card>
@@ -330,60 +378,60 @@ export function AppearanceTab({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-1">
-          <label className={ROW}>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Window title truncation")}</span>
-            <Select
+            <NativeSelect
               aria-label={aria("Window title truncation")}
               value={a.titleTruncation}
               onChange={(e) =>
                 patchModeAppearance({ titleTruncation: e.target.value as TruncationMode })
               }
             >
-              <option value="end">{t("End")}</option>
-              <option value="middle">{t("Middle")}</option>
-              <option value="start">{t("Start")}</option>
-            </Select>
-          </label>
-          <label className={ROW}>
+              <NativeSelectOption value="end">{t("End")}</NativeSelectOption>
+              <NativeSelectOption value="middle">{t("Middle")}</NativeSelectOption>
+              <NativeSelectOption value="start">{t("Start")}</NativeSelectOption>
+            </NativeSelect>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Show window titles")}</span>
-            <Checkbox
+            <Switch
               aria-label={aria("Show window titles")}
               checked={a.showTitle}
-              onChange={(e) => patchModeAppearance({ showTitle: e.target.checked })}
+              onCheckedChange={(checked) => patchModeAppearance({ showTitle: checked })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Show app icon badge on thumbnails")}</span>
-            <Checkbox
+            <Switch
               aria-label={aria("Show app badge")}
               checked={a.showAppBadge}
-              onChange={(e) => patchModeAppearance({ showAppBadge: e.target.checked })}
+              onCheckedChange={(checked) => patchModeAppearance({ showAppBadge: checked })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Show window controls on hover (colored circles)")}</span>
-            <Checkbox
+            <Switch
               aria-label={aria("Show window controls")}
               checked={a.showWindowControls}
-              onChange={(e) => patchModeAppearance({ showWindowControls: e.target.checked })}
+              onCheckedChange={(checked) => patchModeAppearance({ showWindowControls: checked })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Show status icons (minimized / hidden / fullscreen)")}</span>
-            <Checkbox
+            <Switch
               aria-label={aria("Show status icons")}
               checked={a.showStatusIcons}
-              onChange={(e) => patchModeAppearance({ showStatusIcons: e.target.checked })}
+              onCheckedChange={(checked) => patchModeAppearance({ showStatusIcons: checked })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Show Space number labels")}</span>
-            <Checkbox
+            <Switch
               aria-label={aria("Show Space number labels")}
               checked={a.showSpaceNumbers}
-              onChange={(e) => patchModeAppearance({ showSpaceNumbers: e.target.checked })}
+              onCheckedChange={(checked) => patchModeAppearance({ showSpaceNumbers: checked })}
             />
-          </label>
+          </Label>
         </CardContent>
       </Card>
       <Card>
@@ -399,25 +447,25 @@ export function AppearanceTab({
         </CardHeader>
         <CardContent className="space-y-1">
           {variant !== "dock" && (
-            <label className={ROW}>
+            <Label appearance="unstyled" className={ROW}>
               <span>{t("Fade out animation")}</span>
-              <Checkbox
+              <Switch
                 aria-label={aria("Fade out animation")}
                 checked={a.fadeOutAnimation}
-                onChange={(e) => patchModeAppearance({ fadeOutAnimation: e.target.checked })}
+                onCheckedChange={(checked) => patchModeAppearance({ fadeOutAnimation: checked })}
               />
-            </label>
+            </Label>
           )}
-          <label className={ROW}>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Fade in the selected-window preview")}</span>
-            <Checkbox
+            <Switch
               aria-label={aria("Preview fade in")}
               checked={a.previewFade}
-              onChange={(e) => patchModeAppearance({ previewFade: e.target.checked })}
+              onCheckedChange={(checked) => patchModeAppearance({ previewFade: checked })}
             />
-          </label>
+          </Label>
           {variant !== "dock" && (
-            <label className={ROW}>
+            <Label appearance="unstyled" className={ROW}>
               <span>{t("Apparition delay (ms)")}</span>
               <span className="flex items-center gap-3">
                 <Slider
@@ -425,16 +473,14 @@ export function AppearanceTab({
                   min={0}
                   max={2000}
                   step={50}
-                  value={a.apparitionDelayMs}
-                  onChange={(e) =>
-                    patchModeAppearance({ apparitionDelayMs: Number(e.target.value) })
-                  }
+                  value={[a.apparitionDelayMs]}
+                  onValueChange={([value]) => patchModeAppearance({ apparitionDelayMs: value })}
                 />
                 <span className="w-14 text-right text-xs text-muted-foreground">
                   {a.apparitionDelayMs} ms
                 </span>
               </span>
-            </label>
+            </Label>
           )}
         </CardContent>
       </Card>

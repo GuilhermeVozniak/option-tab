@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
+import { FormDisabledProvider } from "@/components/ui/form-disabled";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { makeT, resolveLang } from "../lib/i18n";
 import type { JSONExportResult } from "../lib/json-export-bridge";
 import type { LauncherProfileTransferActions } from "../lib/launcher-profile-transfer-bridge";
@@ -21,6 +25,7 @@ import {
   SETTINGS_TABS,
   type SettingsPage,
   SettingsSidebar,
+  useSettingsNavigationOrientation,
   useSettingsTheme,
 } from "./SettingsChrome";
 import "./settings.css";
@@ -44,6 +49,7 @@ export type { AboutControl, CrashControl, PermissionsControl };
 export { PROJECT_URL };
 
 interface SettingsProps {
+  disabled?: boolean;
   settings: SettingsModel;
   /** Replaced on canonical refresh/import, not on ordinary saves. */
   draftAuthority?: string | number;
@@ -105,6 +111,7 @@ type Tab = SettingsPage;
 // single controlled surface. On first run (behavior.onboarded false, with live
 // permissions available) it renders the onboarding wizard instead.
 export function Settings({
+  disabled = false,
   settings,
   draftAuthority = 0,
   onChange,
@@ -123,7 +130,8 @@ export function Settings({
   launcher,
 }: SettingsProps) {
   const [tab, setTab] = useState<Tab>("General");
-  const [settingsTheme, setSettingsTheme] = useSettingsTheme();
+  const [settingsTheme, setSettingsTheme, resolvedTheme] = useSettingsTheme();
+  const orientation = useSettingsNavigationOrientation();
   const settingsID = useId();
   const contentRef = useRef<HTMLDivElement>(null);
   const selectTab = (next: Tab) => {
@@ -209,13 +217,18 @@ export function Settings({
 
   if (permissions && !settings.behavior.onboarded) {
     return (
-      <div className="ot-settings ot-settings-onboarding" data-theme={settingsTheme}>
-        <Onboarding
-          permissions={permissions}
-          t={t}
-          onFinish={() => ctx.patchBehavior({ onboarded: true })}
-        />
-      </div>
+      <FormDisabledProvider disabled={disabled}>
+        <div
+          className={`ot-settings ot-settings-onboarding${resolvedTheme === "dark" ? " dark" : ""}`}
+          data-theme={settingsTheme}
+        >
+          <Onboarding
+            permissions={permissions}
+            t={t}
+            onFinish={() => ctx.patchBehavior({ onboarded: true })}
+          />
+        </div>
+      </FormDisabledProvider>
     );
   }
 
@@ -230,7 +243,8 @@ export function Settings({
   };
   const updateBanner = update ? (
     <div className="ot-settings-update">
-      <button
+      <Button
+        variant="unstyled"
         type="button"
         aria-label="Show update settings"
         onClick={showUpdateSettings}
@@ -241,7 +255,7 @@ export function Settings({
           : installing
             ? (stageText[progress.stage] ?? t("Downloading update…"))
             : t("Version {v} is available.").replace("{v}", update.version)}
-      </button>
+      </Button>
       <Button
         variant="default"
         size="sm"
@@ -265,139 +279,171 @@ export function Settings({
   ) : null;
 
   return (
-    <div className="ot-settings" data-theme={settingsTheme}>
-      <SettingsSidebar
-        tab={tab}
-        onSelect={selectTab}
-        theme={settingsTheme}
-        onTheme={setSettingsTheme}
-        t={t}
-        id={settingsID}
-      />
-      <main className="ot-settings-main" ref={contentRef}>
-        <header className="ot-settings-page-header">
-          <h1>{t(SETTINGS_PAGES[tab].label)}</h1>
-          <p>{t(SETTINGS_PAGES[tab].description)}</p>
-        </header>
-        <div className="ot-settings-content">
-          {saveError ? (
-            <p role="alert" className="ot-settings-alert">
-              {saveError}
-            </p>
-          ) : null}
-          {updateBanner}
-          {tab === "Controls" || tab === "Appearance" || tab === "Filtering" ? (
-            <div className="ot-settings-mode">
-              <label>
-                <span>{t("Editing")}</span>
-                <Select
-                  aria-label={t("Switcher settings mode")}
-                  value={mode}
-                  onChange={(e) => setMode(e.target.value as SwitcherMode)}
-                >
-                  <option value="windows">{t("Window switcher")}</option>
-                  <option value="apps">{t("App switcher")}</option>
-                </Select>
-              </label>
-              <span>
-                {t(
-                  tab === "Filtering"
-                    ? "Window visibility rules are shared by both switchers."
-                    : tab === "Controls"
-                      ? "Each opening shortcut chooses its own switcher."
-                      : "Each switcher has its own appearance.",
-                )}
-              </span>
-            </div>
-          ) : null}
+    <FormDisabledProvider disabled={disabled}>
+      <Tabs
+        appearance="unstyled"
+        orientation={orientation}
+        value={tab}
+        onValueChange={(value) => selectTab(value as Tab)}
+        className={`ot-settings${resolvedTheme === "dark" ? " dark" : ""}`}
+        data-theme={settingsTheme}
+      >
+        <SettingsSidebar
+          tab={tab}
+          onSelect={selectTab}
+          theme={settingsTheme}
+          onTheme={setSettingsTheme}
+          t={t}
+          id={settingsID}
+        />
+        <main className="ot-settings-main" ref={contentRef}>
+          <header className="ot-settings-page-header">
+            <h1>{t(SETTINGS_PAGES[tab].label)}</h1>
+            <p>{t(SETTINGS_PAGES[tab].description)}</p>
+          </header>
+          <div className="ot-settings-content">
+            {saveError ? (
+              <Alert appearance="unstyled" asChild>
+                <p role="alert" className="ot-settings-alert">
+                  {saveError}
+                </p>
+              </Alert>
+            ) : null}
+            {updateBanner}
+            {tab === "Controls" || tab === "Appearance" || tab === "Filtering" ? (
+              <div className="ot-settings-mode">
+                <Label appearance="unstyled">
+                  <span>{t("Editing")}</span>
+                  <NativeSelect
+                    aria-label={t("Switcher settings mode")}
+                    value={mode}
+                    onChange={(e) => setMode(e.target.value as SwitcherMode)}
+                  >
+                    <NativeSelectOption value="windows">{t("Window switcher")}</NativeSelectOption>
+                    <NativeSelectOption value="apps">{t("App switcher")}</NativeSelectOption>
+                  </NativeSelect>
+                </Label>
+                <span>
+                  {t(
+                    tab === "Filtering"
+                      ? "Window visibility rules are shared by both switchers."
+                      : tab === "Controls"
+                        ? "Each opening shortcut chooses its own switcher."
+                        : "Each switcher has its own appearance.",
+                  )}
+                </span>
+              </div>
+            ) : null}
 
-          <section
-            hidden={tab !== "General"}
-            role="tabpanel"
-            id={`${settingsID}-panel-General`}
-            aria-labelledby={`${settingsID}-tab-General`}
-            className="ot-settings-page"
-          >
-            <GeneralTab
-              ctx={ctx}
-              permissions={permissions}
-              crash={crash}
-              updatesRef={updatesRef}
-              updateCheckResult={updateCheckResult}
-              checkUpdates={checkUpdates}
-              onImport={onImport}
-              onExport={onExport}
-            />
-          </section>
-          <section
-            hidden={tab !== "Controls"}
-            role="tabpanel"
-            id={`${settingsID}-panel-Controls`}
-            aria-labelledby={`${settingsID}-tab-Controls`}
-            className="ot-settings-page"
-          >
-            <ControlsTab ctx={ctx} switcherGesturesAvailable={switcherGesturesAvailable} />
-          </section>
-          <section
-            hidden={tab !== "Appearance"}
-            role="tabpanel"
-            id={`${settingsID}-panel-Appearance`}
-            aria-labelledby={`${settingsID}-tab-Appearance`}
-            className="ot-settings-page"
-          >
-            <AppearanceTab ctx={ctx} />
-          </section>
-          <section
-            hidden={tab !== "Filtering"}
-            role="tabpanel"
-            id={`${settingsID}-panel-Filtering`}
-            aria-labelledby={`${settingsID}-tab-Filtering`}
-            className="ot-settings-page"
-          >
-            <FilteringTab ctx={ctx} />
-          </section>
-          <section
-            hidden={tab !== "Blacklists"}
-            role="tabpanel"
-            id={`${settingsID}-panel-Blacklists`}
-            aria-labelledby={`${settingsID}-tab-Blacklists`}
-            className="ot-settings-page"
-          >
-            <BlacklistsTab key={draftAuthority} ctx={ctx} />
-          </section>
-          <section
-            hidden={tab !== "Dock"}
-            role="tabpanel"
-            id={`${settingsID}-panel-Dock`}
-            aria-labelledby={`${settingsID}-tab-Dock`}
-            className="ot-settings-page"
-          >
-            <DockTab
-              ctx={ctx}
-              permissions={permissions}
-              inputError={dockInputError}
-              monitorLock={monitorLock}
-              media={media}
-              launcher={launcher}
-            />
-          </section>
-          <section
-            hidden={tab !== "About"}
-            role="tabpanel"
-            id={`${settingsID}-panel-About`}
-            aria-labelledby={`${settingsID}-tab-About`}
-            className="ot-settings-page"
-          >
-            <AboutTab
-              ctx={ctx}
-              about={about}
-              openURL={openURL}
-              checkUpdates={checkUpdates}
-              diagnostics={diagnostics}
-            />
-          </section>
-        </div>
-      </main>
-    </div>
+            <TabsContent appearance="unstyled" forceMount value="General" asChild>
+              <section
+                tabIndex={-1}
+                hidden={tab !== "General"}
+                role="tabpanel"
+                id={`${settingsID}-panel-General`}
+                aria-labelledby={`${settingsID}-tab-General`}
+                className="ot-settings-page"
+              >
+                <GeneralTab
+                  ctx={ctx}
+                  permissions={permissions}
+                  crash={crash}
+                  updatesRef={updatesRef}
+                  updateCheckResult={updateCheckResult}
+                  checkUpdates={checkUpdates}
+                  onImport={onImport}
+                  onExport={onExport}
+                />
+              </section>
+            </TabsContent>
+            <TabsContent appearance="unstyled" forceMount value="Controls" asChild>
+              <section
+                tabIndex={-1}
+                hidden={tab !== "Controls"}
+                role="tabpanel"
+                id={`${settingsID}-panel-Controls`}
+                aria-labelledby={`${settingsID}-tab-Controls`}
+                className="ot-settings-page"
+              >
+                <ControlsTab ctx={ctx} switcherGesturesAvailable={switcherGesturesAvailable} />
+              </section>
+            </TabsContent>
+            <TabsContent appearance="unstyled" forceMount value="Appearance" asChild>
+              <section
+                tabIndex={-1}
+                hidden={tab !== "Appearance"}
+                role="tabpanel"
+                id={`${settingsID}-panel-Appearance`}
+                aria-labelledby={`${settingsID}-tab-Appearance`}
+                className="ot-settings-page"
+              >
+                <AppearanceTab ctx={ctx} />
+              </section>
+            </TabsContent>
+            <TabsContent appearance="unstyled" forceMount value="Filtering" asChild>
+              <section
+                tabIndex={-1}
+                hidden={tab !== "Filtering"}
+                role="tabpanel"
+                id={`${settingsID}-panel-Filtering`}
+                aria-labelledby={`${settingsID}-tab-Filtering`}
+                className="ot-settings-page"
+              >
+                <FilteringTab ctx={ctx} />
+              </section>
+            </TabsContent>
+            <TabsContent appearance="unstyled" forceMount value="Blacklists" asChild>
+              <section
+                tabIndex={-1}
+                hidden={tab !== "Blacklists"}
+                role="tabpanel"
+                id={`${settingsID}-panel-Blacklists`}
+                aria-labelledby={`${settingsID}-tab-Blacklists`}
+                className="ot-settings-page"
+              >
+                <BlacklistsTab key={draftAuthority} ctx={ctx} />
+              </section>
+            </TabsContent>
+            <TabsContent appearance="unstyled" forceMount value="Dock" asChild>
+              <section
+                tabIndex={-1}
+                hidden={tab !== "Dock"}
+                role="tabpanel"
+                id={`${settingsID}-panel-Dock`}
+                aria-labelledby={`${settingsID}-tab-Dock`}
+                className="ot-settings-page"
+              >
+                <DockTab
+                  ctx={ctx}
+                  permissions={permissions}
+                  inputError={dockInputError}
+                  monitorLock={monitorLock}
+                  media={media}
+                  launcher={launcher}
+                />
+              </section>
+            </TabsContent>
+            <TabsContent appearance="unstyled" forceMount value="About" asChild>
+              <section
+                tabIndex={-1}
+                hidden={tab !== "About"}
+                role="tabpanel"
+                id={`${settingsID}-panel-About`}
+                aria-labelledby={`${settingsID}-tab-About`}
+                className="ot-settings-page"
+              >
+                <AboutTab
+                  ctx={ctx}
+                  about={about}
+                  openURL={openURL}
+                  checkUpdates={checkUpdates}
+                  diagnostics={diagnostics}
+                />
+              </section>
+            </TabsContent>
+          </div>
+        </main>
+      </Tabs>
+    </FormDisabledProvider>
   );
 }

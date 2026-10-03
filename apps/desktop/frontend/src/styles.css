@@ -5,6 +5,12 @@
    (--ot-accent, --ot-bg-opacity, --ot-radius, --ot-font) stay authoritative. */
 
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Settings resolves its own System theme on its root. Runtime switchers keep
+   their existing independently resolved theme classes. */
+@custom-variant dark (&:where(.dark, .dark *, .ot-theme-dark, .ot-theme-dark *));
 
 :root {
   color-scheme: dark;
@@ -13,11 +19,31 @@
   --background: #0b101f;
   --foreground: #f4f7ff;
   --card: rgba(255, 255, 255, 0.07);
+  --card-foreground: var(--foreground);
+  --popover: #101527;
+  --popover-foreground: var(--foreground);
+  --secondary: rgba(255, 255, 255, 0.1);
+  --secondary-foreground: var(--foreground);
+  --muted: rgba(255, 255, 255, 0.06);
   --muted-foreground: rgba(226, 233, 255, 0.62);
+  --accent: rgba(255, 255, 255, 0.1);
+  --accent-foreground: var(--foreground);
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: rgba(255, 255, 255, 0.15);
+  --input: rgba(255, 255, 255, 0.15);
   --primary: var(--ot-accent, #3b82f6);
   --primary-foreground: #ffffff;
   --ring: color-mix(in srgb, var(--ot-accent, #3b82f6) 70%, #ffffff);
   --radius: 0.75rem;
+  --sidebar: var(--background);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
 
   --aurora:
     radial-gradient(1000px 620px at 82% -12%, rgba(139, 92, 246, 0.32), transparent 62%),
@@ -29,11 +55,44 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+.ot-theme-light {
+  --background: #f4f7ff;
+  --foreground: #16213c;
+  --card: rgba(255, 255, 255, 0.55);
+  --popover: #f4f7ff;
+  --muted-foreground: rgba(22, 33, 60, 0.62);
+  --border: rgba(22, 33, 60, 0.15);
+  --input: rgba(22, 33, 60, 0.15);
 }
 
 html,
@@ -643,35 +702,4 @@ body,
 .ot-prefs-panel .ot-settings {
   min-height: 0;
   background: none;
-}
-
-/* ---- Native range input, glass track + thumb (shadcn Slider wrapper) ---- */
-
-.ot-range {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 4px;
-  width: 160px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.15);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
-  outline: none;
-  cursor: pointer;
-}
-
-.ot-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
-}
-
-.ot-range:focus-visible {
-  box-shadow:
-    inset 0 1px 2px rgba(0, 0, 0, 0.4),
-    0 0 0 2px color-mix(in srgb, var(--ot-accent, #3b82f6) 60%, transparent);
 }

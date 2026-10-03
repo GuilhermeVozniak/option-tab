@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.1 — 2026-10-04
+
+- Migrate Settings and the Alt-Tab switchers to official shadcn/ui components while preserving their existing layout and appearance.
+- Configure shared theme tokens and keep the Settings System, Light, and Dark preference independent from switcher themes.
+- Improve keyboard navigation, accessible control states, label activation, and disabled-state handling during settings refreshes and imports.
+- Preserve settings drafts, native dropdowns, window actions, and native switcher keyboard and gesture routing.
+
+The native feature limitations and hardware checks documented for 0.5.0 remain unchanged. Windows and Linux downloads remain demonstration builds without native window switching.
+
 ## 0.6.0 — 2026-10-03
 
 - Redesign Settings with a responsive sidebar, compact aligned controls, and independent System, Light, and Dark themes.

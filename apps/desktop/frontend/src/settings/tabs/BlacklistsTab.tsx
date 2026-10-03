@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Switch } from "@/components/ui/switch";
 import type { BlacklistEntry, BlacklistHide } from "../../lib/types";
 import { CHECK_LABEL, type TabContext } from "../shared";
 
@@ -59,22 +60,24 @@ function BlacklistRow({
           }
         }}
       />
-      <Select
+      <NativeSelect
         aria-label={`Blacklist hide ${index + 1}`}
         value={entry.hide}
         onChange={(e) => onChange({ hide: e.target.value as BlacklistHide })}
       >
-        <option value="always">{t("Hide: always")}</option>
-        <option value="whenNoWindow">{t("Hide: when no open window")}</option>
-      </Select>
-      <label className={CHECK_LABEL}>
-        <Checkbox
+        <NativeSelectOption value="always">{t("Hide: always")}</NativeSelectOption>
+        <NativeSelectOption value="whenNoWindow">
+          {t("Hide: when no open window")}
+        </NativeSelectOption>
+      </NativeSelect>
+      <Label appearance="unstyled" className={CHECK_LABEL}>
+        <Switch
           aria-label={`Blacklist ignore shortcuts ${index + 1}`}
           checked={entry.ignoreShortcuts}
-          onChange={(e) => onChange({ ignoreShortcuts: e.target.checked })}
+          onCheckedChange={(checked) => onChange({ ignoreShortcuts: checked })}
         />
         {t("Ignore shortcuts when active")}
-      </label>
+      </Label>
       {onAdd ? (
         <Button type="button" disabled={!match.trim()} onClick={commit}>
           {t("Save app")}

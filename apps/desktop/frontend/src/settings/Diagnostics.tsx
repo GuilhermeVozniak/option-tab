@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   type DiagnosticsReview,
@@ -6,6 +7,7 @@ import {
   diagnostics,
 } from "../lib/diagnostics-bridge";
 import type { Translate } from "../lib/i18n";
+import { SettingsDisclosure } from "./SettingsDisclosure";
 import { ACTIONS_ROW, HINT } from "./shared";
 import "./editor-settings.css";
 
@@ -82,8 +84,7 @@ export function Diagnostics({
   const busy = /(^|\W)busy(\W|$)/i.test(error);
 
   return (
-    <details className="ot-settings-diagnostics">
-      <summary>{t("Diagnostics")}</summary>
+    <SettingsDisclosure className="ot-settings-diagnostics" title={t("Diagnostics")}>
       <div className="ot-settings-editor ot-diagnostics-content">
         <p className={HINT}>
           {t(
@@ -143,25 +144,27 @@ export function Diagnostics({
           </>
         )}
         {error ? (
-          <div role="alert" className="ot-editor-feedback">
-            <span>
-              {destinationExists
-                ? t("That filename already exists. Choose a new name.")
-                : expired
-                  ? t("This preview expired. Refresh it before saving.")
-                  : busy
-                    ? t("Another diagnostics operation is already in progress.")
-                    : t("The diagnostics operation could not be completed. Try again.")}
-            </span>
-            {expired ? (
-              <Button variant="outline" onClick={() => void loadReview()}>
-                {t("Refresh preview")}
-              </Button>
-            ) : null}
-          </div>
+          <Alert appearance="unstyled" asChild>
+            <div role="alert" className="ot-editor-feedback">
+              <span>
+                {destinationExists
+                  ? t("That filename already exists. Choose a new name.")
+                  : expired
+                    ? t("This preview expired. Refresh it before saving.")
+                    : busy
+                      ? t("Another diagnostics operation is already in progress.")
+                      : t("The diagnostics operation could not be completed. Try again.")}
+              </span>
+              {expired ? (
+                <Button variant="outline" onClick={() => void loadReview()}>
+                  {t("Refresh preview")}
+                </Button>
+              ) : null}
+            </div>
+          </Alert>
         ) : null}
         {saved ? <p role="status">{t("Report saved")}</p> : null}
       </div>
-    </details>
+    </SettingsDisclosure>
   );
 }

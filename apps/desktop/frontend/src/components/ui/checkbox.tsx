@@ -1,29 +1,32 @@
-import type * as React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "cn";
+import { CheckIcon } from "lucide-react";
+import { Checkbox as CheckboxPrimitive } from "radix-ui";
+import * as React from "react";
+import { useFormDisabled } from "./form-disabled";
 
-// Checkbox is a shadcn-styled *native* checkbox rendered as a glass toggle
-// switch. The real <input> stays on top (transparent) so labels, clicks,
-// keyboard focus, and the .checked property keep their native semantics.
-function Checkbox({ className, ...props }: React.ComponentProps<"input">) {
+function Checkbox({
+  className,
+  disabled,
+  ...props
+}: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
+  const isDisabled = useFormDisabled(disabled);
   return (
-    <span
-      className={cn("relative inline-flex h-[18px] w-8 shrink-0", className)}
+    <CheckboxPrimitive.Root
       data-slot="checkbox"
+      className={cn(
+        "peer size-4 shrink-0 rounded-[4px] border border-input shadow-xs transition-shadow outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:bg-input/30 dark:aria-invalid:ring-destructive/40 dark:data-[state=checked]:bg-primary",
+        className,
+      )}
+      disabled={isDisabled}
+      {...props}
     >
-      <input
-        type="checkbox"
-        className="peer absolute inset-0 z-10 size-full cursor-pointer appearance-none rounded-full opacity-0 outline-none"
-        {...props}
-      />
-      <span
-        aria-hidden="true"
-        className="absolute inset-0 rounded-full border border-white/20 bg-white/10 shadow-[inset_0_1px_2px_rgba(0,0,0,0.35)] backdrop-blur-md transition-colors peer-checked:border-primary/60 peer-checked:bg-primary/75 peer-focus-visible:ring-2 peer-focus-visible:ring-ring/50"
-      />
-      <span
-        aria-hidden="true"
-        className="absolute left-[3px] top-1/2 size-3 -translate-y-1/2 rounded-full bg-white/95 shadow-[0_1px_3px_rgba(0,0,0,0.4)] transition-all peer-checked:left-[17px]"
-      />
-    </span>
+      <CheckboxPrimitive.Indicator
+        data-slot="checkbox-indicator"
+        className="grid place-content-center text-current transition-none"
+      >
+        <CheckIcon className="size-3.5" />
+      </CheckboxPrimitive.Indicator>
+    </CheckboxPrimitive.Root>
   );
 }
 

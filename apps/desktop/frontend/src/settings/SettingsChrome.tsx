@@ -1,4 +1,6 @@
 import { useState, useSyncExternalStore } from "react";
+import { TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { Translate } from "../lib/i18n";
 
 export const SETTINGS_PAGES = {
@@ -63,7 +65,18 @@ export function useSettingsTheme() {
       /* Keep this session's choice. */
     }
   };
-  return [theme, changeTheme] as const;
+  const systemDark = useSyncExternalStore(subscribeToSystemTheme, getSystemDark, () => false);
+  const resolvedTheme = theme === "system" ? (systemDark ? "dark" : "light") : theme;
+  return [theme, changeTheme, resolvedTheme] as const;
+}
+
+function subscribeToSystemTheme(onChange: () => void) {
+  const query = window.matchMedia?.("(prefers-color-scheme: dark)");
+  query?.addEventListener("change", onChange);
+  return () => query?.removeEventListener("change", onChange);
+}
+function getSystemDark() {
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
 }
 
 const compactQuery = "(max-width: 560px)";
@@ -74,6 +87,12 @@ function subscribeToNavigationLayout(onChange: () => void) {
 }
 function isCompactNavigation() {
   return window.matchMedia?.(compactQuery).matches ?? false;
+}
+
+export function useSettingsNavigationOrientation() {
+  return useSyncExternalStore(subscribeToNavigationLayout, isCompactNavigation, () => false)
+    ? "horizontal"
+    : "vertical";
 }
 
 export function SettingsSidebar({
@@ -91,11 +110,6 @@ export function SettingsSidebar({
   t: Translate;
   id: string;
 }) {
-  const compact = useSyncExternalStore(
-    subscribeToNavigationLayout,
-    isCompactNavigation,
-    () => false,
-  );
   return (
     <aside className="ot-settings-sidebar">
       <div className="ot-settings-brand">
@@ -107,14 +121,16 @@ export function SettingsSidebar({
           <span>{t("Settings")}</span>
         </div>
       </div>
-      <nav
+      <TabsList
+        appearance="unstyled"
         role="tablist"
         aria-label={t("Settings sections")}
-        aria-orientation={compact ? "horizontal" : "vertical"}
         className="ot-settings-nav"
       >
         {SETTINGS_TABS.map((name, index) => (
-          <button
+          <TabsTrigger
+            appearance="unstyled"
+            value={name}
             key={name}
             id={`${id}-tab-${name}`}
             type="button"
@@ -149,24 +165,33 @@ export function SettingsSidebar({
               <path d={SETTINGS_PAGES[name].icon} />
             </svg>
             {t(SETTINGS_PAGES[name].label)}
-          </button>
+          </TabsTrigger>
         ))}
-      </nav>
+      </TabsList>
       <div className="ot-settings-sidebar-footer">
         <span className="ot-settings-theme-label">{t("Settings theme")}</span>
-        <div className="ot-settings-theme-picker" role="group" aria-label={t("Settings theme")}>
+        <ToggleGroup
+          appearance="unstyled"
+          type="single"
+          value={theme}
+          onValueChange={(value) => {
+            if (value) onTheme(value as SettingsTheme);
+          }}
+          className="ot-settings-theme-picker"
+          aria-label={t("Settings theme")}
+        >
           {(["system", "light", "dark"] as const).map((value) => (
-            <button
+            <ToggleGroupItem
+              appearance="unstyled"
+              value={value}
               key={value}
               type="button"
               aria-label={`${t("Settings theme")} ${t(value === "system" ? "System" : value === "light" ? "Light" : "Dark").toLocaleLowerCase()}`}
-              aria-pressed={theme === value}
-              onClick={() => onTheme(value)}
             >
               {t(value === "system" ? "System" : value === "light" ? "Light" : "Dark")}
-            </button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
         <p>{t("Only changes this settings window.")}</p>
       </div>
     </aside>

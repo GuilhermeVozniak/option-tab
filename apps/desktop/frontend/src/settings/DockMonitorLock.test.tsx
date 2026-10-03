@@ -60,7 +60,7 @@ it("translates runtime reasons and unknown failures using the current language",
 it.each(["pt-BR", "es"] as const)("localizes monitor controls in %s", (language) => {
   const t = makeT(language);
   render(<DockMonitorLock {...props} t={t} />);
-  expect(screen.getByRole("checkbox", { name: t("Lock Dock to a monitor") })).toBeChecked();
+  expect(screen.getByRole("switch", { name: t("Lock Dock to a monitor") })).toBeChecked();
   expect(screen.getByRole("combobox", { name: t("Target monitor") })).toHaveValue("gone-uuid");
   expect(screen.getByRole("combobox", { name: t("Bypass modifier") })).toHaveValue("option");
 });

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Switch } from "@/components/ui/switch";
 import type {
   OrderMode,
   PointerAction,
@@ -14,6 +15,7 @@ import type {
   VisualStyle,
   WindowAction,
 } from "../../lib/types";
+import { SettingsDisclosure } from "../SettingsDisclosure";
 import { ShortcutRecorder } from "../ShortcutRecorder";
 import { CHECK_LABEL, HINT, ROW, type TabContext } from "../shared";
 
@@ -69,7 +71,7 @@ function ActionBindingRow({
           if (e.key === "Enter") e.currentTarget.blur();
         }}
       />
-      <Select
+      <NativeSelect
         aria-label={t("Action for {key}").replace("{key}", () => code)}
         value={action}
         onChange={(e) =>
@@ -87,11 +89,11 @@ function ActionBindingRow({
           "closeAll",
           "minimizeAll",
         ].map((v) => (
-          <option key={v} value={v}>
+          <NativeSelectOption key={v} value={v}>
             {t(ACTION_LABEL[v as WindowAction])}
-          </option>
+          </NativeSelectOption>
         ))}
-      </Select>
+      </NativeSelect>
       <Button
         type="button"
         variant="ghost"
@@ -150,34 +152,34 @@ export function ControlsTab({
           {settings.shortcuts.map((s) => (
             <div className="ot-settings-shortcut" key={s.id}>
               <div className="ot-settings-shortcut-main">
-                <label className={CHECK_LABEL}>
-                  <Checkbox
+                <Label appearance="unstyled" className={CHECK_LABEL}>
+                  <Switch
                     aria-label={`Shortcut ${s.id} enabled`}
                     checked={s.enabled}
-                    onChange={(e) => patchShortcut(s.id, { enabled: e.target.checked })}
+                    onCheckedChange={(checked) => patchShortcut(s.id, { enabled: checked })}
                   />
                   #{s.id}
-                </label>
+                </Label>
                 <ShortcutRecorder
                   aria-label={`Shortcut ${s.id} chord`}
                   value={s.chord}
                   placeholder={t("Press shortcut keys")}
                   onChordChange={(chord) => patchShortcut(s.id, { chord })}
                 />
-                <label className="ot-settings-field">
+                <Label appearance="unstyled" className="ot-settings-field">
                   <span>{t("Opens")}</span>
-                  <Select
+                  <NativeSelect
                     aria-label={t("Shortcut {id} mode").replace("{id}", String(s.id))}
                     value={s.mode ?? "windows"}
                     onChange={(e) => patchShortcut(s.id, { mode: e.target.value as SwitcherMode })}
                   >
-                    <option value="windows">{t("Window switcher")}</option>
-                    <option value="apps">{t("App switcher")}</option>
-                  </Select>
-                </label>
-                <label className="ot-settings-field">
+                    <NativeSelectOption value="windows">{t("Window switcher")}</NativeSelectOption>
+                    <NativeSelectOption value="apps">{t("App switcher")}</NativeSelectOption>
+                  </NativeSelect>
+                </Label>
+                <Label appearance="unstyled" className="ot-settings-field">
                   <span>{t("Include")}</span>
-                  <Select
+                  <NativeSelect
                     aria-label={`Shortcut ${s.id} scope`}
                     value={s.scope.appScope}
                     onChange={(e) =>
@@ -186,13 +188,15 @@ export function ControlsTab({
                       })
                     }
                   >
-                    <option value="all">{t("All windows")}</option>
-                    <option value="activeApp">{t("Active app only")}</option>
-                  </Select>
-                </label>
-                <label className="ot-settings-field">
+                    <NativeSelectOption value="all">{t("All windows")}</NativeSelectOption>
+                    <NativeSelectOption value="activeApp">
+                      {t("Active app only")}
+                    </NativeSelectOption>
+                  </NativeSelect>
+                </Label>
+                <Label appearance="unstyled" className="ot-settings-field">
                   <span>{t("Visual style")}</span>
-                  <Select
+                  <NativeSelect
                     aria-label={`Shortcut ${s.id} style`}
                     value={s.styleOverride ?? ""}
                     onChange={(e) =>
@@ -201,12 +205,12 @@ export function ControlsTab({
                       })
                     }
                   >
-                    <option value="">{t("Default style")}</option>
-                    <option value="thumbnails">{t("Thumbnails")}</option>
-                    <option value="appIcons">{t("App icons")}</option>
-                    <option value="titles">{t("Titles")}</option>
-                  </Select>
-                </label>
+                    <NativeSelectOption value="">{t("Default style")}</NativeSelectOption>
+                    <NativeSelectOption value="thumbnails">{t("Thumbnails")}</NativeSelectOption>
+                    <NativeSelectOption value="appIcons">{t("App icons")}</NativeSelectOption>
+                    <NativeSelectOption value="titles">{t("Titles")}</NativeSelectOption>
+                  </NativeSelect>
+                </Label>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -217,15 +221,17 @@ export function ControlsTab({
                   ✕
                 </Button>
               </div>
-              <details className="ot-settings-shortcut-details">
-                <summary>{t("Behavior and overrides")}</summary>
+              <SettingsDisclosure
+                className="ot-settings-shortcut-details"
+                title={t("Behavior and overrides")}
+              >
                 <p className="ot-settings-hint">
                   {t("Override the shared rules for this shortcut, or keep the defaults.")}
                 </p>
                 <div className="ot-settings-shortcut-options">
-                  <label className="ot-settings-field">
+                  <Label appearance="unstyled" className="ot-settings-field">
                     <span>{t("On release")}</span>
-                    <Select
+                    <NativeSelect
                       aria-label={`Shortcut ${s.id} when released`}
                       className="h-7 text-xs"
                       value={s.whenReleased ?? "focusSelected"}
@@ -233,15 +239,17 @@ export function ControlsTab({
                         patchShortcut(s.id, { whenReleased: e.target.value as ReleaseAction })
                       }
                     >
-                      <option value="focusSelected">
+                      <NativeSelectOption value="focusSelected">
                         {t("On release: focus selected window")}
-                      </option>
-                      <option value="doNothing">{t("On release: do nothing")}</option>
-                    </Select>
-                  </label>
-                  <label className="ot-settings-field">
+                      </NativeSelectOption>
+                      <NativeSelectOption value="doNothing">
+                        {t("On release: do nothing")}
+                      </NativeSelectOption>
+                    </NativeSelect>
+                  </Label>
+                  <Label appearance="unstyled" className="ot-settings-field">
                     <span>{t("Spaces")}</span>
-                    <Select
+                    <NativeSelect
                       aria-label={`Shortcut ${s.id} spaces`}
                       className="h-7 text-xs"
                       value={s.scope.spaces ?? ""}
@@ -254,14 +262,18 @@ export function ControlsTab({
                         })
                       }
                     >
-                      <option value="">{t("Spaces: global default")}</option>
-                      <option value="all">{t("Spaces: all")}</option>
-                      <option value="active">{t("Spaces: active only")}</option>
-                    </Select>
-                  </label>
-                  <label className="ot-settings-field">
+                      <NativeSelectOption value="">
+                        {t("Spaces: global default")}
+                      </NativeSelectOption>
+                      <NativeSelectOption value="all">{t("Spaces: all")}</NativeSelectOption>
+                      <NativeSelectOption value="active">
+                        {t("Spaces: active only")}
+                      </NativeSelectOption>
+                    </NativeSelect>
+                  </Label>
+                  <Label appearance="unstyled" className="ot-settings-field">
                     <span>{t("Screens")}</span>
-                    <Select
+                    <NativeSelect
                       aria-label={`Shortcut ${s.id} screens`}
                       className="h-7 text-xs"
                       value={s.scope.screens ?? ""}
@@ -274,15 +286,21 @@ export function ControlsTab({
                         })
                       }
                     >
-                      <option value="">{t("Screens: global default")}</option>
-                      <option value="all">{t("Screens: all")}</option>
-                      <option value="active">{t("Screens: active only")}</option>
-                      <option value="cursor">{t("Screens: under cursor")}</option>
-                    </Select>
-                  </label>
-                  <label className="ot-settings-field">
+                      <NativeSelectOption value="">
+                        {t("Screens: global default")}
+                      </NativeSelectOption>
+                      <NativeSelectOption value="all">{t("Screens: all")}</NativeSelectOption>
+                      <NativeSelectOption value="active">
+                        {t("Screens: active only")}
+                      </NativeSelectOption>
+                      <NativeSelectOption value="cursor">
+                        {t("Screens: under cursor")}
+                      </NativeSelectOption>
+                    </NativeSelect>
+                  </Label>
+                  <Label appearance="unstyled" className="ot-settings-field">
                     <span>{t("Order")}</span>
-                    <Select
+                    <NativeSelect
                       aria-label={`Shortcut ${s.id} order`}
                       className="h-7 text-xs"
                       value={s.scope.order ?? ""}
@@ -295,15 +313,21 @@ export function ControlsTab({
                         })
                       }
                     >
-                      <option value="">{t("Order: global default")}</option>
-                      <option value="recent">{t("Order: recently focused")}</option>
-                      <option value="recentlyCreated">{t("Order: recently created")}</option>
-                      <option value="alphabetical">{t("Order: alphabetical")}</option>
-                      <option value="space">{t("Order: by space")}</option>
-                    </Select>
-                  </label>
+                      <NativeSelectOption value="">{t("Order: global default")}</NativeSelectOption>
+                      <NativeSelectOption value="recent">
+                        {t("Order: recently focused")}
+                      </NativeSelectOption>
+                      <NativeSelectOption value="recentlyCreated">
+                        {t("Order: recently created")}
+                      </NativeSelectOption>
+                      <NativeSelectOption value="alphabetical">
+                        {t("Order: alphabetical")}
+                      </NativeSelectOption>
+                      <NativeSelectOption value="space">{t("Order: by space")}</NativeSelectOption>
+                    </NativeSelect>
+                  </Label>
                 </div>
-              </details>
+              </SettingsDisclosure>
             </div>
           ))}
           <Button variant="dashed" disabled={settings.shortcuts.length >= 9} onClick={addShortcut}>
@@ -320,38 +344,38 @@ export function ControlsTab({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-1">
-          <label className={ROW}>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Hold modifier to cycle (release to select)")}</span>
-            <Checkbox
+            <Switch
               aria-label="Hold modifier to cycle"
               checked={modeBehavior.holdToCycle}
-              onChange={(e) => patchBehavior({ holdToCycle: e.target.checked })}
+              onCheckedChange={(checked) => patchBehavior({ holdToCycle: checked })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Navigate with arrow keys")}</span>
-            <Checkbox
+            <Switch
               aria-label="Arrow keys"
               checked={modeBehavior.arrowKeys}
-              onChange={(e) => patchBehavior({ arrowKeys: e.target.checked })}
+              onCheckedChange={(checked) => patchBehavior({ arrowKeys: checked })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Navigate with vim keys (h / j / k / l)")}</span>
-            <Checkbox
+            <Switch
               aria-label="Vim keys"
               checked={modeBehavior.vimKeys}
-              onChange={(e) => patchBehavior({ vimKeys: e.target.checked })}
+              onCheckedChange={(checked) => patchBehavior({ vimKeys: checked })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Trackpad haptic feedback when the selection changes")}</span>
-            <Checkbox
+            <Switch
               aria-label="Haptic feedback"
               checked={modeBehavior.hapticFeedback}
-              onChange={(e) => patchBehavior({ hapticFeedback: e.target.checked })}
+              onCheckedChange={(checked) => patchBehavior({ hapticFeedback: checked })}
             />
-          </label>
+          </Label>
         </CardContent>
       </Card>
 
@@ -360,22 +384,22 @@ export function ControlsTab({
           <CardTitle>{t("Mouse behavior")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
-          <label className={ROW}>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Mouse hover")}</span>
-            <Checkbox
+            <Switch
               aria-label="Select windows on mouse hover"
               checked={modeBehavior.mouseHoverSelect}
-              onChange={(e) => patchBehavior({ mouseHoverSelect: e.target.checked })}
+              onCheckedChange={(checked) => patchBehavior({ mouseHoverSelect: checked })}
             />
-          </label>
-          <label className={ROW}>
+          </Label>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Cursor follows focus (warp the mouse to the focused window)")}</span>
-            <Checkbox
+            <Switch
               aria-label="Cursor follows focus"
               checked={modeBehavior.cursorFollowFocus}
-              onChange={(e) => patchBehavior({ cursorFollowFocus: e.target.checked })}
+              onCheckedChange={(checked) => patchBehavior({ cursorFollowFocus: checked })}
             />
-          </label>
+          </Label>
         </CardContent>
       </Card>
 
@@ -387,24 +411,24 @@ export function ControlsTab({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-1">
-          <label className={ROW}>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Middle click")}</span>
-            <Select
+            <NativeSelect
               aria-label={t("Middle click action")}
               value={modeBehavior.middleClickAction}
               onChange={(e) =>
                 patchBehavior({ middleClickAction: e.target.value as PointerAction })
               }
             >
-              <option value="none">{t("None")}</option>
-              <option value="close">{t("Close")}</option>
-              <option value="minimize">{t("Minimize")}</option>
-            </Select>
-          </label>
+              <NativeSelectOption value="none">{t("None")}</NativeSelectOption>
+              <NativeSelectOption value="close">{t("Close")}</NativeSelectOption>
+              <NativeSelectOption value="minimize">{t("Minimize")}</NativeSelectOption>
+            </NativeSelect>
+          </Label>
           {(["swipeUpAction", "swipeDownAction"] as const).map((field) => (
-            <label className={ROW} key={field}>
+            <Label appearance="unstyled" className={ROW} key={field}>
               <span>{t(field === "swipeUpAction" ? "Swipe up" : "Swipe down")}</span>
-              <Select
+              <NativeSelect
                 aria-label={t(field === "swipeUpAction" ? "Swipe up action" : "Swipe down action")}
                 disabled={!switcherGesturesAvailable}
                 aria-describedby="switcher-swipe-status"
@@ -412,12 +436,12 @@ export function ControlsTab({
                 onChange={(e) => patchBehavior({ [field]: e.target.value as PointerAction })}
               >
                 {(["none", "close", "minimize", "fullscreen", "hide", "quit"] as const).map((v) => (
-                  <option key={v} value={v}>
+                  <NativeSelectOption key={v} value={v}>
                     {t(v === "none" ? "None" : ACTION_LABEL[v])}
-                  </option>
+                  </NativeSelectOption>
                 ))}
-              </Select>
-            </label>
+              </NativeSelect>
+            </Label>
           ))}
           <p id="switcher-swipe-status" className={HINT}>
             {t(
