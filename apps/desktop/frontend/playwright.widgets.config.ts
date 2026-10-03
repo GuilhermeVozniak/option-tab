@@ -6,7 +6,7 @@ const port = Number(process.env.E2E_PORT ?? 4187);
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: "launcher-widget-layout.spec.ts",
+  testMatch: ["launcher-widget-layout.spec.ts", "launcher-context-actions.spec.ts"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { LauncherBadgeEntry } from "../lib/launcher-badge-types";
 import type { LauncherMutateCommand } from "../lib/launcher-item-runtime-bridge";
 import type { LauncherPresentation, LauncherPresentationItem } from "../lib/types";
@@ -49,6 +49,7 @@ export function LauncherItemStrip({
     setAdmittedItems(itemsKey);
   }, [itemsKey]);
   const strip = useRef<HTMLUListElement>(null);
+  const contextActions = useRef<HTMLDivElement>(null);
   const m = presentation.magnification;
   const magnified = !!m?.enabled && m.scale > 1;
   useMagnification(strip, {
@@ -115,6 +116,12 @@ export function LauncherItemStrip({
     onReorderTarget?.(target);
   }, [onReorderTarget, reorder.target?.targetID]);
   const currentItems = admittedItems === itemsKey;
+  useLayoutEffect(() => {
+    if (currentItems && contextItem) {
+      // Inline actions can extend beyond the native panel's scroll viewport.
+      contextActions.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    }
+  }, [contextItem, currentItems]);
   const invoke = (command: LauncherItemCommand, id: string) => {
     setContextItem("");
     command(
@@ -282,6 +289,7 @@ export function LauncherItemStrip({
         ) : null}
         {showContext ? (
           <div
+            ref={contextActions}
             className="ot-launcher-item-actions"
             aria-label={`${t("Application actions")}: ${item.name}`}
           >
