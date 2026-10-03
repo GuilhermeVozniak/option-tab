@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "org.example.local-clock",
+  "version": "1.0.0",
+  "minimumAppVersion": "0.4.8",
+  "name": { "en": "Local clock", "pt-BR": "Relógio local", "es": "Reloj local" },
+  "description": { "en": "Displays host-provided local time after explicit permission." },
+  "requiredCapabilities": ["clock.read"],
+  "settings": [
+    { "id": "timezone", "type": "timezone", "name": { "en": "Time zone" }, "defaultText": "UTC" }
+  ],
+  "root": {
+    "kind": "row",
+    "children": [
+      {
+        "kind": "text",
+        "binding": {
+          "provider": "clock",
+          "field": "time",
+          "formatter": "shortTime",
+          "timezoneSetting": "timezone"
+        }
+      }
+    ]
+  }
+}

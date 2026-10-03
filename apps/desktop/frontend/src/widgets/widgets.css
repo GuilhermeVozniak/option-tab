@@ -1,0 +1,203 @@
+.ot-widget {
+  box-sizing: border-box;
+  max-inline-size: min(100%, 520px);
+  max-block-size: 240px;
+  overflow: auto;
+  color: inherit;
+  font: inherit;
+  scrollbar-width: thin;
+}
+
+.ot-widget-row,
+.ot-widget-column {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  align-items: center;
+}
+
+.ot-widget-row {
+  flex-flow: row nowrap;
+  overflow-x: auto;
+}
+
+.ot-widget-column {
+  flex-direction: column;
+  align-items: stretch;
+  overflow-y: auto;
+}
+
+.ot-widget-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.ot-widget-icon {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  object-fit: contain;
+}
+
+.ot-widget-progress {
+  width: min(160px, 100%);
+}
+
+.ot-widget-sparkline {
+  width: 120px;
+  height: 32px;
+  flex: none;
+  overflow: visible;
+}
+
+.ot-widget-sparkline polyline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.ot-widget-action {
+  display: grid;
+  gap: 6px;
+  min-width: 150px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+.ot-widget-action-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.ot-widget button,
+.ot-widget input {
+  font: inherit;
+}
+
+.ot-widget button {
+  min-height: 28px;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+
+.ot-widget button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.ot-widget-status,
+.ot-widget-error {
+  margin: 0;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.ot-widget-settings {
+  display: grid;
+  gap: 14px;
+}
+
+.ot-widget-settings-add,
+.ot-widget-settings-buttons,
+.ot-widget-stack {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ot-widget-settings label,
+.ot-widget-settings-card {
+  display: grid;
+  gap: 5px;
+}
+
+.ot-widget-settings-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+  gap: 10px;
+}
+
+.ot-widget-settings-card,
+.ot-widget-stack {
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 12px;
+}
+
+.ot-widget-settings-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ot-widget-capability {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.ot-widget-settings-note,
+.ot-widget-setting [role="alert"] {
+  margin: 0;
+  color: #b45309;
+  font-size: 0.82rem;
+}
+
+.ot-widget-stacks {
+  display: grid;
+  gap: 8px;
+}
+
+.ot-widget-packages,
+.ot-widget-package-review {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  border-radius: 12px;
+}
+
+.ot-widget-packages header,
+.ot-widget-package-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ot-widget-packages p,
+.ot-widget-package-review h5,
+.ot-widget-package-review dl {
+  margin: 0;
+}
+
+.ot-widget-package-review dl > div {
+  display: grid;
+  grid-template-columns: minmax(80px, 0.35fr) 1fr;
+  gap: 8px;
+}
+
+.ot-widget-package-review dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ot-widget-package-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ot-widget-error {
+  color: #ffb4ad;
+}

@@ -24,3 +24,14 @@ describe("latestReleaseUrl", () => {
     expect(latestReleaseUrl()).toBe(`${PRODUCT.repo}/releases/latest`);
   });
 });
+
+describe("universal macOS release contract", () => {
+  it("names the universal asset explicitly", () => {
+    expect(releaseAssetName("darwin", "universal", "0.5.0")).toBe(
+      "option-tab_0.5.0_darwin_universal.dmg",
+    );
+  });
+  it("rejects a universal asset on a non-macOS platform", () => {
+    expect(() => releaseAssetName("linux", "universal", "0.5.0")).toThrow();
+  });
+});

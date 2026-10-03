@@ -101,13 +101,18 @@ type HotkeyEvent struct {
 // keyboard source: navigation, actions, and type-to-search all ride on these.
 // Key/Code mirror the DOM KeyboardEvent fields the frontend keymap consumes.
 type KeyEvent struct {
-	Key   string `json:"key"`
-	Code  string `json:"code"`
-	Shift bool   `json:"shift"`
-	Ctrl  bool   `json:"ctrl"`
-	Alt   bool   `json:"alt"`
-	Meta  bool   `json:"meta"`
+	Session uint64 `json:"session,omitempty"`
+	Key     string `json:"key"`
+	Code    string `json:"code"`
+	Shift   bool   `json:"shift"`
+	Ctrl    bool   `json:"ctrl"`
+	Alt     bool   `json:"alt"`
+	Meta    bool   `json:"meta"`
 }
+
+// KeySessionSetter tags captured keys before native queue admission. Updating
+// the session cannot retag keys that are already waiting for a slow consumer.
+type KeySessionSetter interface{ SetKeySession(uint64) }
 
 // HotkeyEngine registers global chords and streams their events.
 type HotkeyEngine interface {

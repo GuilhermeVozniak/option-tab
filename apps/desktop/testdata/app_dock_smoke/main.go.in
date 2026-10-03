@@ -1,0 +1,611 @@
+package main
+
+/*
+#cgo CFLAGS: -x objective-c -fobjc-arc
+#cgo LDFLAGS: -framework Cocoa -framework ApplicationServices
+#include <stdlib.h>
+#include "__NATIVE__"
+*/
+import "C"
+import (
+	"context"
+	"embed"
+	"encoding/json"
+	"fmt"
+	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
+	"option-tab/internal/actions"
+	"option-tab/internal/config"
+	"option-tab/internal/domain"
+	"option-tab/internal/platform"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+	"unsafe"
+)
+
+//go:embed all:frontend/dist
+var assets embed.FS
+
+type smokePlatform struct {
+	platform.Platform
+	allowed                    map[domain.AppID]bool
+	windows                    map[domain.WindowID]bool
+	active, max                atomic.Int64
+	frames                     atomic.Int64
+	windowActive, windowFrames sync.Map
+}
+
+func (p *smokePlatform) Windows() ([]domain.Window, error) {
+	all, e := p.Platform.Windows()
+	out := []domain.Window{}
+	for _, w := range all {
+		if p.allowed[w.AppID] && p.windows[w.ID] {
+			out = append(out, w)
+		}
+	}
+	return out, e
+}
+func (p *smokePlatform) Apps() ([]domain.App, error) {
+	all, e := p.Platform.(platform.ApplicationSource).Apps()
+	out := []domain.App{}
+	for _, a := range all {
+		if p.allowed[a.ID] {
+			out = append(out, a)
+		}
+	}
+	fmt.Printf("APPS query count=%d error=%v\n", len(out), e)
+	return out, e
+}
+func (p *smokePlatform) AppWindowPresence(id domain.AppID) platform.WindowPresence {
+	if !p.allowed[id] {
+		return platform.WindowsUnknown
+	}
+	return p.Platform.(platform.ApplicationWindowPresenceSource).AppWindowPresence(id)
+}
+func (p *smokePlatform) ActivateApp(id domain.AppID) error {
+	if !p.allowed[id] {
+		return fmt.Errorf("fixture-only activation")
+	}
+	return p.Platform.(platform.ApplicationActivator).ActivateApp(id)
+}
+func (p *smokePlatform) guard(id domain.WindowID) error {
+	ws, e := p.Windows()
+	if e != nil {
+		return e
+	}
+	for _, w := range ws {
+		if w.ID == id {
+			return nil
+		}
+	}
+	return fmt.Errorf("window %d is not a current fixture", id)
+}
+func (p *smokePlatform) Focus(id domain.WindowID) error {
+	if e := p.guard(id); e != nil {
+		return e
+	}
+	return p.Platform.Focus(id)
+}
+func (p *smokePlatform) Close(id domain.WindowID) error {
+	if e := p.guard(id); e != nil {
+		return e
+	}
+	return p.Platform.Close(id)
+}
+func (p *smokePlatform) Minimize(id domain.WindowID) error {
+	if e := p.guard(id); e != nil {
+		return e
+	}
+	return p.Platform.Minimize(id)
+}
+func (p *smokePlatform) Fullscreen(id domain.WindowID) error {
+	if e := p.guard(id); e != nil {
+		return e
+	}
+	return p.Platform.Fullscreen(id)
+}
+func (p *smokePlatform) QuitApp(id domain.AppID) error {
+	if !p.allowed[id] {
+		return fmt.Errorf("fixture-only quit")
+	}
+	return p.Platform.QuitApp(id)
+}
+func (p *smokePlatform) HideApp(id domain.AppID) error {
+	if !p.allowed[id] {
+		return fmt.Errorf("fixture-only hide")
+	}
+	return p.Platform.HideApp(id)
+}
+func (p *smokePlatform) PerformTargetAction(kind string, w domain.WindowID, a domain.AppID) error {
+	if !p.allowed[a] {
+		return fmt.Errorf("fixture-only action")
+	}
+	if w != 0 {
+		if e := p.guard(w); e != nil {
+			return e
+		}
+	}
+	fmt.Printf("ACTION kind=%s window=%d app=%d foreground=%d\n", kind, w, a, C.smoke_foreground())
+	return p.Platform.(actions.TargetPerformer).PerformTargetAction(kind, w, a)
+}
+func (p *smokePlatform) AppIcon(pid, px int) string {
+	if !p.allowed[domain.AppID(pid)] {
+		return ""
+	}
+	return p.Platform.(platform.IconSource).AppIcon(pid, px)
+}
+func (p *smokePlatform) ThumbnailDataURL(w domain.WindowID, px int) string {
+	if p.guard(w) != nil {
+		return ""
+	}
+	return p.Platform.(platform.ThumbnailSource).ThumbnailDataURL(w, px)
+}
+func (p *smokePlatform) StreamWindow(ctx context.Context, w domain.WindowID, px int, frame func(string)) error {
+	if e := p.guard(w); e != nil {
+		return e
+	}
+	activeValue, _ := p.windowActive.LoadOrStore(w, &atomic.Int64{})
+	activeCounter := activeValue.(*atomic.Int64)
+	activeCounter.Add(1)
+	defer activeCounter.Add(-1)
+	frameValue, _ := p.windowFrames.LoadOrStore(w, &atomic.Int64{})
+	frameCounter := frameValue.(*atomic.Int64)
+	n := p.active.Add(1)
+	for {
+		old := p.max.Load()
+		if n <= old || p.max.CompareAndSwap(old, n) {
+			break
+		}
+	}
+	defer p.active.Add(-1)
+	err := p.Platform.(platform.WindowStreamSource).StreamWindow(ctx, w, px, func(s string) { p.frames.Add(1); frameCounter.Add(1); frame(s) })
+	fmt.Printf("STREAM END window=%d error=%v context=%v\n", w, err, ctx.Err())
+	return err
+}
+func (p *smokePlatform) ObserveDock(ctx context.Context, emit func(platform.DockObservation)) error {
+	return p.Platform.(platform.DockObservationSource).ObserveDock(ctx, func(v platform.DockObservation) {
+		if v.Sequence < 10 || v.Status != "ready" {
+			fmt.Printf("OBS gen=%d seq=%d status=%s item=%+v pointer=%g,%g\n", v.Generation, v.Sequence, v.Status, v.Item, v.PointerX, v.PointerY)
+		}
+		if v.Item != nil && !p.allowed[v.Item.AppID] {
+			v.Item = nil
+		}
+		emit(v)
+	})
+}
+func (p *smokePlatform) CreateDockPanel(ptr unsafe.Pointer) (platform.DockPanel, error) {
+	return p.Platform.(platform.DockPanelHost).CreateDockPanel(ptr)
+}
+func (p *smokePlatform) FitOverlayToScreen(ptr unsafe.Pointer, id domain.ScreenID) {
+	p.Platform.(platform.OverlayWindowFitter).FitOverlayToScreen(ptr, id)
+}
+
+type SmokeProbe struct{ reports chan string }
+
+func (p *SmokeProbe) Report(s string) {
+	select {
+	case p.reports <- s:
+	default:
+	}
+}
+func main() {
+	pid, _ := strconv.Atoi(os.Getenv("SMOKE_FIXTURE_PID"))
+	empty, _ := strconv.Atoi(os.Getenv("SMOKE_EMPTY_PID"))
+	if pid <= 0 || empty <= 0 {
+		panic("fixture PIDs required")
+	}
+	native, e := platform.New()
+	if e != nil {
+		panic(e)
+	}
+	p := &smokePlatform{Platform: native, allowed: map[domain.AppID]bool{domain.AppID(pid): true, domain.AppID(empty): true}}
+	p.windows = map[domain.WindowID]bool{}
+	for _, s := range strings.Split(os.Getenv("SMOKE_WINDOW_IDS"), ",") {
+		id, _ := strconv.ParseUint(s, 10, 64)
+		if id != 0 {
+			p.windows[domain.WindowID(id)] = true
+		}
+	}
+	if len(p.windows) != 2 {
+		panic("two announced fixture windowIDs required")
+	}
+	settings := config.Default()
+	settings.Behavior.Onboarded = true
+	settings.Behavior.CaptureInBackground = false
+	settings.Behavior.CursorFollowFocus = false
+	settings.AppSwitcher.Behavior.CursorFollowFocus = false
+	settings.AppSwitcher.Appearance.FadeOutAnimation = false
+	settings.Dock.Enabled = true
+	settings.Dock.HoverDelayMs = 150
+	settings.Dock.DismissDelayMs = 1000
+	settings.Dock.Appearance.PreviewSelected = false
+	settings.Dock.Appearance.ThumbnailMaxPx = 180
+	settings.Dock.Appearance.MaxColumns = 2
+	settings.Dock.Appearance.MaxRows = 1
+	settings.Dock.Appearance.ShowWindowControls = true
+	// Inventory is fixture-only. Blacklist corroborates that no other app can be
+	// admitted if a future wrapper method gains a new inventory path.
+	apps, _ := native.(platform.ApplicationSource).Apps()
+	for _, other := range apps {
+		if !p.allowed[other.ID] {
+			settings.Filters.AppBlacklist = append(settings.Filters.AppBlacklist, config.BlacklistEntry{Match: other.BundleID})
+		}
+	}
+	app := newApp(p, settings, filepath.Join(os.Getenv("SMOKE_DIR"), "settings.json"))
+	probe := &SmokeProbe{reports: make(chan string, 100)}
+	wa := application.New(application.Options{Name: "Option Tab disposable combined smoke", Services: []application.Service{application.NewService(app), application.NewService(probe)}, Assets: application.AssetOptions{Handler: application.AssetFileServerFS(assets)}, Mac: application.MacOptions{ActivationPolicy: application.ActivationPolicyAccessory}, SingleInstance: &application.SingleInstanceOptions{UniqueID: "com.optiontab.disposable-combined-smoke"}})
+	app.eventSink = func(name string, data any) {
+		if name == "dock:pointer" {
+			fmt.Printf("POINTER EVENT %+v\n", data)
+		}
+		if name == "dock:show" || name == "dock:hide" || name == "switcher:show" {
+			fmt.Printf("EVENT %s\n", name)
+			if d, ok := data.(DockViewState); ok {
+				fmt.Printf("VIEW open=%v pid=%d count=%d reason=%s\n", d.Open, d.Item.AppID, len(d.Entries), d.EmptyReason)
+			}
+		}
+		wa.Event.Emit(name, data)
+	}
+	overlay := wa.Window.NewWithOptions(application.WebviewWindowOptions{Name: "smoke-overlay", Title: "Smoke overlay", Width: 1000, Height: 700, Hidden: true, Frameless: true, AlwaysOnTop: true, Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent}})
+	app.setRuntime(wa, overlay, nil, nil)
+	var hostMu sync.Mutex
+	var host *application.WebviewWindow
+	app.dockWindow = newDockWindow(application.InvokeAsync, func() nativeWindow {
+		w := wa.Window.NewWithOptions(application.WebviewWindowOptions{Name: "smoke-dock", Title: "Smoke Dock", Width: 320, Height: 200, Hidden: true, Frameless: true, URL: "/#/dock", Mac: application.MacWindow{Backdrop: application.MacBackdropTransparent}})
+		hostMu.Lock()
+		host = w
+		hostMu.Unlock()
+		fmt.Println("HOST CREATED", w.NativeWindow())
+		w.OnWindowEvent(events.Mac.WindowWillClose, func(*application.WindowEvent) { app.dockWindow.markHostClosedIf(w) })
+		return w
+	}, p)
+	wa.OnShutdown(app.stopCapture)
+	wa.Event.OnApplicationEvent(events.Mac.ApplicationDidFinishLaunching, func(*application.ApplicationEvent) {
+		go func() {
+			defer wa.Quit()
+			defer app.stopCapture()
+			defer p.Hotkeys().Close()
+			fail := func(e any) {
+				fmt.Fprintln(os.Stderr, "SMOKE FAIL", e)
+				os.WriteFile(filepath.Join(os.Getenv("SMOKE_DIR"), "failed"), []byte(fmt.Sprint(e)), 0600)
+			}
+			if e := runSmoke(app, p, probe, overlay, func() *application.WebviewWindow { hostMu.Lock(); defer hostMu.Unlock(); return host }, pid, empty); e != nil {
+				fail(e)
+				return
+			}
+			fmt.Println("SMOKE PASS")
+			os.WriteFile(filepath.Join(os.Getenv("SMOKE_DIR"), "passed"), []byte("yes"), 0600)
+		}()
+	})
+	if e := wa.Run(); e != nil {
+		panic(e)
+	}
+}
+func waitSmoke(label string, fn func() bool) error {
+	until := time.Now().Add(10 * time.Second)
+	for time.Now().Before(until) {
+		if fn() {
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("timeout %s", label)
+}
+func reportDOM(w *application.WebviewWindow, p *SmokeProbe, expr string) (string, error) {
+	for {
+		select {
+		case <-p.reports:
+		default:
+			goto drained
+		}
+	}
+drained:
+	w.ExecJS("fetch('/wails/runtime',{method:'POST',headers:{'Content-Type':'application/json','x-wails-client-id':window._wails.clientId},body:JSON.stringify({object:0,method:0,args:{'call-id':crypto.randomUUID(),methodName:'main.SmokeProbe.Report',args:[JSON.stringify(" + expr + ")]}})})")
+	select {
+	case s := <-p.reports:
+		return s, nil
+	case <-time.After(5 * time.Second):
+		return "", fmt.Errorf("DOM report timed out")
+	}
+}
+func runSmoke(app *App, p *smokePlatform, probe *SmokeProbe, overlay *application.WebviewWindow, host func() *application.WebviewWindow, pid, empty int) error {
+	time.Sleep(time.Second)
+	fmt.Printf("PERMISSIONS accessibility=%v recording=%v\n", p.Accessibility(), p.ScreenRecording())
+	if p.Accessibility() != platform.PermGranted {
+		return fmt.Errorf("Accessibility unavailable; no input sent")
+	}
+	var windows []domain.Window
+	if e := waitSmoke("two fixture windows", func() bool { windows = fixtureDocuments(p); return len(windows) == 2 }); e != nil {
+		fmt.Printf("INVENTORY fixture windows=%+v\n", windows)
+		return e
+	}
+	first, second := windows[0], windows[1]
+	fmt.Printf("FIXTURES pid=%d empty=%d windows=%d,%d\n", pid, empty, first.ID, second.ID)
+	C.smoke_activate(C.int(pid))
+	p.Focus(first.ID)
+	time.Sleep(300 * time.Millisecond)
+	// Explicit controller activation proves grouping/runtime rendering, not native key delivery.
+	app.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	app.controller.SelectApp(domain.AppID(pid))
+	time.Sleep(time.Second)
+	st := app.controller.State()
+	fmt.Printf("APPMODE mode=%s apps=%+v selectedWindow=%d entries=%d\n", st.Mode, st.Apps, st.SelectedWindowID, len(st.Entries))
+	if len(st.Apps) != 2 || len(st.Entries) != 2 {
+		return fmt.Errorf("grouped fixture state missing")
+	}
+	var dom string
+	var e error
+	if e = waitSmoke("real app grouped DOM", func() bool {
+		dom, e = reportDOM(overlay, probe, "({apps:document.querySelectorAll('[role=option]').length,previews:document.querySelectorAll('.ot-app-gallery article').length})")
+		var d struct{ Apps, Previews int }
+		return e == nil && json.Unmarshal([]byte(dom), &d) == nil && d.Apps == 2 && d.Previews == 2
+	}); e != nil {
+		return fmt.Errorf("%w: %s", e, dom)
+	}
+	fmt.Println("APP DOM", dom)
+	app.controller.Cancel()
+	time.Sleep(400 * time.Millisecond)
+	p.Hotkeys().SetOpen(false)
+	C.smoke_activate(C.int(empty))
+	time.Sleep(250 * time.Millisecond)
+	fmt.Printf("DOCK SETTINGS %+v\n", app.settingsSnapshot().Dock)
+	app.startDock()
+	if e := hoverFixture(); e != nil {
+		return e
+	}
+	if e := waitSmoke("real Dock show", func() bool {
+		s := app.GetDockState()
+		if s != nil && s.Open {
+			fmt.Printf("WAIT visible pid=%d count=%d host=%v\n", s.Item.AppID, len(s.Entries), host() != nil)
+		}
+		return s != nil && s.Open && s.Item.AppID == domain.AppID(pid) && len(s.Entries) == 2 && host() != nil
+	}); e != nil {
+		fmt.Printf("DOCK STATE session=%d count=%d\n", app.GetDockState().Session, len(app.GetDockState().Entries))
+		app.viewMu.Lock()
+		fmt.Printf("ADMISSION switcher=%v prefs=%v inactive=%v allowed=%v\n", app.switcherVisible, app.prefsOpen, app.sessionInactive, app.dockAllowedLocked())
+		app.viewMu.Unlock()
+		return e
+	}
+	time.Sleep(time.Second)
+	s := app.GetDockState()
+	fmt.Printf("DOCK foreground=%d expected=%d state=%+v\n", C.smoke_foreground(), empty, s.Item)
+	app.viewMu.Lock()
+	bounds := app.dockState.Bounds
+	app.viewMu.Unlock()
+	C.smoke_warp(C.double(bounds.X+20), C.double(bounds.Y+20))
+	dom, e = reportDOM(host(), probe, "({cards:document.querySelectorAll('.ot-dock-list article').length,viewport:[innerWidth,innerHeight],buttons:[...document.querySelectorAll('.ot-dock-preview')].map(x=>x.getAttribute('aria-label'))})")
+	fmt.Println("DOCK DOM", dom)
+	if e != nil {
+		return e
+	}
+	var dockDOM struct{ Cards int }
+	if json.Unmarshal([]byte(dom), &dockDOM) != nil || dockDOM.Cards != 2 {
+		return fmt.Errorf("unexpected real Dock DOM: %s", dom)
+	}
+	c := C.smoke_state(host().NativeWindow())
+	nativeState := C.GoString(c)
+	fmt.Println("PANEL", nativeState)
+	surfaces := C.smoke_fixture_surfaces(C.int(pid))
+	fmt.Println("FIXTURE SURFACES", C.GoString(surfaces))
+	C.free(unsafe.Pointer(surfaces))
+	C.free(unsafe.Pointer(c))
+	var panelState struct {
+		HostVisible bool
+		Panels      []struct{ Visible, Key, Main bool }
+	}
+	if json.Unmarshal([]byte(nativeState), &panelState) != nil || panelState.HostVisible || len(panelState.Panels) != 1 || !panelState.Panels[0].Visible || panelState.Panels[0].Key || panelState.Panels[0].Main {
+		return fmt.Errorf("nonactivating native panel invariant failed")
+	}
+	// Focus exact second preview while the first is selected. DOM click proves
+	// actual React→generated App binding dispatch without modifying frontend code.
+	app.SelectDockWindow(s.Session, uint64(first.ID))
+	time.Sleep(200 * time.Millisecond)
+	C.smoke_activate(C.int(empty))
+	time.Sleep(200 * time.Millisecond)
+	if int(C.smoke_foreground()) != empty {
+		return fmt.Errorf("foreground changed before second preview click")
+	}
+	label, _ := json.Marshal("Focus " + second.Title)
+	dom, e = reportDOM(host(), probe, "(()=>{const b=[...document.querySelectorAll('.ot-dock-preview')].find(b=>b.getAttribute('aria-label')==="+string(label)+");if(!b)return 'missing';b.click();return 'clicked'})()")
+	fmt.Println("SECOND CLICK", dom)
+	if e != nil {
+		return e
+	}
+	if e := waitSmoke("exact second focused", func() bool {
+		return uint64(C.smoke_focused_window(C.int(pid))) == uint64(second.ID) && int(C.smoke_foreground()) == pid
+	}); e != nil {
+		return e
+	}
+	fmt.Printf("FOCUS exact=%d foreground=%d\n", second.ID, C.smoke_foreground())
+	// Reopen from actual Dock hover, select first, native-click second's close.
+	C.smoke_warp(100, 100)
+	time.Sleep(1200 * time.Millisecond)
+	C.smoke_activate(C.int(empty))
+	time.Sleep(200 * time.Millisecond)
+	if e := hoverFixture(); e != nil {
+		return e
+	}
+	if e := waitSmoke("reopen", func() bool { s = app.GetDockState(); return s != nil && s.Open && len(s.Entries) == 2 }); e != nil {
+		return e
+	}
+	time.Sleep(500 * time.Millisecond)
+	app.SelectDockWindow(s.Session, uint64(first.ID))
+	time.Sleep(200 * time.Millisecond)
+	dom, e = reportDOM(host(), probe, "(()=>{const b=[...document.querySelectorAll('.ot-dock-preview')].find(b=>b.getAttribute('aria-label')==="+string(label)+");const r=b?.closest('article')?.querySelector('[aria-label=\"Close window\"]')?.getBoundingClientRect();return r?{x:r.x+r.width/2,y:r.y+r.height/2}:null})()")
+	if e != nil {
+		return e
+	}
+	var point struct{ X, Y float64 }
+	if json.Unmarshal([]byte(dom), &point) != nil || point.X == 0 {
+		return fmt.Errorf("close geometry missing: %s", dom)
+	}
+	app.viewMu.Lock()
+	bounds = app.dockState.Bounds
+	app.viewMu.Unlock()
+	C.smoke_activate(C.int(empty))
+	time.Sleep(100 * time.Millisecond)
+	fmt.Printf("NATIVE CLOSE point=%g,%g foreground=%d expected=%d target=%d\n", bounds.X+point.X, bounds.Y+point.Y, C.smoke_foreground(), empty, second.ID)
+	if int(C.smoke_foreground()) != empty {
+		return fmt.Errorf("foreground changed before close")
+	}
+	if out, err := exec.Command("/opt/homebrew/bin/cliclick", fmt.Sprintf("m:%d,%d", int(bounds.X+point.X), int(bounds.Y+point.Y)), "w:500").CombinedOutput(); err != nil {
+		return fmt.Errorf("cliclick move: %w %s", err, out)
+	}
+	if e := waitSmoke("native pointer exposes exact second controls", func() bool {
+		result, err := reportDOM(host(), probe, fmt.Sprintf("(()=>{const a=document.querySelector('article[data-window-id=\"%d\"]');const b=a?.querySelector('[aria-label=\"Close window\"]');return {hovered:a?.classList.contains('is-hovered'),opacity:b?getComputedStyle(b.parentElement).opacity:null}})()", second.ID))
+		var status struct {
+			Hovered bool
+			Opacity string
+		}
+		return err == nil && json.Unmarshal([]byte(result), &status) == nil && status.Hovered && status.Opacity == "1"
+	}); e != nil {
+		d, _ := reportDOM(host(), probe, "({articles:[...document.querySelectorAll('article')].map(x=>({id:x.dataset.windowId,class:x.className})),pointer:window.__smokePointer,hit:document.elementFromPoint(window.__smokePointer?.x||0,window.__smokePointer?.y||0)?.outerHTML.slice(0,300),hitId:document.elementFromPoint(window.__smokePointer?.x||0,window.__smokePointer?.y||0)?.closest('article')?.dataset.windowId,react:(()=>{let e=document.querySelector('article'),f=e?.[Object.keys(e).find(k=>k.startsWith('__reactFiber'))],a=[];while(f){if(f.memoizedProps?.state)a.push({session:f.memoizedProps.state.session,pointer:f.memoizedProps.nativePointer});f=f.return}return a})()})")
+		fmt.Println("POINTER FAIL DOM", d)
+		fmt.Printf("POINTER FAIL STATE %+v\n", app.GetDockState().Pointer)
+		return e
+	}
+	fmt.Printf("NATIVE POINTER hovered=%d selected=%d foreground=%d\n", second.ID, app.GetDockState().SelectedWindowID, C.smoke_foreground())
+	if app.GetDockState().SelectedWindowID != second.ID {
+		return fmt.Errorf("native hover selected wrong target")
+	}
+	C.smoke_tracking_diagnostic(host().NativeWindow())
+	time.Sleep(300 * time.Millisecond)
+	diag, _ := reportDOM(host(), probe, fmt.Sprintf("(()=>{window.__smokeClicks=[];for(const name of ['pointerdown','pointerup','click','mousemove'])document.addEventListener(name,e=>window.__smokeClicks.push([name,e.clientX,e.clientY,e.target.tagName,e.target.getAttribute('aria-label')]));const el=document.elementFromPoint(%g,%g);return {hit:el?.tagName,label:el?.getAttribute('aria-label'),hover:[...document.querySelectorAll(':hover')].map(x=>x.className),controls:[...document.querySelectorAll('.ot-dock-controls')].map(x=>getComputedStyle(x).opacity)}})()", point.X, point.Y))
+	fmt.Println("CLOSE HIT", diag)
+	ns := C.smoke_state(host().NativeWindow())
+	fmt.Println("CLOSE PANEL", C.GoString(ns))
+	C.free(unsafe.Pointer(ns))
+	var mx, my C.double
+	C.smoke_pointer(&mx, &my)
+	fmt.Printf("CLOSE POINTER %g,%g\n", float64(mx), float64(my))
+	if result := C.smoke_ax_destroy_watch(C.int(pid), C.uint32_t(second.ID)); result != 0 {
+		return fmt.Errorf("exact AXDestroyed registration failed: %d", result)
+	}
+	defer C.smoke_ax_destroy_stop()
+	if out, err := exec.Command("/opt/homebrew/bin/cliclick", fmt.Sprintf("c:%d,%d", int(bounds.X+point.X), int(bounds.Y+point.Y))).CombinedOutput(); err != nil {
+		return fmt.Errorf("cliclick click: %w %s", err, out)
+	}
+	if e := waitSmoke("independent exact AXDestroyed", func() bool { return C.smoke_ax_destroy_count() > 0 }); e != nil {
+		return e
+	}
+	fmt.Printf("AX DESTROYED VERIFIED window=%d foreground=%d expected=%d\n", second.ID, C.smoke_foreground(), empty)
+	if e := waitSmoke("second closed", func() bool { ws := fixtureDocuments(p); return len(ws) == 1 && ws[0].ID == first.ID }); e != nil {
+		diag, _ := reportDOM(host(), probe, "({events:window.__smokeClicks,error:document.querySelector('[role=alert]')?.textContent})")
+		fmt.Println("CLICK EVENTS", diag)
+		fmt.Printf("REMAINING DOCS %+v\n", fixtureDocuments(p))
+		surfaces := C.smoke_fixture_surfaces(C.int(pid))
+		fmt.Println("CLOSED SURFACES", C.GoString(surfaces))
+		C.free(unsafe.Pointer(surfaces))
+		app.stopCapture()
+		idleErr := waitSmoke("independent failure cleanup capture idle", func() bool { return p.active.Load() == 0 })
+		fmt.Printf("CAPTURE IDLE CHECK %v\n", idleErr)
+		fmt.Printf("FAIL CAPTURE max=%d frames=%d active=%d\n", p.max.Load(), p.frames.Load(), p.active.Load())
+		return e
+	}
+	if int(C.smoke_foreground()) != empty {
+		return fmt.Errorf("close stole foreground")
+	}
+	fmt.Printf("CLOSE exact=%d foreground=%d preserved\n", second.ID, C.smoke_foreground())
+	if e := waitSmoke("closed stream and cache retired", func() bool {
+		v, ok := p.windowActive.Load(second.ID)
+		return ok && v.(*atomic.Int64).Load() == 0 && app.captures.Cached()[second.ID] == ""
+	}); e != nil {
+		return e
+	}
+	count, _ := p.windowFrames.Load(second.ID)
+	before := count.(*atomic.Int64).Load()
+	time.Sleep(250 * time.Millisecond)
+	if count.(*atomic.Int64).Load() != before {
+		return fmt.Errorf("closed window emitted another frame")
+	}
+	fmt.Printf("CLOSED CAPTURE window=%d frames=%d active=0 cached=false stable250ms\n", second.ID, before)
+	// Close remaining fixture explicitly; the running app must remain in grouping.
+	if e := p.Close(first.ID); e != nil {
+		return e
+	}
+	app.hideDock(s.Session)
+	time.Sleep(400 * time.Millisecond)
+	app.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	app.controller.SelectApp(domain.AppID(pid))
+	time.Sleep(400 * time.Millisecond)
+	st = app.controller.State()
+	fmt.Printf("WINDOWLESS apps=%+v entries=%d\n", st.Apps, len(st.Entries))
+	if len(st.Apps) != 2 || len(st.Entries) != 0 {
+		return fmt.Errorf("last-close removed app or retained window")
+	}
+	if e := app.controller.ConfirmApp(domain.AppID(pid)); e != nil {
+		return e
+	}
+	if e := waitSmoke("windowless activation", func() bool { return int(C.smoke_foreground()) == pid }); e != nil {
+		return e
+	}
+	app.stopCapture()
+	if e := waitSmoke("capture idle", func() bool { return p.active.Load() == 0 }); e != nil {
+		return e
+	}
+	fmt.Printf("CAPTURE max=%d frames=%d active=%d\n", p.max.Load(), p.frames.Load(), p.active.Load())
+	if p.max.Load() == 0 || p.frames.Load() == 0 {
+		return fmt.Errorf("no live streams/frames observed")
+	}
+	if p.max.Load() > 4 {
+		return fmt.Errorf("capture cap exceeded")
+	}
+	return nil
+}
+func hoverFixture() error {
+	probe, path := os.Getenv("SMOKE_DOCK_PROBE"), os.Getenv("SMOKE_FIXTURE_APP")
+	var item map[string]float64
+	query := func() error {
+		out, e := exec.Command(probe, path).Output()
+		if e != nil {
+			return e
+		}
+		return json.Unmarshal(out, &item)
+	}
+	if e := waitSmoke("fixture Dock icon", func() bool { return query() == nil }); e != nil {
+		return e
+	}
+
+	deadline := time.Now().Add(8 * time.Second)
+	stable := 0
+	for time.Now().Before(deadline) {
+		if e := query(); e != nil {
+			return e
+		}
+		x, y := item["x"]+item["w"]/2, item["y"]+item["h"]/2
+		inside := x > item["screenX"] && x < item["screenX"]+item["screenW"] && y > item["screenY"] && y < item["screenY"]+item["screenH"] && item["w"] > 30
+		x = max(item["screenX"]+1, min(x, item["screenX"]+item["screenW"]-1))
+		y = max(item["screenY"]+1, min(y, item["screenY"]+item["screenH"]-1))
+		if e := exec.Command(probe, "--move", fmt.Sprint(x), fmt.Sprint(y)).Run(); e != nil {
+			return e
+		}
+		if inside {
+			stable++
+		} else {
+			stable = 0
+		}
+		time.Sleep(250 * time.Millisecond)
+		if stable >= 4 {
+			fmt.Printf("HOVER native icon=%v\n", item)
+			return nil
+		}
+	}
+	return fmt.Errorf("fixture icon did not become visible: %v", item)
+}
+
+func fixtureDocuments(p *smokePlatform) []domain.Window {
+	all, _ := p.Windows()
+	out := []domain.Window{}
+	for _, w := range all {
+		if strings.HasPrefix(w.Title, "Smoke document ") {
+			out = append(out, w)
+		}
+	}
+	return out
+}

@@ -54,7 +54,7 @@ func (a *App) DismissCrashReport() {
 }
 
 // ReportCrash opens a prefilled GitHub issue containing the pending crash log
-// (truncated), so the user sees exactly what is shared before submitting.
+// (truncated). Navigation sends that text to GitHub before issue submission.
 func (a *App) ReportCrash() {
 	log := a.GetCrashReport()
 	if log == "" {

@@ -7,6 +7,7 @@
 package platform
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 
@@ -33,6 +34,13 @@ func (s *stub) Windows() ([]domain.Window, error) {
 		{ID: 2, AppID: 2, AppName: "Demo Browser", Title: "alt-tab.app", OnScreen: true, SpaceID: 1, ScreenID: 1},
 		{ID: 3, AppID: 3, AppName: "Demo Terminal", Title: "zsh", OnScreen: true, SpaceID: 1, ScreenID: 1},
 	}, nil
+}
+
+// PerformTargetAction reports the production stub's lack of native actions.
+// Synthetic windows remain available for previews, but never imply that an
+// operation on a real application succeeded.
+func (s *stub) PerformTargetAction(kind string, _ domain.WindowID, _ domain.AppID) error {
+	return fmt.Errorf("%s is unsupported on the stub platform", kind)
 }
 
 func (s *stub) Focus(domain.WindowID) error      { return nil }

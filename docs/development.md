@@ -18,15 +18,15 @@ curl -fsSL https://bun.sh/install | bash
 bun --version  # should print 1.1.x or higher
 ```
 
-### Wails CLI v3 (alpha)
+### Wails CLI v3 (beta)
 
-The desktop app uses Wails v3 (`v3.0.0-alpha2.117`). The CLI is only needed for
+The desktop app uses Wails v3 (`v3.0.0-beta.5`). The CLI is only needed for
 `wails3 dev` and for regenerating the committed frontend bindings — builds are plain
 `go build`:
 
 ```bash
-go install github.com/wailsapp/wails/v3/cmd/wails3@latest
-wails3 version  # should print v3.0.0-alpha...
+go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.5
+wails3 version  # should print v3.0.0-beta.5
 ```
 
 On Linux, Wails also requires system WebKit headers:

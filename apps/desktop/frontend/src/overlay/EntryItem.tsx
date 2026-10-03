@@ -1,5 +1,5 @@
 import { truncateTitle } from "../lib/text";
-import type { Entry, SwitcherState } from "../lib/types";
+import type { Entry, PointerAction, SwitcherState } from "../lib/types";
 import { StatusIcons } from "./StatusIcons";
 import type { OverlayHandlers } from "./types";
 
@@ -16,6 +16,7 @@ interface EntryItemProps {
   iconSizePx: number;
   titleMaxWidthPx: number;
   showTitle: boolean;
+  showAppBadge: boolean;
   showControls: boolean;
   showStatusIcons: boolean;
   spaceNumber?: number;
@@ -23,6 +24,8 @@ interface EntryItemProps {
   mouseHover: boolean;
   activeSpaceId: number;
   handlers: OverlayHandlers;
+  middleClickAction: PointerAction;
+  t?: (text: string) => string;
 }
 
 // EntryItem renders one window in the active visual style: a titled thumbnail
@@ -37,6 +40,7 @@ export function EntryItem({
   iconSizePx,
   titleMaxWidthPx,
   showTitle,
+  showAppBadge,
   showControls,
   showStatusIcons,
   spaceNumber,
@@ -44,7 +48,16 @@ export function EntryItem({
   mouseHover,
   activeSpaceId,
   handlers,
+  middleClickAction,
+  t = (text) => text,
 }: EntryItemProps) {
+  const runAction = (action: PointerAction) => {
+    if (action === "close") handlers.onClose(entry.windowId);
+    else if (action === "minimize") handlers.onMinimize(entry.windowId);
+    else if (action === "fullscreen") handlers.onFullscreen(entry.windowId);
+    else if (action === "hide") handlers.onHide(entry.appId);
+    else if (action === "quit") handlers.onQuit(entry.appId);
+  };
   const iconPx = style === "appIcons" ? Math.max(iconSizePx, 48) : iconSizePx;
   const otherSpace = !!entry.spaceId && !!activeSpaceId && entry.spaceId !== activeSpaceId;
   const glyph = entry.icon ? (
@@ -60,11 +73,19 @@ export function EntryItem({
 
   return (
     <li
+      data-switcher-gesture-window={entry.windowId}
+      data-switcher-gesture-app={entry.appId}
       role="option"
       aria-selected={selected}
       className={`ot-entry ot-entry-${style}${selected ? " ot-selected" : ""}`}
       onMouseEnter={mouseHover ? () => handlers.onSelect(index) : undefined}
       onClick={() => handlers.onConfirmWindow(entry.windowId)}
+      onMouseDown={(e) => {
+        if (e.button === 1) {
+          e.preventDefault();
+          runAction(middleClickAction);
+        }
+      }}
       style={{ maxWidth }}
     >
       {style === "thumbnails" ? (
@@ -80,7 +101,12 @@ export function EntryItem({
             style={{ width: thumbnailPx, height: Math.round(thumbnailPx * 0.62) }}
           >
             {entry.thumbnail ? (
-              <img className="ot-thumb-img" src={entry.thumbnail} alt="" />
+              <>
+                <img className="ot-thumb-img" src={entry.thumbnail} alt="" />
+                {showAppBadge ? (
+                  <span className="ot-thumb-icon ot-thumb-icon-badge">{glyph}</span>
+                ) : null}
+              </>
             ) : (
               <span
                 className="ot-thumb-fallback"
@@ -118,6 +144,7 @@ export function EntryItem({
           hidden={entry.hidden}
           fullscreen={entry.fullscreen}
           otherSpace={otherSpace}
+          t={t}
         />
       ) : null}
 
@@ -125,18 +152,22 @@ export function EntryItem({
         <span
           className="ot-space-badge"
           role="img"
-          aria-label={`Space ${spaceNumber}`}
-          title={`Space ${spaceNumber}`}
+          aria-label={t("Space {number}").replace("{number}", String(spaceNumber))}
+          title={t("Space {number}").replace("{number}", String(spaceNumber))}
         >
           {spaceNumber}
         </span>
       ) : null}
 
       {showControls ? (
-        <div className="ot-controls" onClick={(e) => e.stopPropagation()}>
+        <div
+          data-switcher-gesture-exclude
+          className="ot-controls"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             type="button"
-            aria-label="Close window"
+            aria-label={t("Close window")}
             className="ot-ctl ot-ctl-close"
             onClick={() => handlers.onClose(entry.windowId)}
           >
@@ -144,7 +175,7 @@ export function EntryItem({
           </button>
           <button
             type="button"
-            aria-label="Minimize window"
+            aria-label={t(entry.minimized ? "Restore window" : "Minimize window")}
             className="ot-ctl ot-ctl-min"
             onClick={() => handlers.onMinimize(entry.windowId)}
           >
@@ -152,7 +183,7 @@ export function EntryItem({
           </button>
           <button
             type="button"
-            aria-label="Fullscreen window"
+            aria-label={t("Fullscreen window")}
             className="ot-ctl ot-ctl-fs"
             onClick={() => handlers.onFullscreen(entry.windowId)}
           >
@@ -160,8 +191,8 @@ export function EntryItem({
           </button>
           <button
             type="button"
-            aria-label="Hide app"
-            title="Hide app"
+            aria-label={t("Hide app")}
+            title={t("Hide app")}
             className="ot-ctl ot-ctl-hide"
             onClick={() => handlers.onHide(entry.appId)}
           >
@@ -169,8 +200,8 @@ export function EntryItem({
           </button>
           <button
             type="button"
-            aria-label="Quit app"
-            title="Quit app"
+            aria-label={t("Quit app")}
+            title={t("Quit app")}
             className="ot-ctl ot-ctl-quit"
             onClick={() => handlers.onQuit(entry.appId)}
           >

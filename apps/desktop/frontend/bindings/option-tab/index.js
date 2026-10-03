@@ -6,3 +6,38 @@ import * as App from "./app.js";
 export {
     App
 };
+
+export {
+    AutomationPreviewViewState,
+    DiagnosticsReview,
+    DockBounds,
+    DockItemView,
+    DockPointer,
+    DockPreviewRegion,
+    DockViewState,
+    LauncherAppChoice,
+    LauncherBadgeViewEntry,
+    LauncherBadgeViewState,
+    LauncherInteractionCapabilities,
+    LauncherInteractionState,
+    LauncherItemFolderState,
+    LauncherItemIcon,
+    LauncherItemPanelState,
+    LauncherItemSettings,
+    LauncherItemStatus,
+    LauncherProfileImportResult,
+    LauncherProfileImportReview,
+    LauncherReferenceView,
+    LauncherStatus,
+    LauncherWidgetChoice,
+    LauncherWidgetSlot,
+    LauncherWidgetState,
+    MediaArtworkView,
+    MediaLyricsView,
+    MediaViewState,
+    SettingsState,
+    SwitcherGestureCapabilities,
+    WidgetCatalogItem,
+    WidgetPackageReview,
+    WidgetPackageStatus
+} from "./models.js";

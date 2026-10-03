@@ -26,7 +26,7 @@ func TestParseLatest_Assets(t *testing.T) {
 }
 
 func TestRelease_AssetFor(t *testing.T) {
-	rel := Release{Assets: []Asset{
+	rel := Release{Version: "v0.2.0", Assets: []Asset{
 		{Name: "option-tab_0.2.0_darwin_arm64.dmg", DownloadURL: "https://dl/mac"},
 		{Name: "option-tab_0.2.0_windows_amd64.zip", DownloadURL: "https://dl/win"},
 	}}
@@ -72,5 +72,32 @@ func TestNewer(t *testing.T) {
 		if got := Newer(c.current, c.latest); got != c.want {
 			t.Errorf("Newer(%q, %q) = %v, want %v", c.current, c.latest, got, c.want)
 		}
+	}
+}
+
+func TestReleaseAssetContract(t *testing.T) {
+	const native = "option-tab_0.5.0_darwin_arm64.dmg"
+	const universal = "option-tab_0.5.0_darwin_universal.dmg"
+	cases := []struct {
+		name, arch string
+		assets     []Asset
+		want       string
+	}{
+		{"universal Intel fallback", "darwin_amd64", []Asset{{Name: universal, DownloadURL: "universal"}}, "universal"},
+		{"universal ARM fallback", "darwin_arm64", []Asset{{Name: universal, DownloadURL: "universal"}}, "universal"},
+		{"exact preferred", "darwin_arm64", []Asset{{Name: universal, DownloadURL: "universal"}, {Name: native, DownloadURL: "native"}}, "native"},
+		{"duplicate exact refuses fallback", "darwin_arm64", []Asset{{Name: native, DownloadURL: "one"}, {Name: native, DownloadURL: "two"}, {Name: universal, DownloadURL: "universal"}}, ""},
+		{"duplicate universal refuses", "darwin_amd64", []Asset{{Name: universal, DownloadURL: "one"}, {Name: universal, DownloadURL: "two"}}, ""},
+		{"wrong extension", "darwin_arm64", []Asset{{Name: native + ".sha256", DownloadURL: "checksum"}}, ""},
+		{"wrong version", "darwin_arm64", []Asset{{Name: "option-tab_0.4.8_darwin_arm64.dmg", DownloadURL: "old"}}, ""},
+		{"prefix not exact", "darwin_arm64", []Asset{{Name: "copy-" + native, DownloadURL: "copy"}}, ""},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			r := Release{Version: "v0.5.0", Assets: tt.assets}
+			if got := r.AssetFor(tt.arch); got != tt.want {
+				t.Fatalf("got %q want %q", got, tt.want)
+			}
+		})
 	}
 }

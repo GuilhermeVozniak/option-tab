@@ -1,10 +1,9 @@
-import { downloadUrl } from "@option-tab/shared";
-import { APP_VERSION } from "../lib/download";
+import { publishedDownloadUrl } from "../lib/download";
 
 const TARGETS = [
-  { label: "Download for macOS", platform: "darwin", arch: "arm64" },
-  { label: "Download for Windows", platform: "windows", arch: "amd64" },
-  { label: "Download for Linux", platform: "linux", arch: "amd64" },
+  { label: "Download for macOS (Apple silicon)", platform: "darwin" },
+  { label: "Download for Windows", platform: "windows" },
+  { label: "Download for Linux", platform: "linux" },
 ] as const;
 
 export function DownloadButtons() {
@@ -16,7 +15,7 @@ export function DownloadButtons() {
             <a
               data-testid={`download-${t.platform}`}
               className="text-[15px] text-muted-foreground no-underline transition-colors hover:text-foreground hover:underline"
-              href={downloadUrl(t.platform, t.arch, APP_VERSION)}
+              href={publishedDownloadUrl(t.platform)}
             >
               {t.label}
             </a>

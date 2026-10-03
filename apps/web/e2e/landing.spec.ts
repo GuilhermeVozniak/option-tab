@@ -10,6 +10,8 @@ test("landing page renders and exposes per-OS download links", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Option Tab" })).toBeVisible();
 
   const macLink = page.getByTestId("download-darwin");
+  await expect(macLink).toContainText("Apple silicon");
+  await expect(page.getByText(/macOS 14\+/)).toBeVisible();
   await expect(macLink).toHaveAttribute(
     "href",
     new RegExp(`/releases/download/v${v}/option-tab_${v}_darwin_arm64\\.dmg$`),

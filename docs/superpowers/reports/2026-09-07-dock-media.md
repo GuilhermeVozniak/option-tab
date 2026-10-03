@@ -1,0 +1,35 @@
+# Dock media implementation checkpoint
+
+Scope: retained E04–E06, following Folder Pop at `dfc12b4`. This implements optional Apple Music/Spotify controls, local synchronized lyrics and independent media pins. It does not complete the separate native acceptance matrix or the remaining automation, distribution and replacement-Dock milestones.
+
+## Available behavior
+
+- Media has its own master and per-player switches, all initially off. Exact Music/Spotify Dock icons show a media panel without querying or capturing their windows. Other Dock previews retain their own settings and filters. A same-hover Windows/Media selector remains a follow-up; currently disabling that provider's media view restores its ordinary window previews.
+- A dedicated Connect action requests Automation consent for the selected, already-running player. Sampling never requests consent, launches or activates a player. Typed AppleEvents target an exact PID and launch identity; accepted transport/seek actions recheck current panel, provider, track and native preparation ownership.
+- Metadata, provider attribution, previous/next and play/pause use each adapter's advertised capabilities. Music duration/position use its documented seconds contract. Spotify seek/duration remain unavailable until its installed runtime units are verified; no duration heuristic is used.
+- Music artwork is read from its current native track. Spotify artwork additionally requires the separate remote-artwork opt-in. The WebView receives normalized PNG data only. Public HTTPS/DNS/redirect checks, a 5MiB transfer limit, 10-second request bound, 4096×4096 decode bounds, 512px output and a 20MiB memory-only cache constrain image work. Disabling remote artwork retires pending results while preserving local lyrics and the other player's observation/artwork work. Off–on transitions reject the older request's completion.
+- Explicit `.lrc` import associates a file with an exact provider and stable track ID. Imports validate before replacing a good association, keep bookmarks/file identity privately outside exported settings, reject symlinks/replaced files and balance security scope. Hover dismissal does not abandon an accepted chooser; cancellation, disable and shutdown retire it.
+- Timestamped lyrics follow sampled position, pause, seeks and track epochs. Playback extrapolation is limited to two seconds; position and active cue use one clock sample. Files, lines, cue count and expanded text are bounded. The view renders a bounded reading window, pauses follow for manual reading and supports a saved ±30-second timing offset. There is no online lyrics service or bundled third-party lyric content.
+- Each provider may have one independent, nonactivating pin. Pins share player observation with hover while owning separate presentation sessions and native hosts. Header dragging, measured size, display UUID/clamping and disconnect recovery are implemented. Pins are session-only; pause/inactivity hide them and suspend observations. Terminal close removes the subscription; the last subscriber stops that provider.
+- Pointer/keyboard seek drafts, native callbacks, errors, images and lyric results cannot transfer to a replacement presentation. Native host incarnation and visibility leases protect callbacks across host recreation and coalesced hide/resume. Window-input guards independently reject media icons after settings changes.
+- Media controls and settings use the existing English, Brazilian Portuguese and Spanish UI. Light/dark text and narrow pinned layout have browser geometry/color checks and inspected fixture screenshots.
+
+## Evidence
+
+The implementation was developed with focused failing regressions and independent reviews. Reviewed fixes include command/observer joining, exact seek bounds, LRC offset/expanded-text handling, artwork cancellation and stale failures, Dock admission, copied appearance, consistent lyric timing, header geometry, user-scroll follow, import cancellation, keyboard/session seek, and native host/visibility callback ownership.
+
+The native AppleEvent fixture exercises compiled production descriptor construction against an isolated self-process transport: exact event codes/PID addressing, no-prompt reads, provider-isolated denial, mid-read process retirement and bounded send joining. An opt-in windowless fixture also proved actual self-process AppleEvent delivery (ten metadata reads and one pause command), with no real player or consent dialog.
+
+Local-file fixtures exercise real disposable-file/bookmark reads with substituted chooser responses, including cancellation/join, restart association, symlink/replacement/size refusal and balanced security scope. Native pin fixtures cover logical display geometry, negative origins, simulated scale/disconnect, header hit admission, host loss and retired callbacks. These are native code/ownership seams, not physical desktop interaction proof.
+
+Final checkpoint gate: 19 Go packages pass race/coverage checks; 270 desktop frontend tests plus five shared and three site tests pass. The full browser run passed 62 desktop and four site checks; the three media browser cases also pass after the final Dock event-ordering fixes. Go lint, Biome, production frontend/site builds and the final embedded native binary build pass. The event regressions verify that new media sessions reset progress ordering and a terminal media hide cannot be undone by a delayed outer Dock update.
+
+Binding generation uses the repository's pinned Wails `v3.0.0-alpha2.117` compiled with the current Go toolchain. The older globally installed CLI emitted Go-parser version warnings; regenerating through `go run ...@v3.0.0-alpha2.117` completed without warnings. This changes no global tool installation or dependency version.
+
+## Remaining acceptance
+
+E04–E06 stay unchecked in the roadmap until the required native interaction evidence is complete. Actual Music/Spotify metadata/transport/consent grant-denial-revocation, real Spotify units, physical controls in a nonactivating Wails panel, actual chooser approval and re-access, user dragging, Retina displays and real disconnect transitions remain unverified. AppleEvents do not offer atomic compare-and-send on a player track; native code minimizes and reports that final auto-advance race. An already displayed system consent dialog may not be programmatically dismissed, and filesystem calls are not hard-cancellable.
+
+Computer Use remained unavailable after its native pipe failed during the preceding Folder Pop acceptance attempt. No workaround manipulated the user's desktop, players, Dock or cursor during this media work. The earlier Dock restoration question remains pending and is unrelated to these fixtures.
+
+Detailed reproducible fixture sources remain under `apps/desktop/internal/platform/testdata/media-events/`. Session-specific reports, screenshots and logs are preserved in the ignored `.superpowers/sdd/2026-09-06-dock-media/` evidence directory. Temporary `.cache` evidence was preserved there as `native-artifacts-before-final-gate/`; its old log paths document where the commands originally ran.

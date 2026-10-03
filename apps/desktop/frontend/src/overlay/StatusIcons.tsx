@@ -5,11 +5,13 @@ export function StatusIcons({
   hidden,
   fullscreen,
   otherSpace,
+  t = (text) => text,
 }: {
   minimized: boolean;
   hidden: boolean;
   fullscreen: boolean;
   otherSpace: boolean;
+  t?: (text: string) => string;
 }) {
   if (!minimized && !hidden && !fullscreen && !otherSpace) return null;
   return (
@@ -18,8 +20,8 @@ export function StatusIcons({
         <span
           className="ot-status-icon ot-status-min"
           role="img"
-          aria-label="Minimized"
-          title="Minimized"
+          aria-label={t("Minimized")}
+          title={t("Minimized")}
         >
           –
         </span>
@@ -28,8 +30,8 @@ export function StatusIcons({
         <span
           className="ot-status-icon ot-status-hidden"
           role="img"
-          aria-label="Hidden app"
-          title="Hidden app"
+          aria-label={t("Hidden app")}
+          title={t("Hidden app")}
         >
           ⊘
         </span>
@@ -38,8 +40,8 @@ export function StatusIcons({
         <span
           className="ot-status-icon ot-status-fs"
           role="img"
-          aria-label="Fullscreen"
-          title="Fullscreen"
+          aria-label={t("Fullscreen")}
+          title={t("Fullscreen")}
         >
           ⇱
         </span>
@@ -48,8 +50,8 @@ export function StatusIcons({
         <span
           className="ot-status-icon ot-status-space"
           role="img"
-          aria-label="On another Space"
-          title="On another Space"
+          aria-label={t("On another Space")}
+          title={t("On another Space")}
         >
           ⧉
         </span>

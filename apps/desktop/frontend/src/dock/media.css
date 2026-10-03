@@ -1,0 +1,128 @@
+.ot-media-panel {
+  box-sizing: border-box;
+  width: min(420px, calc(100vw - 20px));
+  padding: 14px;
+  color: var(--ot-dock-text, #f5f7ff);
+  font-size: var(--ot-dock-font, 13px);
+}
+.ot-media-header,
+.ot-media-track,
+.ot-media-transport,
+.ot-media-lyrics-toolbar {
+  display: flex;
+  align-items: center;
+}
+.ot-media-header {
+  box-sizing: border-box;
+  height: 32px;
+  justify-content: space-between;
+}
+.ot-dock-panel .ot-media-header {
+  padding: 0;
+}
+.ot-media-panel.is-pinned {
+  box-sizing: border-box;
+  position: relative;
+  margin: -10px;
+  padding: 32px 24px 14px;
+  width: calc(100% + 20px);
+}
+.is-pinned .ot-media-header {
+  position: absolute;
+  inset: 0 0 auto;
+  padding: 0 48px 0 14px;
+}
+.is-pinned .ot-media-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 48px;
+  height: 32px;
+}
+.ot-media-track {
+  gap: 14px;
+}
+.ot-media-track img,
+.ot-media-artwork {
+  width: 82px;
+  height: 82px;
+  border-radius: 14px;
+  object-fit: cover;
+}
+.ot-media-artwork {
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--ot-accent) 22%, transparent);
+  font-size: 34px;
+}
+.ot-media-track p {
+  margin: 3px 0;
+  opacity: 0.72;
+}
+.ot-media-transport {
+  justify-content: center;
+  gap: 14px;
+  margin: 12px;
+}
+.ot-media-transport button {
+  width: 36px;
+  height: 32px;
+  border-radius: 999px;
+}
+.ot-media-panel input[type="range"] {
+  width: 100%;
+}
+.ot-media-lyrics-toolbar {
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.ot-media-offset {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ot-media-offset input {
+  width: 92px;
+}
+.ot-media-lyrics-toolbar > span {
+  margin-right: auto;
+  font-weight: 650;
+}
+.ot-media-disclosure,
+.ot-media-status {
+  opacity: 0.7;
+}
+.ot-media-lyrics {
+  height: 150px;
+  overflow: auto;
+  list-style: none;
+  padding: 0 12px;
+  margin: 8px 0;
+  scrollbar-width: thin;
+}
+.ot-media-lyrics li {
+  padding: 5px 0;
+  opacity: 0.42;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ot-media-lyrics li[aria-current="true"] {
+  opacity: 1;
+  color: var(--ot-accent);
+  font-weight: 650;
+}
+.ot-media-panel button:focus-visible,
+.ot-media-panel input:focus-visible {
+  outline: 2px solid var(--ot-accent);
+  outline-offset: 2px;
+}
+.ot-media-error {
+  color: #ff8b86;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ot-media-panel * {
+    scroll-behavior: auto !important;
+  }
+}

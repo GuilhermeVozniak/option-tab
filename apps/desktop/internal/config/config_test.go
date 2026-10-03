@@ -39,6 +39,60 @@ func TestDefault_NewBehaviorAndAppearanceFields(t *testing.T) {
 	if s.Behavior.CaptureInBackground {
 		t.Error("CaptureInBackground should default false")
 	}
+	if s.Appearance.CompactThreshold != 0 || s.Appearance.LayoutDirection != LayoutHorizontal {
+		t.Errorf("switcher appearance defaults = threshold %d, direction %q", s.Appearance.CompactThreshold, s.Appearance.LayoutDirection)
+	}
+	if s.Behavior.ActionBindings["KeyW"] != ActionClose || s.Behavior.ActionBindings["KeyM"] != ActionMinimize {
+		t.Errorf("default action bindings missing: %+v", s.Behavior.ActionBindings)
+	}
+	if s.Behavior.MiddleClickAction != PointerClose || s.Behavior.SwipeUpAction != PointerNone || s.Behavior.SwipeDownAction != PointerNone {
+		t.Errorf("pointer defaults wrong: %+v", s.Behavior)
+	}
+}
+
+func TestLoad_ActionBindingsDistinguishesMissingFromExplicitEmpty(t *testing.T) {
+	missing, err := Load(strings.NewReader(`{"behavior":{}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if missing.Behavior.ActionBindings["KeyW"] != ActionClose {
+		t.Errorf("missing bindings should inherit defaults: %+v", missing.Behavior.ActionBindings)
+	}
+	empty, err := Load(strings.NewReader(`{"behavior":{"actionBindings":{}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty.Behavior.ActionBindings == nil || len(empty.Behavior.ActionBindings) != 0 {
+		t.Errorf("explicit empty bindings should disable mappings: %#v", empty.Behavior.ActionBindings)
+	}
+}
+
+func TestSaveLoad_ExplicitEmptyActionBindingsRemainEmpty(t *testing.T) {
+	s := Default()
+	s.Behavior.ActionBindings = map[string]ActionKind{}
+	var buf bytes.Buffer
+	if err := Save(&buf, s); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Behavior.ActionBindings == nil || len(got.Behavior.ActionBindings) != 0 {
+		t.Fatalf("explicit empty bindings lost: %#v", got.Behavior.ActionBindings)
+	}
+}
+
+func TestNormalize_DoesNotMutateActionBindings(t *testing.T) {
+	s := Default()
+	s.Behavior.ActionBindings["Tab"] = ActionClose
+	got := s.Normalize()
+	if _, ok := got.Behavior.ActionBindings["Tab"]; ok {
+		t.Fatal("invalid binding survived normalization")
+	}
+	if s.Behavior.ActionBindings["Tab"] != ActionClose {
+		t.Fatal("Normalize mutated caller's binding map")
+	}
 }
 
 func TestSaveLoad_RoundTripsNewFields(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"option-tab/internal/config"
 	"option-tab/internal/domain"
 	"option-tab/internal/hotkey"
+	"option-tab/internal/mru"
 	"option-tab/internal/platform"
 	"option-tab/internal/platform/fake"
 	"option-tab/internal/switcher"
@@ -308,7 +309,9 @@ func TestSetPaused_SyncsNativeEligibilityPolicy(t *testing.T) {
 func TestHotkeyLoop_ActivatesController(t *testing.T) {
 	p := &focusRecorderPlatform{Fake: fake.New()}
 	p.SetWindows(appTestWindows())
-	a := newApp(p, config.Default(), filepath.Join(t.TempDir(), "settings.json"))
+	s := config.Default()
+	s.Shortcuts[0].Mode = config.ModeWindows
+	a := newApp(p, s, filepath.Join(t.TempDir(), "settings.json"))
 	go a.hotkeyLoop()
 
 	p.EmitHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
@@ -323,20 +326,28 @@ func TestHotkeyLoop_ActivatesController(t *testing.T) {
 func TestFocusLoop_TouchesMRU(t *testing.T) {
 	p := fake.New()
 	p.SetWindows(appTestWindows())
-	a := newApp(p, config.Default(), filepath.Join(t.TempDir(), "settings.json"))
+	s := config.Default()
+	s.Shortcuts[0].Mode = config.ModeWindows
+	a := newApp(p, s, filepath.Join(t.TempDir(), "settings.json"))
+	t.Cleanup(a.stopCapture)
+	tracker := mru.New()
+	a.controller = switcher.New(switcher.Deps{Windows: p, Focuser: p, Env: p, View: a, MRU: tracker}, s)
 	go a.focusLoop()
 
 	// A real (outside-the-switcher) focus change must reach the MRU: the
-	// focused window then leads the list on the next activation. Focus events
-	// are dropped while the overlay is open, so each poll iteration re-emits
-	// before a synchronous activate/snapshot/cancel round.
-	pollUntil(t, time.Second, "focus event to lead MRU order", func() bool {
-		p.EmitFocus(2)
-		a.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
-		st := a.controller.State()
-		a.controller.Cancel()
-		return len(st.Entries) > 0 && st.Entries[0].WindowID == 2
+	// focused window then leads the list on the next activation. Wait for the
+	// actual MRU publication before opening, since opening suppresses focus events.
+	p.EmitFocus(2)
+	pollUntil(t, time.Second, "focus event to reach MRU", func() bool {
+		rank, ok := tracker.Rank(2)
+		return ok && rank == 0
 	})
+	a.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	st := a.controller.State()
+	a.controller.Cancel()
+	if len(st.Entries) == 0 || st.Entries[0].WindowID != 2 {
+		t.Fatal("focused window did not lead MRU order", st.Entries)
+	}
 }
 
 func TestCapture_GuardsSkipPlatformCalls(t *testing.T) {
@@ -479,7 +490,9 @@ func TestTrayMenuActions(t *testing.T) {
 	// exercise the same paths the menu items trigger.
 	f := fake.New()
 	f.SetWindows(appTestWindows())
-	a := newApp(f, config.Default(), "")
+	s := config.Default()
+	s.Shortcuts[0].Mode = config.ModeWindows
+	a := newApp(f, s, "")
 
 	// "Show Option Tab" activates the switcher as if the primary hotkey fired.
 	a.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})

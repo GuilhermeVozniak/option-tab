@@ -17,6 +17,8 @@ jobs:
       - run: bun run build
       - run: cd apps/web && bunx playwright install --with-deps chromium && bun run e2e
       - run: cd apps/desktop/frontend && bun run e2e
+      - name: Check launcher widget layout in WebKit
+        run: cd apps/desktop/frontend && bunx playwright install --with-deps webkit && bunx playwright test --config playwright.widgets.config.ts --project webkit
 
   go:
     runs-on: ubuntu-latest

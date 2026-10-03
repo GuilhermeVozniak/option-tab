@@ -13,6 +13,7 @@ export interface LayoutInput {
   viewportH?: number;
   showTitle?: boolean;
   previewEnabled?: boolean;
+  layoutDirection?: "horizontal" | "vertical";
 }
 
 export interface Layout {
@@ -28,6 +29,14 @@ export const SIZE_PRESET_PX = {
   medium: { thumbnail: 280, icon: 72 },
   large: { thumbnail: 360, icon: 96 },
 } as const;
+
+export function effectiveStyle(
+  style: "thumbnails" | "appIcons" | "titles",
+  count: number,
+  compactThreshold: number,
+) {
+  return compactThreshold > 0 && count >= compactThreshold ? "titles" : style;
+}
 
 const MIN_THUMBNAIL_PX = 96;
 
@@ -53,8 +62,16 @@ function clamp(v: number, lo: number, hi: number): number {
 export function computeLayout(input: LayoutInput): Layout {
   const { count, maxColumns, maxRows, thumbnailMaxPx, autoSize } = input;
   const { viewportW = 0, viewportH = 0, showTitle = false, previewEnabled = false } = input;
-  const columns = Math.max(1, Math.min(maxColumns, count || 1));
-  const rows = count <= 0 ? 0 : Math.ceil(count / columns);
+  const vertical = input.layoutDirection === "vertical";
+  const rows =
+    count <= 0
+      ? 0
+      : vertical
+        ? Math.min(maxRows, count)
+        : Math.ceil(count / Math.max(1, Math.min(maxColumns, count || 1)));
+  const columns = vertical
+    ? Math.max(1, Math.ceil(count / Math.max(rows, 1)))
+    : Math.max(1, Math.min(maxColumns, count || 1));
 
   // AltTab-style sizing: let the grid grow rows at full size and only scale
   // thumbnails down once the window count exceeds the grid's capacity, with a

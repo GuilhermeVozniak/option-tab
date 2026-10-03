@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dictionary SYSTEM "file://localhost/System/Library/DTDs/sdef.dtd">
+<dictionary title="Option Tab Automation">
+  <suite name="Option Tab Automation" code="OpTb" description="Local typed switcher, preview and window commands. No script evaluation.">
+    <enumeration name="switcher mode" code="Omod">
+      <enumerator name="windows mode" code="wind" />
+      <enumerator name="apps mode" code="apps" />
+    </enumeration>
+    <enumeration name="window action" code="Owop">
+      <enumerator name="focus window" code="focu" />
+      <enumerator name="close window" code="clos" />
+      <enumerator name="minimize window" code="mini" />
+      <enumerator name="hide application" code="hide" />
+      <enumerator name="fullscreen window" code="full" />
+    </enumeration>
+    <command name="open switcher" code="OpTbswop" description="Returns bounded versioned JSON; failures are Apple event errors.">
+      <parameter name="mode" code="mode" type="switcher mode" description="Idempotently open the selected switcher mode." optional="yes" />
+      <result type="text" description="Versioned JSON reply." />
+    </command>
+    <command name="show app previews" code="OpTbpvsh" description="Returns bounded versioned JSON; failures are Apple event errors.">
+      <parameter name="app name" code="anam" type="text" description="Exact running application name; choose only one app selector." optional="yes" />
+      <parameter name="bundle identifier" code="bund" type="text" description="Exact bundle identifier; ambiguity is an error." optional="yes" />
+      <parameter name="process id" code="apid" type="integer" description="Exact positive running process ID." optional="yes" />
+      <parameter name="x position" code="xpos" type="real" description="Global top-left logical point; supply x and y together." optional="yes" />
+      <parameter name="y position" code="ypos" type="real" description="Global top-left logical point; clamped to a display." optional="yes" />
+      <result type="text" description="Versioned JSON reply." />
+    </command>
+    <command name="hide app previews" code="OpTbpvhi" description="Returns bounded versioned JSON; failures are Apple event errors.">
+      <parameter name="presentation token" code="ptok" type="text" description="Exact decimal owner token returned by show app previews." />
+      <result type="text" description="Versioned JSON reply." />
+    </command>
+    <command name="perform window action" code="OpTbwact" description="Returns bounded versioned JSON; failures are Apple event errors.">
+      <parameter name="app name" code="anam" type="text" description="Exact running application name; choose only one app selector." optional="yes" />
+      <parameter name="bundle identifier" code="bund" type="text" description="Exact bundle identifier; ambiguity is an error." optional="yes" />
+      <parameter name="process id" code="apid" type="integer" description="Exact positive running process ID." optional="yes" />
+      <parameter name="operation" code="wopn" type="window action" description="One explicit single-window operation." />
+      <parameter name="window id" code="widn" type="text" description="Exact positive decimal WindowServer ID; exclusive with active window." optional="yes" />
+      <parameter name="active window" code="actv" type="boolean" description="Capture the authoritative focused window once." optional="yes" />
+      <parameter name="fullscreen state" code="full" type="boolean" description="Required only for fullscreen: desired state, never a toggle." optional="yes" />
+      <result type="text" description="Versioned JSON reply." />
+    </command>
+    <command name="query applications" code="OpTbqapp" description="Returns bounded versioned JSON; failures are Apple event errors.">
+      <result type="text" description="Versioned JSON reply." />
+    </command>
+    <command name="query windows" code="OpTbqwin" description="Returns bounded versioned JSON; failures are Apple event errors.">
+      <parameter name="app name" code="anam" type="text" description="Exact running application name; choose only one app selector." optional="yes" />
+      <parameter name="bundle identifier" code="bund" type="text" description="Exact bundle identifier; ambiguity is an error." optional="yes" />
+      <parameter name="process id" code="apid" type="integer" description="Exact positive running process ID." optional="yes" />
+      <parameter name="include images" code="imag" type="boolean" description="Existing bounded cached previews only; default false, no capture on query." optional="yes" />
+      <result type="text" description="Versioned JSON reply." />
+    </command>
+    <command name="query active window" code="OpTbqact" description="Returns bounded versioned JSON; failures are Apple event errors.">
+      <parameter name="include images" code="imag" type="boolean" description="Existing bounded cached preview only; default false." optional="yes" />
+      <result type="text" description="Versioned JSON reply." />
+    </command>
+  </suite>
+</dictionary>

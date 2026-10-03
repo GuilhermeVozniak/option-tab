@@ -75,6 +75,36 @@ describe("keyToAction", () => {
     expect(keyToAction(ev("f", { code: "KeyF", altKey: true }))).toEqual({ kind: "fullscreen" });
   });
 
+  it("supports remapping a physical action key", () => {
+    expect(
+      keyToAction(ev("∑", { code: "KeyW", altKey: true }), {
+        actionBindings: { KeyW: "minimize" },
+      }),
+    ).toEqual({ kind: "minimize" });
+  });
+
+  it("uses the backend newWindow action name", () => {
+    expect(
+      keyToAction(ev("n", { code: "KeyN", altKey: true }), {
+        actionBindings: { KeyN: "newWindow" },
+      }),
+    ).toEqual({ kind: "newWindow" });
+  });
+
+  it("disables held-modifier actions with an explicit empty binding map", () => {
+    expect(keyToAction(ev("∑", { code: "KeyW", altKey: true }), { actionBindings: {} })).toEqual({
+      kind: "searchAppend",
+      char: "∑",
+    });
+  });
+
+  it("maps arrows along the chosen layout direction", () => {
+    const vertical = { layoutDirection: "vertical" as const };
+    expect(keyToAction(ev("ArrowDown"), vertical)).toEqual({ kind: "advance" });
+    expect(keyToAction(ev("ArrowUp"), vertical)).toEqual({ kind: "reverse" });
+    expect(keyToAction(ev("ArrowRight"), vertical)).toEqual({ kind: "none" });
+  });
+
   it("does not trigger window actions without a modifier (letters type into search)", () => {
     expect(keyToAction(ev("w", { code: "KeyW" }))).toEqual({ kind: "searchAppend", char: "w" });
     expect(keyToAction(ev("q", { code: "KeyQ" }))).toEqual({ kind: "searchAppend", char: "q" });
