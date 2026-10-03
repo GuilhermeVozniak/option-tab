@@ -79,5 +79,5 @@ test("saves a profile through the native bridge and explicitly imports reviewed 
     .poll(() => getCallRecords(page))
     .toContainEqual(["ImportLauncherProfile", document, "digest-e2e", "dock-e2e-1"]);
   await expect(page.getByLabel("Profile", { exact: true })).toHaveValue("profile-imported");
-  await expect(page.getByRole("checkbox", { name: "Enable replacement Dock" })).not.toBeChecked();
+  await expect(page.getByRole("switch", { name: "Enable replacement Dock" })).not.toBeChecked();
 });

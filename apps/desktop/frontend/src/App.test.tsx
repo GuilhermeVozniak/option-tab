@@ -264,6 +264,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   eventHandlers.clear();
   resetBackendProbeForTests();
+  mocked.GetVersion.mockReset().mockResolvedValue("1.2.3");
+  mocked.GetPermissions.mockReset().mockResolvedValue("{}");
   window.location.hash = "";
   mocked.GetSettingsState.mockResolvedValue({
     revision: 1,
@@ -1709,11 +1711,14 @@ describe("App", () => {
   it("enables local settings edits after confirming there is no Wails backend", async () => {
     window.location.hash = "#settings";
     mocked.GetSettingsState.mockRejectedValueOnce(new Error("no backend"));
-    mocked.GetVersion.mockResolvedValueOnce("<!doctype html>");
+    mocked.GetPermissions.mockRejectedValueOnce(new Error("no backend"));
+    // Both About and the backend probe read the version during mounting.
+    mocked.GetVersion.mockResolvedValue("<!doctype html>");
     render(<App />);
+    await waitFor(() => expect(screen.getByLabelText("Start at login")).toBeEnabled());
     const startAtLogin = screen.getByLabelText("Start at login");
-    await waitFor(() => expect(startAtLogin).toBeEnabled());
-    fireEvent.click(startAtLogin);
+    expect(startAtLogin).toBeInTheDocument();
+    await act(async () => fireEvent.click(startAtLogin));
     expect(startAtLogin).toBeChecked();
     expect(mocked.SaveSettingsAtRevision).not.toHaveBeenCalled();
   });

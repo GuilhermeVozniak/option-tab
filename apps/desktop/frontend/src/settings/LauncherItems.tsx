@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Switch } from "@/components/ui/switch";
 import type { Translate } from "../lib/i18n";
 import { launcherItemSettings } from "../lib/launcher-items-bridge";
 import type {
@@ -261,7 +263,11 @@ export function LauncherItems({
         <h3>{t("Launcher items")}</h3>
         <p>{t("Pins and groups are stored per profile. Choosing a file never opens it.")}</p>
       </header>
-      {error ? <p role="alert">{t(error)}</p> : null}
+      {error ? (
+        <Alert appearance="unstyled" asChild>
+          <p role="alert">{t(error)}</p>
+        </Alert>
+      ) : null}
       {status?.available === false ? <p>{t("Launcher item selection is unavailable.")}</p> : null}
       <div className="ot-editor-actions">
         <Button type="button" onClick={() => addRef("app")} disabled={blocked}>
@@ -298,7 +304,7 @@ export function LauncherItems({
         ) : null}
       </div>
       <div className="ot-editor-draft ot-editor-link-draft">
-        <label className="ot-editor-field">
+        <Label appearance="unstyled" className="ot-editor-field">
           <span>{t("Link label")}</span>
           <Input
             aria-label={t("Link label")}
@@ -306,15 +312,15 @@ export function LauncherItems({
             maxLength={80}
             onChange={(e) => setLinkLabel(e.target.value)}
           />
-        </label>
-        <label className="ot-editor-field">
+        </Label>
+        <Label appearance="unstyled" className="ot-editor-field">
           <span>{t("Web address")}</span>
           <Input
             aria-label={t("Web address")}
             value={linkURL}
             onChange={(e) => setLinkURL(e.target.value)}
           />
-        </label>
+        </Label>
         <Button
           type="button"
           disabled={!snapshot || !linkLabel || !linkURL || full}
@@ -477,7 +483,7 @@ export function LauncherItems({
                     )
                   ) : null}
                   {x.kind === "folder" ? (
-                    <Select
+                    <NativeSelect
                       aria-label={t("Folder view")}
                       value={x.folderView}
                       onChange={(e) =>
@@ -490,9 +496,9 @@ export function LauncherItems({
                         )
                       }
                     >
-                      <option value="list">{t("List")}</option>
-                      <option value="grid">{t("Grid")}</option>
-                    </Select>
+                      <NativeSelectOption value="list">{t("List")}</NativeSelectOption>
+                      <NativeSelectOption value="grid">{t("Grid")}</NativeSelectOption>
+                    </NativeSelect>
                   ) : null}
                 </div>
               </article>
@@ -502,7 +508,7 @@ export function LauncherItems({
       )}
       <fieldset className="ot-editor-draft ot-editor-group-draft">
         <legend>{t("New application group")}</legend>
-        <label className="ot-editor-field">
+        <Label appearance="unstyled" className="ot-editor-field">
           <span>{t("Group name")}</span>
           <Input
             aria-label={t("Group name")}
@@ -510,7 +516,7 @@ export function LauncherItems({
             maxLength={80}
             onChange={(e) => setGroupName(e.target.value)}
           />
-        </label>
+        </Label>
         {items
           .filter(
             (x) =>
@@ -518,18 +524,16 @@ export function LauncherItems({
               !items.some((g) => g.kind === "group" && g.members?.includes(x.id)),
           )
           .map((x) => (
-            <label key={x.id} className="ot-editor-check-row">
-              <Checkbox
+            <Label appearance="unstyled" key={x.id} className="ot-editor-check-row">
+              <Switch
                 aria-label={x.label}
                 checked={members.includes(x.id)}
-                onChange={(e) =>
-                  setMembers((old) =>
-                    e.target.checked ? [...old, x.id] : old.filter((id) => id !== x.id),
-                  )
+                onCheckedChange={(checked) =>
+                  setMembers((old) => (checked ? [...old, x.id] : old.filter((id) => id !== x.id)))
                 }
               />
               {x.label}
-            </label>
+            </Label>
           ))}
         <Button
           disabled={!groupName || members.length === 0 || full}

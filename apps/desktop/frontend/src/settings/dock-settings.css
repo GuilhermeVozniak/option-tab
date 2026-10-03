@@ -11,6 +11,7 @@
 
 .ot-dock-settings-navigation > button {
   flex: 1 0 auto;
+  box-shadow: 0 1px 1px #00000006;
   min-height: 34px;
   padding: 7px 14px;
   border: 1px solid transparent;
@@ -126,7 +127,7 @@
   font-size: 12px;
 }
 
-.ot-dock-settings-fields [data-slot="select"],
+.ot-dock-settings-fields [data-slot="native-select-wrapper"],
 .ot-dock-settings-fields select,
 .ot-dock-settings-profile-name input {
   width: 100%;

@@ -10,7 +10,7 @@ test("diagnostics stays inert until review and saves the exact reviewed token", 
   await installFakeWails(page);
   await page.goto("/#settings");
   await page.getByRole("tab", { name: "About" }).click();
-  await page.locator("summary", { hasText: "Diagnostics" }).click();
+  await page.getByRole("button", { name: "Diagnostics", exact: true }).click();
   expect(diagnosticsCalls(await getCallRecords(page))).toEqual([]);
 
   await page.getByRole("button", { name: "Review diagnostics" }).click();
@@ -46,7 +46,7 @@ test("diagnostics refreshes after explicit recording changes and maps stable sav
   await installFakeWails(page);
   await page.goto("/#settings");
   await page.getByRole("tab", { name: "About" }).click();
-  await page.locator("summary", { hasText: "Diagnostics" }).click();
+  await page.getByRole("button", { name: "Diagnostics", exact: true }).click();
   await page.getByRole("button", { name: "Review diagnostics" }).click();
   await expect(page.getByRole("button", { name: "Start recording" })).toBeVisible();
   await page.evaluate(() => {

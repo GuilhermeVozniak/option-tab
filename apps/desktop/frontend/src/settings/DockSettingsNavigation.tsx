@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import "./dock-settings.css";
 
 export function DockSettingsNavigation<T extends string>({
@@ -21,7 +22,8 @@ export function DockSettingsNavigation<T extends string>({
       className={`ot-dock-settings-navigation${compact ? " ot-dock-settings-navigation-compact" : ""}`}
     >
       {sections.map(([id, title]) => (
-        <button
+        <Button
+          variant="unstyled"
           key={id}
           type="button"
           id={`${prefix}-${id}-nav`}
@@ -30,7 +32,7 @@ export function DockSettingsNavigation<T extends string>({
           onClick={() => onChange(id)}
         >
           {title}
-        </button>
+        </Button>
       ))}
     </nav>
   );

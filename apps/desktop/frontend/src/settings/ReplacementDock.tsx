@@ -1,9 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Switch } from "@/components/ui/switch";
 import { resolveLang, type Translate } from "../lib/i18n";
 import type { LauncherProfileTransferActions } from "../lib/launcher-profile-transfer-bridge";
 import type {
@@ -49,7 +51,7 @@ function ProfileNameInput({
     if (draft !== value) onCommit(draft);
   };
   return (
-    <label className="ot-dock-settings-profile-name">
+    <Label appearance="unstyled" className="ot-dock-settings-profile-name">
       <span>{t("Profile name")}</span>
       <Input
         aria-label={t("Profile name")}
@@ -72,7 +74,7 @@ function ProfileNameInput({
           }
         }}
       />
-    </label>
+    </Label>
   );
 }
 
@@ -166,19 +168,23 @@ export function ReplacementDock({
       </CardHeader>
       <CardContent>
         <div className="ot-dock-settings-essentials">
-          <label className={ROW}>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Enable replacement Dock")}</span>
-            <Checkbox
+            <Switch
               aria-label={t("Enable replacement Dock")}
               checked={value.enabled}
-              onChange={(event) => onChange({ ...value, enabled: event.target.checked })}
+              onCheckedChange={(checked) => onChange({ ...value, enabled: checked })}
             />
-          </label>
+          </Label>
           <p className={HINT}>
             {t("The native Dock remains available. Use the menu command to return permanently.")}
           </p>
           {error || (status && status.status !== "ready" && status.status !== "disabled") ? (
-            <p role="alert">{t(launcherReason(error || status?.reason || status?.status || ""))}</p>
+            <Alert appearance="unstyled" asChild>
+              <p role="alert">
+                {t(launcherReason(error || status?.reason || status?.status || ""))}
+              </p>
+            </Alert>
           ) : null}
           {onUseNativeDock ? (
             <Button variant="outline" onClick={onUseNativeDock}>
@@ -186,20 +192,20 @@ export function ReplacementDock({
             </Button>
           ) : null}
         </div>
-        <label className="ot-dock-settings-profile-picker">
+        <Label appearance="unstyled" className="ot-dock-settings-profile-picker">
           <span>{t("Editing profile")}</span>
-          <Select
+          <NativeSelect
             aria-label={t("Profile")}
             value={profile?.id}
             onChange={(event) => setProfileID(event.target.value)}
           >
             {value.profiles.map((p) => (
-              <option key={p.id} value={p.id}>
+              <NativeSelectOption key={p.id} value={p.id}>
                 {p.name}
-              </option>
+              </NativeSelectOption>
             ))}
-          </Select>
-        </label>
+          </NativeSelect>
+        </Label>
         <DockSettingsNavigation
           label={t("Launcher sections")}
           prefix={sectionPrefix}
@@ -308,20 +314,20 @@ export function ReplacementDock({
               {t("Delete profile")}
             </Button>
             {value.profiles.length > 1 ? (
-              <Select
+              <NativeSelect
                 aria-label={t("Reassign deleted profile to")}
                 value={replacementID}
                 onChange={(event) => setReplacementID(event.target.value)}
               >
-                <option value="">{t("Choose replacement")}</option>
+                <NativeSelectOption value="">{t("Choose replacement")}</NativeSelectOption>
                 {value.profiles
                   .filter((p) => p.id !== profile?.id)
                   .map((p) => (
-                    <option key={p.id} value={p.id}>
+                    <NativeSelectOption key={p.id} value={p.id}>
                       {p.name}
-                    </option>
+                    </NativeSelectOption>
                   ))}
-              </Select>
+              </NativeSelect>
             ) : null}
           </div>
           {profile && profileTransfer ? (
@@ -361,27 +367,27 @@ export function ReplacementDock({
           ) : null}
           {profile ? (
             <div className="ot-dock-settings-group">
-              <label className={ROW}>
+              <Label appearance="unstyled" className={ROW}>
                 <span>{t("Show Dock badges")}</span>
-                <Checkbox
+                <Switch
                   aria-label={t("Show replacement Dock badges")}
                   checked={profile.showBadges ?? false}
-                  onChange={(event) => patchProfile({ showBadges: event.target.checked })}
+                  onCheckedChange={(checked) => patchProfile({ showBadges: checked })}
                 />
-              </label>
+              </Label>
               <p className={HINT}>
                 {t(
                   "Use available badges from the macOS Dock. Some apps and macOS versions may not provide them.",
                 )}
               </p>
-              <label className={ROW}>
+              <Label appearance="unstyled" className={ROW}>
                 <span>{t("Reorder items on the Dock")}</span>
-                <Checkbox
+                <Switch
                   aria-label={t("Enable runtime launcher reordering")}
                   checked={profile.runtimeReorder ?? false}
-                  onChange={(event) => patchProfile({ runtimeReorder: event.target.checked })}
+                  onCheckedChange={(checked) => patchProfile({ runtimeReorder: checked })}
                 />
-              </label>
+              </Label>
               <p className={HINT}>
                 {t("Use item handles to rearrange pins or create application groups.")}
               </p>
@@ -444,9 +450,9 @@ export function ReplacementDock({
                   )}
                 </p>
                 <div className="ot-dock-settings-fields">
-                  <label>
+                  <Label appearance="unstyled">
                     <span>{t("Edge")}</span>
-                    <Select
+                    <NativeSelect
                       aria-label={t("Edge")}
                       value={profile.edge}
                       onChange={(event) =>
@@ -454,28 +460,28 @@ export function ReplacementDock({
                       }
                     >
                       {["bottom", "left", "right", "top"].map((v) => (
-                        <option key={v} value={v}>
+                        <NativeSelectOption key={v} value={v}>
                           {t(v)}
-                        </option>
+                        </NativeSelectOption>
                       ))}
-                    </Select>
-                  </label>
-                  <label>
+                    </NativeSelect>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Layout")}</span>
-                    <Select
+                    <NativeSelect
                       aria-label={t("Layout")}
                       value={profile.layout}
                       onChange={(event) =>
                         patchProfile({ layout: event.target.value as typeof profile.layout })
                       }
                     >
-                      <option value="floating">{t("Floating")}</option>
-                      <option value="fullWidth">{t("Full width")}</option>
-                    </Select>
-                  </label>
-                  <label>
+                      <NativeSelectOption value="floating">{t("Floating")}</NativeSelectOption>
+                      <NativeSelectOption value="fullWidth">{t("Full width")}</NativeSelectOption>
+                    </NativeSelect>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Alignment")}</span>
-                    <Select
+                    <NativeSelect
                       aria-label={t("Alignment")}
                       value={profile.alignment}
                       onChange={(event) =>
@@ -483,13 +489,13 @@ export function ReplacementDock({
                       }
                     >
                       {["start", "center", "end"].map((v) => (
-                        <option key={v} value={v}>
+                        <NativeSelectOption key={v} value={v}>
                           {t(v)}
-                        </option>
+                        </NativeSelectOption>
                       ))}
-                    </Select>
-                  </label>
-                  <label>
+                    </NativeSelect>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Icon size")}</span>
                     <Input
                       aria-label={t("Icon size")}
@@ -499,8 +505,8 @@ export function ReplacementDock({
                       value={profile.iconPx}
                       onChange={(event) => patchProfile({ iconPx: Number(event.target.value) })}
                     />
-                  </label>
-                  <label>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Maximum length")}</span>
                     <Input
                       aria-label={t("Maximum length")}
@@ -513,8 +519,8 @@ export function ReplacementDock({
                         patchProfile({ maxLengthFraction: Number(event.target.value) })
                       }
                     />
-                  </label>
-                  <label>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Dock thickness")}</span>
                     <Input
                       aria-label={t("Dock thickness")}
@@ -526,8 +532,8 @@ export function ReplacementDock({
                         patchProfile({ thicknessPx: Number(event.target.value) })
                       }
                     />
-                  </label>
-                  <label>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Screen inset")}</span>
                     <Input
                       aria-label={t("Screen inset")}
@@ -537,23 +543,23 @@ export function ReplacementDock({
                       value={profile.insetPx}
                       onChange={(event) => patchProfile({ insetPx: Number(event.target.value) })}
                     />
-                  </label>
-                  <label className={ROW}>
+                  </Label>
+                  <Label appearance="unstyled" className={ROW}>
                     <span>{t("Auto-hide")}</span>
-                    <Checkbox
+                    <Switch
                       aria-label={t("Auto-hide replacement Dock")}
                       checked={profile.autoHide}
-                      onChange={(event) => patchProfile({ autoHide: event.target.checked })}
+                      onCheckedChange={(checked) => patchProfile({ autoHide: checked })}
                     />
-                  </label>
+                  </Label>
                 </div>
               </div>
               <div className="ot-dock-settings-group">
                 <h4>{t("Appearance")}</h4>
                 <div className="ot-dock-settings-fields">
-                  <label>
+                  <Label appearance="unstyled">
                     <span>{t("Theme")}</span>
-                    <Select
+                    <NativeSelect
                       aria-label={t("Launcher theme")}
                       value={profile.appearance.theme}
                       onChange={(event) =>
@@ -566,15 +572,15 @@ export function ReplacementDock({
                       }
                     >
                       {["system", "light", "dark"].map((v) => (
-                        <option key={v} value={v}>
+                        <NativeSelectOption key={v} value={v}>
                           {t(v)}
-                        </option>
+                        </NativeSelectOption>
                       ))}
-                    </Select>
-                  </label>
-                  <label>
+                    </NativeSelect>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Material")}</span>
-                    <Select
+                    <NativeSelect
                       aria-label={t("Material")}
                       value={profile.appearance.material}
                       onChange={(event) =>
@@ -586,11 +592,11 @@ export function ReplacementDock({
                         })
                       }
                     >
-                      <option value="solid">{t("Solid")}</option>
-                      <option value="system">{t("System material")}</option>
-                    </Select>
-                  </label>
-                  <label>
+                      <NativeSelectOption value="solid">{t("Solid")}</NativeSelectOption>
+                      <NativeSelectOption value="system">{t("System material")}</NativeSelectOption>
+                    </NativeSelect>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Tint")}</span>
                     <Input
                       aria-label={t("Tint")}
@@ -602,8 +608,8 @@ export function ReplacementDock({
                         })
                       }
                     />
-                  </label>
-                  <label>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Opacity")}</span>
                     <Input
                       aria-label={t("Launcher opacity")}
@@ -621,8 +627,8 @@ export function ReplacementDock({
                         })
                       }
                     />
-                  </label>
-                  <label>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Border opacity")}</span>
                     <Input
                       aria-label={t("Border opacity")}
@@ -640,8 +646,8 @@ export function ReplacementDock({
                         })
                       }
                     />
-                  </label>
-                  <label>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Corner radius")}</span>
                     <Input
                       aria-label={t("Corner radius")}
@@ -658,8 +664,8 @@ export function ReplacementDock({
                         })
                       }
                     />
-                  </label>
-                  <label>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Item spacing")}</span>
                     <Input
                       aria-label={t("Item spacing")}
@@ -676,19 +682,19 @@ export function ReplacementDock({
                         })
                       }
                     />
-                  </label>
-                  <label className={ROW}>
+                  </Label>
+                  <Label appearance="unstyled" className={ROW}>
                     <span>{t("Show labels")}</span>
-                    <Checkbox
+                    <Switch
                       aria-label={t("Show launcher labels")}
                       checked={profile.appearance.showLabels}
-                      onChange={(event) =>
+                      onCheckedChange={(checked) =>
                         patchProfile({
-                          appearance: { ...profile.appearance, showLabels: event.target.checked },
+                          appearance: { ...profile.appearance, showLabels: checked },
                         })
                       }
                     />
-                  </label>
+                  </Label>
                 </div>
               </div>
               <div className="ot-dock-settings-group">
@@ -697,19 +703,19 @@ export function ReplacementDock({
                   {t("Enlarge nearby launcher items as the pointer moves across them.")}
                 </p>
                 <div className="ot-dock-settings-fields">
-                  <label className={`${ROW} col-span-2`}>
+                  <Label appearance="unstyled" className={`${ROW} col-span-2`}>
                     <span>{t("Enable magnification")}</span>
-                    <Checkbox
+                    <Switch
                       aria-label={t("Enable launcher magnification")}
                       checked={magnification.enabled}
-                      onChange={(event) =>
+                      onCheckedChange={(checked) =>
                         patchProfile({
-                          magnification: { ...magnification, enabled: event.target.checked },
+                          magnification: { ...magnification, enabled: checked },
                         })
                       }
                     />
-                  </label>
-                  <label>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Magnification scale")}</span>
                     <Input
                       aria-label={t("Magnification scale")}
@@ -725,8 +731,8 @@ export function ReplacementDock({
                         })
                       }
                     />
-                  </label>
-                  <label>
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Magnification reach")}</span>
                     <Input
                       aria-label={t("Magnification reach")}
@@ -742,7 +748,7 @@ export function ReplacementDock({
                         })
                       }
                     />
-                  </label>
+                  </Label>
                 </div>
               </div>
             </>
@@ -767,18 +773,18 @@ export function ReplacementDock({
                 </p>
               </div>
               <div className="ot-dock-settings-fields">
-                <label className={`${ROW} col-span-2`}>
+                <Label appearance="unstyled" className={`${ROW} col-span-2`}>
                   <span>{t("Enable launcher interactions")}</span>
-                  <Checkbox
+                  <Switch
                     aria-label={t("Enable launcher interactions")}
                     checked={interactions.enabled}
-                    onChange={(event) =>
+                    onCheckedChange={(checked) =>
                       patchProfile({
-                        interactions: { ...interactions, enabled: event.target.checked },
+                        interactions: { ...interactions, enabled: checked },
                       })
                     }
                   />
-                </label>
+                </Label>
                 {(
                   [
                     ["preciseScroll", "Precise trackpad scrolling"],
@@ -787,26 +793,26 @@ export function ReplacementDock({
                     ["letterNavigation", "Keyboard navigation"],
                   ] as const
                 ).map(([key, label]) => (
-                  <label className={ROW} key={key}>
+                  <Label appearance="unstyled" className={ROW} key={key}>
                     <span>
                       {t(label)}
                       {!interactionCapabilities[key] ? ` · ${t("Unavailable on this device")}` : ""}
                     </span>
-                    <Checkbox
+                    <Switch
                       aria-label={t(label)}
                       checked={interactions[key]}
                       disabled={!interactions.enabled || !interactionCapabilities[key]}
-                      onChange={(event) =>
+                      onCheckedChange={(checked) =>
                         patchProfile({
-                          interactions: { ...interactions, [key]: event.target.checked },
+                          interactions: { ...interactions, [key]: checked },
                         })
                       }
                     />
-                  </label>
+                  </Label>
                 ))}
-                <label>
+                <Label appearance="unstyled">
                   <span>{t("Primary gesture action")}</span>
-                  <Select
+                  <NativeSelect
                     aria-label={t("Primary gesture action")}
                     disabled={!interactions.enabled}
                     value={interactions.primaryAction}
@@ -819,14 +825,14 @@ export function ReplacementDock({
                       })
                     }
                   >
-                    <option value="none">{t("None")}</option>
-                    <option value="previous">{t("Previous item")}</option>
-                    <option value="next">{t("Next item")}</option>
-                  </Select>
-                </label>
-                <label>
+                    <NativeSelectOption value="none">{t("None")}</NativeSelectOption>
+                    <NativeSelectOption value="previous">{t("Previous item")}</NativeSelectOption>
+                    <NativeSelectOption value="next">{t("Next item")}</NativeSelectOption>
+                  </NativeSelect>
+                </Label>
+                <Label appearance="unstyled">
                   <span>{t("Toward gesture action")}</span>
-                  <Select
+                  <NativeSelect
                     aria-label={t("Toward gesture action")}
                     disabled={!interactions.enabled}
                     value={interactions.towardAction}
@@ -839,14 +845,18 @@ export function ReplacementDock({
                       })
                     }
                   >
-                    <option value="none">{t("None")}</option>
-                    <option value="showPreview">{t("Show selected preview")}</option>
-                    <option value="hidePreview">{t("Hide selected preview")}</option>
-                  </Select>
-                </label>
-                <label>
+                    <NativeSelectOption value="none">{t("None")}</NativeSelectOption>
+                    <NativeSelectOption value="showPreview">
+                      {t("Show selected preview")}
+                    </NativeSelectOption>
+                    <NativeSelectOption value="hidePreview">
+                      {t("Hide selected preview")}
+                    </NativeSelectOption>
+                  </NativeSelect>
+                </Label>
+                <Label appearance="unstyled">
                   <span>{t("Pinch gesture action")}</span>
-                  <Select
+                  <NativeSelect
                     aria-label={t("Pinch gesture action")}
                     disabled={!interactions.enabled || !interactions.pinch}
                     value={interactions.pinchAction}
@@ -859,42 +869,46 @@ export function ReplacementDock({
                       })
                     }
                   >
-                    <option value="none">{t("None")}</option>
-                    <option value="showPreview">{t("Show selected preview")}</option>
-                    <option value="hidePreview">{t("Hide selected preview")}</option>
-                  </Select>
-                </label>
-                <label className={ROW}>
+                    <NativeSelectOption value="none">{t("None")}</NativeSelectOption>
+                    <NativeSelectOption value="showPreview">
+                      {t("Show selected preview")}
+                    </NativeSelectOption>
+                    <NativeSelectOption value="hidePreview">
+                      {t("Hide selected preview")}
+                    </NativeSelectOption>
+                  </NativeSelect>
+                </Label>
+                <Label appearance="unstyled" className={ROW}>
                   <span>
                     {t("Haptic feedback")}
                     {!interactionCapabilities.haptics
                       ? ` · ${t("Unavailable on this device")}`
                       : ""}
                   </span>
-                  <Checkbox
+                  <Switch
                     aria-label={t("Launcher haptic feedback")}
                     checked={interactions.haptics}
                     disabled={!interactions.enabled || !interactionCapabilities.haptics}
-                    onChange={(event) =>
+                    onCheckedChange={(checked) =>
                       patchProfile({
-                        interactions: { ...interactions, haptics: event.target.checked },
+                        interactions: { ...interactions, haptics: checked },
                       })
                     }
                   />
-                </label>
-                <label className={`${ROW} col-span-2`}>
+                </Label>
+                <Label appearance="unstyled" className={`${ROW} col-span-2`}>
                   <span>{t("Enter activates the selected item")}</span>
-                  <Checkbox
+                  <Switch
                     aria-label={t("Enter activates the selected item")}
                     checked={interactions.enterActivates}
                     disabled={!interactions.enabled || !interactions.letterNavigation}
-                    onChange={(event) =>
+                    onCheckedChange={(checked) =>
                       patchProfile({
-                        interactions: { ...interactions, enterActivates: event.target.checked },
+                        interactions: { ...interactions, enterActivates: checked },
                       })
                     }
                   />
-                </label>
+                </Label>
               </div>
             </>
           ) : null}
@@ -917,7 +931,7 @@ export function ReplacementDock({
             {value.bindings.map((binding) => (
               <div className={ROW} key={binding.id}>
                 <span>{bindingLabel(binding)}</span>
-                <Select
+                <NativeSelect
                   aria-label={t("{display} profile").replace("{display}", binding.id)}
                   value={binding.profileID}
                   onChange={(event) =>
@@ -930,11 +944,11 @@ export function ReplacementDock({
                   }
                 >
                   {value.profiles.map((p) => (
-                    <option key={p.id} value={p.id}>
+                    <NativeSelectOption key={p.id} value={p.id}>
                       {p.name}
-                    </option>
+                    </NativeSelectOption>
                   ))}
-                </Select>
+                </NativeSelect>
                 <Button
                   aria-label={`${t("Remove assignment")} ${binding.id}`}
                   variant="outline"
@@ -1075,9 +1089,9 @@ export function ReplacementDock({
                     </div>
                   </div>
                   <div className="ot-dock-settings-fields">
-                    <label>
+                    <Label appearance="unstyled">
                       <span>{t("Running app")}</span>
-                      <Select
+                      <NativeSelect
                         aria-label={t("Running app")}
                         value={
                           appChoices.some((choice) => choice.bundleID === rule.bundleID)
@@ -1086,15 +1100,17 @@ export function ReplacementDock({
                         }
                         onChange={(event) => patchRule(rule.id, { bundleID: event.target.value })}
                       >
-                        <option value="">{t("Enter bundle identifier")}</option>
+                        <NativeSelectOption value="">
+                          {t("Enter bundle identifier")}
+                        </NativeSelectOption>
                         {appChoices.map((choice) => (
-                          <option key={choice.bundleID} value={choice.bundleID}>
+                          <NativeSelectOption key={choice.bundleID} value={choice.bundleID}>
                             {choice.name} — {choice.bundleID}
-                          </option>
+                          </NativeSelectOption>
                         ))}
-                      </Select>
-                    </label>
-                    <label>
+                      </NativeSelect>
+                    </Label>
+                    <Label appearance="unstyled">
                       <span>{t("Exact bundle identifier")}</span>
                       <Input
                         aria-label={`${t("Exact bundle identifier")} ${label}`}
@@ -1103,51 +1119,55 @@ export function ReplacementDock({
                         spellCheck={false}
                         onChange={(event) => patchRule(rule.id, { bundleID: event.target.value })}
                       />
-                    </label>
-                    <label>
+                    </Label>
+                    <Label appearance="unstyled">
                       <span>{t("Destination profile")}</span>
-                      <Select
+                      <NativeSelect
                         aria-label={`${t("Destination profile")} ${label}`}
                         value={rule.profileID}
                         onChange={(event) => patchRule(rule.id, { profileID: event.target.value })}
                       >
                         {value.profiles.map((candidate) => (
-                          <option key={candidate.id} value={candidate.id}>
+                          <NativeSelectOption key={candidate.id} value={candidate.id}>
                             {candidate.name}
-                          </option>
+                          </NativeSelectOption>
                         ))}
-                      </Select>
-                    </label>
-                    <label>
+                      </NativeSelect>
+                    </Label>
+                    <Label appearance="unstyled">
                       <span>{t("Display scope")}</span>
-                      <Select
+                      <NativeSelect
                         aria-label={`${t("Display scope")} ${label}`}
                         value={rule.bindingID}
                         onChange={(event) => patchRule(rule.id, { bindingID: event.target.value })}
                       >
-                        <option value="">{t("Every assigned display")}</option>
+                        <NativeSelectOption value="">
+                          {t("Every assigned display")}
+                        </NativeSelectOption>
                         {value.bindings.map((binding) => (
-                          <option key={binding.id} value={binding.id}>
+                          <NativeSelectOption key={binding.id} value={binding.id}>
                             {bindingLabel(binding)}
-                          </option>
+                          </NativeSelectOption>
                         ))}
-                      </Select>
-                    </label>
+                      </NativeSelect>
+                    </Label>
                   </div>
-                  <label className={ROW}>
+                  <Label appearance="unstyled" className={ROW}>
                     <span>{t("Enabled")}</span>
-                    <Checkbox
+                    <Switch
                       aria-label={t("Enable rule {app}").replace("{app}", label)}
                       checked={rule.enabled}
-                      onChange={(event) => patchRule(rule.id, { enabled: event.target.checked })}
+                      onCheckedChange={(checked) => patchRule(rule.id, { enabled: checked })}
                     />
-                  </label>
+                  </Label>
                   {invalidBundle ? (
-                    <p role="alert" className={HINT}>
-                      {t(
-                        "Enter an exact bundle identifier using letters, numbers, dots, hyphens, or underscores.",
-                      )}
-                    </p>
+                    <Alert appearance="unstyled" asChild>
+                      <p role="alert" className={HINT}>
+                        {t(
+                          "Enter an exact bundle identifier using letters, numbers, dots, hyphens, or underscores.",
+                        )}
+                      </p>
+                    </Alert>
                   ) : null}
                 </article>
               );

@@ -1,9 +1,12 @@
 import { type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Radio } from "@/components/ui/radio";
-import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import { LANGUAGES } from "../../lib/i18n";
 import { type JSONExportResult, jsonExportError } from "../../lib/json-export-bridge";
 import {
@@ -102,33 +105,35 @@ export function GeneralTab({
   return (
     <>
       {crash ? (
-        <div
-          className="flex flex-wrap items-center gap-3 rounded-xl border border-red-400/35 bg-red-500/12 px-3.5 py-2.5 text-[13px] shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-md"
-          role="alert"
-        >
-          <span>{t("A crash from the previous session was detected.")}</span>
-          <code className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-xs text-red-200/85">
-            {crash.summary}
-          </code>
-          <div className={ACTIONS_ROW}>
-            <Button
-              variant="destructive"
-              size="sm"
-              aria-label="Report crash"
-              onClick={crash.onReport}
-            >
-              {t("Report crash…")}
-            </Button>
-            <Button
-              variant="glass"
-              size="sm"
-              aria-label="Dismiss crash report"
-              onClick={crash.onDismiss}
-            >
-              {t("Dismiss")}
-            </Button>
+        <Alert appearance="unstyled" asChild>
+          <div
+            className="flex flex-wrap items-center gap-3 rounded-xl border border-red-400/35 bg-red-500/12 px-3.5 py-2.5 text-[13px] shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-md"
+            role="alert"
+          >
+            <span>{t("A crash from the previous session was detected.")}</span>
+            <code className="max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-xs text-red-200/85">
+              {crash.summary}
+            </code>
+            <div className={ACTIONS_ROW}>
+              <Button
+                variant="destructive"
+                size="sm"
+                aria-label="Report crash"
+                onClick={crash.onReport}
+              >
+                {t("Report crash…")}
+              </Button>
+              <Button
+                variant="glass"
+                size="sm"
+                aria-label="Dismiss crash report"
+                onClick={crash.onDismiss}
+              >
+                {t("Dismiss")}
+              </Button>
+            </div>
           </div>
-        </div>
+        </Alert>
       ) : null}
 
       <Card>
@@ -139,61 +144,66 @@ export function GeneralTab({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <label className={ROW}>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Start at login")}</span>
-            <Checkbox
+            <Switch
               aria-label="Start at login"
               checked={settings.behavior.startAtLogin}
-              onChange={(e) => patchBehavior({ startAtLogin: e.target.checked })}
+              onCheckedChange={(checked) => patchBehavior({ startAtLogin: checked })}
             />
-          </label>
+          </Label>
           <fieldset className="ot-settings-menubar-options m-0 border-0 p-0">
             <legend className="mb-1 p-0 text-[13px] font-semibold">{t("Menubar icon")}</legend>
-            {(
-              [
-                ["default", "⌥⇥ Default"],
-                ["outline", "⧉ Outline"],
-                ["dot", "● Dot"],
-              ] as [MenubarIconStyle, string][]
-            ).map(([value, label]) => (
-              <label key={value} className={CHECK_LABEL}>
-                <Radio
-                  name="menubar-icon"
-                  aria-label={`Menubar icon ${value}`}
-                  checked={
-                    settings.behavior.showMenubarIcon &&
-                    settings.behavior.menubarIconStyle === value
-                  }
-                  onChange={() => patchBehavior({ showMenubarIcon: true, menubarIconStyle: value })}
-                />
-                {t(label)}
-              </label>
-            ))}
-            <label className={CHECK_LABEL}>
-              <Radio
-                name="menubar-icon"
-                aria-label="Menubar icon hidden"
-                checked={!settings.behavior.showMenubarIcon}
-                onChange={() => patchBehavior({ showMenubarIcon: false })}
-              />
-              {t("Hidden")}
-            </label>
+            <RadioGroup
+              appearance="unstyled"
+              className="contents"
+              name="menubar-icon"
+              aria-label={t("Menubar icon")}
+              value={
+                settings.behavior.showMenubarIcon ? settings.behavior.menubarIconStyle : "hidden"
+              }
+              onValueChange={(value) =>
+                value === "hidden"
+                  ? patchBehavior({ showMenubarIcon: false })
+                  : patchBehavior({
+                      showMenubarIcon: true,
+                      menubarIconStyle: value as MenubarIconStyle,
+                    })
+              }
+            >
+              {(
+                [
+                  ["default", "⌥⇥ Default"],
+                  ["outline", "⧉ Outline"],
+                  ["dot", "● Dot"],
+                ] as [MenubarIconStyle, string][]
+              ).map(([value, label]) => (
+                <Label appearance="unstyled" key={value} className={CHECK_LABEL}>
+                  <RadioGroupItem value={value} aria-label={`Menubar icon ${value}`} />
+                  {t(label)}
+                </Label>
+              ))}
+              <Label appearance="unstyled" className={CHECK_LABEL}>
+                <RadioGroupItem value="hidden" aria-label="Menubar icon hidden" />
+                {t("Hidden")}
+              </Label>
+            </RadioGroup>
           </fieldset>
 
-          <label className={ROW}>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Language")}</span>
-            <Select
+            <NativeSelect
               aria-label="Language"
               value={settings.behavior.language}
               onChange={(e) => patchBehavior({ language: e.target.value })}
             >
               {LANGUAGES.map((lang) => (
-                <option key={lang.value} value={lang.value}>
+                <NativeSelectOption key={lang.value} value={lang.value}>
                   {lang.value === "" ? t("System default") : lang.label}
-                </option>
+                </NativeSelectOption>
               ))}
-            </Select>
-          </label>
+            </NativeSelect>
+          </Label>
         </CardContent>
       </Card>
 
@@ -202,14 +212,14 @@ export function GeneralTab({
           <CardTitle>{t("Window capture")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <label className={ROW}>
+          <Label appearance="unstyled" className={ROW}>
             <span>{t("Capture windows in the background")}</span>
-            <Checkbox
+            <Switch
               aria-label="Capture windows in the background"
               checked={settings.behavior.captureInBackground}
-              onChange={(e) => patchBehavior({ captureInBackground: e.target.checked })}
+              onCheckedChange={(checked) => patchBehavior({ captureInBackground: checked })}
             />
-          </label>
+          </Label>
           <p className={HINT}>
             {t(
               "Keeps thumbnails fresh so the switcher opens with previews instantly. While enabled, macOS shows the screen-recording indicator.",
@@ -261,23 +271,27 @@ export function GeneralTab({
           {updateCheckResult}
           <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
             <legend className="mb-1 p-0 text-[13px] font-semibold">{t("Updates policy")}</legend>
-            {(
-              [
-                ["check", "Check for updates periodically"],
-                ["auto", "Auto-install updates"],
-                ["off", "Don’t check for updates"],
-              ] as [UpdatePolicy, string][]
-            ).map(([value, label]) => (
-              <label key={value} className={CHECK_LABEL}>
-                <Radio
-                  name="update-policy"
-                  aria-label={`Updates ${value}`}
-                  checked={settings.behavior.updatePolicy === value}
-                  onChange={() => patchBehavior({ updatePolicy: value })}
-                />
-                {t(label)}
-              </label>
-            ))}
+            <RadioGroup
+              appearance="unstyled"
+              className="contents"
+              name="update-policy"
+              aria-label={t("Updates policy")}
+              value={settings.behavior.updatePolicy}
+              onValueChange={(value) => patchBehavior({ updatePolicy: value as UpdatePolicy })}
+            >
+              {(
+                [
+                  ["check", "Check for updates periodically"],
+                  ["auto", "Auto-install updates"],
+                  ["off", "Don’t check for updates"],
+                ] as [UpdatePolicy, string][]
+              ).map(([value, label]) => (
+                <Label appearance="unstyled" key={value} className={CHECK_LABEL}>
+                  <RadioGroupItem value={value} aria-label={`Updates ${value}`} />
+                  {t(label)}
+                </Label>
+              ))}
+            </RadioGroup>
           </fieldset>
           <p className={HINT}>
             {t("Auto-install downloads, installs, and restarts the app when an update is found.")}
@@ -299,23 +313,27 @@ export function GeneralTab({
             <legend className="mb-1 p-0 text-[13px] font-semibold">
               {t("Crash reports policy")}
             </legend>
-            {(
-              [
-                ["never", "Never send"],
-                ["ask", "Ask each time"],
-                ["always", "Always send"],
-              ] as [CrashPolicy, string][]
-            ).map(([value, label]) => (
-              <label key={value} className={CHECK_LABEL}>
-                <Radio
-                  name="crash-policy"
-                  aria-label={`Crash reports ${value}`}
-                  checked={settings.behavior.crashReports === value}
-                  onChange={() => patchBehavior({ crashReports: value })}
-                />
-                {t(label)}
-              </label>
-            ))}
+            <RadioGroup
+              appearance="unstyled"
+              className="contents"
+              name="crash-policy"
+              aria-label={t("Crash reports policy")}
+              value={settings.behavior.crashReports}
+              onValueChange={(value) => patchBehavior({ crashReports: value as CrashPolicy })}
+            >
+              {(
+                [
+                  ["never", "Never send"],
+                  ["ask", "Ask each time"],
+                  ["always", "Always send"],
+                ] as [CrashPolicy, string][]
+              ).map(([value, label]) => (
+                <Label appearance="unstyled" key={value} className={CHECK_LABEL}>
+                  <RadioGroupItem value={value} aria-label={`Crash reports ${value}`} />
+                  {t(label)}
+                </Label>
+              ))}
+            </RadioGroup>
           </fieldset>
           <p className={HINT}>
             {t(
@@ -336,13 +354,19 @@ export function GeneralTab({
         </CardHeader>
         <CardContent>
           {importError ? (
-            <p role="alert" className="text-red-300">
-              {importError}
-            </p>
+            <Alert appearance="unstyled" asChild>
+              <p role="alert" className="text-red-300">
+                {importError}
+              </p>
+            </Alert>
           ) : null}
           {exported ? <p role="status">{t("Settings exported.")}</p> : null}
           {imported ? <p role="status">{t("Settings imported.")}</p> : null}
-          {exportError ? <p role="alert">{exportError}</p> : null}
+          {exportError ? (
+            <Alert appearance="unstyled" asChild>
+              <p role="alert">{exportError}</p>
+            </Alert>
+          ) : null}
           <div className={ACTIONS_ROW}>
             <Button
               aria-label="Export settings"
@@ -366,7 +390,7 @@ export function GeneralTab({
             >
               {t("Reset to defaults")}
             </Button>
-            <input
+            <Input
               ref={fileInput}
               type="file"
               accept="application/json,.json"

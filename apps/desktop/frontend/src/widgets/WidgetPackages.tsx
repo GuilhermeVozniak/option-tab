@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import "../settings/editor-settings.css";
 import type {
@@ -227,7 +228,11 @@ export function WidgetPackages({
       {statusFeedback && (status.available || statusFeedback !== "unavailable") ? (
         <p role="status">{t(packageFeedback[statusFeedback])}</p>
       ) : null}
-      {error ? <p role="alert">{t(packageFeedback[error])}</p> : null}
+      {error ? (
+        <Alert appearance="unstyled" asChild>
+          <p role="alert">{t(packageFeedback[error])}</p>
+        </Alert>
+      ) : null}
     </section>
   );
 }

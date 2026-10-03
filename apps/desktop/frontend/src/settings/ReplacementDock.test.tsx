@@ -142,9 +142,9 @@ describe("ReplacementDock", () => {
       ["combobox", "Edge", "Layout"],
       ["combobox", "Launcher theme", "Layout"],
       ["combobox", "Primary gesture action", "Interactions"],
-      ["checkbox", "Precise trackpad scrolling", "Interactions"],
-      ["checkbox", "Pinch gestures", "Interactions"],
-      ["checkbox", "Keyboard navigation", "Interactions"],
+      ["switch", "Precise trackpad scrolling", "Interactions"],
+      ["switch", "Pinch gestures", "Interactions"],
+      ["switch", "Keyboard navigation", "Interactions"],
     ] as const) {
       openSection(section, t);
       expect(t(key)).not.toBe(key);
@@ -157,7 +157,7 @@ describe("ReplacementDock", () => {
   it("keeps launcher and clock independently opt in", () => {
     const onChange = vi.fn();
     render(<ReplacementDock value={value} t={makeT("en")} onChange={onChange} />);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Enable replacement Dock" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Enable replacement Dock" }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ enabled: true }));
     expect(onChange.mock.calls[0][0].profiles[0].widgets[0].enabled).toBe(false);
   });
@@ -712,7 +712,7 @@ describe("ReplacementDock", () => {
     ];
     render(<ReplacementDock value={{ ...value, rules }} t={makeT("en")} onChange={onChange} />);
     openSection("Focus rules");
-    fireEvent.click(screen.getByRole("checkbox", { name: "Enable rule com.example.a" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Enable rule com.example.a" }));
     expect(onChange.mock.calls.at(-1)?.[0].rules[0].enabled).toBe(false);
     fireEvent.change(screen.getByLabelText("Display scope com.example.a"), {
       target: { value: "studio" },

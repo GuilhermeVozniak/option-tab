@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { type KeyPayload, onSwitcherKey } from "../lib/bridge";
 import { type KeyEventLike, keyToAction } from "../lib/keymap";
 import { computeLayout, effectiveStyle } from "../lib/layout";
@@ -252,7 +255,8 @@ export function Overlay({
         } as React.CSSProperties
       }
     >
-      <div
+      <Card
+        appearance="unstyled"
         ref={(element) => {
           panelRef(element);
           gestureRef(element);
@@ -262,7 +266,8 @@ export function Overlay({
         {appearance.showWindowControls && handlers.onAction && selectedEntry ? (
           <div className="ot-bulk-actions" aria-label={t("Switcher actions")}>
             {(["newWindow", "forceQuit", "closeAll", "minimizeAll"] as const).map((kind) => (
-              <button
+              <Button
+                variant="unstyled"
                 key={kind}
                 type="button"
                 title={t(BULK_ACTION_LABEL[kind]).replace("{app}", () => selectedEntry.appName)}
@@ -271,11 +276,15 @@ export function Overlay({
                 }
               >
                 {t(BULK_ACTION_LABEL[kind]).replace("{app}", () => selectedEntry.appName)}
-              </button>
+              </Button>
             ))}
           </div>
         ) : null}
-        {search ? <div className="ot-search">{`🔍 ${search}`}</div> : null}
+        {search ? (
+          <Badge variant="unstyled" asChild>
+            <div className="ot-search">{`🔍 ${search}`}</div>
+          </Badge>
+        ) : null}
         <ul
           className="ot-list"
           role="listbox"
@@ -336,7 +345,7 @@ export function Overlay({
             />
           </div>
         ) : null}
-      </div>
+      </Card>
     </div>
   );
 }

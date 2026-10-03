@@ -274,6 +274,6 @@ test("Dock appearance edits stay separate from window and app switcher preferenc
   await page.getByRole("tab", { name: "Dock" }).click();
   await expect(dock.getByLabel("Dock thumbnail size")).toHaveValue("320");
   await expect(dock.getByLabel("Dock layout direction")).toHaveValue("vertical");
-  await expect(dock.getByLabel("Dock theme light")).toHaveAttribute("aria-pressed", "true");
+  await expect(dock.getByLabel("Dock theme light")).toBeChecked();
   await expect(dock.getByLabel("Dock auto-size thumbnails")).not.toBeChecked();
 });

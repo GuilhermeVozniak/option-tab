@@ -1,8 +1,11 @@
 import { useId, useState } from "react";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { Switch } from "@/components/ui/switch";
 import type { LauncherProfileTransferActions } from "../../lib/launcher-profile-transfer-bridge";
 import type {
   AppScopeMode,
@@ -142,14 +145,14 @@ export function DockTab({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-1">
-            <label className={ROW}>
+            <Label appearance="unstyled" className={ROW}>
               <span>{t("Enable Dock previews")}</span>
-              <Checkbox
+              <Switch
                 aria-label={t("Enable Dock previews")}
                 checked={d.enabled}
-                onChange={(e) => {
-                  patchDock({ enabled: e.target.checked });
-                  if (e.target.checked && permissions) {
+                onCheckedChange={(checked) => {
+                  patchDock({ enabled: checked });
+                  if (checked && permissions) {
                     if (permissions.state.accessibility !== "granted")
                       permissions.onRequest("accessibility");
                     if (permissions.state.screenRecording !== "granted")
@@ -157,31 +160,33 @@ export function DockTab({
                   }
                 }}
               />
-            </label>
+            </Label>
             <p className={HINT}>
               {t(
                 "Accessibility identifies Dock icons and window controls. Screen Recording provides thumbnails.",
               )}
             </p>
-            <label className={ROW}>
+            <Label appearance="unstyled" className={ROW}>
               <span>{t("Enable Folder Pop")}</span>
-              <Checkbox
+              <Switch
                 aria-label={t("Enable Folder Pop")}
                 checked={d.folderPop?.enabled ?? false}
-                onChange={(event) => {
-                  patchDock({ folderPop: { enabled: event.target.checked } });
-                  if (event.target.checked && permissions?.state.accessibility !== "granted")
+                onCheckedChange={(checked) => {
+                  patchDock({ folderPop: { enabled: checked } });
+                  if (checked && permissions?.state.accessibility !== "granted")
                     permissions?.onRequest("accessibility");
                 }}
               />
-            </label>
+            </Label>
             <p className={HINT}>
               {t("Show a folder’s contents when the pointer rests on its Dock icon.")}
             </p>
             {inputError ? (
-              <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-                {t("Dock input unavailable")}: {inputError}
-              </p>
+              <Alert appearance="unstyled" asChild>
+                <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+                  {t("Dock input unavailable")}: {inputError}
+                </p>
+              </Alert>
             ) : null}
           </CardContent>
         </Card>
@@ -193,19 +198,19 @@ export function DockTab({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-1">
-            <label className={ROW}>
+            <Label appearance="unstyled" className={ROW}>
               <span>{t("Applications")}</span>
-              <Select
+              <NativeSelect
                 aria-label={t("Dock app scope")}
                 value={d.scope.appScope}
                 onChange={(e) =>
                   patchDock({ scope: { ...d.scope, appScope: e.target.value as AppScopeMode } })
                 }
               >
-                <option value="all">{t("All apps")}</option>
-                <option value="activeApp">{t("Active app only")}</option>
-              </Select>
-            </label>
+                <NativeSelectOption value="all">{t("All apps")}</NativeSelectOption>
+                <NativeSelectOption value="activeApp">{t("Active app only")}</NativeSelectOption>
+              </NativeSelect>
+            </Label>
           </CardContent>
         </Card>
         <AppearanceTab ctx={appearanceContext} variant="dock" />
@@ -227,29 +232,29 @@ export function DockTab({
                 ["Drag previews to move windows", "previewDrag"],
               ] as const
             ).map(([label, field]) => (
-              <label className={ROW} key={field}>
+              <Label appearance="unstyled" className={ROW} key={field}>
                 <span>{t(label)}</span>
-                <Checkbox
+                <Switch
                   aria-label={t(label)}
                   checked={input[field]}
-                  onChange={(event) => patchInput({ [field]: event.target.checked })}
+                  onCheckedChange={(checked) => patchInput({ [field]: checked })}
                 />
-              </label>
+              </Label>
             ))}
-            <label className={ROW}>
+            <Label appearance="unstyled" className={ROW}>
               <span>{t("Dock middle-click action")}</span>
-              <Select
+              <NativeSelect
                 aria-label={t("Dock middle-click action")}
                 value={input.middleClickAction}
                 onChange={(event) =>
                   patchInput({ middleClickAction: event.target.value as PointerAction })
                 }
               >
-                <option value="none">{t("None")}</option>
-                <option value="close">{t("Close")}</option>
-                <option value="minimize">{t("Minimize")}</option>
-              </Select>
-            </label>
+                <NativeSelectOption value="none">{t("None")}</NativeSelectOption>
+                <NativeSelectOption value="close">{t("Close")}</NativeSelectOption>
+                <NativeSelectOption value="minimize">{t("Minimize")}</NativeSelectOption>
+              </NativeSelect>
+            </Label>
             {(
               [
                 ["Swipe toward Dock", "swipeTowardDock"],
@@ -258,9 +263,9 @@ export function DockTab({
                 ["Swipe to next preview", "swipeNext"],
               ] as const
             ).map(([label, field]) => (
-              <label className={ROW} key={field}>
+              <Label appearance="unstyled" className={ROW} key={field}>
                 <span>{t(label)}</span>
-                <Select
+                <NativeSelect
                   aria-label={t(label)}
                   value={input[field]}
                   onChange={(event) => patchInput({ [field]: event.target.value as PointerAction })}
@@ -275,16 +280,16 @@ export function DockTab({
                       ["quit", "Quit app"],
                     ] as const
                   ).map(([value, text]) => (
-                    <option value={value} key={value}>
+                    <NativeSelectOption value={value} key={value}>
                       {t(text)}
-                    </option>
+                    </NativeSelectOption>
                   ))}
-                </Select>
-              </label>
+                </NativeSelect>
+              </Label>
             ))}
-            <label className={ROW}>
+            <Label appearance="unstyled" className={ROW}>
               <span>{t("Aero Shake action")}</span>
-              <Select
+              <NativeSelect
                 aria-label={t("Aero Shake action")}
                 value={input.aeroShakeAction}
                 onChange={(event) =>
@@ -293,11 +298,15 @@ export function DockTab({
                   })
                 }
               >
-                <option value="none">{t("None")}</option>
-                <option value="minimizeOthers">{t("Minimize other windows")}</option>
-                <option value="closeOthers">{t("Close other windows")}</option>
-              </Select>
-            </label>
+                <NativeSelectOption value="none">{t("None")}</NativeSelectOption>
+                <NativeSelectOption value="minimizeOthers">
+                  {t("Minimize other windows")}
+                </NativeSelectOption>
+                <NativeSelectOption value="closeOthers">
+                  {t("Close other windows")}
+                </NativeSelectOption>
+              </NativeSelect>
+            </Label>
           </CardContent>
         </Card>
         <Card>
@@ -319,7 +328,7 @@ export function DockTab({
                 ["Dock card spacing", "cardSpacingPx", 0, 24],
               ] as const
             ).map(([label, field, min, max]) => (
-              <label className={ROW} key={field}>
+              <Label appearance="unstyled" className={ROW} key={field}>
                 <span>{t(label)}</span>
                 <Input
                   className="w-24"
@@ -330,7 +339,7 @@ export function DockTab({
                   value={d[field]}
                   onChange={(e) => patchDock({ [field]: Number(e.target.value) })}
                 />
-              </label>
+              </Label>
             ))}
           </CardContent>
         </Card>
@@ -351,12 +360,12 @@ export function DockTab({
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-1">
-            <label className={ROW}>
+            <Label appearance="unstyled" className={ROW}>
               <span>{t("Enable media controls")}</span>
-              <Checkbox
+              <Switch
                 aria-label={t("Enable media controls")}
                 checked={d.media?.enabled ?? false}
-                onChange={(e) =>
+                onCheckedChange={(checked) =>
                   patchDock({
                     media: {
                       ...(d.media ?? {
@@ -365,12 +374,12 @@ export function DockTab({
                         spotifyEnabled: false,
                         remoteArtwork: false,
                       }),
-                      enabled: e.target.checked,
+                      enabled: checked,
                     },
                   })
                 }
               />
-            </label>
+            </Label>
             {(["music", "spotify"] as const).map((provider) => {
               const field = provider === "music" ? "musicEnabled" : "spotifyEnabled";
               const label = provider === "music" ? "Apple Music" : "Spotify";
@@ -380,16 +389,16 @@ export function DockTab({
               const loading = media?.permissions[provider]?.status === "loading";
               return (
                 <div key={provider}>
-                  <label className={ROW}>
+                  <Label appearance="unstyled" className={ROW}>
                     <span>{t(`Enable ${label}`)}</span>
-                    <Checkbox
+                    <Switch
                       aria-label={t(`Enable ${label}`)}
                       checked={d.media?.[field] ?? false}
-                      onChange={(e) =>
-                        patchDock({ media: { ...d.media, [field]: e.target.checked } })
+                      onCheckedChange={(checked) =>
+                        patchDock({ media: { ...d.media, [field]: checked } })
                       }
                     />
-                  </label>
+                  </Label>
                   {d.media?.[field] && media ? (
                     <div className="flex items-center justify-between gap-3">
                       <small>
@@ -401,28 +410,29 @@ export function DockTab({
                               ? t("Connected")
                               : t(media.permissions[provider]?.reason || "Not connected")}
                       </small>
-                      <button
+                      <Button
+                        variant="unstyled"
                         type="button"
                         disabled={!d.media?.enabled || connecting || loading}
                         onClick={() => media.onConnect(provider)}
                       >
                         {connecting ? t("Connecting…") : t("Connect")}
-                      </button>
+                      </Button>
                     </div>
                   ) : null}
                 </div>
               );
             })}
-            <label className={ROW}>
+            <Label appearance="unstyled" className={ROW}>
               <span>{t("Allow remote artwork")}</span>
-              <Checkbox
+              <Switch
                 aria-label={t("Allow remote artwork")}
                 checked={d.media?.remoteArtwork ?? false}
-                onChange={(e) =>
-                  patchDock({ media: { ...d.media, remoteArtwork: e.target.checked } })
+                onCheckedChange={(checked) =>
+                  patchDock({ media: { ...d.media, remoteArtwork: checked } })
                 }
               />
-            </label>
+            </Label>
             <p className={HINT}>
               {t(
                 "Remote artwork contacts the image host. Metadata and controls still work when this is off.",

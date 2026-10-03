@@ -11,16 +11,51 @@ test("Settings theme follows the system, persists an override, and never changes
   await expect(settings).toHaveCSS("color-scheme", "light");
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(settings).toHaveCSS("color-scheme", "dark");
-  await page.getByRole("button", { name: "Settings theme light" }).click();
+  await page.getByRole("radio", { name: "Settings theme light" }).click();
   await expect(settings).toHaveCSS("color-scheme", "light");
   await page.reload();
   await expect(settings).toHaveAttribute("data-theme", "light");
   await expect(settings).toHaveCSS("color-scheme", "light");
-  await page.getByRole("button", { name: "Settings theme dark" }).click();
+  await page.getByRole("radio", { name: "Settings theme dark" }).click();
   await expect(settings).toHaveCSS("color-scheme", "dark");
   expect(
     (await getCallRecords(page)).filter(([name]) => name === "SaveSettingsAtRevision"),
   ).toEqual([]);
+});
+
+test("Settings theme and appearance slider support keyboard changes with the correct persistence", async ({
+  page,
+}) => {
+  await installFakeWails(page);
+  await page.goto("/#settings");
+  const system = page.getByRole("radio", { name: "Settings theme system" });
+  await expect(system).toBeEnabled();
+  await system.focus();
+  await page.keyboard.press("ArrowRight");
+  const light = page.getByRole("radio", { name: "Settings theme light" });
+  await expect(light).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(light).toBeChecked();
+  await expect(page.locator(".ot-settings")).toHaveAttribute("data-theme", "light");
+  expect(
+    (await getCallRecords(page)).filter(([name]) => name === "SaveSettingsAtRevision"),
+  ).toEqual([]);
+
+  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
+  const opacity = page.getByRole("slider", { name: "Background opacity", exact: true });
+  const nextOpacity = Number(
+    (Number(await opacity.getAttribute("aria-valuenow")) + 0.05).toFixed(2),
+  );
+  await opacity.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(opacity).toHaveAttribute("aria-valuenow", String(nextOpacity));
+  await expect
+    .poll(async () =>
+      (await getCallRecords(page))
+        .filter(([name]) => name === "SaveSettingsAtRevision")
+        .map(([, payload]) => JSON.parse(payload as string).appearance.backgroundOpacity),
+    )
+    .toEqual([nextOpacity]);
 });
 
 test("sidebar supports keyboard navigation and keeps the selected panel accessible", async ({
@@ -46,7 +81,7 @@ test("sidebar supports keyboard navigation and keeps the selected panel accessib
   await page.keyboard.press(
     browserName === "webkit" && process.platform === "darwin" ? "Alt+Tab" : "Tab",
   );
-  await expect(page.getByRole("button", { name: "Settings theme system" })).toBeFocused();
+  await expect(page.getByRole("radio", { name: "Settings theme system" })).toBeFocused();
 });
 
 for (const width of [390, 720, 900, 1280]) {
@@ -60,7 +95,7 @@ for (const width of [390, 720, 900, 1280]) {
       width <= 560 ? "horizontal" : "vertical",
     );
     for (const theme of ["light", "dark"]) {
-      await page.getByRole("button", { name: `Settings theme ${theme}` }).click();
+      await page.getByRole("radio", { name: `Settings theme ${theme}` }).click();
       for (const label of [
         "General",
         "Shortcuts",

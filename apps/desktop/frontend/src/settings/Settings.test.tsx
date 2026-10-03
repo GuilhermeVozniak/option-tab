@@ -51,12 +51,12 @@ describe("Settings", () => {
     ).toHaveValue("close");
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
     for (const [role, key, section] of [
-      ["checkbox", "Enable Dock previews", "Window previews"],
-      ["checkbox", "Enable Folder Pop", "Window previews"],
-      ["checkbox", "Enable media controls", "Media"],
-      ["checkbox", "Enable Spotify", "Media"],
-      ["checkbox", "Allow remote artwork", "Media"],
-      ["checkbox", "Drag previews to move windows", "Window previews"],
+      ["switch", "Enable Dock previews", "Window previews"],
+      ["switch", "Enable Folder Pop", "Window previews"],
+      ["switch", "Enable media controls", "Media"],
+      ["switch", "Enable Spotify", "Media"],
+      ["switch", "Allow remote artwork", "Media"],
+      ["switch", "Drag previews to move windows", "Window previews"],
       ["combobox", "Swipe toward Dock", "Window previews"],
       ["spinbutton", "Dock hover delay", "Window previews"],
     ] as const) {
@@ -270,12 +270,10 @@ describe("Settings", () => {
   it("renders current values", () => {
     render(<Settings settings={defaultSettings} onChange={vi.fn()} />);
     expect(screen.getByLabelText("Visual style thumbnails")).toHaveAttribute(
-      "aria-pressed",
+      "aria-checked",
       "true",
     );
-    expect((screen.getByLabelText("Hold modifier to cycle") as HTMLInputElement).checked).toBe(
-      true,
-    );
+    expect(screen.getByLabelText("Hold modifier to cycle")).toBeChecked();
   });
 
   it("emits changes for the visual style", () => {
@@ -506,7 +504,8 @@ describe("Settings", () => {
         appearance: expect.objectContaining({ titleTruncation: "middle" }),
       }),
     );
-    fireEvent.change(screen.getByLabelText("Apparition delay"), { target: { value: "500" } });
+    fireEvent.keyDown(screen.getByLabelText("Apparition delay"), { key: "Home" });
+    fireEvent.keyDown(screen.getByLabelText("Apparition delay"), { key: "PageUp" });
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         appearance: expect.objectContaining({ apparitionDelayMs: 500 }),
@@ -950,7 +949,15 @@ describe("Settings", () => {
 
   it("edits appearance knobs: max columns, opacity, accent color, blur", () => {
     const onChange = vi.fn();
-    render(<Settings settings={defaultSettings} onChange={onChange} />);
+    render(
+      <Settings
+        settings={{
+          ...defaultSettings,
+          appearance: { ...defaultSettings.appearance, backgroundOpacity: 0 },
+        }}
+        onChange={onChange}
+      />,
+    );
     fireEvent.change(
       within(screen.getByLabelText("Appearance", { selector: "section" })).getByLabelText(
         "Max columns",
@@ -960,11 +967,13 @@ describe("Settings", () => {
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ appearance: expect.objectContaining({ maxColumns: 7 }) }),
     );
-    fireEvent.change(
-      within(screen.getByLabelText("Appearance", { selector: "section" })).getByLabelText(
-        "Background opacity",
-      ),
-      { target: { value: "0.5" } },
+    fireEvent.keyDown(
+      screen.getByLabelText("Background opacity", { selector: '[role="slider"]' }),
+      { key: "Home" },
+    );
+    fireEvent.keyDown(
+      screen.getByLabelText("Background opacity", { selector: '[role="slider"]' }),
+      { key: "PageUp" },
     );
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ appearance: expect.objectContaining({ backgroundOpacity: 0.5 }) }),
@@ -1219,7 +1228,15 @@ it("edits the full Dock appearance independently without exposing unused timing 
     ["Dock max rows", "maxRows", 4],
     ["Dock background opacity", "backgroundOpacity", 0.6],
   ] as const) {
-    fireEvent.change(previews.getByLabelText(label), { target: { value: String(value) } });
+    if (field === "backgroundOpacity") {
+      const slider = previews.getByRole("slider", { name: label });
+      for (let step = 0; step < 5; step += 1) {
+        fireEvent.keyDown(slider, { key: "ArrowLeft" });
+        rerender(<Settings settings={current} onChange={onChange} />);
+      }
+    } else {
+      fireEvent.change(previews.getByLabelText(label), { target: { value: String(value) } });
+    }
     expect(current.dock.appearance[field]).toBe(value);
     checkIndependent();
   }

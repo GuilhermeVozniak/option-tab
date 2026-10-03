@@ -1,12 +1,17 @@
 import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "cn";
+import { Slot } from "radix-ui";
 import type * as React from "react";
-import { cn } from "@/lib/utils";
+import { useFormDisabled } from "./form-disabled";
 
 const buttonVariants = cva(
   "inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40",
   {
     variants: {
       variant: {
+        unstyled: "",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        link: "text-primary underline-offset-4 hover:underline",
         default:
           "border border-white/20 bg-primary/80 text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_6px_20px_-8px_rgba(0,0,0,0.6)] backdrop-blur-md hover:bg-primary/95",
         glass:
@@ -32,16 +37,26 @@ const buttonVariants = cva(
 
 function Button({
   className,
-  variant,
-  size,
+  variant = "glass",
+  size = "default",
+  disabled,
+  type = "button",
+  asChild = false,
   ...props
-}: React.ComponentProps<"button"> & VariantProps<typeof buttonVariants>) {
+}: React.ComponentProps<"button"> & VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
+  const isDisabled = useFormDisabled(disabled);
+  const Comp = asChild ? Slot.Root : "button";
   return (
-    <button
-      type="button"
+    <Comp
       data-slot="button"
-      data-variant={variant ?? "glass"}
-      className={cn(buttonVariants({ variant, size, className }))}
+      data-variant={variant}
+      data-size={size}
+      disabled={isDisabled}
+      type={type}
+      className={cn(
+        variant === "unstyled" ? undefined : buttonVariants({ variant, size }),
+        className,
+      )}
       {...props}
     />
   );

@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { Translate } from "../lib/i18n";
 import { jsonExportError } from "../lib/json-export-bridge";
 import type {
@@ -154,9 +157,9 @@ export function LauncherProfileTransfer({
         <Button disabled={Boolean(pending)} variant="outline" onClick={() => void exportProfile()}>
           {pending === "export" ? t("Exporting…") : t("Export profile")}
         </Button>
-        <label className="ot-editor-file-field">
+        <Label appearance="unstyled" className="ot-editor-file-field">
           <span>{t("Import profile file")}</span>
-          <input
+          <Input
             aria-label={t("Import profile file")}
             accept="application/json,.json"
             className="ot-editor-file-input"
@@ -167,7 +170,7 @@ export function LauncherProfileTransfer({
               event.currentTarget.value = "";
             }}
           />
-        </label>
+        </Label>
       </div>
       {review ? (
         <div className="ot-editor-review" aria-label={t("Import review")} role="region">
@@ -205,7 +208,11 @@ export function LauncherProfileTransfer({
         </div>
       ) : null}
       {exported ? <p role="status">{t("Profile exported.")}</p> : null}
-      {error ? <p role="alert">{t(error)}</p> : null}
+      {error ? (
+        <Alert appearance="unstyled" asChild>
+          <p role="alert">{t(error)}</p>
+        </Alert>
+      ) : null}
     </section>
   );
 }

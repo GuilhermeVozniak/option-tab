@@ -1,12 +1,22 @@
+import { cn } from "cn";
+import { Slot } from "radix-ui";
 import type * as React from "react";
-import { cn } from "@/lib/utils";
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+function Card({
+  className,
+  appearance = "default",
+  asChild = false,
+  ...props
+}: React.ComponentProps<"div"> & { appearance?: "default" | "unstyled"; asChild?: boolean }) {
+  const Comp = asChild ? Slot.Root : "div";
   return (
-    <div
+    <Comp
       data-slot="card"
+      data-appearance={appearance}
       className={cn(
-        "rounded-2xl border border-white/12 bg-white/7 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_12px_40px_-16px_rgba(0,0,0,0.6)] backdrop-blur-xl",
+        appearance === "unstyled"
+          ? undefined
+          : "rounded-2xl border border-white/12 bg-white/7 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_12px_40px_-16px_rgba(0,0,0,0.6)] backdrop-blur-xl",
         className,
       )}
       {...props}
@@ -48,4 +58,23 @@ function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   return <div data-slot="card-content" className={cn("px-5 pb-4 pt-3", className)} {...props} />;
 }
 
-export { Card, CardContent, CardDescription, CardHeader, CardTitle };
+function CardAction({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-action"
+      className={cn("self-start justify-self-end", className)}
+      {...props}
+    />
+  );
+}
+function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-footer"
+      className={cn("flex items-center px-5 pb-4", className)}
+      {...props}
+    />
+  );
+}
+
+export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle };
