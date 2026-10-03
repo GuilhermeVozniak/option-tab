@@ -6,7 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { detectPlatform, publishedDownloadUrl } from "../lib/download";
 
 const OS_LABEL: Record<Platform, string> = {
-  darwin: "macOS (Apple silicon)",
+  darwin: "macOS (Apple silicon & Intel)",
   windows: "Windows",
   linux: "Linux",
 };

@@ -12,9 +12,9 @@ describe("detectPlatform", () => {
 });
 
 describe("published assets", () => {
-  it("retains the actually published ARM64 download until universal publication", () => {
+  it("links to the published universal macOS release", () => {
     expect(publishedDownloadUrl("darwin")).toBe(
-      "https://github.com/GuilhermeVozniak/option-tab/releases/download/v0.4.8/option-tab_0.4.8_darwin_arm64.dmg",
+      "https://github.com/GuilhermeVozniak/option-tab/releases/download/v0.5.0/option-tab_0.5.0_darwin_universal.dmg",
     );
   });
 });

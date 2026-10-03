@@ -4,6 +4,12 @@
 
 Pushing a `v*` tag triggers `release.yml`, which builds the desktop binary for each supported platform and uploads the artifacts to a draft GitHub Release. Publish the draft after all jobs and artifact checks pass. The landing page is deployed separately via `deploy-web.yml` on every push to `main` that touches `apps/web/` or `packages/shared/`.
 
+[v0.5.0](https://github.com/GuilhermeVozniak/option-tab/releases/tag/v0.5.0) was published
+on October 3, 2026 after [release workflow 37142247653](https://github.com/GuilhermeVozniak/option-tab/actions/runs/37142247653)
+and downloaded-artifact verification passed. Its universal macOS DMG and ARM64
+compatibility alias have identical digests. See the [distribution evidence](distribution.md)
+for verified package properties and remaining runtime/install checks.
+
 ---
 
 ## Desktop release (`release.yml`)
@@ -57,10 +63,11 @@ option-tab_<version>_linux_amd64.tar.gz
 
 where `<version>` is the tag name with the leading `v` stripped (e.g., tag `v1.2.3` → version `1.2.3`).
 
-For the first universal release, also upload an identical copy of the verified,
+While supporting direct upgrades from versions through 0.4.8, also upload an identical copy of the verified,
 signed universal DMG as `option-tab_<version>_darwin_arm64.dmg`. Versions through
 0.4.8 only recognize that name when updating Apple Silicon installations. Verify
 that both asset digests match; the compatibility download contains both slices.
+Keep this alias on later releases too: users may skip intervening versions.
 
 ---
 
