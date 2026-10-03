@@ -138,5 +138,8 @@ jobs:
           tar -czf "option-tab_${GITHUB_REF_NAME#v}_linux_${{ matrix.arch }}.tar.gz" option-tab
       - uses: softprops/action-gh-release@v2
         with:
+          # Publish only after every platform and the downloaded macOS artifact
+          # have been verified; independent matrix jobs must not expose Latest.
+          draft: true
           fail_on_unmatched_files: true
           files: apps/desktop/build/bin/option-tab_${{ steps.release-version.outputs.version }}_${{ matrix.platform }}_${{ matrix.arch }}.${{ matrix.format }}

@@ -13,7 +13,7 @@ import (
 )
 
 // appVersion is shown in the About tab.
-const appVersion = "0.4.8"
+const appVersion = "0.5.0"
 
 // projectURL and releasesURL are the About-tab links.
 const (

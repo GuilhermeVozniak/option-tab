@@ -141,14 +141,23 @@ func TestWidgetPackageReviewExpiryAndPreferenceRetirement(t *testing.T) {
 }
 
 func TestWidgetPackageMinimumVersion(t *testing.T) {
-	for _, v := range []string{"0.4.8-beta.1", "0.4.9", "999999999999999999999999999999999999999.0.0"} {
-		t.Run(v, func(t *testing.T) {
-			raw := widgetPackageArchive(t, "1.0.0", v)
+	for _, tc := range []struct {
+		version string
+		allowed bool
+	}{
+		{"0.4.8-beta.1", true},
+		{"0.4.9", true},
+		{appVersion, true},
+		{"9999.0.0", false},
+		{"999999999999999999999999999999999999999.0.0", false},
+	} {
+		t.Run(tc.version, func(t *testing.T) {
+			raw := widgetPackageArchive(t, "1.0.0", tc.version)
 			a, _ := widgetPackageApp(t, widgetPackageChooser(func(context.Context) (platform.WidgetPackageFile, error) {
 				return platform.WidgetPackageFile{Name: "f.zip", Archive: raw}, nil
 			}))
 			_, err := a.ReviewLocalWidgetPackage()
-			if (v == "0.4.8-beta.1") != (err == nil) {
+			if tc.allowed != (err == nil) {
 				t.Fatal("compatibility", err)
 			}
 		})

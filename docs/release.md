@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pushing a `v*` tag triggers `release.yml`, which builds the desktop binary for each supported platform and uploads the artifacts to a GitHub Release. The landing page is deployed separately via `deploy-web.yml` on every push to `main` that touches `apps/web/` or `packages/shared/`.
+Pushing a `v*` tag triggers `release.yml`, which builds the desktop binary for each supported platform and uploads the artifacts to a draft GitHub Release. Publish the draft after all jobs and artifact checks pass. The landing page is deployed separately via `deploy-web.yml` on every push to `main` that touches `apps/web/` or `packages/shared/`.
 
 ---
 
@@ -26,28 +26,41 @@ Any tag matching `v*` triggers the release workflow.
    - On Linux, installs WebKit system deps (`libgtk-4-dev`, `libwebkitgtk-6.0-dev`).
    - Runs `bun install --frozen-lockfile` and builds the frontend (embedded into the Go
      binary via `//go:embed`).
-   - **macOS**: `scripts/bundle.sh` builds the binary, assembles `option-tab.app`
-     (Info.plist + icon), signs when the Apple secrets are present, and creates the dmg
-     via `appdmg` (then notarizes + staples when credentialed). There is no `wails build`
+   - **macOS**: `scripts/bundle.sh` generates pinned bindings, builds both arm64 and
+     x86_64 slices, assembles `option-tab.app` (Info.plist + icon), and requires
+     signing, notarization and staple validation. Missing credentials stop the release.
+     There is no `wails build`
      step — Wails v3 serves the embedded frontend from the plain Go binary.
    - **Windows/Linux** (stub-platform demo builds): plain `go build`, packaged as
      `.zip` / `.tar.gz`.
-3. Uploads `*.dmg` / `*.zip` / `*.tar.gz` artifacts to the GitHub Release via
-   `softprops/action-gh-release`.
+3. Uploads exact `.dmg` / `.zip` / `.tar.gz` filenames to a draft GitHub Release via
+   `softprops/action-gh-release`. All matrix jobs keep the release in draft.
+4. After the workflow succeeds, download the macOS asset and verify its digest,
+   bundle version, architectures, minimum OS, signature and notarization. Upload
+   the compatibility filename below, attach release notes, then publish the draft
+   with `gh release edit vX.Y.Z --draft=false --latest`. Do not reuse a published
+   tag: draft upload settings do not unpublish an existing release.
 
-To assemble a local unsigned dmg: `task bundle` (or `UNIVERSAL=1 ./scripts/bundle.sh`).
+To assemble a local unsigned dmg: `task bundle:unsigned` (or
+`BUNDLE_MODE=unsigned UNIVERSAL=1 ./scripts/bundle.sh`). Never publish its
+`_UNVERIFIED.dmg` output.
 
 ### Asset naming
 
 The pipeline produces files matching the `@option-tab/shared` contract:
 
 ```
-option-tab_<version>_darwin_arm64.dmg
+option-tab_<version>_darwin_universal.dmg
 option-tab_<version>_windows_amd64.zip
 option-tab_<version>_linux_amd64.tar.gz
 ```
 
 where `<version>` is the tag name with the leading `v` stripped (e.g., tag `v1.2.3` → version `1.2.3`).
+
+For the first universal release, also upload an identical copy of the verified,
+signed universal DMG as `option-tab_<version>_darwin_arm64.dmg`. Versions through
+0.4.8 only recognize that name when updating Apple Silicon installations. Verify
+that both asset digests match; the compatibility download contains both slices.
 
 ---
 
@@ -55,7 +68,10 @@ where `<version>` is the tag name with the leading `v` stripped (e.g., tag `v1.2
 
 `@option-tab/shared` (`packages/shared/src/index.ts`) defines `releaseAssetName(platform, arch, version)` and `downloadUrl(platform, arch, version)`. The landing page imports these functions and passes `APP_VERSION` from `apps/web/lib/download.ts` to construct download URLs.
 
-When a new desktop release is made, update `APP_VERSION` in `apps/web/lib/download.ts` to match the release tag version. This change to `apps/web/` will automatically trigger `deploy-web.yml` on push to `main`, updating the landing page's download links.
+After the desktop assets are published and verified, update `APP_VERSION` and
+`PUBLISHED_ARCH` in `apps/web/lib/download.ts`, its download tests, and the Homebrew
+cask's version, filename and actual SHA-256. Merge this follow-up only after the
+download exists. The `apps/web/` change triggers `deploy-web.yml` on `main`.
 
 ---
 
@@ -65,7 +81,8 @@ When a new desktop release is made, update `APP_VERSION` in `apps/web/lib/downlo
 |------|-------------|
 | Windows/Linux are stub builds | No native window-switching backend on those platforms yet (synthetic demo data only) |
 | Windows code signing | Optional but reduces SmartScreen warnings |
-| linux/arm64, darwin/amd64 assets | Only `darwin/arm64` is published for macOS; `UNIVERSAL=1 scripts/bundle.sh` can produce a universal binary locally |
+| linux/arm64 | No Linux ARM64 asset is published; macOS uses one universal asset for Apple Silicon and Intel |
+| Native acceptance | See the changelog and retained-feature roadmap for disabled features and hardware checks still pending |
 | Auto-update | macOS self-updates in place (downloads the dmg, swaps the `.app`, relaunches); Windows/Linux stub builds update manually from the releases page |
 
 ---
@@ -91,5 +108,7 @@ The deployed site is available at [option-tab.vozniak.dev](https://option-tab.vo
 
 - Use [Semantic Versioning](https://semver.org): `vMAJOR.MINOR.PATCH`.
 - Tag on `main` after merging the release PR.
-- The release PR should bump `APP_VERSION` in `apps/web/lib/download.ts` and update the changelog.
+- The release PR bumps `appVersion` in `apps/desktop/app_update.go`, both bundle
+  versions in `apps/desktop/build/darwin/Info.plist`, and the changelog. Website
+  and Homebrew metadata follow verified publication as described above.
 - Commit message for the bump: `chore(release): bump version to X.Y.Z`.
