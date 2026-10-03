@@ -12,7 +12,10 @@ digest: `6ef2d41f3e1593bafb9d79c570e8e5e7c2eef1e5b05457584ab2f9d1b1e4e231`.
 Inspection confirmed `Option Tab.app` version 0.5.0, arm64 and x86_64 slices with
 a macOS 14.0 deployment floor, Developer ID team `CT22R575UG`, a valid stapled
 notarization ticket, and Gatekeeper acceptance. The app was not launched during
-this artifact inspection; Intel execution and install/upgrade testing remain open.
+this artifact inspection. A subsequent [Homebrew lifecycle test](superpowers/reports/2026-10-03-homebrew-lifecycle.md)
+passed installation, upgrade from a v0.4.8 fixture and removal in a temporary
+application directory on Apple Silicon. Intel execution, default installation
+paths and other supported macOS versions remain unverified.
 
 Website and Homebrew metadata now target this published universal asset. For later
 releases, update `APP_VERSION` and `PUBLISHED_ARCH` in `apps/web/lib/download.ts`
@@ -67,5 +70,5 @@ real signed/notarized artifacts on supported Intel and Apple silicon machines.
 
 The v0.5.0 artifact checks establish signing, notarization and package contents.
 They do not establish runtime acceptance on every supported macOS version or
-architecture, Homebrew lifecycle behavior, or completion of the native feature
-checks in the [retained-feature roadmap](dockdoor-roadmap.md).
+architecture, Homebrew lifecycle behavior beyond the bounded test above, or
+completion of the native feature checks in the [retained-feature roadmap](dockdoor-roadmap.md).
