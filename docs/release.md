@@ -4,12 +4,12 @@
 
 Pushing a `v*` tag triggers `release.yml`, which builds the desktop binary for each supported platform and uploads the artifacts to a draft GitHub Release. Publish the draft after all jobs and artifact checks pass. The landing page is deployed separately via `deploy-web.yml` on every push to `main` that touches `apps/web/` or `packages/shared/`.
 
-[v0.6.0](https://github.com/GuilhermeVozniak/option-tab/releases/tag/v0.6.0) was published
-on October 3, 2026 after [release workflow 37155010281](https://github.com/GuilhermeVozniak/option-tab/actions/runs/37155010281)
+[v0.6.1](https://github.com/GuilhermeVozniak/option-tab/releases/tag/v0.6.1) was published
+on October 4, 2026 after [release workflow 37160851101](https://github.com/GuilhermeVozniak/option-tab/actions/runs/37160851101)
 and downloaded-artifact verification passed. Its universal macOS DMG and ARM64
 compatibility alias have identical digests. See the [distribution evidence](distribution.md)
 for verified package properties and the separate v0.5.0 Homebrew lifecycle evidence.
-No new native runtime or Homebrew lifecycle acceptance is claimed for v0.6.0.
+No new native runtime or Homebrew lifecycle acceptance is claimed for v0.6.1.
 
 ---
 
@@ -78,7 +78,8 @@ Keep this alias on later releases too: users may skip intervening versions.
 
 After the desktop assets are published and verified, update `APP_VERSION` and
 `PUBLISHED_ARCH` in `apps/web/lib/download.ts`, its download tests, and the Homebrew
-cask's version, filename and actual SHA-256. Merge this follow-up only after the
+cask's version, filename and actual SHA-256 in both this repository and
+[`GuilhermeVozniak/homebrew-tap`](https://github.com/GuilhermeVozniak/homebrew-tap). Merge this follow-up only after the
 download exists. The `apps/web/` change triggers `deploy-web.yml` on `main`.
 
 ---

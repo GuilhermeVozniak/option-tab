@@ -13,6 +13,28 @@ Windows-style `Alt`+`Tab` experience, rebuilt in [Wails](https://wails.io) (Go +
 Switch by **window**, not just by app, with live thumbnails, fuzzy search, and up to nine
 custom shortcuts. Every feature AltTab gates behind its "Pro" tier ships here **100% free**.
 
+## Install on macOS
+
+Install the signed universal app from [my Homebrew tap](https://github.com/GuilhermeVozniak/homebrew-tap):
+
+```sh
+brew tap GuilhermeVozniak/tap
+brew install --cask GuilhermeVozniak/tap/option-tab
+```
+
+Requires macOS 14 or later and supports Apple Silicon and Intel. On first launch,
+follow the app's prompts to grant Accessibility and Screen Recording permissions.
+
+To upgrade, quit Option Tab and run:
+
+```sh
+brew update
+brew upgrade --cask --greedy GuilhermeVozniak/tap/option-tab
+```
+
+You can also download the DMG from the [website](https://option-tab.vozniak.dev).
+See [Homebrew installation](docs/homebrew.md) for removal and existing-tap details.
+
 ## Features
 
 - **Window-level switching** across every app, triggered by a global hotkey (default ⌥Tab).
@@ -32,7 +54,7 @@ custom shortcuts. Every feature AltTab gates behind its "Pro" tier ships here **
   with live status that updates as you grant them in System Settings.
 - **Menubar-only app**: no Dock icon (accessory app, like AltTab), with a menubar icon for
   Preferences, Pause/Resume, and Quit; preferences open in a regular titled window.
-- **Glassmorphism UI** built on Tailwind CSS v4 + shadcn-style components: frosted panels
+- **Glassmorphism UI** built on Tailwind CSS v4 + shadcn/ui components: frosted panels
   over an aurora backdrop, light/dark themes, accent color, start at login.
 - **Quality of life**: update checks against GitHub releases, opt-in crash reports via
   prefilled GitHub issues, and a UI translated to English, Portuguese, and Spanish.
@@ -94,9 +116,9 @@ option-tab/
 │   │   │   ├── update/           # GitHub "latest release" parsing + version compare
 │   │   │   ├── crash/            # Crash-log rotation for opt-in reports
 │   │   │   └── platform/         # The OS port: darwin (CGO), stub (!darwin), fake (tests)
-│   │   └── frontend/             # React UI: Tailwind v4 + shadcn-style glass components
+│   │   └── frontend/             # React UI: Tailwind v4 + shadcn/ui components with custom glass styling
 │   │       └── src/
-│   │           ├── components/ui/  # Button, Input, Select, Checkbox, Card, Segmented, …
+│   │           ├── components/ui/  # Button, Input, NativeSelect, Switch, RadioGroup, Tabs, …
 │   │           ├── overlay/        # The switcher: Overlay, EntryItem, StatusIcons
 │   │           ├── settings/       # Preferences shell + tabs/, onboarding, recorder
 │   │           ├── hooks/          # Bridge-backed hooks (permissions, about, crash)
