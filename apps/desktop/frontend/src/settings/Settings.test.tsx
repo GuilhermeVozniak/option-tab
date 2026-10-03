@@ -1198,6 +1198,9 @@ it("edits the full Dock appearance independently without exposing unused timing 
   const { rerender } = render(<Settings settings={current} onChange={onChange} />);
   fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
   openDockSection("Window previews");
+  // Hidden panels stay mounted; keep repeated control queries in the preview section.
+  const dock = within(screen.getByRole("tabpanel", { name: "Dock" }));
+  const previews = within(dock.getByRole("region", { name: "Window previews" }));
   const checkIndependent = () => {
     expect(current.appearance).toEqual(original.appearance);
     expect(current.appSwitcher).toEqual(original.appSwitcher);
@@ -1216,7 +1219,7 @@ it("edits the full Dock appearance independently without exposing unused timing 
     ["Dock max rows", "maxRows", 4],
     ["Dock background opacity", "backgroundOpacity", 0.6],
   ] as const) {
-    fireEvent.change(screen.getByLabelText(label), { target: { value: String(value) } });
+    fireEvent.change(previews.getByLabelText(label), { target: { value: String(value) } });
     expect(current.dock.appearance[field]).toBe(value);
     checkIndependent();
   }
@@ -1232,32 +1235,26 @@ it("edits the full Dock appearance independently without exposing unused timing 
     ["Dock window controls", "showWindowControls"],
   ] as const) {
     const before = current.dock.appearance[field];
-    fireEvent.click(screen.getByLabelText(label));
+    fireEvent.click(previews.getByLabelText(label));
     expect(current.dock.appearance[field]).toBe(!before);
     checkIndependent();
   }
-  fireEvent.click(screen.getByLabelText("Dock theme light"));
+  fireEvent.click(previews.getByLabelText("Dock theme light"));
   expect(current.dock.appearance.theme).toBe("light");
   checkIndependent();
-  fireEvent.click(screen.getByLabelText("Dock size large"));
+  fireEvent.click(previews.getByLabelText("Dock size large"));
   expect(current.dock.appearance).toMatchObject({
     sizePreset: "large",
     thumbnailMaxPx: 360,
     iconSizePx: 96,
   });
   checkIndependent();
-  fireEvent.click(screen.getByLabelText("Dock visual style titles"));
+  fireEvent.click(previews.getByLabelText("Dock visual style titles"));
   expect(current.dock.appearance.style).toBe("titles");
   checkIndependent();
-  expect(
-    within(screen.getByRole("tabpanel", { name: "Dock" })).queryByLabelText(/Overlay placement/i),
-  ).not.toBeInTheDocument();
-  expect(
-    within(screen.getByRole("tabpanel", { name: "Dock" })).queryByLabelText(/Fade out animation/i),
-  ).not.toBeInTheDocument();
-  expect(
-    within(screen.getByRole("tabpanel", { name: "Dock" })).queryByLabelText(/Apparition delay/i),
-  ).not.toBeInTheDocument();
+  expect(dock.queryByLabelText(/Overlay placement/i)).not.toBeInTheDocument();
+  expect(dock.queryByLabelText(/Fade out animation/i)).not.toBeInTheDocument();
+  expect(dock.queryByLabelText(/Apparition delay/i)).not.toBeInTheDocument();
   expect(screen.getAllByLabelText("Dock thumbnail size")).toHaveLength(1);
 });
 
