@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { makeT } from "../lib/i18n";
 import type {
   WidgetCatalogDescriptor,
   WidgetInstanceConfig,
@@ -457,6 +458,71 @@ describe("WidgetSettings", () => {
     );
     fireEvent.change(screen.getByLabelText("Interval"), { target: { value: "11" } });
     expect(screen.getByRole("alert")).toHaveTextContent("Enter a valid value.");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("updates existing validation errors when the settings language changes", () => {
+    const onChange = vi.fn();
+    const catalog: WidgetCatalogDescriptor[] = [
+      {
+        ...clock,
+        settings: [
+          {
+            id: "timezone",
+            type: "timezone",
+            name: { en: "Time zone", "pt-BR": "Fuso horário", es: "Zona horaria" },
+            defaultText: "Local",
+          },
+        ],
+      },
+      {
+        ...network,
+        settings: [
+          {
+            id: "interval",
+            type: "number",
+            name: { en: "Interval", "pt-BR": "Intervalo", es: "Intervalo" },
+            defaultNumber: 5,
+            min: 1,
+            max: 10,
+          },
+        ],
+      },
+    ];
+    const props = {
+      instances: catalog.map((item, index) => ({
+        id: `widget-${index}`,
+        packageID: item.packageID,
+        digest: item.digest,
+        enabled: true,
+        grants: item.requiredCapabilities,
+      })),
+      stacks: [],
+      catalog,
+      onChange,
+    };
+    const { rerender } = render(<WidgetSettings {...props} language="pt-BR" t={makeT("pt-BR")} />);
+    const zone = screen.getByLabelText("Fuso horário");
+    fireEvent.change(zone, { target: { value: "Europe/" } });
+    fireEvent.blur(zone);
+    fireEvent.change(screen.getByLabelText("Intervalo"), { target: { value: "11" } });
+    expect(screen.getAllByRole("alert").map((node) => node.textContent)).toEqual([
+      "Insira um valor válido.",
+      "Insira um valor válido.",
+    ]);
+
+    for (const [language, label, expected] of [
+      ["es", "Zona horaria", "Introduce un valor válido."],
+      ["en", "Time zone", "Enter a valid value."],
+      ["pt-BR", "Fuso horário", "Insira um valor válido."],
+    ] as const) {
+      rerender(<WidgetSettings {...props} language={language} t={makeT(language)} />);
+      expect(screen.getAllByRole("alert").map((node) => node.textContent)).toEqual([
+        expected,
+        expected,
+      ]);
+      expect(screen.getByLabelText(label)).toHaveValue("Europe/");
+    }
     expect(onChange).not.toHaveBeenCalled();
   });
 });

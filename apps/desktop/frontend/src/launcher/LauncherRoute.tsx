@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { LauncherBadgeTransport } from "../lib/launcher-badge-types";
-import type { LauncherPresentation } from "../lib/types";
+import type {
+  LauncherItemPanelState,
+  LauncherItemPanelTransport,
+} from "../lib/launcher-item-panel-bridge";
+import type { LauncherPresentation, LauncherPresentationItem } from "../lib/types";
 import type { LauncherWidgetState, WidgetActions } from "../lib/widget-types";
 import { LauncherView } from "./LauncherView";
 import type { LauncherItemMutation } from "./reorder";
@@ -21,6 +25,7 @@ export interface LauncherTransport {
   ): Promise<void>;
   relaunch?: LauncherTransport["activate"];
   showPanel?: LauncherTransport["activate"];
+  itemPanels?: Pick<LauncherItemPanelTransport, "subscribe">;
   mutate?: (
     epoch: number,
     displayUUID: string,
@@ -51,7 +56,7 @@ export interface LauncherTransport {
 export function LauncherRoute({
   session,
   transport,
-  t,
+  t = (text) => text,
   language,
 }: {
   session: number;
@@ -67,6 +72,8 @@ export function LauncherRoute({
   const [actionError, setActionError] = useState("");
   const stateRef = useRef<LauncherPresentation | null>(null);
   const actionSequence = useRef(0);
+  const itemLifetimes = useRef(new Map<string, ItemLifetime>());
+  const errorItem = useRef<ItemLifetime | null>(null);
 
   const revision = useRef(0);
   const retired = useRef(false);
@@ -79,6 +86,8 @@ export function LauncherRoute({
       retired.current = false;
     }
     stateRef.current = null;
+    itemLifetimes.current.clear();
+    errorItem.current = null;
     setState(null);
     setActionError("");
     const accept = (next: LauncherPresentation) => {
@@ -92,28 +101,104 @@ export function LauncherRoute({
       revision.current = next.revision;
       if (!next.visible) retired.current = true;
       const previous = stateRef.current;
+      const nextItems = new Map<string, ItemLifetime>();
+      if (next.visible) {
+        const sameParent = previous && parentIdentity(previous) === parentIdentity(next);
+        for (const item of next.items.flatMap((item) => [item, ...(item.members ?? [])])) {
+          const prior = sameParent ? itemLifetimes.current.get(item.id) : undefined;
+          const identity = itemIdentity(item);
+          nextItems.set(
+            item.id,
+            prior?.identity === identity ? prior : { id: item.id, identity, since: next.revision },
+          );
+        }
+      }
+      itemLifetimes.current = nextItems;
       if (
-        !previous ||
-        previous.revision !== next.revision ||
-        previous.epoch !== next.epoch ||
+        (errorItem.current
+          ? nextItems.get(errorItem.current.id) !== errorItem.current
+          : !previous || previous.revision !== next.revision || previous.epoch !== next.epoch) ||
         !next.visible
-      )
+      ) {
         setActionError("");
+        errorItem.current = null;
+      }
       stateRef.current = next.visible ? next : null;
       setState(stateRef.current);
     };
     const unsubscribe = transport.subscribe(accept);
+    let childSession = 0;
+    let childRevision = 0;
+    let childRetired = false;
+    const offPanels = transport.itemPanels?.subscribe({
+      update: (next: LauncherItemPanelState) => {
+        const parent = stateRef.current;
+        const item = itemLifetimes.current.get(next.itemID);
+        if (
+          !active ||
+          retired.current ||
+          !parent ||
+          !item ||
+          next.parentEpoch !== parent.epoch ||
+          next.parentSession !== parent.session ||
+          next.displayUUID !== parent.displayUUID ||
+          next.profileID !== parent.profileID ||
+          !next.parentRevision ||
+          next.parentRevision < item.since ||
+          next.parentRevision > parent.revision ||
+          next.session < childSession ||
+          (next.session === childSession && (childRetired || next.revision < childRevision))
+        )
+          return;
+        if (next.session > childSession) {
+          childSession = next.session;
+          childRetired = false;
+          setActionError("");
+          errorItem.current = item;
+        }
+        childRevision = next.revision;
+        childRetired = !next.open;
+        if (next.error === "previewUnavailable") {
+          errorItem.current = item;
+          setActionError("previewUnavailable");
+        }
+      },
+      hide: (next) => {
+        const parent = stateRef.current;
+        if (
+          !active ||
+          retired.current ||
+          !parent ||
+          next.session < childSession ||
+          (next.session === childSession && next.revision < childRevision)
+        )
+          return;
+        if (
+          next.session !== childSession &&
+          (next.parentEpoch !== parent.epoch ||
+            next.parentSession !== parent.session ||
+            next.displayUUID !== parent.displayUUID ||
+            next.profileID !== parent.profileID)
+        )
+          return;
+        childSession = next.session;
+        childRevision = next.revision;
+        childRetired = true;
+      },
+      frames: () => {},
+    });
     void transport
       .getState(session)
       .then((next) => next && accept(next))
       .catch((error) => {
-        if (active && !retired.current && !stateRef.current)
-          setActionError(String(error).slice(0, 240));
+        if (active && !retired.current && !stateRef.current) setActionError(actionFailure(error));
       });
     return () => {
       active = false;
       stateRef.current = null;
+      itemLifetimes.current.clear();
       unsubscribe();
+      offPanels?.();
     };
   }, [session, transport]);
   useEffect(() => {
@@ -148,7 +233,7 @@ export function LauncherRoute({
     void widgets
       .get(session)
       .then(accept)
-      .catch((error) => active && setWidgetError(String(error)));
+      .catch(() => active && setWidgetError("Widget content unavailable"));
     return () => {
       active = false;
       unsubscribe();
@@ -168,10 +253,16 @@ export function LauncherRoute({
     const admitted = stateRef.current;
     if (!admitted || admitted.session !== session) return;
     const operation = ++actionSequence.current;
+    const item = itemLifetimes.current.get(args[4]);
+    errorItem.current = item ?? null;
     setActionError("");
     const failed = (error: unknown) => {
-      if (stateRef.current === admitted && actionSequence.current === operation)
-        setActionError(String(error).slice(0, 240));
+      if (
+        item &&
+        itemLifetimes.current.get(item.id) === item &&
+        actionSequence.current === operation
+      )
+        setActionError(actionFailure(error));
     };
     try {
       void Promise.resolve(command(...args)).catch(failed);
@@ -203,15 +294,14 @@ export function LauncherRoute({
                 )
                   return;
                 const operation = ++actionSequence.current;
+                errorItem.current = null;
                 setActionError("");
                 void transport.mutate!(...args).catch((error) => {
                   if (stateRef.current === admitted && operation === actionSequence.current)
                     setActionError(
-                      (t ?? ((value) => value))(
-                        String(error).match(/retired|stale|revision/i)
-                          ? "The launcher changed. Try again."
-                          : "The item could not be rearranged.",
-                      ),
+                      String(error).match(/retired|stale|revision/i)
+                        ? "retired"
+                        : "rearrangeFailed",
                     );
                 });
               }
@@ -235,25 +325,68 @@ export function LauncherRoute({
               stackID,
               instanceID,
             )
-            .catch((error) => {
-              if (widgetStateRef.current === admitted) setWidgetError(String(error));
+            .catch(() => {
+              if (widgetStateRef.current === admitted)
+                setWidgetError("This widget action is no longer available. Open it again.");
             });
         }}
       />
       {actionError ? (
         <p className="ot-launcher-action-error" role="alert">
-          {actionError}
+          {t(actionErrorText(actionError))}
         </p>
       ) : null}
       {widgetError ? (
         <p className="ot-launcher-action-error" role="alert">
-          {widgetError}
+          {t(widgetError)}
         </p>
       ) : null}
     </>
   ) : actionError && !retired.current ? (
     <p className="ot-launcher-action-error" role="alert">
-      {actionError}
+      {t(actionErrorText(actionError))}
     </p>
   ) : null;
+}
+
+type ItemLifetime = { id: string; identity: string; since: number };
+
+// Clock/widget updates may advance the presentation revision without replacing
+// an item. Keep the first revision of its uninterrupted semantic lifetime so a
+// delayed admission cannot adopt a same-ID replacement or a removed/readded item.
+function parentIdentity(state: LauncherPresentation) {
+  return JSON.stringify([
+    state.epoch,
+    state.displayUUID,
+    state.session,
+    state.profileID,
+    state.bounds,
+    state.itemsRevision,
+  ]);
+}
+
+function itemIdentity(item: LauncherPresentationItem) {
+  return JSON.stringify([
+    item.id,
+    item.kind,
+    item.name,
+    item.status,
+    item.running,
+    item.referenceRevision,
+  ]);
+}
+
+function actionFailure(error: unknown) {
+  const message = String(error);
+  if (/busy/i.test(message)) return "busy";
+  if (/retired|stale|revision/i.test(message)) return "retired";
+  return "unavailable";
+}
+
+function actionErrorText(reason: string) {
+  if (reason === "busy") return "The launcher is busy. Try again.";
+  if (reason === "retired") return "The launcher changed. Try again.";
+  if (reason === "rearrangeFailed") return "The item could not be rearranged.";
+  if (reason === "previewUnavailable") return "The item could not be opened.";
+  return "The launcher action could not be completed. Try again.";
 }

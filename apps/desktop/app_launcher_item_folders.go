@@ -27,7 +27,7 @@ func (a *App) startLauncherFolderChild(p *launcherItemPanel) {
 		return
 	}
 	if source == nil {
-		a.retireLauncherItemPanelLocked(p.parent.Scope.Session)
+		a.failLauncherChildStartLocked(p)
 		return
 	}
 	p.source = source
@@ -37,9 +37,20 @@ func (a *App) startLauncherFolderChild(p *launcherItemPanel) {
 func (a *App) failLauncherChildStart(p *launcherItemPanel) {
 	a.viewMu.Lock()
 	defer a.viewMu.Unlock()
-	if a.launcherItemPanels.owners[p.parent.Scope.Session] == p {
-		a.retireLauncherItemPanelLocked(p.parent.Scope.Session)
+	a.failLauncherChildStartLocked(p)
+}
+
+func (a *App) failLauncherChildStartLocked(p *launcherItemPanel) {
+	if a.launcherItemPanels == nil || a.launcherItemPanels.owners[p.parent.Scope.Session] != p {
+		return
 	}
+	// A broken child host may have lost its native token. Its exact parent
+	// and item must still own this failure before the parent can display it.
+	if a.launcherChildParentCurrentLocked(p) {
+		p.state.Error = "previewUnavailable"
+		a.publishLauncherChildLocked(p)
+	}
+	a.retireLauncherItemPanelLocked(p.parent.Scope.Session)
 }
 
 func (a *App) queueLauncherFolderLocked(p *launcherItemPanel) {

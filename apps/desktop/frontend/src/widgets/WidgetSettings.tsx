@@ -247,7 +247,7 @@ export function WidgetSettings({
   const [packageDigest, setPackageDigest] = useState(catalog[0]?.digest ?? "");
   const [stackMembers, setStackMembers] = useState<string[]>([]);
   const [stackName, setStackName] = useState("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, boolean>>({});
   const byDigest = useMemo(() => new Map(catalog.map((item) => [item.digest, item])), [catalog]);
   const selectedDigest = byDigest.has(packageDigest) ? packageDigest : (catalog[0]?.digest ?? "");
   const builtinClock = catalog.find(
@@ -304,10 +304,10 @@ export function WidgetSettings({
       value = { text: String(raw) };
     const key = `${instance.id}:${setting.id}`;
     if (!value) {
-      setErrors((current) => ({ ...current, [key]: c.invalid }));
+      setErrors((current) => ({ ...current, [key]: true }));
       return;
     }
-    setErrors((current) => ({ ...current, [key]: "" }));
+    setErrors((current) => ({ ...current, [key]: false }));
     const next = cloneWidgets(instances);
     const target = editable(next.find((item) => item.id === instance.id) ?? instance);
     target.settings = { ...(target.settings ?? {}), [setting.id]: value };
@@ -455,8 +455,8 @@ export function WidgetSettings({
                         label={label}
                         value={text}
                         onCommit={(value) => updateSetting(instance, setting, value)}
-                        onInvalid={() => setErrors((current) => ({ ...current, [key]: c.invalid }))}
-                        onRestore={() => setErrors((current) => ({ ...current, [key]: "" }))}
+                        onInvalid={() => setErrors((current) => ({ ...current, [key]: true }))}
+                        onRestore={() => setErrors((current) => ({ ...current, [key]: false }))}
                       />
                     ) : (
                       <input
@@ -468,7 +468,7 @@ export function WidgetSettings({
                         onChange={(event) => updateSetting(instance, setting, event.target.value)}
                       />
                     )}
-                    {errors[key] ? <span role="alert">{tr(errors[key])}</span> : null}
+                    {errors[key] ? <span role="alert">{tr(c.invalid)}</span> : null}
                   </label>
                 );
               })}

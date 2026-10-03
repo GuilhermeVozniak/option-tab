@@ -1,11 +1,17 @@
 import { expect, type Page, test } from "@playwright/test";
 import type { LauncherPresentation } from "../src/lib/types";
-import type { LauncherWidgetState } from "../src/lib/widget-types";
-import { installFakeWails } from "./support/fakeWails";
+import type { LauncherWidgetState, RenderNode } from "../src/lib/widget-types";
+import { getCallRecords, installFakeWails } from "./support/fakeWails";
 
 type Edge = "bottom" | "top" | "left" | "right";
 
-async function showClocks(page: Page, edge: Edge, length: number, count = 2) {
+async function showWidgets(
+  page: Page,
+  edge: Edge,
+  length: number,
+  count = 2,
+  roots?: RenderNode[],
+) {
   const vertical = edge === "left" || edge === "right";
   const viewport = vertical ? { width: 64, height: length } : { width: length, height: 64 };
   await page.setViewportSize(viewport);
@@ -74,15 +80,26 @@ async function showClocks(page: Page, edge: Edge, length: number, count = 2) {
       },
     })),
   };
+  if (roots) {
+    widgets.slots.forEach((slot, index) => {
+      slot.state!.root = roots[index];
+    });
+  }
   await page.addInitScript(
     ([state, widgetState]) => {
       (window as any).__launcherState = state;
       (window as any).__launcherWidgets = widgetState;
+      (window as any).__widgetActionOptions = {
+        options: Array.from({ length: 12 }, (_, index) => ({
+          token: `output-${index + 1}`,
+          label: `Output ${index + 1}`,
+        })),
+      };
     },
     [presentation, widgets],
   );
   await page.goto("/#/launcher/41");
-  await expect(page.locator(".ot-widget-text")).toHaveCount(count);
+  await expect(page.locator(".ot-launcher-widget")).toHaveCount(count);
 }
 
 async function geometry(page: Page) {
@@ -117,7 +134,7 @@ async function geometry(page: Page) {
 
 for (const edge of ["bottom", "top", "left", "right"] as const) {
   test(`two ${edge} clock slots remain visible beside eight applications`, async ({ page }) => {
-    await showClocks(page, edge, 718);
+    await showWidgets(page, edge, 718);
     const boxes = await geometry(page);
     expect(boxes.containerInsideHost).toBe(true);
     expect(boxes.hostInsideViewport).toBe(true);
@@ -130,7 +147,7 @@ for (const edge of ["bottom", "top", "left", "right"] as const) {
   test(`narrow ${edge} launcher keeps overflowing clocks reachable by scrolling`, async ({
     page,
   }) => {
-    await showClocks(page, edge, 260);
+    await showWidgets(page, edge, 260);
     const vertical = edge === "left" || edge === "right";
     const before = await geometry(page);
     expect(before.containerInsideHost).toBe(true);
@@ -145,7 +162,7 @@ for (const edge of ["bottom", "top", "left", "right"] as const) {
 
 for (const edge of ["bottom", "left"] as const) {
   test(`five ${edge} clock slots retain the four-slot viewport cap`, async ({ page }) => {
-    await showClocks(page, edge, 1400, 5);
+    await showWidgets(page, edge, 1400, 5);
     const vertical = edge === "left";
     const before = await geometry(page);
     expect(before.clocksInside).toEqual([true, true, true, true, false]);
@@ -155,5 +172,138 @@ for (const edge of ["bottom", "left"] as const) {
       else container.scrollLeft = container.scrollWidth;
     }, vertical);
     await expect.poll(async () => (await geometry(page)).clocksInside[4]).toBe(true);
+  });
+}
+
+const reading = (key: string, text: string, textKey?: string): RenderNode => ({
+  key,
+  kind: "text",
+  status: "ready",
+  text,
+  textKey,
+});
+const multiRowWidgets: RenderNode[] = [
+  {
+    key: "audio",
+    kind: "column",
+    status: "ready",
+    children: [
+      reading("output", "Desk speakers"),
+      reading("volume", "68%"),
+      reading("muted", "false", "audio.notMuted"),
+      {
+        key: "choose",
+        kind: "button",
+        status: "ready",
+        text: "Choose output",
+        textKey: "audio.chooseOutput",
+        actionToken: "audio-output",
+      },
+    ],
+  },
+  {
+    key: "battery",
+    kind: "column",
+    status: "ready",
+    children: [
+      reading("charge", "85%"),
+      reading("charging", "false", "battery.notCharging"),
+      reading("power", "external", "battery.external"),
+    ],
+  },
+  {
+    key: "network",
+    kind: "column",
+    status: "ready",
+    children: [
+      reading("connected", "true", "network.connected"),
+      reading("category", "wifi", "network.wifi"),
+      reading("upload", "2400 B/s"),
+      reading("download", "5600 B/s"),
+    ],
+  },
+];
+
+for (const edge of ["bottom", "top", "left", "right"] as const) {
+  test(`${edge} multi-row widgets scroll within their slots without moving applications`, async ({
+    page,
+  }) => {
+    await showWidgets(page, edge, 884, multiRowWidgets.length, multiRowWidgets);
+    const before = await geometry(page);
+    expect(before.hostInsideViewport).toBe(true);
+    expect(before.containerInsideHost).toBe(true);
+    expect(before.applicationsInside).toEqual(Array(8).fill(true));
+    const iconPositions = () =>
+      page.locator(".ot-launcher-app").evaluateAll((icons) =>
+        icons.map((icon) => {
+          const box = icon.getBoundingClientRect();
+          return { x: box.x, y: box.y, width: box.width, height: box.height };
+        }),
+      );
+    const icons = await iconPositions();
+    const viewportSize = page.viewportSize()!;
+    for (const icon of icons) {
+      expect(icon.x).toBeGreaterThanOrEqual(0);
+      expect(icon.y).toBeGreaterThanOrEqual(0);
+      expect(icon.x + icon.width).toBeLessThanOrEqual(viewportSize.width);
+      expect(icon.y + icon.height).toBeLessThanOrEqual(viewportSize.height);
+    }
+    const assertViewport = async () => {
+      const viewport = await page.evaluate(() => ({
+        x: scrollX,
+        y: scrollY,
+        width: document.documentElement.scrollWidth,
+        height: document.documentElement.scrollHeight,
+        viewportWidth: innerWidth,
+        viewportHeight: innerHeight,
+      }));
+      expect(viewport.x).toBe(0);
+      expect(viewport.y).toBe(0);
+      expect(viewport.width).toBe(viewport.viewportWidth);
+      expect(viewport.height).toBe(viewport.viewportHeight);
+      expect((await geometry(page)).hostInsideViewport).toBe(true);
+      expect(await iconPositions()).toEqual(icons);
+    };
+    for (const text of ["Not muted", "External power", "5600 B/s"]) {
+      const reading = page.getByText(text, { exact: true });
+      await reading.evaluate((node) =>
+        node.scrollIntoView({ block: "nearest", inline: "nearest" }),
+      );
+      await expect(reading).toBeInViewport({ ratio: 1 });
+      await assertViewport();
+    }
+    const chooser = page.getByRole("button", { name: "Choose output", exact: true });
+    await chooser.click();
+    await expect(page.getByRole("button", { name: "Output 12", exact: true })).toBeAttached();
+    await assertViewport();
+    const lastOutput = page.getByRole("button", { name: "Output 12", exact: true });
+    await lastOutput.scrollIntoViewIfNeeded();
+    await expect(lastOutput).toBeInViewport({ ratio: 1 });
+    const hit = await lastOutput.evaluate((button) => {
+      const box = button.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      return { x, y, target: button.contains(document.elementFromPoint(x, y)) };
+    });
+    expect(hit.target).toBe(true);
+    await assertViewport();
+    expect(
+      await page
+        .locator(".ot-launcher-widget")
+        .first()
+        .evaluate((slot) => slot.scrollTop),
+    ).toBeGreaterThan(0);
+    await page.mouse.click(hit.x, hit.y);
+    await expect
+      .poll(() => getCallRecords(page))
+      .toContainEqual([
+        "PerformWidgetAction",
+        expect.objectContaining({ instanceID: "clock-0" }),
+        "audio-output",
+        "output-12",
+        null,
+      ]);
+    await expect(lastOutput).toHaveCount(0);
+    await assertViewport();
   });
 }

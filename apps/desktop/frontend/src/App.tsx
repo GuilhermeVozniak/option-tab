@@ -43,7 +43,7 @@ import {
   getLauncherInteractionCapabilities,
   launcherInteractions,
 } from "./lib/launcher-interaction-bridge";
-import { showLauncherItemPanel } from "./lib/launcher-item-panel-bridge";
+import { launcherItemPanel, showLauncherItemPanel } from "./lib/launcher-item-panel-bridge";
 import { mutateLauncherItems, relaunchLauncherItem } from "./lib/launcher-item-runtime-bridge";
 import { launcherItemSettings } from "./lib/launcher-items-bridge";
 import { launcherProfileTransfer } from "./lib/launcher-profile-transfer-bridge";
@@ -136,30 +136,35 @@ function LauncherAppRoute({ session }: { session: number }) {
     };
   }, []);
   const resolved = resolveLang(language);
+  const transport = useMemo(
+    () => ({
+      getState: launcher.state,
+      badges: launcherBadges,
+      activate: launcher.activate,
+      relaunch: relaunchLauncherItem,
+      mutate: mutateLauncherItems,
+      autoHideHold: setLauncherAutoHideHold,
+      showPanel: showLauncherItemPanel,
+      itemPanels: launcherItemPanel,
+      subscribe: onLauncherState,
+      interactions: launcherInteractions,
+      widgets: {
+        get: launcher.widgets,
+        subscribe: onLauncherWidgets,
+        options: launcher.widgetOptions,
+        perform: launcher.widgetPerform,
+        asset: launcher.widgetAsset,
+        select: launcher.selectWidget,
+      },
+    }),
+    [],
+  );
   return (
     <LauncherRoute
       session={session}
       language={resolved}
       t={makeT(resolved)}
-      transport={{
-        getState: launcher.state,
-        badges: launcherBadges,
-        activate: launcher.activate,
-        relaunch: relaunchLauncherItem,
-        mutate: mutateLauncherItems,
-        autoHideHold: setLauncherAutoHideHold,
-        showPanel: showLauncherItemPanel,
-        subscribe: onLauncherState,
-        interactions: launcherInteractions,
-        widgets: {
-          get: launcher.widgets,
-          subscribe: onLauncherWidgets,
-          options: launcher.widgetOptions,
-          perform: launcher.widgetPerform,
-          asset: launcher.widgetAsset,
-          select: launcher.selectWidget,
-        },
-      }}
+      transport={transport}
     />
   );
 }

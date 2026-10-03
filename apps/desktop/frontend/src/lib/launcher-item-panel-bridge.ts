@@ -7,6 +7,7 @@ export interface LauncherItemPanelState {
   revision: number;
   parentEpoch: number;
   parentSession: number;
+  parentRevision?: number;
   displayUUID: string;
   profileID: string;
   itemID: string;
@@ -18,6 +19,11 @@ export interface LauncherItemPanelState {
   windows?: AutomationPreviewState;
   error?: string;
 }
+
+type LauncherItemPanelHide = Pick<LauncherItemPanelState, "session" | "revision"> &
+  Partial<
+    Pick<LauncherItemPanelState, "parentEpoch" | "parentSession" | "displayUUID" | "profileID">
+  >;
 
 export interface LauncherItemPanelTransport {
   getState(session: number): Promise<LauncherItemPanelState | null>;
@@ -42,7 +48,7 @@ export interface LauncherItemPanelTransport {
   ): Promise<void>;
   subscribe(handlers: {
     update(state: LauncherItemPanelState): void;
-    hide(value: { session: number; revision: number }): void;
+    hide(value: LauncherItemPanelHide): void;
     frames(value: {
       session: number;
       revision: number;
@@ -80,7 +86,7 @@ export const launcherItemPanel: LauncherItemPanelTransport = {
       update(event.data as LauncherItemPanelState),
     );
     const offHide = Events.On("launcher-item:hide", (event) =>
-      hide(event.data as { session: number; revision: number }),
+      hide(event.data as LauncherItemPanelHide),
     );
     const offFrames = Events.On("launcher-item:frames", (event) =>
       frames(

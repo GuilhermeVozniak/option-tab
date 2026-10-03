@@ -55,6 +55,10 @@ func (a *App) wireLauncherItemPanels() {
 }
 
 func (a *App) launcherChildCurrentLocked(p *launcherItemPanel) bool {
+	return a.launcherChildParentCurrentLocked(p) && launcherChildTokensCurrent(p)
+}
+
+func (a *App) launcherChildParentCurrentLocked(p *launcherItemPanel) bool {
 	r := a.launcherItemPanels
 	if r == nil || r.stopped || r.owners[p.parent.Scope.Session] != p || p.ctx.Err() != nil || a.launcherItems != p.manager || p.manager.closed || p.manager.ctx.Err() != nil || !a.launcherAllowedLocked() || !a.launcher.ready || a.launcher.hosts[p.parent.Scope.Session] != p.parentHost {
 		return false
@@ -63,7 +67,8 @@ func (a *App) launcherChildCurrentLocked(p *launcherItemPanel) bool {
 		return false
 	}
 	_, err := r.core.ValidateChildParent(p.parent)
-	return err == nil && launcherChildTokensCurrent(p)
+	parent, ok := p.parentHost.window.wheelPanel().(platform.LauncherPanel)
+	return err == nil && ok && p.parentToken != 0 && parent.LauncherToken() == p.parentToken
 }
 
 func (a *App) launcherChildGuard(p *launcherItemPanel, requireChild bool) error {
@@ -123,7 +128,11 @@ func (a *App) retireLauncherItemPanelLocked(parentSession uint64) <-chan struct{
 	r.core.ClearChildBounds(p.parent, p.state.Session)
 	p.state.Open = false
 	p.state.Revision++
-	a.emit("launcher-item:hide", map[string]uint64{"session": p.state.Session, "revision": p.state.Revision})
+	a.emit("launcher-item:hide", map[string]any{
+		"session": p.state.Session, "revision": p.state.Revision,
+		"parentEpoch": p.state.ParentEpoch, "parentSession": p.state.ParentSession,
+		"displayUUID": p.state.DisplayUUID, "profileID": p.state.ProfileID,
+	})
 	r.drains[parentSession] = p.done
 	var hostDone <-chan struct{}
 	if p.host != nil {
@@ -246,9 +255,13 @@ func (a *App) ShowLauncherItemPanel(epoch uint64, displayUUID string, parentSess
 	if !folder {
 		a.initLauncherWindowChildLocked(p)
 	}
+	p.state.ParentRevision = parentRevision
 	m.wg.Add(1)
 	r.retained++
 	r.owners[parentSession] = p
+	// Publish admission before native startup can fail, including requests
+	// made by the native interaction owner rather than the renderer RPC.
+	a.emit("launcher-item:update", cloneLauncherItemPanelState(p.state))
 	p.wg.Add(1)
 	if folder {
 		go a.startLauncherFolderChild(p)
@@ -365,9 +378,7 @@ func (a *App) prepareLauncherChildHost(p *launcherItemPanel) bool {
 	host := factory(p.state.Session, p.parent.Scope.DisplayUUID, platform.LauncherPanelStyle{Material: appearance.Material, Theme: appearance.Theme, CornerRadiusPx: appearance.CornerRadiusPx}, func() { a.failLauncherChildStart(p) })
 	a.viewMu.Lock()
 	if !a.launcherChildCurrentLocked(p) || host == nil {
-		if a.launcherItemPanels.owners[p.parent.Scope.Session] == p {
-			a.retireLauncherItemPanelLocked(p.parent.Scope.Session)
-		}
+		a.failLauncherChildStartLocked(p)
 		a.viewMu.Unlock()
 		if host != nil {
 			<-host.closeAndDrain()
@@ -376,7 +387,7 @@ func (a *App) prepareLauncherChildHost(p *launcherItemPanel) bool {
 	}
 	p.host = host
 	if err := a.launcherItemPanels.core.SetChildBounds(p.parent, p.state.Session, p.state.Bounds); err != nil {
-		a.retireLauncherItemPanelLocked(p.parent.Scope.Session)
+		a.failLauncherChildStartLocked(p)
 		a.viewMu.Unlock()
 		return false
 	}

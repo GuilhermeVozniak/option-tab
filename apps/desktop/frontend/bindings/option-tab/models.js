@@ -1140,6 +1140,13 @@ export class LauncherItemPanelState {
              */
             this["parentSession"] = 0;
         }
+        if (!("parentRevision" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["parentRevision"] = 0;
+        }
         if (!("displayUUID" in $$source)) {
             /**
              * @member
@@ -1220,18 +1227,18 @@ export class LauncherItemPanelState {
      * @returns {LauncherItemPanelState}
      */
     static createFrom($$source = {}) {
-        const $$createField10_0 = $$createType19;
-        const $$createField11_0 = $$createType21;
-        const $$createField12_0 = $$createType23;
+        const $$createField11_0 = $$createType19;
+        const $$createField12_0 = $$createType21;
+        const $$createField13_0 = $$createType23;
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         if ("bounds" in $$parsedSource) {
-            $$parsedSource["bounds"] = $$createField10_0($$parsedSource["bounds"]);
+            $$parsedSource["bounds"] = $$createField11_0($$parsedSource["bounds"]);
         }
         if ("folder" in $$parsedSource) {
-            $$parsedSource["folder"] = $$createField11_0($$parsedSource["folder"]);
+            $$parsedSource["folder"] = $$createField12_0($$parsedSource["folder"]);
         }
         if ("windows" in $$parsedSource) {
-            $$parsedSource["windows"] = $$createField12_0($$parsedSource["windows"]);
+            $$parsedSource["windows"] = $$createField13_0($$parsedSource["windows"]);
         }
         return new LauncherItemPanelState(/** @type {Partial<LauncherItemPanelState>} */($$parsedSource));
     }

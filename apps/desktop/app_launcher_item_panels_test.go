@@ -269,6 +269,12 @@ func TestLauncherChildWaitsForPhysicalVisibilityBeforeFolderAccess(t *testing.T)
 func TestLauncherChildPhysicalVisibilityDeadlineRetiresAndDrains(t *testing.T) {
 	fs := &childFolderFixture{}
 	a, _, _ := childAppFixture(t, fs)
+	failures := make(chan LauncherItemPanelState, 4)
+	a.eventSink = func(name string, value any) {
+		if state, ok := value.(LauncherItemPanelState); name == "launcher-item:update" && ok && state.Error != "" {
+			failures <- state
+		}
+	}
 	panel, p := childWaitingForVisibility(t, a, false)
 	close(panel.release)
 	select {
@@ -284,6 +290,14 @@ func TestLauncherChildPhysicalVisibilityDeadlineRetiresAndDrains(t *testing.T) {
 	if a.GetLauncherItemPanelState(p.state.Session) != nil || panel.closes.Load() != 1 || fs.calls.Load() != 0 {
 		t.Fatal("unavailable child retained its host or accessed its folder")
 	}
+	select {
+	case failure := <-failures:
+		if failure.Session != p.state.Session || failure.ParentEpoch != 1 || failure.ParentSession != 1 || failure.ParentRevision != 1 || failure.DisplayUUID != integrationDisplay || failure.ItemID != "folder" || failure.Error != "previewUnavailable" {
+			t.Fatal("startup failure lost its parent/item scope", failure)
+		}
+	default:
+		t.Fatal("accepted child startup failed without a parent-visible error update")
+	}
 }
 
 func TestLauncherChildPendingVisibilityCannotSurviveRetirement(t *testing.T) {
@@ -291,6 +305,12 @@ func TestLauncherChildPendingVisibilityCannotSurviveRetirement(t *testing.T) {
 		t.Run(reason, func(t *testing.T) {
 			fs := &childFolderFixture{}
 			a, _, core := childAppFixture(t, fs)
+			var errors atomic.Int32
+			a.eventSink = func(name string, value any) {
+				if state, ok := value.(LauncherItemPanelState); name == "launcher-item:update" && ok && state.Error != "" {
+					errors.Add(1)
+				}
+			}
 			panel, p := childWaitingForVisibility(t, a, false)
 			switch reason {
 			case "cancel":
@@ -314,7 +334,61 @@ func TestLauncherChildPendingVisibilityCannotSurviveRetirement(t *testing.T) {
 			if a.GetLauncherItemPanelState(p.state.Session) != nil || fs.calls.Load() != 0 || fs.opened.Load() != 0 {
 				t.Fatal("retired readiness owner accessed its folder or returned")
 			}
+			if reason != "child token" && errors.Load() != 0 {
+				t.Fatal("retired parent received a late child error")
+			}
 		})
+	}
+}
+
+func TestLauncherChildNilHostPublishesScopedFailureAfterAdmission(t *testing.T) {
+	a, _, _ := childAppFixture(t)
+	updates := make(chan LauncherItemPanelState, 4)
+	a.eventSink = func(name string, value any) {
+		if state, ok := value.(LauncherItemPanelState); name == "launcher-item:update" && ok {
+			updates <- state
+		}
+	}
+	a.launcherItemPanelFactory = func(uint64, string, platform.LauncherPanelStyle, func()) *dockWindow { return nil }
+	accepted := showChild(t, a)
+	for _, reason := range []string{"", "previewUnavailable"} {
+		select {
+		case update := <-updates:
+			if update.Session != accepted.Session || update.ParentRevision != 1 || update.Error != reason {
+				t.Fatal("child startup updates lost admission order or scope", update)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("child startup did not report admission/failure")
+		}
+	}
+	if a.GetLauncherItemPanelState(accepted.Session) != nil {
+		t.Fatal("failed child survived")
+	}
+}
+
+func TestLauncherChildNormalCloseDoesNotPublishFailure(t *testing.T) {
+	a, _, _ := childAppFixture(t, &childFolderFixture{})
+	var errors atomic.Int32
+	a.eventSink = func(name string, value any) {
+		if state, ok := value.(LauncherItemPanelState); name == "launcher-item:update" && ok && state.Error != "" {
+			errors.Add(1)
+		}
+	}
+	ready := waitChildReady(t, a, showChild(t, a).Session)
+	a.viewMu.Lock()
+	p := a.launcherItemPanels.owners[1]
+	a.viewMu.Unlock()
+	if err := a.CloseLauncherItemPanel(ready.Session, ready.Revision); err != nil {
+		t.Fatal(err)
+	}
+	a.failLauncherChildStart(p) // A late native callback cannot turn dismissal into failure.
+	select {
+	case <-p.done:
+	case <-time.After(time.Second):
+		t.Fatal("closed child did not drain")
+	}
+	if errors.Load() != 0 {
+		t.Fatal("normal close published a startup failure")
 	}
 }
 

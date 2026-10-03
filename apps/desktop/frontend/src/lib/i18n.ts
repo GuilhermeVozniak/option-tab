@@ -207,6 +207,8 @@ const PT: Record<string, string> = {
   "Type a letter": "Digite uma letra",
   "Interaction delivery is not verified": "A entrega da interação não foi verificada",
   "The launcher is busy. Try again.": "O Dock está ocupado. Tente novamente.",
+  "The launcher action could not be completed. Try again.":
+    "Não foi possível concluir a ação do Dock. Tente novamente.",
   "Launcher interaction unavailable": "Interação do Dock indisponível",
   "Unavailable on this device": "Indisponível neste dispositivo",
   "Primary gesture action": "Ação do gesto principal",
@@ -990,6 +992,8 @@ const ES: Record<string, string> = {
   "Type a letter": "Escribe una letra",
   "Interaction delivery is not verified": "La entrega de la interacción no está verificada",
   "The launcher is busy. Try again.": "El Dock está ocupado. Inténtalo de nuevo.",
+  "The launcher action could not be completed. Try again.":
+    "No se pudo completar la acción del Dock. Inténtalo de nuevo.",
   "Launcher interaction unavailable": "Interacción del Dock no disponible",
   "Unavailable on this device": "No disponible en este dispositivo",
   "Primary gesture action": "Acción del gesto principal",

@@ -137,6 +137,8 @@ export function LauncherView({
       className={`ot-launcher-shell edge-${presentation.edge} theme-${presentation.appearance.theme} material-${presentation.appearance.material}`}
       style={
         {
+          // Native bounds already include the magnification envelope.
+          height: presentation.bounds.h,
           "--ot-launcher-icon": `${presentation.iconPx}px`,
           "--ot-launcher-tint": presentation.appearance.tint,
           "--ot-launcher-opacity": presentation.appearance.opacity,

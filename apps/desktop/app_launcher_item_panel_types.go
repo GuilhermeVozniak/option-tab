@@ -6,20 +6,21 @@ import (
 )
 
 type LauncherItemPanelState struct {
-	Session       uint64                      `json:"session"`
-	Revision      uint64                      `json:"revision"`
-	ParentEpoch   uint64                      `json:"parentEpoch"`
-	ParentSession uint64                      `json:"parentSession"`
-	DisplayUUID   string                      `json:"displayUUID"`
-	ProfileID     string                      `json:"profileID"`
-	ItemID        string                      `json:"itemID"`
-	Kind          string                      `json:"kind"`
-	Title         string                      `json:"title"`
-	Open          bool                        `json:"open"`
-	Bounds        domain.Bounds               `json:"bounds"`
-	Folder        *LauncherItemFolderState    `json:"folder,omitempty"`
-	Windows       *AutomationPreviewViewState `json:"windows,omitempty"`
-	Error         string                      `json:"error,omitempty"`
+	Session        uint64                      `json:"session"`
+	Revision       uint64                      `json:"revision"`
+	ParentEpoch    uint64                      `json:"parentEpoch"`
+	ParentSession  uint64                      `json:"parentSession"`
+	ParentRevision uint64                      `json:"parentRevision"`
+	DisplayUUID    string                      `json:"displayUUID"`
+	ProfileID      string                      `json:"profileID"`
+	ItemID         string                      `json:"itemID"`
+	Kind           string                      `json:"kind"`
+	Title          string                      `json:"title"`
+	Open           bool                        `json:"open"`
+	Bounds         domain.Bounds               `json:"bounds"`
+	Folder         *LauncherItemFolderState    `json:"folder,omitempty"`
+	Windows        *AutomationPreviewViewState `json:"windows,omitempty"`
+	Error          string                      `json:"error,omitempty"`
 }
 type LauncherItemFolderState struct {
 	FolderIdentity string                 `json:"folderIdentity"`
