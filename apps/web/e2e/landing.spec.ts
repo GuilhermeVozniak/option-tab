@@ -3,7 +3,7 @@ import { APP_VERSION } from "../lib/download";
 
 // Expectations derive from APP_VERSION so a release bump cannot break them.
 const v = APP_VERSION.replaceAll(".", "\\.");
-const macDmg = new RegExp(`option-tab_${v}_darwin_arm64\\.dmg$`);
+const macDmg = new RegExp(`option-tab_${v}_darwin_universal\\.dmg$`);
 
 test("landing page renders and exposes per-OS download links", async ({ page }) => {
   await page.goto("/");
@@ -11,10 +11,11 @@ test("landing page renders and exposes per-OS download links", async ({ page }) 
 
   const macLink = page.getByTestId("download-darwin");
   await expect(macLink).toContainText("Apple silicon");
+  await expect(macLink).toContainText("Intel");
   await expect(page.getByText(/macOS 14\+/)).toBeVisible();
   await expect(macLink).toHaveAttribute(
     "href",
-    new RegExp(`/releases/download/v${v}/option-tab_${v}_darwin_arm64\\.dmg$`),
+    new RegExp(`/releases/download/v${v}/option-tab_${v}_darwin_universal\\.dmg$`),
   );
 });
 

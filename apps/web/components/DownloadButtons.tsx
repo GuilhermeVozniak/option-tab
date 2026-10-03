@@ -1,7 +1,7 @@
 import { publishedDownloadUrl } from "../lib/download";
 
 const TARGETS = [
-  { label: "Download for macOS (Apple silicon)", platform: "darwin" },
+  { label: "Download for macOS (Apple silicon & Intel)", platform: "darwin" },
   { label: "Download for Windows", platform: "windows" },
   { label: "Download for Linux", platform: "linux" },
 ] as const;
