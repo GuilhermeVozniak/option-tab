@@ -16,8 +16,11 @@ export function AboutTab({ ctx, about, openURL, checkUpdates, diagnostics }: Abo
   const { t } = ctx;
   return (
     <>
-      <Card>
+      <Card className="ot-settings-about-card">
         <CardHeader>
+          <span className="ot-settings-about-mark" aria-hidden="true">
+            ⌥⇥
+          </span>
           <CardTitle>Option Tab</CardTitle>
           <CardDescription className="font-semibold text-foreground/80">
             {t("Version {v}").replace("{v}", about?.version ?? "dev")}

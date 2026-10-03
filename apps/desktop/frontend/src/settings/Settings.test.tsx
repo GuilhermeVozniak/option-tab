@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { makeT } from "../lib/i18n";
+import { makeT, resolveLang } from "../lib/i18n";
 import { defaultSettings, type Shortcut } from "../lib/types";
 import { PROJECT_URL, Settings } from "./Settings";
 
@@ -12,6 +12,15 @@ const makeShortcuts = (n: number): Shortcut[] =>
     enabled: true,
     scope: { appScope: "all" as const },
   }));
+
+function openDockSection(name: "Window previews" | "Media", language = "en") {
+  const t = makeT(resolveLang(language));
+  fireEvent.click(
+    within(screen.getByRole("navigation", { name: t("Dock sections") })).getByRole("button", {
+      name: t(name),
+    }),
+  );
+}
 
 describe("Settings", () => {
   it.each([
@@ -25,7 +34,7 @@ describe("Settings", () => {
         onChange={() => {}}
       />,
     );
-    fireEvent.click(screen.getByRole("tab", { name: t("Controls") }));
+    fireEvent.click(screen.getByRole("tab", { name: t("Shortcuts") }));
     expect(screen.getByRole("combobox", { name: modeLabel })).toHaveValue("windows");
     for (const [role, key] of [
       ["combobox", "Middle click action"],
@@ -41,16 +50,17 @@ describe("Settings", () => {
       screen.getByRole("combobox", { name: t("Action for {key}").replace("{key}", "KeyW") }),
     ).toHaveValue("close");
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
-    for (const [role, key] of [
-      ["checkbox", "Enable Dock previews"],
-      ["checkbox", "Enable Folder Pop"],
-      ["checkbox", "Enable media controls"],
-      ["checkbox", "Enable Spotify"],
-      ["checkbox", "Allow remote artwork"],
-      ["checkbox", "Drag previews to move windows"],
-      ["combobox", "Swipe toward Dock"],
-      ["spinbutton", "Dock hover delay"],
+    for (const [role, key, section] of [
+      ["checkbox", "Enable Dock previews", "Window previews"],
+      ["checkbox", "Enable Folder Pop", "Window previews"],
+      ["checkbox", "Enable media controls", "Media"],
+      ["checkbox", "Enable Spotify", "Media"],
+      ["checkbox", "Allow remote artwork", "Media"],
+      ["checkbox", "Drag previews to move windows", "Window previews"],
+      ["combobox", "Swipe toward Dock", "Window previews"],
+      ["spinbutton", "Dock hover delay", "Window previews"],
     ] as const) {
+      openDockSection(section, language);
       expect(t(key)).not.toBe(key);
       expect(screen.getByRole(role, { name: t(key) })).toBeInTheDocument();
     }
@@ -64,7 +74,7 @@ describe("Settings", () => {
     const { rerender } = render(
       <Settings settings={settings} onChange={onChange} switcherGesturesAvailable />,
     );
-    fireEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Shortcuts" }));
     expect(screen.getByLabelText("Swipe up action")).toBeEnabled();
     fireEvent.change(screen.getByLabelText("Swipe down action"), { target: { value: "hide" } });
     expect(onChange.mock.lastCall?.[0].behavior.swipeDownAction).toBe("hide");
@@ -89,7 +99,7 @@ describe("Settings", () => {
     settings.appSwitcher.behavior.swipeUpAction = "minimize";
     const onChange = vi.fn();
     render(<Settings settings={settings} onChange={onChange} />);
-    fireEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Shortcuts" }));
     expect(screen.getByLabelText("Swipe up action")).toBeDisabled();
     expect(screen.getByLabelText("Swipe up action")).toHaveValue("close");
     expect(screen.getByLabelText("Swipe down action")).toBeDisabled();
@@ -116,7 +126,7 @@ describe("Settings", () => {
   it("keeps app-mode action bindings independent", () => {
     const onChange = vi.fn();
     render(<Settings settings={defaultSettings} onChange={onChange} />);
-    fireEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Shortcuts" }));
     fireEvent.change(screen.getByLabelText("Switcher settings mode"), {
       target: { value: "apps" },
     });
@@ -136,6 +146,7 @@ describe("Settings", () => {
       }),
     );
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    openDockSection("Window previews");
     fireEvent.click(screen.getByLabelText("Enable Dock previews"));
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ dock: expect.objectContaining({ enabled: true }) }),
@@ -150,6 +161,7 @@ describe("Settings", () => {
     const onChange = vi.fn();
     render(<Settings settings={defaultSettings} onChange={onChange} />);
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    openDockSection("Window previews");
     fireEvent.click(screen.getByLabelText("Enable Folder Pop"));
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -161,6 +173,7 @@ describe("Settings", () => {
     const onChange = vi.fn();
     render(<Settings settings={defaultSettings} onChange={onChange} />);
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    openDockSection("Media");
     fireEvent.click(screen.getByLabelText("Enable media controls"));
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -199,6 +212,7 @@ describe("Settings", () => {
       />,
     );
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    openDockSection("Media", language);
     expect(screen.getByText(connected)).toBeVisible();
   });
 
@@ -223,6 +237,7 @@ describe("Settings", () => {
       />,
     );
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    openDockSection("Media", language);
     const button = screen.getByRole("button", { name: label });
     expect(button).toBeDisabled();
     fireEvent.click(button);
@@ -245,6 +260,7 @@ describe("Settings", () => {
       />,
     );
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+    openDockSection("Media");
     const connect = screen.getByRole("button", { name: "Connect" });
     expect(connect).toBeDisabled();
     fireEvent.click(connect);
@@ -320,9 +336,11 @@ describe("Settings", () => {
     const onChange = vi.fn();
     render(<Settings settings={defaultSettings} onChange={onChange} />);
     // Tabs are present.
-    expect(screen.getByRole("tab", { name: "Filtering" })).toBeInTheDocument();
-    // Filtering controls exist (panels stay mounted) and emit changes.
-    fireEvent.change(screen.getByLabelText("Spaces"), { target: { value: "active" } });
+    expect(screen.getByRole("tab", { name: "Window rules" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Window rules" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Spaces" }), {
+      target: { value: "active" },
+    });
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ filters: expect.objectContaining({ spaces: "active" }) }),
     );
@@ -539,7 +557,7 @@ describe("Settings", () => {
   it("adds, edits, and removes arbitrary physical key bindings", () => {
     const onChange = vi.fn();
     const first = render(<Settings settings={defaultSettings} onChange={onChange} />);
-    fireEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Shortcuts" }));
     fireEvent.click(screen.getByRole("button", { name: "Add action binding" }));
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -559,7 +577,7 @@ describe("Settings", () => {
       },
     };
     const { rerender } = render(<Settings settings={custom} onChange={onChange} />);
-    fireEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Shortcuts" }));
     fireEvent.change(screen.getByLabelText("Physical key KeyA"), { target: { value: "KeyB" } });
     fireEvent.blur(screen.getByLabelText("Physical key KeyA"));
     expect(onChange).toHaveBeenLastCalledWith(
@@ -612,7 +630,7 @@ describe("Settings", () => {
     expect(screen.getAllByLabelText("Install update")).toHaveLength(1);
 
     // It is app-level chrome: switching tabs never hides it.
-    for (const tab of ["Controls", "Appearance", "Blacklists"]) {
+    for (const tab of ["Shortcuts", "Appearance", "Excluded apps"]) {
       fireEvent.click(screen.getByRole("tab", { name: tab }));
       expect(screen.getByText("Version v0.2.0 is available.")).toBeInTheDocument();
     }
@@ -1003,7 +1021,10 @@ describe("Settings", () => {
   it("changes the global screens filter", () => {
     const onChange = vi.fn();
     render(<Settings settings={defaultSettings} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText("Screens"), { target: { value: "cursor" } });
+    fireEvent.click(screen.getByRole("tab", { name: "Window rules" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Screens" }), {
+      target: { value: "cursor" },
+    });
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ filters: expect.objectContaining({ screens: "cursor" }) }),
     );
@@ -1057,7 +1078,7 @@ describe("Settings", () => {
     unmount();
 
     render(<Settings settings={defaultSettings} onChange={vi.fn()} />);
-    expect(screen.getByText("No apps blacklisted.")).toBeInTheDocument();
+    expect(screen.getByText("No apps excluded")).toBeInTheDocument();
   });
 
   it("changes the language", () => {
@@ -1134,29 +1155,26 @@ describe("Settings", () => {
   });
 
   it("deep-links to a requested tab and navigates via the tab list", () => {
-    const { container, unmount } = render(
+    const { unmount } = render(
       <Settings settings={defaultSettings} onChange={vi.fn()} requestedTab="About" />,
     );
     expect(screen.getByRole("tab", { name: "About" })).toHaveAttribute("aria-selected", "true");
-    const aboutSection = container.querySelector('section[aria-label="About"]') as HTMLElement;
-    expect(aboutSection.hidden).toBe(false);
+    expect(screen.getByRole("tabpanel", { name: "About" })).toBeVisible();
     unmount();
 
     // An unknown requestedTab keeps the default General tab.
-    const second = render(
-      <Settings settings={defaultSettings} onChange={vi.fn()} requestedTab="NotATab" />,
-    );
+    render(<Settings settings={defaultSettings} onChange={vi.fn()} requestedTab="NotATab" />);
     expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
+    const generalSection = screen.getByRole("tabpanel", { name: "General" });
     fireEvent.click(screen.getByRole("tab", { name: "Appearance" }));
     expect(screen.getByRole("tab", { name: "Appearance" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
     expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "false");
-    const generalSection = second.container.querySelector(
-      'section[aria-label="General"]',
-    ) as HTMLElement;
-    expect(generalSection.hidden).toBe(true);
+    expect(generalSection).toBeInTheDocument();
+    expect(generalSection).not.toBeVisible();
+    expect(generalSection).toHaveAttribute("hidden");
   });
 
   it("toggles background thumbnail capture", () => {
@@ -1179,6 +1197,10 @@ it("edits the full Dock appearance independently without exposing unused timing 
   });
   const { rerender } = render(<Settings settings={current} onChange={onChange} />);
   fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  openDockSection("Window previews");
+  // Hidden panels stay mounted; keep repeated control queries in the preview section.
+  const dock = within(screen.getByRole("tabpanel", { name: "Dock" }));
+  const previews = within(dock.getByRole("region", { name: "Window previews" }));
   const checkIndependent = () => {
     expect(current.appearance).toEqual(original.appearance);
     expect(current.appSwitcher).toEqual(original.appSwitcher);
@@ -1197,7 +1219,7 @@ it("edits the full Dock appearance independently without exposing unused timing 
     ["Dock max rows", "maxRows", 4],
     ["Dock background opacity", "backgroundOpacity", 0.6],
   ] as const) {
-    fireEvent.change(screen.getByLabelText(label), { target: { value: String(value) } });
+    fireEvent.change(previews.getByLabelText(label), { target: { value: String(value) } });
     expect(current.dock.appearance[field]).toBe(value);
     checkIndependent();
   }
@@ -1213,32 +1235,26 @@ it("edits the full Dock appearance independently without exposing unused timing 
     ["Dock window controls", "showWindowControls"],
   ] as const) {
     const before = current.dock.appearance[field];
-    fireEvent.click(screen.getByLabelText(label));
+    fireEvent.click(previews.getByLabelText(label));
     expect(current.dock.appearance[field]).toBe(!before);
     checkIndependent();
   }
-  fireEvent.click(screen.getByLabelText("Dock theme light"));
+  fireEvent.click(previews.getByLabelText("Dock theme light"));
   expect(current.dock.appearance.theme).toBe("light");
   checkIndependent();
-  fireEvent.click(screen.getByLabelText("Dock size large"));
+  fireEvent.click(previews.getByLabelText("Dock size large"));
   expect(current.dock.appearance).toMatchObject({
     sizePreset: "large",
     thumbnailMaxPx: 360,
     iconSizePx: 96,
   });
   checkIndependent();
-  fireEvent.click(screen.getByLabelText("Dock visual style titles"));
+  fireEvent.click(previews.getByLabelText("Dock visual style titles"));
   expect(current.dock.appearance.style).toBe("titles");
   checkIndependent();
-  expect(
-    within(screen.getByRole("region", { name: "Dock" })).queryByLabelText(/Overlay placement/i),
-  ).not.toBeInTheDocument();
-  expect(
-    within(screen.getByRole("region", { name: "Dock" })).queryByLabelText(/Fade out animation/i),
-  ).not.toBeInTheDocument();
-  expect(
-    within(screen.getByRole("region", { name: "Dock" })).queryByLabelText(/Apparition delay/i),
-  ).not.toBeInTheDocument();
+  expect(dock.queryByLabelText(/Overlay placement/i)).not.toBeInTheDocument();
+  expect(dock.queryByLabelText(/Fade out animation/i)).not.toBeInTheDocument();
+  expect(dock.queryByLabelText(/Apparition delay/i)).not.toBeInTheDocument();
   expect(screen.getAllByLabelText("Dock thumbnail size")).toHaveLength(1);
 });
 
@@ -1250,6 +1266,7 @@ it("edits every Dock input gesture independently", () => {
   });
   const { rerender } = render(<Settings settings={current} onChange={onChange} />);
   fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  openDockSection("Window previews");
   const refresh = () => rerender(<Settings settings={current} onChange={onChange} />);
   fireEvent.change(screen.getByLabelText("Dock middle-click action"), {
     target: { value: "minimize" },
@@ -1311,6 +1328,7 @@ it("shows retained native Dock input failures without opening a preview", () => 
       dockInputError="Input Monitoring permission required"
     />,
   );
+  openDockSection("Window previews");
   expect(screen.getByRole("alert")).toHaveTextContent(
     "Dock input unavailable: Input Monitoring permission required",
   );

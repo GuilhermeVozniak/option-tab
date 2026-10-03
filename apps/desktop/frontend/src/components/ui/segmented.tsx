@@ -21,6 +21,7 @@ function Segmented<V extends string>({
 }: SegmentedProps<V>) {
   return (
     <div
+      data-slot="segmented"
       role="group"
       aria-label={ariaLabel}
       className={cn(

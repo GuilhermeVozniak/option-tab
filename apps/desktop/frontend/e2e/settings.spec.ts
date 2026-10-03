@@ -9,10 +9,18 @@ test.describe("preferences (#settings route)", () => {
     await page.goto("/#settings");
   });
 
-  const TABS = ["General", "Controls", "Appearance", "Filtering", "Blacklists", "About"];
+  const TABS = [
+    "General",
+    "Shortcuts",
+    "Appearance",
+    "Window rules",
+    "Excluded apps",
+    "Dock",
+    "About",
+  ];
 
   test("renders the tabbed preferences with every section", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: "Option Tab — Preferences" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "General", level: 1 })).toBeVisible();
     for (const name of TABS) {
       await expect(page.getByRole("tab", { name })).toBeVisible();
     }
@@ -45,12 +53,16 @@ test.describe("preferences (#settings route)", () => {
     await mode.selectOption("apps");
     await expect(mode).toHaveValue("apps");
     await expect(page.getByLabel("Layout direction", { exact: true })).toBeVisible();
-    await page.getByRole("tab", { name: "Controls" }).click();
+    await page.getByRole("tab", { name: "Shortcuts" }).click();
     await expect(page.getByLabel("Arrow keys")).toBeVisible();
   });
 
   test("exposes Dock enablement, timing, scope, and appearance settings", async ({ page }) => {
     await page.getByRole("tab", { name: "Dock" }).click();
+    await page
+      .getByRole("navigation", { name: "Dock sections" })
+      .getByRole("button", { name: "Window previews", exact: true })
+      .click();
     await expect(page.getByLabel("Enable Dock previews")).toBeVisible();
     await expect(page.getByLabel("Dock hover delay")).toBeVisible();
     await expect(page.getByText("Dock window list")).toBeVisible();
@@ -71,14 +83,14 @@ test.describe("preferences (#settings route)", () => {
   });
 
   test("adds a keyboard shortcut (lowest free id)", async ({ page }) => {
-    await page.getByRole("tab", { name: "Controls" }).click();
+    await page.getByRole("tab", { name: "Shortcuts" }).click();
     await expect(page.getByLabel("Remove shortcut 3")).toHaveCount(0);
     await page.getByRole("button", { name: "+ Add shortcut" }).click();
     await expect(page.getByLabel("Remove shortcut 3")).toBeVisible();
   });
 
   test("shows readable switcher action names", async ({ page }) => {
-    await page.getByRole("tab", { name: "Controls" }).click();
+    await page.getByRole("tab", { name: "Shortcuts" }).click();
     const action = page.getByLabel("Action for KeyW");
     await expect(action.locator('option[value="close"]')).toHaveText("Close");
     await expect(action.locator('option[value="fullscreen"]')).toHaveText("Fullscreen");
@@ -92,7 +104,7 @@ test.describe("preferences (#settings route)", () => {
   });
 
   test("replaces a physical action binding through ordinary typing", async ({ page }) => {
-    await page.getByRole("tab", { name: "Controls" }).click();
+    await page.getByRole("tab", { name: "Shortcuts" }).click();
     const input = page.getByLabel("Physical key KeyW");
     await input.focus();
     await input.press("ControlOrMeta+A");
@@ -172,7 +184,7 @@ test("adds, edits and removes a blacklist entry", async ({ page }) => {
       return JSON.parse(w.__settingsJSON).filters.appBlacklist;
     });
 
-  await page.getByRole("tab", { name: "Blacklists" }).click();
+  await page.getByRole("tab", { name: "Excluded apps" }).click();
   await page.getByRole("button", { name: "+ Add app" }).click();
   // exact: otherwise "Blacklist entry 1" also matches "Remove blacklist entry 1".
   const entry = page.getByLabel("Blacklist entry 1", { exact: true });
@@ -240,7 +252,11 @@ test("Dock appearance edits stay separate from window and app switcher preferenc
   await page.getByLabel("Switcher settings mode").selectOption("apps");
   const appSize = await page.getByLabel("Thumbnail size", { exact: true }).inputValue();
   await page.getByRole("tab", { name: "Dock" }).click();
-  const dock = page.getByRole("region", { name: "Dock", exact: true });
+  await page
+    .getByRole("navigation", { name: "Dock sections" })
+    .getByRole("button", { name: "Window previews", exact: true })
+    .click();
+  const dock = page.getByRole("tabpanel", { name: "Dock", exact: true });
   await dock.getByLabel("Dock thumbnail size", { exact: true }).fill("320");
   await dock.getByLabel("Dock layout direction", { exact: true }).selectOption("vertical");
   await dock.getByLabel("Dock theme light", { exact: true }).click();

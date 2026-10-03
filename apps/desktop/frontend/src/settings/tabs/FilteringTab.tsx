@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select } from "@/components/ui/select";
 import type { OrderMode, ScreenScope, SpaceScope, WindowVisibility } from "../../lib/types";
@@ -12,6 +12,9 @@ export function FilteringTab({ ctx }: { ctx: TabContext }) {
       <Card>
         <CardHeader>
           <CardTitle>{t("Ordering")}</CardTitle>
+          <CardDescription>
+            {t("Applies to the switcher selected above. Shortcuts can override this order.")}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <label className={ROW}>
@@ -33,6 +36,11 @@ export function FilteringTab({ ctx }: { ctx: TabContext }) {
       <Card>
         <CardHeader>
           <CardTitle>{t("Which windows to show")}</CardTitle>
+          <CardDescription>
+            {t(
+              "Shared by the window and app switchers. Shortcuts can override Spaces and screens.",
+            )}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-1">
           <label className={ROW}>

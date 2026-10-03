@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { BlacklistEntry, BlacklistHide } from "../../lib/types";
-import { CHECK_LABEL, HINT, type TabContext } from "../shared";
+import { CHECK_LABEL, type TabContext } from "../shared";
 
 function BlacklistRow({
   entry,
@@ -35,7 +35,7 @@ function BlacklistRow({
     setMatch(value);
   };
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-white/12 bg-white/5 p-2.5">
+    <div className="ot-settings-exclusion-row">
       <Input
         aria-label={`Blacklist entry ${index + 1}`}
         type="text"
@@ -104,16 +104,20 @@ export function BlacklistsTab({ ctx }: { ctx: TabContext }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{t("Blacklisted apps")}</CardTitle>
+        <CardTitle>{t("App exclusions")}</CardTitle>
         <CardDescription>
           {t(
-            "Windows of these apps are never shown. Enter a bundle id (com.apple.Safari) or app name.",
+            "Add an app name or bundle ID, then choose when to hide it. These rules apply to both switchers.",
           )}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {settings.filters.appBlacklist.length === 0 && !draft ? (
-          <p className={HINT}>{t("No apps blacklisted.")}</p>
+          <div className="ot-settings-empty">
+            <span aria-hidden="true">⊘</span>
+            <h3>{t("No apps excluded")}</h3>
+            <p>{t("All apps can appear in the switcher. Add an app to create an exception.")}</p>
+          </div>
         ) : null}
         {settings.filters.appBlacklist.map((entry, i) => (
           <BlacklistRow

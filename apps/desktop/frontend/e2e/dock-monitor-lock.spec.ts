@@ -7,6 +7,10 @@ test("native placement defaults unavailable by default and gives manual guidance
   await installFakeWails(page);
   await page.goto("/#settings");
   await page.getByRole("tab", { name: "Dock" }).click();
+  await page
+    .getByRole("navigation", { name: "Dock sections" })
+    .getByRole("button", { name: "Monitor", exact: true })
+    .click();
   await expect(page.getByText(/Move the Dock to the selected display manually/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Move Dock here" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Cancel placement" })).toHaveCount(0);
@@ -52,6 +56,10 @@ test("monitor lock preserves explicit main UUID and scopes placement to admitted
   });
   await page.goto("/#settings");
   await page.getByRole("tab", { name: "Dock" }).click();
+  await page
+    .getByRole("navigation", { name: "Dock sections" })
+    .getByRole("button", { name: "Monitor", exact: true })
+    .click();
   await page.getByLabel("Lock Dock to a monitor").check();
   const target = page.getByLabel("Target monitor");
   await expect(target.getByRole("option", { name: "Built-in Display" })).toHaveAttribute(

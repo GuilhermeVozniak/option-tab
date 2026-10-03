@@ -70,7 +70,8 @@ export interface TabContext {
 }
 
 // Shared row shells: a control on the right, its (translated) text on the left.
-export const ROW = "flex items-center justify-between gap-4 py-1 text-[13px]";
-export const CHECK_LABEL = "flex cursor-pointer items-center gap-2 text-[13px]";
-export const HINT = "m-0 text-xs leading-relaxed text-muted-foreground";
-export const ACTIONS_ROW = "flex flex-wrap gap-2 pt-1";
+export const ROW = "ot-settings-row flex items-center justify-between gap-4 py-1 text-[13px]";
+export const CHECK_LABEL =
+  "ot-settings-check-label flex cursor-pointer items-center gap-2 text-[13px]";
+export const HINT = "ot-settings-hint m-0 text-xs leading-relaxed text-muted-foreground";
+export const ACTIONS_ROW = "ot-settings-actions ot-settings-row flex flex-wrap gap-2 pt-1";

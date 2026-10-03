@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import { makeT, resolveLang } from "../lib/i18n";
 import type { JSONExportResult } from "../lib/json-export-bridge";
 import type { LauncherProfileTransferActions } from "../lib/launcher-profile-transfer-bridge";
@@ -17,6 +16,14 @@ import type { WidgetCatalogDescriptor, WidgetPackageStatus } from "../lib/widget
 import type { WidgetPackageActions } from "../widgets/WidgetPackages";
 import type { LauncherItemSettingsActions } from "./LauncherItems";
 import { Onboarding } from "./Onboarding";
+import {
+  SETTINGS_PAGES,
+  SETTINGS_TABS,
+  type SettingsPage,
+  SettingsSidebar,
+  useSettingsTheme,
+} from "./SettingsChrome";
+import "./settings.css";
 import {
   type AboutControl,
   type CrashControl,
@@ -88,16 +95,8 @@ interface SettingsProps {
   };
 }
 
-const TABS = [
-  "General",
-  "Controls",
-  "Appearance",
-  "Filtering",
-  "Blacklists",
-  "Dock",
-  "About",
-] as const;
-type Tab = (typeof TABS)[number];
+const TABS = SETTINGS_TABS;
+type Tab = SettingsPage;
 
 // Settings is a controlled preferences form. It never holds the settings itself:
 // every edit produces a new Settings object passed to onChange, so persistence
@@ -124,6 +123,13 @@ export function Settings({
   launcher,
 }: SettingsProps) {
   const [tab, setTab] = useState<Tab>("General");
+  const [settingsTheme, setSettingsTheme] = useSettingsTheme();
+  const settingsID = useId();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const selectTab = (next: Tab) => {
+    setTab(next);
+    if (next !== tab) contentRef.current?.scrollTo?.({ top: 0 });
+  };
   const [mode, setMode] = useState<SwitcherMode>("windows");
   // Updates live in a section of the General tab; the global banner and the
   // menubar's "Check for updates…" both jump there rather than to another tab.
@@ -203,7 +209,7 @@ export function Settings({
 
   if (permissions && !settings.behavior.onboarded) {
     return (
-      <div className="ot-settings px-6 py-6 text-foreground">
+      <div className="ot-settings ot-settings-onboarding" data-theme={settingsTheme}>
         <Onboarding
           permissions={permissions}
           t={t}
@@ -223,7 +229,7 @@ export function Settings({
     restarting: t("Restarting…"),
   };
   const updateBanner = update ? (
-    <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-primary/40 bg-primary/15 px-3.5 py-2.5 text-[13px] shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-md">
+    <div className="ot-settings-update">
       <button
         type="button"
         aria-label="Show update settings"
@@ -259,102 +265,139 @@ export function Settings({
   ) : null;
 
   return (
-    <div className="ot-settings px-6 py-6 text-foreground">
-      <div className="mx-auto max-w-[760px]">
-        <h1 className="m-0 mb-5 text-xl font-semibold tracking-tight">
-          {t("Option Tab — Preferences")}
-        </h1>
+    <div className="ot-settings" data-theme={settingsTheme}>
+      <SettingsSidebar
+        tab={tab}
+        onSelect={selectTab}
+        theme={settingsTheme}
+        onTheme={setSettingsTheme}
+        t={t}
+        id={settingsID}
+      />
+      <main className="ot-settings-main" ref={contentRef}>
+        <header className="ot-settings-page-header">
+          <h1>{t(SETTINGS_PAGES[tab].label)}</h1>
+          <p>{t(SETTINGS_PAGES[tab].description)}</p>
+        </header>
+        <div className="ot-settings-content">
+          {saveError ? (
+            <p role="alert" className="ot-settings-alert">
+              {saveError}
+            </p>
+          ) : null}
+          {updateBanner}
+          {tab === "Controls" || tab === "Appearance" || tab === "Filtering" ? (
+            <div className="ot-settings-mode">
+              <label>
+                <span>{t("Editing")}</span>
+                <Select
+                  aria-label={t("Switcher settings mode")}
+                  value={mode}
+                  onChange={(e) => setMode(e.target.value as SwitcherMode)}
+                >
+                  <option value="windows">{t("Window switcher")}</option>
+                  <option value="apps">{t("App switcher")}</option>
+                </Select>
+              </label>
+              <span>
+                {t(
+                  tab === "Filtering"
+                    ? "Window visibility rules are shared by both switchers."
+                    : tab === "Controls"
+                      ? "Each opening shortcut chooses its own switcher."
+                      : "Each switcher has its own appearance.",
+                )}
+              </span>
+            </div>
+          ) : null}
 
-        {saveError ? (
-          <p role="alert" className="text-red-300">
-            {saveError}
-          </p>
-        ) : null}
-
-        {/* App-level: an available update is news for the whole window, not for
-            one tab, so the banner sits above the tab strip and stays put. */}
-        {updateBanner}
-
-        <nav
-          className="mb-6 flex w-fit flex-wrap gap-1 rounded-xl border border-white/12 bg-white/6 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-xl"
-          role="tablist"
-        >
-          {TABS.map((name) => (
-            <button
-              key={name}
-              type="button"
-              role="tab"
-              aria-selected={tab === name}
-              className={cn(
-                "cursor-pointer rounded-lg px-3.5 py-1.5 text-[13px] font-medium text-foreground/60 transition-colors hover:text-foreground",
-                tab === name &&
-                  "bg-white/15 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]",
-              )}
-              onClick={() => setTab(name)}
-            >
-              {t(name)}
-            </button>
-          ))}
-        </nav>
-
-        {tab === "Controls" || tab === "Appearance" || tab === "Filtering" ? (
-          <label className="mb-4 flex items-center justify-end gap-3 text-[13px]">
-            <span>{t("Editing")}</span>
-            <Select
-              aria-label={t("Switcher settings mode")}
-              value={mode}
-              onChange={(e) => setMode(e.target.value as SwitcherMode)}
-            >
-              <option value="windows">{t("Window switcher")}</option>
-              <option value="apps">{t("App switcher")}</option>
-            </Select>
-          </label>
-        ) : null}
-
-        <section hidden={tab !== "General"} aria-label="General" className="space-y-4">
-          <GeneralTab
-            ctx={ctx}
-            permissions={permissions}
-            crash={crash}
-            updatesRef={updatesRef}
-            updateCheckResult={updateCheckResult}
-            checkUpdates={checkUpdates}
-            onImport={onImport}
-            onExport={onExport}
-          />
-        </section>
-        <section hidden={tab !== "Controls"} aria-label="Controls" className="space-y-4">
-          <ControlsTab ctx={ctx} switcherGesturesAvailable={switcherGesturesAvailable} />
-        </section>
-        <section hidden={tab !== "Appearance"} aria-label="Appearance" className="space-y-4">
-          <AppearanceTab ctx={ctx} />
-        </section>
-        <section hidden={tab !== "Filtering"} aria-label="Filtering" className="space-y-4">
-          <FilteringTab ctx={ctx} />
-        </section>
-        <section hidden={tab !== "Blacklists"} aria-label="Blacklists" className="space-y-4">
-          <BlacklistsTab key={draftAuthority} ctx={ctx} />
-        </section>
-        <section hidden={tab !== "Dock"} aria-label="Dock" className="space-y-4">
-          <DockTab
-            ctx={ctx}
-            permissions={permissions}
-            inputError={dockInputError}
-            monitorLock={monitorLock}
-            media={media}
-            launcher={launcher}
-          />
-        </section>
-        <section hidden={tab !== "About"} aria-label="About" className="space-y-4">
-          <AboutTab
-            ctx={ctx}
-            about={about}
-            openURL={openURL}
-            checkUpdates={checkUpdates}
-            diagnostics={diagnostics}
-          />
-        </section>
-      </div>
+          <section
+            hidden={tab !== "General"}
+            role="tabpanel"
+            id={`${settingsID}-panel-General`}
+            aria-labelledby={`${settingsID}-tab-General`}
+            className="ot-settings-page"
+          >
+            <GeneralTab
+              ctx={ctx}
+              permissions={permissions}
+              crash={crash}
+              updatesRef={updatesRef}
+              updateCheckResult={updateCheckResult}
+              checkUpdates={checkUpdates}
+              onImport={onImport}
+              onExport={onExport}
+            />
+          </section>
+          <section
+            hidden={tab !== "Controls"}
+            role="tabpanel"
+            id={`${settingsID}-panel-Controls`}
+            aria-labelledby={`${settingsID}-tab-Controls`}
+            className="ot-settings-page"
+          >
+            <ControlsTab ctx={ctx} switcherGesturesAvailable={switcherGesturesAvailable} />
+          </section>
+          <section
+            hidden={tab !== "Appearance"}
+            role="tabpanel"
+            id={`${settingsID}-panel-Appearance`}
+            aria-labelledby={`${settingsID}-tab-Appearance`}
+            className="ot-settings-page"
+          >
+            <AppearanceTab ctx={ctx} />
+          </section>
+          <section
+            hidden={tab !== "Filtering"}
+            role="tabpanel"
+            id={`${settingsID}-panel-Filtering`}
+            aria-labelledby={`${settingsID}-tab-Filtering`}
+            className="ot-settings-page"
+          >
+            <FilteringTab ctx={ctx} />
+          </section>
+          <section
+            hidden={tab !== "Blacklists"}
+            role="tabpanel"
+            id={`${settingsID}-panel-Blacklists`}
+            aria-labelledby={`${settingsID}-tab-Blacklists`}
+            className="ot-settings-page"
+          >
+            <BlacklistsTab key={draftAuthority} ctx={ctx} />
+          </section>
+          <section
+            hidden={tab !== "Dock"}
+            role="tabpanel"
+            id={`${settingsID}-panel-Dock`}
+            aria-labelledby={`${settingsID}-tab-Dock`}
+            className="ot-settings-page"
+          >
+            <DockTab
+              ctx={ctx}
+              permissions={permissions}
+              inputError={dockInputError}
+              monitorLock={monitorLock}
+              media={media}
+              launcher={launcher}
+            />
+          </section>
+          <section
+            hidden={tab !== "About"}
+            role="tabpanel"
+            id={`${settingsID}-panel-About`}
+            aria-labelledby={`${settingsID}-tab-About`}
+            className="ot-settings-page"
+          >
+            <AboutTab
+              ctx={ctx}
+              about={about}
+              openURL={openURL}
+              checkUpdates={checkUpdates}
+              diagnostics={diagnostics}
+            />
+          </section>
+        </div>
+      </main>
     </div>
   );
 }

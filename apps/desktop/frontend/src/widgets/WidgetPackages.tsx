@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import "../settings/editor-settings.css";
 import type {
   WidgetCatalogDescriptor,
   WidgetPackageReview,
@@ -72,13 +74,13 @@ export function WidgetPackages({
   const isAction = (capability: string) =>
     capability.endsWith(".control") || capability.endsWith(".select");
   return (
-    <section className="ot-widget-packages" aria-label={t("Widget packages")}>
+    <section className="ot-widget-packages ot-settings-editor" aria-label={t("Widget packages")}>
       <header>
-        <div>
-          <strong>{t("Widget packages")}</strong>
+        <div className="ot-editor-heading">
+          <h3>{t("Widget packages")}</h3>
           <p>{t("Review a local widget package before installing it.")}</p>
         </div>
-        <button
+        <Button
           type="button"
           disabled={
             !status.available || status.busy || pendingReview || pendingMutation || !!review
@@ -100,10 +102,10 @@ export function WidgetPackages({
           }}
         >
           {pendingReview ? t("Waiting for file…") : t("Review local package…")}
-        </button>
+        </Button>
       </header>
       {pendingReview ? (
-        <button
+        <Button
           type="button"
           onClick={() => {
             const operation = ++owner.current;
@@ -112,11 +114,11 @@ export function WidgetPackages({
           }}
         >
           {t("Cancel review")}
-        </button>
+        </Button>
       ) : null}
       {review ? (
         <article className="ot-widget-package-review">
-          <h5>{review.package.name[language] || review.package.name.en}</h5>
+          <h4>{review.package.name[language] || review.package.name.en}</h4>
           <p>{review.package.description[language] || review.package.description.en}</p>
           <dl>
             <div>
@@ -153,8 +155,9 @@ export function WidgetPackages({
           <p>{t("Installing does not grant data access or actions.")}</p>
           {review.alreadyInstalled ? <p>{t("This exact package is already installed.")}</p> : null}
           <div className="ot-widget-settings-buttons">
-            <button
+            <Button
               type="button"
+              variant="default"
               disabled={status.busy || pendingMutation}
               onClick={() => {
                 const operation = ++owner.current;
@@ -173,8 +176,8 @@ export function WidgetPackages({
               }}
             >
               {t("Install reviewed package")}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               disabled={status.busy || pendingMutation}
               onClick={() => {
@@ -187,7 +190,7 @@ export function WidgetPackages({
               }}
             >
               {t("Close review")}
-            </button>
+            </Button>
           </div>
         </article>
       ) : null}
@@ -200,7 +203,7 @@ export function WidgetPackages({
                 <span>
                   {item.name[language] || item.name.en} · {item.version}
                 </span>
-                <button
+                <Button
                   type="button"
                   disabled={!status.available || status.busy || pendingReview || pendingMutation}
                   onClick={() => {
@@ -215,7 +218,7 @@ export function WidgetPackages({
                   }}
                 >
                   {t("Remove package")}
-                </button>
+                </Button>
               </li>
             ))}
         </ul>
