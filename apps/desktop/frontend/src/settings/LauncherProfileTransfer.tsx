@@ -20,16 +20,15 @@ function readFileText(file: File): Promise<string> {
   });
 }
 
-function friendlyError(cause: unknown, t: Translate): string {
+function friendlyError(cause: unknown): string {
   const message = cause instanceof Error ? cause.message : String(cause);
-  if (/staleDigest/i.test(message))
-    return t("The reviewed profile changed. Choose the file again.");
-  if (/staleRevision/i.test(message)) return t("Dock settings changed. Review the profile again.");
-  if (/capacity/i.test(message)) return t("You can keep up to 8 profiles.");
-  if (/invalidDocument/i.test(message)) return t("This launcher profile file is invalid.");
-  if (/unavailable/i.test(message)) return t("Profile transfer is unavailable right now.");
-  if (/saveFailed/i.test(message)) return t("The imported profile could not be saved.");
-  return message;
+  if (/staleDigest/i.test(message)) return "The reviewed profile changed. Choose the file again.";
+  if (/staleRevision/i.test(message)) return "Dock settings changed. Review the profile again.";
+  if (/capacity/i.test(message)) return "You can keep up to 8 profiles.";
+  if (/invalidDocument/i.test(message)) return "This launcher profile file is invalid.";
+  if (/unavailable/i.test(message)) return "Profile transfer is unavailable right now.";
+  if (/saveFailed/i.test(message)) return "The imported profile could not be saved.";
+  return "The profile file could not be read or imported.";
 }
 
 const noticeCopy: Record<string, string> = {
@@ -78,7 +77,7 @@ export function LauncherProfileTransfer({
       if (owner !== operation.current) return;
       setExported(result.status === "saved");
     } catch (cause) {
-      if (owner === operation.current) setError(jsonExportError(cause, t));
+      if (owner === operation.current) setError(jsonExportError(cause, (text) => text));
     } finally {
       if (owner === operation.current) setPending("");
     }
@@ -92,7 +91,7 @@ export function LauncherProfileTransfer({
     setError("");
     setExported(false);
     if (file.size > MAX_DOCUMENT_BYTES) {
-      setError(t("Profile file is larger than 256 KiB."));
+      setError("Profile file is larger than 256 KiB.");
       return;
     }
     setPending("review");
@@ -109,8 +108,8 @@ export function LauncherProfileTransfer({
       if (owner === operation.current)
         setError(
           cause instanceof Error && cause.message === "tooLarge"
-            ? t("Profile file is larger than 256 KiB.")
-            : friendlyError(cause, t),
+            ? "Profile file is larger than 256 KiB."
+            : friendlyError(cause),
         );
     } finally {
       if (owner === operation.current) setPending("");
@@ -135,7 +134,7 @@ export function LauncherProfileTransfer({
       setDocument("");
       onImported?.(result.profileID);
     } catch (cause) {
-      if (owner === operation.current) setError(friendlyError(cause, t));
+      if (owner === operation.current) setError(friendlyError(cause));
     } finally {
       if (owner === operation.current) setPending("");
     }
@@ -205,7 +204,7 @@ export function LauncherProfileTransfer({
         </div>
       ) : null}
       {exported ? <p role="status">{t("Profile exported.")}</p> : null}
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? <p role="alert">{t(error)}</p> : null}
     </section>
   );
 }

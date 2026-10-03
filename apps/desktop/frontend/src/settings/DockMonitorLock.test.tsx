@@ -19,12 +19,61 @@ const props = {
   onCancel: vi.fn(),
 };
 
+it("translates runtime reasons and unknown failures using the current language", () => {
+  const state = {
+    session: 1,
+    revision: 1,
+    generation: 1,
+    sequence: 1,
+    observedAtMs: 0,
+    status: "disconnected",
+    reason: "selected display is disconnected",
+    targetUUID: "gone-uuid",
+    actualUUID: "",
+    edge: "bottom",
+    displays: [],
+    placementAvailable: false,
+  };
+  const view = render(
+    <DockMonitorLock
+      {...props}
+      state={state}
+      error="native allocation failed"
+      t={makeT("pt-BR")}
+    />,
+  );
+  expect(screen.getByText(/^Estado:/)).toHaveTextContent("Monitor desconectado");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "A proteção do Dock no monitor está indisponível. Tente novamente.",
+  );
+  view.rerender(
+    <DockMonitorLock {...props} state={state} error="native allocation failed" t={makeT("es")} />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "La protección del Dock en la pantalla no está disponible. Inténtalo de nuevo.",
+  );
+  expect(
+    screen.queryByText(/native allocation failed|selected display is disconnected/),
+  ).toBeNull();
+});
+
 it.each(["pt-BR", "es"] as const)("localizes monitor controls in %s", (language) => {
   const t = makeT(language);
   render(<DockMonitorLock {...props} t={t} />);
   expect(screen.getByRole("checkbox", { name: t("Lock Dock to a monitor") })).toBeChecked();
   expect(screen.getByRole("combobox", { name: t("Target monitor") })).toHaveValue("gone-uuid");
   expect(screen.getByRole("combobox", { name: t("Bypass modifier") })).toHaveValue("option");
+});
+
+it.each([
+  "pt-BR",
+  "es",
+] as const)("preserves the Accessibility permission cause in %s", (language) => {
+  const t = makeT(language);
+  render(<DockMonitorLock {...props} error="Accessibility permission unavailable" t={t} />);
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    t("Accessibility permission is required for this action."),
+  );
 });
 
 it("preserves a disconnected UUID and requests accessibility only on explicit enable", () => {
@@ -77,7 +126,9 @@ it("offers cancellation only after runtime reports accepted placement and surfac
       }}
     />,
   );
-  expect(screen.getByRole("alert")).toHaveTextContent("native refused");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Dock monitor protection is unavailable. Try again.",
+  );
   expect(screen.getByRole("button", { name: "Move Dock here" })).toBeDisabled();
   expect(screen.queryByRole("button", { name: "Cancel placement" })).toBeNull();
   rerender(

@@ -114,7 +114,9 @@ test("compact titles remain readable and revision tombstones prevent resurrectio
     "dock:update",
     state(30, 4, { item: { ...state(30, 4).item, title: "Stale update" } }),
   );
-  await expect(page.getByRole("alert")).toHaveText("Current refusal");
+  await expect(page.getByRole("alert")).toHaveText(
+    "The window action could not be completed. Try again.",
+  );
   await expect(page.getByText("Stale update")).toHaveCount(0);
   await emit(page, "dock:hide", { session: 30, revision: 6 });
   await emit(page, "dock:show", state(30, 7));

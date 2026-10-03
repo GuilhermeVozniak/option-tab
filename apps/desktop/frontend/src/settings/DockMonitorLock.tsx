@@ -4,6 +4,29 @@ import { Select } from "@/components/ui/select";
 import type { DockLockDisplay, DockMonitorLockSettings, DockMonitorLockState } from "../lib/types";
 import { HINT, ROW } from "./shared";
 
+function monitorReason(reason: string): string {
+  if (/Accessibility permission unavailable/i.test(reason))
+    return "Accessibility permission is required for this action.";
+  if (/selected display is disconnected/i.test(reason)) return "Disconnected display";
+  if (/geometry is ambiguous|no exposed Dock edge/i.test(reason))
+    return "The selected display has no usable Dock edge.";
+  if (/location is unverified|placement was not verified/i.test(reason))
+    return "The Dock position could not be verified.";
+  if (/bypass modifier held/i.test(reason))
+    return "Protection is bypassed while the modifier is held.";
+  if (/move Dock to selected display|move the Dock manually/i.test(reason))
+    return "Move the Dock to the selected display manually. Protection starts after its position is verified.";
+  if (/retired|no longer current|identity changed/i.test(reason))
+    return "Dock settings changed. Try again.";
+  if (/placement already (pending|active)/i.test(reason))
+    return "Dock placement is already in progress.";
+  if (/cancelled|canceled/i.test(reason)) return "Dock placement was cancelled.";
+  if (/physical input took over cursor/i.test(reason))
+    return "Dock placement stopped because the pointer was used.";
+  if (/timed out/i.test(reason)) return "Dock placement timed out. Try again.";
+  return "Dock monitor protection is unavailable. Try again.";
+}
+
 export function DockMonitorLock({
   value,
   state,
@@ -106,15 +129,15 @@ export function DockMonitorLock({
         </Select>
       </label>
       <p className={HINT}>
-        {t("Status")}: {t(statusLabel[state?.status || "disabled"] || state?.status || "Disabled")}
-        {state?.reason ? `: ${state.reason}` : ""}
+        {t("Status")}: {t(statusLabel[state?.status || "disabled"] || "Unavailable")}
+        {state?.reason ? `: ${t(monitorReason(state.reason))}` : ""}
       </p>
       {state?.placementAvailable && state.status === "awaitingPlacement" ? (
         <p className={HINT}>{t("Return the Dock manually or use Move Dock here.")}</p>
       ) : null}
       {error ? (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {error}
+          {t(monitorReason(error))}
         </p>
       ) : null}
       {!state?.placementAvailable ? (

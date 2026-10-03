@@ -27,6 +27,34 @@ export interface LauncherItemSettingsActions {
   subscribe?(handler: (status: LauncherItemStatus) => void): () => void;
 }
 const actionable = (x: LauncherItem) => !["spacer", "separator"].includes(x.kind);
+function itemError(message: string, loading = false): string {
+  const code = message.replace(/^launcher items?:\s*/, "");
+  if (code === "busy") return "The launcher is busy. Try again.";
+  if (code === "retired" || code === "staleRevision") return "The launcher changed. Try again.";
+  if (code === "profileMissing") return "Save the profile before editing its items.";
+  if (code === "invalidIcon") return "Choose a valid PNG icon.";
+  if (code === "tooLarge") return "The selected file is too large.";
+  if (code === "catalogFull") return "The local item library is full.";
+  if (code === "cleanupFailed")
+    return "Items were saved, but unused local data could not be removed.";
+  if (code === "referenced") return "This local item is still in use.";
+  if (code === "invalidKind" || code === "invalidResult" || code === "invalidArgument")
+    return "The selected item is invalid. Select it again.";
+  if (
+    [
+      "unknownReference",
+      "unknownResource",
+      "unknownIcon",
+      "accessRequired",
+      "needsSelection",
+    ].includes(code)
+  )
+    return "Select again in Settings";
+  if (["changed", "moved", "missing"].includes(code)) return referenceStatus(code);
+  if (code === "cancelled" || code === "context canceled") return "The item change was cancelled.";
+  if (loading || code === "unavailable") return "Launcher item settings are unavailable.";
+  return "The launcher item change could not be completed. Try again.";
+}
 function referenceStatus(state: string): string {
   if (state === "moved") return "Moved — relink in Settings";
   if (state === "missing") return "Missing — relink in Settings";
@@ -139,7 +167,7 @@ export function LauncherItems({
           epoch === loadEpoch.current &&
           !snapshotLoaded.current
         )
-          setError(String(e instanceof Error ? e.message : e));
+          setError(itemError(String(e instanceof Error ? e.message : e), true));
       });
   }, [actions, profileID, status?.available, status?.busy, refreshKey]);
   const refs = useMemo(
@@ -166,7 +194,7 @@ export function LauncherItems({
         epoch === operationEpoch.current &&
         !(kind === "selection" && message === "context canceled")
       )
-        setError(message);
+        setError(itemError(message));
     } finally {
       if (epoch === operationEpoch.current) setWorking(false);
     }
@@ -227,7 +255,7 @@ export function LauncherItems({
     <section className="space-y-2" aria-label={t("Launcher items")}>
       <h3>{t("Launcher items")}</h3>
       <p>{t("Pins and groups are stored per profile. Choosing a file never opens it.")}</p>
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? <p role="alert">{t(error)}</p> : null}
       {status?.available === false ? <p>{t("Launcher item selection is unavailable.")}</p> : null}
       <div className="flex flex-wrap gap-2">
         <Button type="button" onClick={() => addRef("app")} disabled={blocked}>

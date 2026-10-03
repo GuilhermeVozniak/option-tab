@@ -122,7 +122,60 @@ describe("FolderPanel", () => {
     );
     expect(screen.getByText("Some folder items could not be shown.")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Open Projects" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Item changed on disk");
+    expect(await screen.findByRole("alert")).toHaveTextContent("The item could not be opened.");
+  });
+
+  it.each([
+    "en",
+    "pt-BR",
+    "es",
+  ] as const)("localizes folder access failures and native reasons in %s", async (language) => {
+    const h = handlers();
+    const t = makeT(language);
+    h.onRequestAccess.mockRejectedValueOnce(
+      new Error("selected folder does not match the captured Dock folder"),
+    );
+    const { rerender } = render(
+      <FolderPanel
+        session={7}
+        revision={9}
+        folder={ready({ status: "permissionRequired", reason: "folder access cancelled" })}
+        handlers={h}
+        t={t}
+      />,
+    );
+    expect(screen.getByText(t("Folder access was cancelled."))).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: t("Allow access") }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      t("Choose the same folder shown in the Dock."),
+    );
+    rerender(
+      <FolderPanel
+        session={7}
+        revision={10}
+        folder={ready({ status: "unavailable", reason: "folderUnavailable" })}
+        handlers={h}
+        t={t}
+      />,
+    );
+    expect(screen.getByText(t("Folder contents are unavailable"))).toBeVisible();
+    expect(screen.queryByText("folderUnavailable")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("retranslates an existing folder failure without repeating the action", async () => {
+    const h = handlers();
+    h.onOpen.mockRejectedValueOnce(new Error("native open failed /private/example"));
+    const folder = ready();
+    const { rerender } = render(
+      <FolderPanel session={7} revision={9} folder={folder} handlers={h} t={makeT("pt-BR")} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Abrir Projects" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível abrir o item.");
+    rerender(<FolderPanel session={7} revision={9} folder={folder} handlers={h} t={makeT("es")} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("No se pudo abrir el elemento.");
+    expect(screen.getByText("A very long document name that must truncate.txt")).toBeVisible();
+    expect(h.onOpen).toHaveBeenCalledExactlyOnceWith(7, 9, "opaque-2");
   });
 
   it("cancels the exact accepted access scope after a newer update", async () => {

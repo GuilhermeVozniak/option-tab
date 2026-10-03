@@ -49,6 +49,40 @@ const value: ReplacementDockSettings = {
 };
 
 describe("ReplacementDock", () => {
+  it("translates runtime Space refusal and hides unknown backend details", () => {
+    const status: LauncherStatus = {
+      epoch: 1,
+      revision: 1,
+      enabled: true,
+      status: "unavailable",
+      reason: "spaceUnavailable",
+      recoveryLatched: false,
+      displays: [],
+      clockPackageID: "",
+      clockDigest: "",
+    };
+    const view = render(
+      <ReplacementDock value={value} status={status} t={makeT("pt-BR")} onChange={() => {}} />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("O Dock está indisponível neste Espaço.");
+    view.rerender(
+      <ReplacementDock value={value} status={status} t={makeT("es")} onChange={() => {}} />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "El Dock no está disponible en este espacio.",
+    );
+    view.rerender(
+      <ReplacementDock
+        value={value}
+        error="native recovery failed: NSInternalException"
+        t={makeT("es")}
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Dock sustituto no disponible");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("NSInternalException");
+  });
+
   it.each([
     "pt-BR",
     "es",
@@ -340,7 +374,7 @@ describe("ReplacementDock", () => {
         }}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent("spaceUnavailable");
+    expect(screen.getByRole("alert")).toHaveTextContent("The Dock is unavailable in this Space.");
     fireEvent.click(screen.getByRole("button", { name: "Use native Dock" }));
     expect(recover).toHaveBeenCalledOnce();
   });
@@ -478,7 +512,9 @@ describe("ReplacementDock", () => {
         status={status}
       />,
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent("profileMissing");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Save the profile before editing its items.",
+    );
     expect(screen.getByRole("button", { name: "Add application" })).toBeDisabled();
     rerender(
       <ReplacementDock

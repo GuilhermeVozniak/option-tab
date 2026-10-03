@@ -1004,9 +1004,7 @@ export function ReplacementDock({
           })}
         </section>
         {error || (status && status.status !== "ready" && status.status !== "disabled") ? (
-          <p role="alert">
-            {t("Replacement Dock unavailable")}: {error || status?.reason || status?.status}
-          </p>
+          <p role="alert">{t(launcherReason(error || status?.reason || status?.status || ""))}</p>
         ) : null}
         {onUseNativeDock ? (
           <Button variant="outline" onClick={onUseNativeDock}>
@@ -1016,4 +1014,15 @@ export function ReplacementDock({
       </CardContent>
     </Card>
   );
+}
+
+function launcherReason(reason: string): string {
+  if (/spaceUnavailable/.test(reason)) return "The Dock is unavailable in this Space.";
+  if (/displayDisconnected/.test(reason)) return "Disconnected display";
+  if (/bindingConflict/.test(reason)) return "More than one Dock profile targets this display.";
+  if (/profileMissing/.test(reason)) return "The selected Dock profile is unavailable.";
+  if (/busy/i.test(reason)) return "The launcher is busy. Try again.";
+  if (/retired|stale/i.test(reason)) return "The launcher changed. Try again.";
+  if (reason === "suspended") return "Paused";
+  return "Replacement Dock unavailable";
 }

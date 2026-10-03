@@ -136,5 +136,7 @@ test("same-hover selector shows an exact-revision refusal", async ({ page }) => 
   );
   await emit(page, "dock:show", windows(51, 12));
   await page.getByRole("button", { name: "Media" }).click();
-  await expect(page.getByRole("alert")).toHaveText("Content switch was refused");
+  await expect(page.getByRole("alert")).toHaveText(
+    "The action was refused or could not be confirmed.",
+  );
 });

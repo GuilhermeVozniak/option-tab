@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
+import { makeT } from "../lib/i18n";
 import type {
   LauncherItemPanelState,
   LauncherItemPanelTransport,
@@ -209,7 +210,42 @@ it("hides only the selected rendered window and displays current RPC refusal", a
   render(<LauncherItemPanelRoute session={8} transport={t.api} />);
   fireEvent.click(await screen.findByRole("button", { name: "Hide app" }));
   expect(t.api.windowAction).toHaveBeenCalledWith(8, 1, "hide", 44, false);
-  expect(await screen.findByRole("alert")).toHaveTextContent("Access refused");
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "The action was refused or could not be confirmed.",
+  );
+});
+
+it.each([
+  "en",
+  "pt-BR",
+  "es",
+] as const)("localizes current child failures and language changes in %s", async (language) => {
+  const api = transport();
+  vi.mocked(api.api.view).mockRejectedValueOnce(new Error("launcher: retired scope"));
+  const { rerender } = render(
+    <LauncherItemPanelRoute session={8} transport={api.api} t={makeT(language)} />,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: makeT(language)("Grid") }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    makeT(language)("This preview is no longer available."),
+  );
+  rerender(<LauncherItemPanelRoute session={8} transport={api.api} t={makeT("es")} />);
+  expect(screen.getByRole("alert")).toHaveTextContent("Esta vista previa ya no está disponible.");
+  await act(async () => api.emit().update({ ...windowsState(2), error: "previewUnavailable" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("Esta vista previa ya no está disponible.");
+  await act(async () => api.emit().update({ ...state(3), error: "folderOpenRefused" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("No se pudo abrir el elemento.");
+  await act(async () => api.emit().update({ ...state(4), error: "native folder load failed" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("No se pudo abrir el elemento.");
+  expect(api.api.subscribe).toHaveBeenCalledTimes(1);
+  expect(api.api.view).toHaveBeenCalledExactlyOnceWith(8, 1, "grid");
+});
+
+it("localizes an initial child load failure without exposing native details", async () => {
+  const api = transport(null);
+  vi.mocked(api.api.getState).mockRejectedValueOnce(new Error("private native window failure"));
+  render(<LauncherItemPanelRoute session={8} transport={api.api} t={makeT("es")} />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo abrir el elemento.");
 });
 it("retains a one-shot frame delivered before its revision update", async () => {
   const t = transport(windowsState());

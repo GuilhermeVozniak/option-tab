@@ -43,6 +43,14 @@ Launcher errors retain reason keys and widget validation retains invalid-state f
 
 The combined desktop frontend suite passed all 602 tests, and the full Go race/coverage suite passed. Existing React `act` warnings remain in broader application tests, and the production build retains its existing large-chunk warning; neither check failed.
 
+## Retained feedback localization
+
+A subsequent G06 audit found raw backend feedback in switcher bulk actions, folder and window previews, launcher item/profile settings, monitor-lock status and diagnostics. These paths now render bounded messages through the selected language. Existing feedback changes language in place without repeating the action or replacing its native subscription.
+
+Bulk feedback preserves accepted-request counts, each failed window ID, unresolved enumeration counts and the distinction between a refused close and unconfirmed closure. Native save-dialog uncertainty remains explicit. Folder names and profile drafts are preserved. Known access, cancellation, stale-state, icon-validation and monitor-placement causes keep specific guidance; unknown native errors use contextual messages.
+
+The combined frontend suite passed 645 tests before the final two-case Accessibility-message regression, which then passed as part of the 78-test settings suite. All 22 related WebKit cases passed. The full Chromium run passed 131 cases and exposed seven assertions tied to the intentionally replaced raw messages; updating those assertions preserved target, action and stale-session checks, and all 35 cases in the six affected files then passed. Production build, JavaScript lint and independent review passed. These source changes follow the unopened `c47bea3` local build and still require packaged native retesting.
+
 ## Remaining native checks
 
 Current-build switcher thumbnails and window actions still require an accessible open switcher. Two disposable TextEdit windows were prepared; no current-build minimize/close result is claimed. The earlier build's bounded results remain documented in [the prior report](2026-10-02-live-bulk-acceptance.md).

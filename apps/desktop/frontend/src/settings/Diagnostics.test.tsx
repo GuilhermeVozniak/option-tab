@@ -96,6 +96,29 @@ it("keeps cancellation neutral and offers a fresh review after token expiry", as
   await waitFor(() => expect(api.review).toHaveBeenCalledTimes(2));
 });
 
+it("localizes an unexpected diagnostics failure and follows language changes without retrying", async () => {
+  const api = client();
+  (api.review as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+    new Error("diagnostics: unexpected native read failure"),
+  );
+  const { rerender } = render(<Diagnostics t={makeT("pt-BR")} client={api} />);
+  fireEvent.click(screen.getByText("Diagnóstico"));
+  fireEvent.click(screen.getByRole("button", { name: "Revisar diagnóstico" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Não foi possível concluir a operação de diagnóstico. Tente novamente.",
+  );
+  rerender(<Diagnostics t={makeT("es")} client={api} />);
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "No se pudo completar la operación de diagnóstico. Inténtalo de nuevo.",
+  );
+  rerender(<Diagnostics t={makeT("en")} client={api} />);
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "The diagnostics operation could not be completed. Try again.",
+  );
+  expect(api.review).toHaveBeenCalledTimes(1);
+  expect(api.save).not.toHaveBeenCalled();
+});
+
 it.each([
   [
     "pt-BR",

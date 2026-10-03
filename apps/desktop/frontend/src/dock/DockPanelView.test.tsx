@@ -102,11 +102,31 @@ it("keeps a solid fallback until the preview host reports native material", () =
 it("sends session and explicit target and displays native errors", () => {
   const h = { onSelectWindow: vi.fn(), onFocusWindow: vi.fn(), onAction: vi.fn(), onSize: vi.fn() };
   render(<DockPanelView state={state} handlers={h} />);
-  expect(screen.getByRole("alert")).toHaveTextContent("refused");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "The action was refused or could not be confirmed.",
+  );
   fireEvent.click(screen.getByRole("button", { name: "Focus Document B" }));
   expect(h.onFocusWindow).toHaveBeenCalledWith(7, 102, 10);
   fireEvent.click(screen.getByLabelText("Close window"));
   expect(h.onAction).toHaveBeenCalledWith(7, "close", 102, 10);
+});
+
+it.each([
+  "en",
+  "pt-BR",
+  "es",
+] as const)("localizes native window failures in %s and retranslates the same state", (language) => {
+  const h = { onSelectWindow: vi.fn(), onFocusWindow: vi.fn(), onAction: vi.fn(), onSize: vi.fn() };
+  const failed = { ...state, error: "native window request failed /private/example" };
+  const { rerender } = render(<DockPanelView state={failed} handlers={h} t={makeT(language)} />);
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    makeT(language)("The window action could not be completed. Try again."),
+  );
+  rerender(<DockPanelView state={failed} handlers={h} t={makeT("pt-BR")} />);
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Não foi possível concluir a ação na janela. Tente novamente.",
+  );
+  expect(screen.getByText("Document B")).toBeVisible();
 });
 
 it("applies one configured middle-click action to the clicked Dock preview without focus or drag", () => {

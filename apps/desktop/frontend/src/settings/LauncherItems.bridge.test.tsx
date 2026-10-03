@@ -85,10 +85,27 @@ it("still reports a native selection error and a cancelled save", async () => {
   render(<LauncherItems profileID="work" t={makeT("en")} />);
   await screen.findByText("Saved guide");
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Add folder" })));
-  expect(screen.getByRole("alert")).toHaveTextContent("launcher item: accessRequired");
+  expect(screen.getByRole("alert")).toHaveTextContent("Select again in Settings");
   await act(async () =>
     fireEvent.click(screen.getByRole("button", { name: "Save launcher items" })),
   );
-  expect(screen.getByRole("alert")).toHaveTextContent("context canceled");
+  expect(screen.getByRole("alert")).toHaveTextContent("The item change was cancelled.");
+  expect(screen.getByText("Saved guide")).toBeInTheDocument();
+});
+
+it.each([
+  ["invalidIcon", "Choose a valid PNG icon."],
+  ["tooLarge", "The selected file is too large."],
+])("preserves native icon validation detail for %s", async (code, expected) => {
+  vi.mocked(AppService.ChooseLauncherItemIcon)
+    .mockReset()
+    .mockRejectedValueOnce(new Error(`launcher item: ${code}`));
+  render(<LauncherItems profileID="work" t={makeT("en")} />);
+  await screen.findByText("Saved guide");
+  fireEvent.click(screen.getByRole("button", { name: "Remove custom icon" }));
+  await act(async () =>
+    fireEvent.click(screen.getByRole("button", { name: "Choose custom icon" })),
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(expected);
   expect(screen.getByText("Saved guide")).toBeInTheDocument();
 });

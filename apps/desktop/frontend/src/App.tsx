@@ -6,6 +6,12 @@ import { type DockPanelHandlers, DockPanelView } from "./dock/DockPanelView";
 import { useAbout, useCrash, usePermissions } from "./hooks/useBridge";
 import { LauncherItemPanelRoute } from "./launcher/LauncherItemPanelRoute";
 import { LauncherRoute } from "./launcher/LauncherRoute";
+import {
+  type ActionFeedback,
+  actionFailureFeedback,
+  actionResultFeedback,
+  formatActionFeedback,
+} from "./lib/action-feedback";
 import { automationPreview, onAutomationPreviewEvents } from "./lib/automation-preview-bridge";
 import {
   hasBackend,
@@ -557,7 +563,7 @@ function AutomationRoute({ session }: { session: number }) {
 function OverlayRoute() {
   const [state, setState] = useState<SwitcherState>(emptyState);
   const t = useRuntimeTranslator(state.open ? state.session : null);
-  const [actionError, setActionError] = useState<string | { gestureKey: string } | null>(null);
+  const [actionError, setActionError] = useState<ActionFeedback | null>(null);
   const actionRevision = useRef(0);
   const reportGestureRegions = useMemo(
     () =>
@@ -624,7 +630,7 @@ function OverlayRoute() {
       }
       setState(next);
     };
-    return onSwitcherEvent({
+    const off = onSwitcherEvent({
       onShow: (next) => {
         if ((next.session ?? 0) === 0 && !scopedSeen.current) {
           ++actionRevision.current;
@@ -669,7 +675,7 @@ function OverlayRoute() {
         )
           setPreviews((prev) => ({ ...prev, ...next }));
       },
-      onError: (message) => setActionError(message),
+      onError: (message) => setActionError(actionFailureFeedback(message)),
       onGestureError: (error) => {
         if (
           error?.session > 0 &&
@@ -678,17 +684,14 @@ function OverlayRoute() {
           error.message
         ) {
           ++actionRevision.current;
-          setActionError({
-            gestureKey:
-              error.message === "accessibility permission is required"
-                ? "Accessibility permission is required for this action."
-                : error.message === "requested AX action is unsupported"
-                  ? "This action is not supported for this window."
-                  : "The window action could not be completed. Try again.",
-          });
+          setActionError(actionFailureFeedback(error.message));
         }
       },
     });
+    return () => {
+      ++actionRevision.current;
+      off();
+    };
   }, []);
 
   useEffect(
@@ -721,15 +724,11 @@ function OverlayRoute() {
     try {
       const result = await switcher.performAction(kind, windowId, appId);
       if (revision === actionRevision.current && result.failures.length > 0) {
-        const accepted =
-          result.succeeded > 0
-            ? `${result.succeeded} action request${result.succeeded === 1 ? "" : "s"} accepted. `
-            : "";
-        setActionError(accepted + result.failures.map((failure) => failure.error).join("; "));
+        setActionError(actionResultFeedback(kind, result));
       }
     } catch (error) {
       if (revision === actionRevision.current) {
-        setActionError(error instanceof Error ? error.message : String(error));
+        setActionError(actionFailureFeedback(error, kind, windowId));
       }
     }
   }, []);
@@ -746,8 +745,7 @@ function OverlayRoute() {
     try {
       await commit();
     } catch (error) {
-      if (revision === actionRevision.current)
-        setActionError(error instanceof Error ? error.message : String(error));
+      if (revision === actionRevision.current) setActionError(actionFailureFeedback(error));
     }
   }, []);
 
@@ -801,7 +799,7 @@ function OverlayRoute() {
       )}
       {state.open && actionError ? (
         <div className="ot-action-notice" role="alert">
-          <span>{typeof actionError === "string" ? actionError : t(actionError.gestureKey)}</span>
+          <span>{formatActionFeedback(actionError, t)}</span>
           <button
             type="button"
             onClick={() => setActionError(null)}

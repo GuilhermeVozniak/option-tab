@@ -36,6 +36,31 @@ function actions(): LauncherItemSettingsActions {
 }
 
 describe("LauncherItems", () => {
+  it("translates a retained item failure with the current language", async () => {
+    const a = actions();
+    a.load = vi.fn().mockRejectedValue(new Error("launcher items: busy"));
+    const view = render(<LauncherItems profileID="work" actions={a} t={makeT("pt-BR")} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "O Dock está ocupado. Tente novamente.",
+    );
+    view.rerender(<LauncherItems profileID="work" actions={a} t={makeT("es")} />);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "El Dock está ocupado. Inténtalo de nuevo.",
+    );
+  });
+
+  it.each([
+    ["launcher items: profileMissing", "Save the profile before editing its items."],
+    ["launcher items: staleRevision", "The launcher changed. Try again."],
+    ["native read failed at /private/bookmarks", "Launcher item settings are unavailable."],
+  ])("normalizes item read failure %s", async (message, expected) => {
+    const a = actions();
+    a.load = vi.fn().mockRejectedValue(new Error(message));
+    render(<LauncherItems profileID="work" actions={a} t={makeT("en")} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(expected);
+    expect(screen.getByRole("alert")).not.toHaveTextContent(message);
+  });
+
   it.each([
     ["needsSelection", "en", "Select again in Settings"],
     ["needsSelection", "pt-BR", "Selecione novamente nos Ajustes"],
@@ -108,7 +133,11 @@ describe("LauncherItems", () => {
     const { rerender } = render(
       <LauncherItems profileID="work" actions={a} status={initial} refreshKey={1} t={t} />,
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent(initialError);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      recovery === "profile persistence"
+        ? "Save the profile before editing its items."
+        : "Launcher item settings are unavailable.",
+    );
     expect(screen.getByRole("button", { name: "Add application" })).toBeDisabled();
     if (recovery === "availability") {
       act(() => publish({ available: false, busy: false, reason: "" }));
@@ -247,7 +276,7 @@ describe("LauncherItems", () => {
       fireEvent.click(screen.getByRole("button", { name }));
     }
     await act(async () => rejectInitial(new Error("launcher items: unavailable")));
-    expect(screen.getByRole("alert")).toHaveTextContent("launcher items: unavailable");
+    expect(screen.getByRole("alert")).toHaveTextContent("Launcher item settings are unavailable.");
     for (const name of ["Add spacer", "Add separator", "Add link"]) {
       expect(screen.getByRole("button", { name })).toBeDisabled();
     }

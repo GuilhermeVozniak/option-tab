@@ -13,6 +13,41 @@ const review = {
 };
 
 describe("LauncherProfileTransfer", () => {
+  it("translates an existing export failure after changing language", async () => {
+    const actions = {
+      exportProfile: vi.fn().mockRejectedValue(new Error("json export: destinationExists")),
+      previewImport: vi.fn(),
+      importProfile: vi.fn(),
+    };
+    const view = render(
+      <LauncherProfileTransfer profileID="default" t={makeT("pt-BR")} actions={actions} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: makeT("pt-BR")("Export profile") }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      makeT("pt-BR")("That filename already exists. Choose a new name."),
+    );
+    view.rerender(
+      <LauncherProfileTransfer profileID="default" t={makeT("es")} actions={actions} />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      makeT("es")("That filename already exists. Choose a new name."),
+    );
+  });
+
+  it("shows friendly feedback when reading the selected profile file fails", async () => {
+    const actions = { exportProfile: vi.fn(), previewImport: vi.fn(), importProfile: vi.fn() };
+    render(<LauncherProfileTransfer profileID="default" t={makeT("en")} actions={actions} />);
+    const file = {
+      size: 2,
+      text: () => Promise.reject(new Error("NSFileReadUnknownError /private/profile.json")),
+    } as File;
+    fireEvent.change(screen.getByLabelText("Import profile file"), { target: { files: [file] } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The profile file could not be read or imported.",
+    );
+    expect(actions.previewImport).not.toHaveBeenCalled();
+  });
+
   it("waits for native save completion before reporting success", async () => {
     let resolve!: (result: { status: "saved" | "cancelled" }) => void;
     const actions = {

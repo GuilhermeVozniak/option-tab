@@ -90,6 +90,27 @@ const PT: Record<string, string> = {
   "Dismiss action error": "Dispensar erro da ação",
   "The window action could not be completed. Try again.":
     "Não foi possível concluir a ação na janela. Tente novamente.",
+  "1 action request accepted.": "1 solicitação de ação aceita.",
+  "{count} action requests accepted.": "{count} solicitações de ação aceitas.",
+  "Window {id}: {reason}": "Janela {id}: {reason}",
+  "1 possible window could not be checked. Results may be incomplete.":
+    "Não foi possível verificar 1 possível janela. Os resultados podem estar incompletos.",
+  "{count} possible windows could not be checked. Results may be incomplete.":
+    "Não foi possível verificar {count} possíveis janelas. Os resultados podem estar incompletos.",
+  "Some windows could not be checked. Results may be incomplete.":
+    "Não foi possível verificar algumas janelas. Os resultados podem estar incompletos.",
+  "The app's windows could not be checked.": "Não foi possível verificar as janelas do app.",
+  "The close request was refused or could not be confirmed. Check the app for a save dialog.":
+    "A solicitação de fechamento foi recusada ou não pôde ser confirmada. Verifique se o app mostra uma caixa de diálogo para salvar.",
+  "The action was refused or could not be confirmed.":
+    "A ação foi recusada ou não pôde ser confirmada.",
+  "This window or application is no longer available.":
+    "Esta janela ou aplicativo não está mais disponível.",
+  "This action is not supported by the application.":
+    "Esta ação não é compatível com o aplicativo.",
+  "The app does not expose an available New Window command.":
+    "O app não oferece um comando Nova janela disponível.",
+  "The switcher changed. Try again.": "O alternador mudou. Tente novamente.",
   Charging: "Carregando",
   "Not charging": "Não está carregando",
   "Battery power": "Alimentação por bateria",
@@ -697,6 +718,46 @@ const PT: Record<string, string> = {
   File: "Arquivo",
   "Symbolic link": "Link simbólico",
   Item: "Item",
+  "Folder access was cancelled.": "O acesso à pasta foi cancelado.",
+  "Choose the same folder shown in the Dock.": "Selecione a mesma pasta mostrada no Dock.",
+  "Another folder access request is in progress.":
+    "Outro pedido de acesso à pasta está em andamento.",
+  "The folder action could not be completed. Try again.":
+    "Não foi possível concluir a ação na pasta. Tente novamente.",
+  "Save the profile before editing its items.": "Salve o perfil antes de editar seus itens.",
+  "Choose a valid PNG icon.": "Escolha um ícone PNG válido.",
+  "The selected file is too large.": "O arquivo selecionado é muito grande.",
+  "The local item library is full.": "A biblioteca local de itens está cheia.",
+  "Items were saved, but unused local data could not be removed.":
+    "Os itens foram salvos, mas não foi possível remover os dados locais sem uso.",
+  "This local item is still in use.": "Este item local ainda está em uso.",
+  "The selected item is invalid. Select it again.":
+    "O item selecionado é inválido. Selecione novamente.",
+  "The item change was cancelled.": "A alteração do item foi cancelada.",
+  "Launcher item settings are unavailable.": "Os ajustes dos itens do Dock estão indisponíveis.",
+  "The launcher item change could not be completed. Try again.":
+    "Não foi possível concluir a alteração do item do Dock. Tente novamente.",
+  "The profile file could not be read or imported.":
+    "Não foi possível ler ou importar o arquivo de perfil.",
+  "The selected display has no usable Dock edge.":
+    "O monitor selecionado não tem uma borda utilizável para o Dock.",
+  "The Dock position could not be verified.": "Não foi possível verificar a posição do Dock.",
+  "Protection is bypassed while the modifier is held.":
+    "A proteção fica suspensa enquanto a tecla modificadora está pressionada.",
+  "Dock settings changed. Try again.": "Os ajustes do Dock mudaram. Tente novamente.",
+  "Dock placement is already in progress.": "O posicionamento do Dock já está em andamento.",
+  "Dock placement was cancelled.": "O posicionamento do Dock foi cancelado.",
+  "Dock placement stopped because the pointer was used.":
+    "O posicionamento do Dock foi interrompido porque o ponteiro foi usado.",
+  "Dock placement timed out. Try again.":
+    "O tempo para posicionar o Dock esgotou. Tente novamente.",
+  "Dock monitor protection is unavailable. Try again.":
+    "A proteção do Dock no monitor está indisponível. Tente novamente.",
+  "The Dock is unavailable in this Space.": "O Dock está indisponível neste Espaço.",
+  "More than one Dock profile targets this display.": "Mais de um perfil do Dock usa este monitor.",
+  "The selected Dock profile is unavailable.": "O perfil selecionado do Dock está indisponível.",
+  "The diagnostics operation could not be completed. Try again.":
+    "Não foi possível concluir a operação de diagnóstico. Tente novamente.",
   "Folder access is required": "É necessário permitir acesso à pasta",
   "Folder access expired": "O acesso à pasta expirou",
   "Folder is no longer available": "A pasta não está mais disponível",
@@ -874,6 +935,27 @@ const ES: Record<string, string> = {
   "Dismiss action error": "Descartar error de la acción",
   "The window action could not be completed. Try again.":
     "No se pudo completar la acción en la ventana. Inténtalo de nuevo.",
+  "1 action request accepted.": "1 solicitud de acción aceptada.",
+  "{count} action requests accepted.": "{count} solicitudes de acción aceptadas.",
+  "Window {id}: {reason}": "Ventana {id}: {reason}",
+  "1 possible window could not be checked. Results may be incomplete.":
+    "No se pudo comprobar 1 posible ventana. Los resultados pueden estar incompletos.",
+  "{count} possible windows could not be checked. Results may be incomplete.":
+    "No se pudieron comprobar {count} posibles ventanas. Los resultados pueden estar incompletos.",
+  "Some windows could not be checked. Results may be incomplete.":
+    "No se pudieron comprobar algunas ventanas. Los resultados pueden estar incompletos.",
+  "The app's windows could not be checked.": "No se pudieron comprobar las ventanas de la app.",
+  "The close request was refused or could not be confirmed. Check the app for a save dialog.":
+    "La solicitud de cierre fue rechazada o no se pudo confirmar. Comprueba si la app muestra un diálogo para guardar.",
+  "The action was refused or could not be confirmed.":
+    "La acción fue rechazada o no se pudo confirmar.",
+  "This window or application is no longer available.":
+    "Esta ventana o aplicación ya no está disponible.",
+  "This action is not supported by the application.":
+    "Esta acción no es compatible con la aplicación.",
+  "The app does not expose an available New Window command.":
+    "La app no ofrece un comando Nueva ventana disponible.",
+  "The switcher changed. Try again.": "El alternador cambió. Inténtalo de nuevo.",
   Charging: "Cargando",
   "Not charging": "No está cargando",
   "Battery power": "Alimentación por batería",
@@ -1484,6 +1566,50 @@ const ES: Record<string, string> = {
   File: "Archivo",
   "Symbolic link": "Enlace simbólico",
   Item: "Elemento",
+  "Folder access was cancelled.": "Se canceló el acceso a la carpeta.",
+  "Choose the same folder shown in the Dock.":
+    "Selecciona la misma carpeta que aparece en el Dock.",
+  "Another folder access request is in progress.":
+    "Hay otra solicitud de acceso a la carpeta en curso.",
+  "The folder action could not be completed. Try again.":
+    "No se pudo completar la acción en la carpeta. Inténtalo de nuevo.",
+  "Save the profile before editing its items.": "Guarda el perfil antes de editar sus elementos.",
+  "Choose a valid PNG icon.": "Elige un icono PNG válido.",
+  "The selected file is too large.": "El archivo seleccionado es demasiado grande.",
+  "The local item library is full.": "La biblioteca local de elementos está llena.",
+  "Items were saved, but unused local data could not be removed.":
+    "Los elementos se guardaron, pero no se pudieron eliminar los datos locales sin uso.",
+  "This local item is still in use.": "Este elemento local sigue en uso.",
+  "The selected item is invalid. Select it again.":
+    "El elemento seleccionado no es válido. Selecciónalo de nuevo.",
+  "The item change was cancelled.": "Se canceló el cambio del elemento.",
+  "Launcher item settings are unavailable.":
+    "Los ajustes de los elementos del Dock no están disponibles.",
+  "The launcher item change could not be completed. Try again.":
+    "No se pudo completar el cambio del elemento del Dock. Inténtalo de nuevo.",
+  "The profile file could not be read or imported.":
+    "No se pudo leer o importar el archivo de perfil.",
+  "The selected display has no usable Dock edge.":
+    "La pantalla seleccionada no tiene un borde utilizable para el Dock.",
+  "The Dock position could not be verified.": "No se pudo verificar la posición del Dock.",
+  "Protection is bypassed while the modifier is held.":
+    "La protección se suspende mientras se mantiene pulsada la tecla modificadora.",
+  "Dock settings changed. Try again.": "Los ajustes del Dock cambiaron. Inténtalo de nuevo.",
+  "Dock placement is already in progress.": "El posicionamiento del Dock ya está en curso.",
+  "Dock placement was cancelled.": "Se canceló el posicionamiento del Dock.",
+  "Dock placement stopped because the pointer was used.":
+    "El posicionamiento del Dock se detuvo porque se utilizó el puntero.",
+  "Dock placement timed out. Try again.":
+    "Se agotó el tiempo para posicionar el Dock. Inténtalo de nuevo.",
+  "Dock monitor protection is unavailable. Try again.":
+    "La protección del Dock en la pantalla no está disponible. Inténtalo de nuevo.",
+  "The Dock is unavailable in this Space.": "El Dock no está disponible en este espacio.",
+  "More than one Dock profile targets this display.":
+    "Más de un perfil del Dock usa esta pantalla.",
+  "The selected Dock profile is unavailable.":
+    "El perfil seleccionado del Dock no está disponible.",
+  "The diagnostics operation could not be completed. Try again.":
+    "No se pudo completar la operación de diagnóstico. Inténtalo de nuevo.",
   "Folder access is required": "Se necesita acceso a la carpeta",
   "Folder access expired": "El acceso a la carpeta caducó",
   "Folder is no longer available": "La carpeta ya no está disponible",

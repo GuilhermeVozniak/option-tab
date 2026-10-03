@@ -166,6 +166,7 @@ vi.mock("../bindings/option-tab/app.js", () => ({
 import * as AppService from "../bindings/option-tab/app.js";
 import App from "./App";
 import { resetBackendProbeForTests } from "./lib/bridge";
+import { makeT } from "./lib/i18n";
 import type { Entry, SwitcherState } from "./lib/types";
 import { defaultSettings, emptyState } from "./lib/types";
 
@@ -567,7 +568,9 @@ describe("App", () => {
     window.location.hash = "#automation/56";
     render(<App />);
     fireEvent.click(await screen.findByLabelText("Close window"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Exact action refused");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The action was refused or could not be confirmed.",
+    );
   });
 
   it("resets hover progress admission when embedded media scope changes", async () => {
@@ -1326,7 +1329,9 @@ describe("App", () => {
         data: { ...base, revision: 3, item: { ...base.item, title: "Stale" } },
       });
     });
-    expect(screen.getByRole("alert")).toHaveTextContent("Current refusal");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The window action could not be completed. Try again.",
+    );
     expect(screen.queryByText("Stale")).toBeNull();
   });
 
@@ -1398,7 +1403,9 @@ describe("App", () => {
       });
     });
     fireEvent.click(screen.getByLabelText("Close window"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Window no longer exists");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This window or application is no longer available.",
+    );
   });
 
   it("shows partial bulk-action failures", async () => {
@@ -1413,8 +1420,95 @@ describe("App", () => {
       });
     });
     fireEvent.click(screen.getByLabelText("Close window"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Window refused to close");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Window 11: The close request was refused or could not be confirmed.",
+    );
     expect(screen.getByRole("alert")).toHaveTextContent("2 action requests accepted");
+  });
+
+  it.each([
+    [
+      "pt-BR",
+      "2 solicitações de ação aceitas.",
+      "Não foi possível verificar 9 possíveis janelas.",
+      "Janela 11:",
+      "Janela 22:",
+    ],
+    [
+      "es",
+      "2 solicitudes de acción aceptadas.",
+      "No se pudieron comprobar 9 posibles ventanas.",
+      "Ventana 11:",
+      "Ventana 22:",
+    ],
+  ] as const)("localizes switcher partial results without losing uncertainty or target identity in %s", async (language, accepted, enumeration, firstTarget, secondTarget) => {
+    mocked.GetSettings.mockResolvedValueOnce(JSON.stringify({ behavior: { language } }));
+    mocked.PerformAction.mockResolvedValueOnce({
+      succeeded: 2,
+      failures: [
+        {
+          windowId: 0,
+          error:
+            "window enumeration incomplete: 9 candidate(s) could not be classified because AX lookup was unavailable, refused, or timed out",
+        },
+        { windowId: 11, error: "close was refused or could not be completed by the application" },
+        { windowId: 22, error: "window no longer exists or application identity mismatches" },
+      ],
+    } as never);
+    render(<App />);
+    act(() =>
+      eventHandlers.get("switcher:show")?.({
+        data: openSwitcherState({ session: 10, revision: 1, entries: [appEntry(11, "Editor")] }),
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: makeT(language)("Close all windows — {app}").replace("{app}", "Editor"),
+      }),
+    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(accepted);
+    expect(alert).toHaveTextContent(enumeration);
+    expect(alert).toHaveTextContent(firstTarget);
+    expect(alert).toHaveTextContent(secondTarget);
+    expect(alert).toHaveTextContent(
+      makeT(language)(
+        "The close request was refused or could not be confirmed. Check the app for a save dialog.",
+      ),
+    );
+    expect(alert).toHaveTextContent(
+      makeT(language)("This window or application is no longer available."),
+    );
+    expect(alert).not.toHaveTextContent("AX lookup");
+    expect(alert).not.toHaveTextContent("action requests accepted");
+  });
+
+  it("translates existing switcher feedback when the saved language arrives", async () => {
+    let resolveSettings!: (value: string) => void;
+    mocked.GetSettings.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSettings = resolve;
+      }) as never,
+    );
+    mocked.PerformAction.mockResolvedValueOnce({
+      succeeded: 1,
+      failures: [{ windowId: 11, error: "unrecognized failure /private/native-details" }],
+    } as never);
+    render(<App />);
+    act(() =>
+      eventHandlers.get("switcher:show")?.({
+        data: openSwitcherState({ session: 10, revision: 1, entries: [appEntry(11, "Editor")] }),
+      }),
+    );
+    fireEvent.click(screen.getByLabelText("Close window"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("1 action request accepted.");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("/private/native-details");
+    await act(async () => resolveSettings(JSON.stringify({ behavior: { language: "es" } })));
+    expect(screen.getByRole("alert")).toHaveTextContent("1 solicitud de acción aceptada.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Ventana 11:");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "No se pudo completar la acción en la ventana. Inténtalo de nuevo.",
+    );
   });
 
   it("does not show a late action failure in a reopened switcher", async () => {
@@ -1438,6 +1532,23 @@ describe("App", () => {
       rejectAction(new Error("Old session failure"));
     });
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("localizes a rejected switcher window confirmation", async () => {
+    mocked.GetSettings.mockResolvedValueOnce(JSON.stringify({ behavior: { language: "es" } }));
+    mocked.ConfirmWindow.mockRejectedValueOnce(new Error("requested AX action is unsupported"));
+    render(<App />);
+    act(() =>
+      eventHandlers.get("switcher:show")?.({
+        data: openSwitcherState({ session: 10, revision: 1, entries: [appEntry(11, "Editor")] }),
+      }),
+    );
+    await screen.findByLabelText("Cerrar ventana");
+    fireEvent.click(screen.getByText("Editor").closest('[role="option"]') as HTMLElement);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Esta acción no es compatible con esta ventana.",
+    );
+    expect(mocked.ConfirmWindow).toHaveBeenCalledWith(11);
   });
 
   it("confirms a clicked entry atomically by window id", async () => {

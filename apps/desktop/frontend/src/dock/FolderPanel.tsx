@@ -1,4 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  type ActionErrorReason,
+  formatActionError,
+  normalizeActionError,
+} from "../lib/action-feedback";
 import type { DockFolderState } from "../lib/types";
 
 export interface FolderPanelHandlers {
@@ -27,6 +32,30 @@ const statusCopy = (status: DockFolderState["status"]) => {
     default:
       return null;
   }
+};
+
+const folderReasonKey = (reason: unknown): string | undefined => {
+  const message = String(reason).toLowerCase();
+  if (message.includes("folder access cancelled") || message.includes("context canceled"))
+    return "Folder access was cancelled.";
+  if (message.includes("selected folder does not match"))
+    return "Choose the same folder shown in the Dock.";
+  if (message.includes("folder access request is already active"))
+    return "Another folder access request is in progress.";
+  if (message.includes("bookmark") && /stale|revoked|refresh failed/.test(message))
+    return "Folder access expired";
+  if (/folder.*(replaced|identity changed|no longer canonical)/.test(message))
+    return "Folder is no longer available";
+  return undefined;
+};
+
+const folderActionReason = (error: unknown, fallback: string): ActionErrorReason => {
+  const key = folderReasonKey(error);
+  if (key) return { key };
+  const reason = normalizeActionError(error);
+  return reason.key === "The window action could not be completed. Try again."
+    ? { key: fallback }
+    : reason;
 };
 
 const formatSize = (bytes: number) => {
@@ -63,14 +92,14 @@ export function FolderPanel({
 }) {
   type Scope = { session: number; revision: number; identity: string };
   const [pendingAccess, setPendingAccess] = useState<Scope | null>(null);
-  const [actionError, setActionError] = useState("");
+  const [actionError, setActionError] = useState<ActionErrorReason | null>(null);
   const currentScope = useRef<Scope>({ session, revision, identity: folder.folderIdentity });
   currentScope.current = { session, revision, identity: folder.folderIdentity };
   const sameScope = (left: Scope, right: Scope) =>
     left.session === right.session &&
     left.revision === right.revision &&
     left.identity === right.identity;
-  useEffect(() => setActionError(""), [session, revision, folder.folderIdentity]);
+  useEffect(() => setActionError(null), [session, revision, folder.folderIdentity]);
   useEffect(
     () =>
       setPendingAccess((current) =>
@@ -80,22 +109,32 @@ export function FolderPanel({
       ),
     [session, folder.folderIdentity],
   );
-  const run = async (action: () => Promise<void> | void, scope = currentScope.current) => {
-    setActionError("");
+  const run = async (
+    action: () => Promise<void> | void,
+    fallback = "The folder action could not be completed. Try again.",
+    scope = currentScope.current,
+  ) => {
+    setActionError(null);
     try {
       await action();
     } catch (error) {
       if (sameScope(scope, currentScope.current))
-        setActionError(error instanceof Error ? error.message : String(error));
+        setActionError(folderActionReason(error, fallback));
     }
   };
   const requestAccess = async () => {
     const scope = { session, revision, identity: folder.folderIdentity };
     setPendingAccess(scope);
-    await run(() => handlers.onRequestAccess(scope.session, scope.revision), scope);
+    await run(
+      () => handlers.onRequestAccess(scope.session, scope.revision),
+      "Folder access is required",
+      scope,
+    );
     setPendingAccess((current) => (current && sameScope(current, scope) ? null : current));
   };
   const guidance = statusCopy(folder.status);
+  // The status supplies localized fallback guidance for unknown native diagnostics.
+  const reasonKey = folderReasonKey(folder.reason);
   return (
     <section className="ot-folder-panel" aria-label={t("Folder contents")}>
       {folder.status === "ready" || folder.status === "partial" ? (
@@ -164,7 +203,7 @@ export function FolderPanel({
       ) : null}
       {actionError ? (
         <p role="alert" className="ot-dock-error">
-          {actionError}
+          {formatActionError(actionError, t)}
         </p>
       ) : null}
       {folder.partial || folder.status === "partial" ? (
@@ -173,7 +212,9 @@ export function FolderPanel({
       {guidance ? (
         <div className="ot-folder-guidance">
           <p>{t(guidance[0])}</p>
-          {folder.reason ? <p className="ot-folder-reason">{folder.reason}</p> : null}
+          {reasonKey && reasonKey !== guidance[0] ? (
+            <p className="ot-folder-reason">{t(reasonKey)}</p>
+          ) : null}
           {pendingAccess ? (
             <button
               type="button"
@@ -216,7 +257,12 @@ export function FolderPanel({
                 type="button"
                 className={`ot-folder-entry${entry.hidden ? " is-hidden" : ""}`}
                 aria-label={`${t("Open")} ${entry.name}`}
-                onClick={() => void run(() => handlers.onOpen(session, revision, entry.id))}
+                onClick={() =>
+                  void run(
+                    () => handlers.onOpen(session, revision, entry.id),
+                    "The item could not be opened.",
+                  )
+                }
               >
                 <span className="ot-folder-icon" aria-hidden="true">
                   {entry.kind === "folder" ? "▸" : "·"}

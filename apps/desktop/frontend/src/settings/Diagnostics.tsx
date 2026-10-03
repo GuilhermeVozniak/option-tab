@@ -153,7 +153,7 @@ export function Diagnostics({
                   ? t("This preview expired. Refresh it before saving.")
                   : busy
                     ? t("Another diagnostics operation is already in progress.")
-                    : error}
+                    : t("The diagnostics operation could not be completed. Try again.")}
             </span>
             {expired ? (
               <Button variant="outline" onClick={() => void loadReview()}>

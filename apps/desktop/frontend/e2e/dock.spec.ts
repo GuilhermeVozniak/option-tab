@@ -55,7 +55,9 @@ test("Dock route keeps session targets and displays current native failures", as
       data: { session: 7, revision: 2, message: "Accessibility denied" },
     });
   });
-  await expect(page.getByRole("alert")).toContainText("Accessibility denied");
+  await expect(page.getByRole("alert")).toContainText(
+    "Accessibility permission is required for this action.",
+  );
   await page.evaluate(() => {
     const w = window as any;
     w._wails.dispatchWailsEvent({ name: "dock:hide", data: { session: 6 } });

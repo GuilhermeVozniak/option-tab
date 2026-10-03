@@ -1,6 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DockPanelView } from "../dock/DockPanelView";
 import { FolderPanel } from "../dock/FolderPanel";
+import {
+  type ActionErrorReason,
+  formatActionError,
+  normalizeActionError,
+} from "../lib/action-feedback";
 import { system } from "../lib/bridge";
 import {
   type LauncherItemPanelState,
@@ -18,7 +23,7 @@ export function LauncherItemPanelRoute({
   t?: (text: string) => string;
 }) {
   const [state, setState] = useState<LauncherItemPanelState | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<ActionErrorReason | null>(null);
   const [frames, setFrames] = useState<Record<string, string>>({});
   const root = useRef<HTMLDivElement>(null);
   const current = useRef<LauncherItemPanelState | null>(null);
@@ -42,7 +47,7 @@ export function LauncherItemPanelRoute({
     }
     current.current = null;
     setState(null);
-    setError("");
+    setError(null);
     setFrames({});
     frameSequence.current = 0;
     pendingFrames.current = null;
@@ -73,7 +78,7 @@ export function LauncherItemPanelRoute({
       }
       if (!next.open) pendingFrames.current = null;
       setState(current.current);
-      setError(friendlyError(next.error ?? "", t));
+      setError(next.error ? childErrorReason(next.error, next.kind) : null);
     };
     const off = transport.subscribe({
       update: accept,
@@ -84,7 +89,7 @@ export function LauncherItemPanelRoute({
         pendingFrames.current = null;
         current.current = null;
         setState(null);
-        setError("");
+        setError(null);
         setFrames({});
       },
       frames: (value) => {
@@ -133,8 +138,7 @@ export function LauncherItemPanelRoute({
       .getState(session)
       .then((next) => next && accept(next))
       .catch((reason) => {
-        if (active && !retired.current && !current.current)
-          setError(friendlyError(String(reason), t));
+        if (active && !retired.current && !current.current) setError(childErrorReason(reason));
       });
     return () => {
       active = false;
@@ -171,12 +175,13 @@ export function LauncherItemPanelRoute({
     };
   }, [state?.session, state?.revision, state?.kind, state?.folder?.view, transport]);
   const request = (admitted: LauncherItemPanelState, action: () => Promise<void>) => {
-    setError("");
+    setError(null);
     void action().catch((reason) => {
-      if (current.current === admitted) setError(friendlyError(String(reason), t));
+      if (current.current === admitted) setError(childErrorReason(reason, admitted.kind));
     });
   };
-  if (!state) return error && !retired.current ? <p role="alert">{error}</p> : null;
+  if (!state)
+    return error && !retired.current ? <p role="alert">{formatActionError(error, t)}</p> : null;
   if (state.kind === "windows" && state.windows) {
     const windows = state.windows;
     return (
@@ -184,7 +189,6 @@ export function LauncherItemPanelRoute({
         <DockPanelView
           state={{
             ...windows,
-            error: error || windows.error,
             session: state.session,
             revision: state.revision,
             contentKind: "windows",
@@ -194,6 +198,7 @@ export function LauncherItemPanelRoute({
             })),
           }}
           item={null}
+          actionErrorReason={error}
           title={state.title}
           appActions={
             windows.entries.some((entry) => entry.windowId === windows.selectedWindowId) ? (
@@ -261,7 +266,7 @@ export function LauncherItemPanelRoute({
           ×
         </button>
       </header>
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? <p role="alert">{formatActionError(error, t)}</p> : null}
       {state.kind === "folder" && state.folder ? (
         <>
           <div className="ot-launcher-child-view" aria-label={t("Folder view")}>
@@ -298,12 +303,11 @@ export function LauncherItemPanelRoute({
   );
 }
 
-function friendlyError(value: string, t: (text: string) => string) {
-  if (!value) return "";
-  if (value.includes("folderOpenRefused")) return t("The item could not be opened.");
-  if (value.includes("launcher:retired") || value.includes("stale"))
-    return t("This preview is no longer available.");
-  return value.slice(0, 240);
+function childErrorReason(error: unknown, kind?: LauncherItemPanelState["kind"]) {
+  const reason = normalizeActionError(error);
+  return kind !== "windows" && reason.key === "The window action could not be completed. Try again."
+    ? { key: "The item could not be opened." }
+    : reason;
 }
 
 // One pending revision and the visible snapshot each hold at most30 PNG frames,

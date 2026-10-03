@@ -253,7 +253,9 @@ test.describe("overlay — interactive", () => {
     await emitShow(page, showState({}));
     await page.getByRole("option").first().hover();
     await page.getByLabel("Close window").first().click();
-    await expect(page.getByRole("alert")).toContainText("Accessibility denied");
+    await expect(page.getByRole("alert")).toContainText(
+      "Accessibility permission is required for this action.",
+    );
     await expect(page.locator(".ot-overlay")).toBeVisible();
   });
 
@@ -266,7 +268,9 @@ test.describe("overlay — interactive", () => {
     });
     await emitShow(page, showState({}));
     await page.getByRole("button", { name: "Close all windows — Editor", exact: true }).click();
-    await expect(page.getByRole("alert")).toContainText("Notes refused to close");
+    await expect(page.getByRole("alert")).toContainText(
+      "2 action requests accepted. Window 4: The close request was refused or could not be confirmed. Check the app for a save dialog.",
+    );
     await expect
       .poll(() => getCallRecords(page))
       .toContainEqual(["PerformAction", "closeAll", 1, 1]);

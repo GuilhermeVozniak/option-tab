@@ -1,4 +1,9 @@
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ActionErrorReason,
+  formatActionError,
+  normalizeActionError,
+} from "../lib/action-feedback";
 import type { DockPointer } from "../lib/dock-bridge";
 import { computeLayout, effectiveStyle } from "../lib/layout";
 import { type MaterialStatus, materialClass } from "../lib/material";
@@ -65,6 +70,7 @@ export function DockPanelView({
   nativeHeader = false,
   materialStatus,
   appActions,
+  actionErrorReason,
 }: {
   state: DockPanelState;
   handlers: DockPanelHandlers;
@@ -76,7 +82,12 @@ export function DockPanelView({
   nativeHeader?: boolean;
   materialStatus?: MaterialStatus | null;
   appActions?: ReactNode;
+  actionErrorReason?: ActionErrorReason | null;
 }) {
+  const errorMessage =
+    actionErrorReason || state.error
+      ? formatActionError(actionErrorReason ?? normalizeActionError(state.error), t)
+      : "";
   dockDragGesture = Math.max(dockDragGesture, state.dragGestureFloor ?? 0);
   const drag = useRef<DragState | null>(null);
   const [, redrawDrag] = useState(0);
@@ -296,7 +307,7 @@ export function DockPanelView({
     state.session,
     handlers.onSize,
     count,
-    state.error,
+    errorMessage,
     contentWidth,
     cardSpacingPx,
     cardHeight,
@@ -383,9 +394,9 @@ export function DockPanelView({
             {state.previewDragEnabled ? (
               <span className="ot-dock-drag-hint">{t("Drag a preview to move its window")}</span>
             ) : null}
-            {state.error ? (
+            {errorMessage ? (
               <p role="alert" className="ot-dock-error">
-                {state.error}
+                {errorMessage}
               </p>
             ) : null}
             {count ? (

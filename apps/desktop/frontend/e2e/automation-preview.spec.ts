@@ -110,5 +110,7 @@ test("automation preview renders an exact-revision RPC refusal", async ({ page }
   await page.goto("/#automation/55");
   await page.locator("article[data-window-id='102']").hover();
   await page.getByLabel("Close window").click();
-  await expect(page.getByRole("alert")).toHaveText("Exact automation action refused");
+  await expect(page.getByRole("alert")).toHaveText(
+    "The action was refused or could not be confirmed.",
+  );
 });

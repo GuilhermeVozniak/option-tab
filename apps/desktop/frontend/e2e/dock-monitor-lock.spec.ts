@@ -87,5 +87,7 @@ test("monitor lock preserves explicit main UUID and scopes placement to admitted
       ),
     )
     .toBe(true);
-  await expect(page.getByRole("alert")).toHaveText("edge unavailable");
+  await expect(page.getByRole("alert")).toHaveText(
+    "Dock monitor protection is unavailable. Try again.",
+  );
 });
