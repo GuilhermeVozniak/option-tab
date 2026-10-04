@@ -14,7 +14,7 @@ describe("detectPlatform", () => {
 describe("published assets", () => {
   it("links to the published universal macOS release", () => {
     expect(publishedDownloadUrl("darwin")).toBe(
-      "https://github.com/GuilhermeVozniak/option-tab/releases/download/v0.6.1/option-tab_0.6.1_darwin_universal.dmg",
+      "https://github.com/GuilhermeVozniak/option-tab/releases/download/v0.6.2/option-tab_0.6.2_darwin_universal.dmg",
     );
   });
 });

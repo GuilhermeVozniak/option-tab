@@ -16,9 +16,13 @@ User direction: make the original flat window thumbnail grid the default, releas
 - [x] Full Go/frontend suites, lint, builds, package checks, and relevant browser tests pass.
 - [x] Verify desktop default settings; visually inspect website and docs in light/dark/mobile, and icon exports.
 - [x] Independently review default behavior, full feature accuracy, and website accessibility.
-- [ ] Merge reviewed release PR; tag v0.6.2; verify signed/notarized universal artifacts and compatibility alias before publishing.
-- [ ] Update website version, both Homebrew casks, and distribution docs with the verified checksum; merge metadata changes and verify deployment.
+- [x] Merge reviewed release PR; tag v0.6.2; verify signed/notarized universal artifacts and compatibility alias before publishing.
+- [x] Prepare website version, both Homebrew casks, and distribution docs with the verified checksum for the metadata PRs.
+
+After metadata merges, verify main CI and the deployed website; retain the results with the release evidence.
 
 The current installed primary shortcut already uses the desired window grid. This implementation changes new-install/reset defaults without overwriting the user's other saved preferences.
 
 Verification evidence: all Go packages passed with race detection and coverage; 662 desktop frontend tests and all other workspace unit suites passed; 145 desktop browser tests, 10 website browser tests, and eight packaging contract tests passed. Production builds, Biome, and golangci-lint passed. Independent review verified saved preference preservation and corrected the guide to explain shared window filters. No new native runtime or physical gesture acceptance is claimed.
+
+Release v0.6.2 was published after workflow 37164795192 and downloaded-artifact verification, including icon pixel comparison. PR #36 fixes GitHub Pages directory routing after live checks identified `/docs/` returning 404. Its export regression and all 11 website browser tests passed. Distribution metadata follows the published artifact; final deployment checks are recorded with the release evidence.
