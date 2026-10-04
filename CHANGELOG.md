@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.2 — 2026-10-04
+
+- Make Command–Tab and Option–Tab open a thumbnail grid of all windows by default, without a separate enlarged preview. Existing saved shortcut preferences remain intact; app-grouped switching stays available in Settings.
+- Add a complete feature guide with explanations, setup steps, permissions, and availability notes, published on the website and in the repository.
+- Match the website and guide to the app's neutral System, Light, and Dark themes.
+- Use the existing in-app Option mark consistently for the application icon and website branding.
+
+The native feature limitations and hardware checks documented for 0.5.0 remain unchanged. Windows and Linux downloads remain demonstration builds without native window switching.
+
 ## 0.6.1 — 2026-10-04
 
 - Migrate Settings and the Alt-Tab switchers to official shadcn/ui components while preserving their existing layout and appearance.

@@ -8,19 +8,15 @@ import (
 )
 
 func TestDefault_ShortcutChords(t *testing.T) {
-	// Regression: the shipped defaults are Command+Tab (all windows) and
-	// Option+Tab (active app only), matching AltTab and the app's UI.
 	s := Default()
-	if len(s.Shortcuts) < 2 {
-		t.Fatalf("expected >=2 default shortcuts, got %d", len(s.Shortcuts))
+	if len(s.Shortcuts) != 2 {
+		t.Fatalf("expected 2 default shortcuts, got %d", len(s.Shortcuts))
 	}
-	if s.Shortcuts[0].Chord != "command+tab" || s.Shortcuts[0].Scope.AppScope != AppScopeAll {
-		t.Errorf("shortcut 1 = %q/%q, want command+tab/all",
-			s.Shortcuts[0].Chord, s.Shortcuts[0].Scope.AppScope)
-	}
-	if s.Shortcuts[1].Chord != "option+tab" || s.Shortcuts[1].Scope.AppScope != AppScopeActiveApp {
-		t.Errorf("shortcut 2 = %q/%q, want option+tab/activeApp",
-			s.Shortcuts[1].Chord, s.Shortcuts[1].Scope.AppScope)
+	for i, chord := range []string{"command+tab", "option+tab"} {
+		sc := s.Shortcuts[i]
+		if sc.ID != i+1 || sc.Chord != chord || !sc.Enabled || sc.Mode != ModeWindows || sc.Scope.AppScope != AppScopeAll {
+			t.Errorf("shortcut %d = %+v, want enabled %s opening all windows", i+1, sc, chord)
+		}
 	}
 }
 
@@ -343,14 +339,9 @@ func TestNormalize_BlacklistDropsEmptyAndDefaultsHide(t *testing.T) {
 
 func TestShortcutScope_Defaults(t *testing.T) {
 	s := Default()
-	// At least one shortcut should scope to the active app (AltTab parity: 2nd shortcut).
-	var hasActiveApp bool
 	for _, sc := range s.Shortcuts {
-		if sc.Scope.AppScope == AppScopeActiveApp {
-			hasActiveApp = true
+		if sc.Scope.AppScope != AppScopeAll {
+			t.Errorf("shortcut %d scope = %q, want all windows", sc.ID, sc.Scope.AppScope)
 		}
-	}
-	if !hasActiveApp {
-		t.Error("expected a default shortcut scoped to the active app")
 	}
 }

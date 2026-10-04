@@ -698,12 +698,12 @@ const DEFAULT_ACTION_BINDINGS: Record<string, WindowAction> = {
 export const defaultSettings: Settings = {
   version: 3,
   shortcuts: [
-    { id: 1, chord: "command+tab", enabled: true, scope: { appScope: "all" }, mode: "apps" },
+    { id: 1, chord: "command+tab", enabled: true, scope: { appScope: "all" }, mode: "windows" },
     {
       id: 2,
       chord: "option+tab",
       enabled: true,
-      scope: { appScope: "activeApp" },
+      scope: { appScope: "all" },
       mode: "windows",
     },
   ],

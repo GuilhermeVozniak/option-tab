@@ -30,7 +30,9 @@ func (p *appModePlatform) AppIcon(pid, maxPx int) string { return "icon" }
 func TestAppModeRuntimeWiresWindowlessInventoryAndExactActivation(t *testing.T) {
 	p := &appModePlatform{Fake: fake.New(), apps: []domain.App{{ID: 10, Name: "Editor", BundleID: "editor.app"}, {ID: 30, Name: "Empty", BundleID: "empty.app"}}}
 	p.SetWindows([]domain.Window{{ID: 101, AppID: 10, AppName: "Editor", BundleID: "editor.app", Title: "Document"}})
-	a := newApp(p, config.Default(), "")
+	s := config.Default()
+	s.Shortcuts[0].Mode = config.ModeApps
+	a := newApp(p, s, "")
 	defer a.stopCapture()
 	var shown switcher.State
 	a.eventSink = func(name string, data any) {

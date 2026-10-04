@@ -139,10 +139,10 @@ describe("Settings", () => {
   it("sets shortcut modes and configures Dock independently", () => {
     const onChange = vi.fn();
     render(<Settings settings={defaultSettings} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText("Shortcut 1 mode"), { target: { value: "windows" } });
+    fireEvent.change(screen.getByLabelText("Shortcut 1 mode"), { target: { value: "apps" } });
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        shortcuts: expect.arrayContaining([expect.objectContaining({ id: 1, mode: "windows" })]),
+        shortcuts: expect.arrayContaining([expect.objectContaining({ id: 1, mode: "apps" })]),
       }),
     );
     fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
@@ -274,6 +274,11 @@ describe("Settings", () => {
       "true",
     );
     expect(screen.getByLabelText("Hold modifier to cycle")).toBeChecked();
+    expect(screen.getByLabelText("Preview selected window")).not.toBeChecked();
+    for (const id of [1, 2]) {
+      expect(screen.getByLabelText(`Shortcut ${id} mode`)).toHaveValue("windows");
+      expect(screen.getByLabelText(`Shortcut ${id} scope`)).toHaveValue("all");
+    }
   });
 
   it("emits changes for the visual style", () => {

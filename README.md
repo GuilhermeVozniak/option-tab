@@ -6,7 +6,7 @@
 
 **Website & downloads: [option-tab.vozniak.dev](https://option-tab.vozniak.dev)**
 
-[Data handling](docs/data-handling.md) · [Distribution and local builds](docs/distribution.md) · [Homebrew installation](docs/homebrew.md)
+[Feature guide](https://option-tab.vozniak.dev/docs/) · [Data handling](docs/data-handling.md) · [Distribution and local builds](docs/distribution.md) · [Homebrew installation](docs/homebrew.md)
 
 A free, open-source **window switcher** for macOS (with Windows/Linux builds) — the
 Windows-style `Alt`+`Tab` experience, rebuilt in [Wails](https://wails.io) (Go + React).
@@ -37,7 +37,7 @@ See [Homebrew installation](docs/homebrew.md) for removal and existing-tap detai
 
 ## Features
 
-- **Window-level switching** across every app, triggered by a global hotkey (default ⌥Tab).
+- **Window-level switching** across every app, triggered by Command–Tab or Option–Tab; both default to a thumbnail grid of all windows.
 - **Hold-to-cycle**: hold the modifier, tap Tab to advance / Shift+Tab to go back, release to focus.
 - **Three visual styles** — Thumbnails, App Icons, and Titles — switchable per shortcut.
 - **Fuzzy search**: start typing to filter by window title or app name.
@@ -146,6 +146,8 @@ task dev:web       # Next.js dev server for the landing page
 ```
 
 ## Further reading
+
+- [Complete feature guide and setup steps](docs/features.md)
 
 - [Architecture](docs/architecture.md)
 - [Development guide](docs/development.md)
