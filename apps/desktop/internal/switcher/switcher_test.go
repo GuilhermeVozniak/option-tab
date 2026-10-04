@@ -523,9 +523,11 @@ func TestActivate_PerShortcutActiveAppScope(t *testing.T) {
 		{ID: 2, AppID: 2, AppName: "B", Title: "b", OnScreen: true, SpaceID: 1, ScreenID: 1},
 		{ID: 3, AppID: 1, AppName: "A", Title: "a2", OnScreen: true, SpaceID: 1, ScreenID: 1},
 	}
-	c, f, v := newController(t, wins, nil)
+	c, f, v := newController(t, wins, func(s *config.Settings) {
+		s.Shortcuts[1].Scope.AppScope = config.AppScopeActiveApp
+	})
 	f.ActiveAppID = 1
-	// shortcut 2 is scoped to the active app by default.
+	// An explicitly configured active-app shortcut retains its narrower scope.
 	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 2})
 	st := v.last()
 	if len(st.Entries) != 2 {

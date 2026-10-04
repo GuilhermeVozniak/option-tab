@@ -37,10 +37,13 @@ func TestLegacyModeSettingsPreserveBindingsWithoutAliasing(t *testing.T) {
 	}
 }
 
-func TestDefault_NewInstallUsesAppsThenWindows(t *testing.T) {
+func TestDefault_NewInstallUsesWindowGrid(t *testing.T) {
 	s := Default()
-	if s.Version != 3 || s.Shortcuts[0].Mode != ModeApps || s.Shortcuts[1].Mode != ModeWindows {
+	if s.Version != 3 || s.Shortcuts[0].Mode != ModeWindows || s.Shortcuts[1].Mode != ModeWindows {
 		t.Fatalf("new shortcut modes: %+v", s.Shortcuts)
+	}
+	if s.Appearance.Style != StyleThumbnails || s.Appearance.PreviewSelected {
+		t.Fatalf("window grid defaults: %+v", s.Appearance)
 	}
 	if s.AppSwitcher.Appearance.Style != StyleAppIcons || !s.AppSwitcher.Appearance.PreviewSelected {
 		t.Fatalf("app defaults: %+v", s.AppSwitcher.Appearance)

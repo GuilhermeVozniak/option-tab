@@ -1,27 +1,23 @@
 import { publishedDownloadUrl } from "../lib/download";
 
-const TARGETS = [
-  { label: "Download for macOS (Apple silicon & Intel)", platform: "darwin" },
-  { label: "Download for Windows", platform: "windows" },
-  { label: "Download for Linux", platform: "linux" },
-] as const;
-
 export function DownloadButtons() {
   return (
-    <nav aria-label="Downloads">
-      <ul className="m-0 mb-4 flex list-none flex-wrap justify-center gap-5 p-0">
-        {TARGETS.map((t) => (
-          <li key={t.platform}>
-            <a
-              data-testid={`download-${t.platform}`}
-              className="text-[15px] text-muted-foreground no-underline transition-colors hover:text-foreground hover:underline"
-              href={publishedDownloadUrl(t.platform)}
-            >
-              {t.label}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </nav>
+    <div className="download-options">
+      <a data-testid="download-darwin" href={publishedDownloadUrl("darwin")}>
+        macOS download · Apple silicon &amp; Intel
+      </a>
+      <details>
+        <summary>Other platforms</summary>
+        <p>Windows and Linux demo builds; native window switching is macOS-only.</p>
+        <nav aria-label="Demo downloads">
+          <a data-testid="download-windows" href={publishedDownloadUrl("windows")}>
+            Windows (demo)
+          </a>
+          <a data-testid="download-linux" href={publishedDownloadUrl("linux")}>
+            Linux (demo)
+          </a>
+        </nav>
+      </details>
+    </div>
   );
 }

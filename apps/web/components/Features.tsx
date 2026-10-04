@@ -1,73 +1,46 @@
-import { Card, CardDescription, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
+import { featureSections } from "@/lib/feature-guide";
 
-const STYLES = [
-  { name: "Thumbnails", desc: "Live previews of every window, auto-sized to fit." },
-  { name: "App Icons", desc: "A clean, dock-like row of large app icons." },
-  { name: "Titles", desc: "A compact, text-only list for keyboard speed." },
-];
-
-const FEATURES = [
+const styles = [
   {
-    title: "Window-level switching",
-    body: "See and pick individual windows across every app — not just one icon per app.",
+    name: "Thumbnails",
+    description: "Recognize individual windows at a glance. The default view.",
   },
-  {
-    title: "Fuzzy search",
-    body: "Just start typing to filter by window title or app name. No scrolling.",
-  },
-  {
-    title: "Up to 9 shortcuts",
-    body: "Independent chords, each with its own filter scope and visual style.",
-  },
-  {
-    title: "Auto-sizing",
-    body: "Thumbnails scale to the number of windows so the switcher stays readable.",
-  },
-  {
-    title: "Spaces & multi-monitor",
-    body: "Filter by active space, all spaces, the active screen, or the screen under your cursor.",
-  },
-  {
-    title: "Window controls",
-    body: "Close, minimize, hide, or quit straight from the switcher — hover and click.",
-  },
-  {
-    title: "Deep filters",
-    body: "Show or hide minimized windows, hidden apps, fullscreen windows, and blacklist apps.",
-  },
-  {
-    title: "Made to feel native",
-    body: "Frameless, translucent overlay, light/dark themes, custom accent color, and start-at-login.",
-  },
+  { name: "App icons", description: "Switch with a compact row of familiar application icons." },
+  { name: "Titles", description: "Keep the list small and focus on window names." },
 ];
 
 export function Features() {
   return (
     <>
-      <section className="border-t border-white/10 py-14" id="features">
-        <h2 className="m-0 mb-10 text-center text-[clamp(28px,4vw,40px)] font-bold tracking-tight">
-          Three ways to switch
-        </h2>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-5">
-          {STYLES.map((s) => (
-            <Card className="p-7 text-center" key={s.name}>
-              <CardTitle className="mb-2 text-[22px]">{s.name}</CardTitle>
-              <CardDescription>{s.desc}</CardDescription>
-            </Card>
+      <section className="content-section styles-section" aria-labelledby="styles-heading">
+        <div className="section-heading">
+          <h2 id="styles-heading">Three ways to see your windows</h2>
+          <p>Choose a visual style for each shortcut. Keep the window grid, or make it your own.</p>
+        </div>
+        <div className="style-options">
+          {styles.map((style) => (
+            <div key={style.name}>
+              <h3>{style.name}</h3>
+              <p>{style.description}</p>
+            </div>
           ))}
         </div>
       </section>
-
-      <section className="border-t border-white/10 py-14">
-        <h2 className="m-0 mb-10 text-center text-[clamp(28px,4vw,40px)] font-bold tracking-tight">
-          Everything AltTab does — including the paid features
-        </h2>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4">
-          {FEATURES.map((f) => (
-            <Card className="p-5" key={f.title}>
-              <CardTitle className="mb-2 text-base">{f.title}</CardTitle>
-              <CardDescription className="text-sm">{f.body}</CardDescription>
-            </Card>
+      <section className="content-section" id="features" aria-labelledby="features-heading">
+        <div className="section-heading">
+          <h2 id="features-heading">Everything you can do</h2>
+          <p>Start with switching windows. Add the tools that fit the way you work.</p>
+        </div>
+        <div className="feature-overview">
+          {featureSections.map((section) => (
+            <Link className="feature-category" href={`/docs#${section.id}`} key={section.id}>
+              <h3>{section.title}</h3>
+              <p>{section.description}</p>
+              <span>
+                Explore {section.features.length} topics <span aria-hidden="true">↗</span>
+              </span>
+            </Link>
           ))}
         </div>
       </section>
