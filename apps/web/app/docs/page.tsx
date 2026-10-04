@@ -6,10 +6,10 @@ export const metadata: Metadata = {
   title: "User guide — Option Tab",
   description:
     "Learn how to use Option Tab: window and app switching, keyboard shortcuts, Dock previews, media controls, widgets, automation, and settings.",
-  alternates: { canonical: "/docs" },
+  alternates: { canonical: "/docs/" },
   openGraph: {
     title: "User guide — Option Tab",
-    url: "/docs",
+    url: "/docs/",
     description: "Every Option Tab feature, with setup instructions and the exact settings to use.",
   },
 };
