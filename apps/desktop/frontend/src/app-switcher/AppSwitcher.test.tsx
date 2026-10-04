@@ -72,9 +72,35 @@ describe("AppSwitcher", () => {
     ).toBeInTheDocument();
     for (const name of ["Minimized", "Hidden app", "Fullscreen", "On another Space"])
       expect(screen.getByRole("img", { name: `translated:${name}` })).toBeInTheDocument();
+    for (const name of [
+      "Open Editor $&",
+      "New window",
+      "Hide app",
+      "Quit app",
+      "Close window",
+      "Restore window",
+      "Fullscreen window",
+    ]) {
+      const button = screen.getByRole("button", { name: `translated:${name}` });
+      expect(button).toHaveAttribute("title", `translated:${name}`);
+      expect(button.textContent).toBe("");
+      expect(button.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    }
     fireEvent.click(screen.getByRole("button", { name: "translated:Restore window" }));
     expect(h.onMinimize).toHaveBeenCalledWith(101);
+    fireEvent.click(screen.getByRole("button", { name: "translated:Close window" }));
+    expect(h.onClose).toHaveBeenCalledWith(101);
+    fireEvent.click(screen.getByRole("button", { name: "translated:Fullscreen window" }));
+    expect(h.onFullscreen).toHaveBeenCalledWith(101);
+    fireEvent.click(screen.getByRole("button", { name: "translated:New window" }));
+    expect(h.onAction).toHaveBeenCalledWith("newWindow", 0, 10);
+    fireEvent.click(screen.getByRole("button", { name: "translated:Hide app" }));
+    expect(h.onHide).toHaveBeenCalledWith(10);
+    fireEvent.click(screen.getByRole("button", { name: "translated:Quit app" }));
+    expect(h.onQuit).toHaveBeenCalledWith(10);
     expect(h.onConfirmWindow).not.toHaveBeenCalled();
+    expect(h.onConfirmApp).not.toHaveBeenCalled();
+    expect(h.onCancel).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "translated:Open Editor $&" }));
     expect(h.onConfirmApp).toHaveBeenCalledWith(10);
   });

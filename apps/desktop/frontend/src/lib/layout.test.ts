@@ -92,6 +92,29 @@ describe("computeLayout", () => {
     expect(withPreview.thumbnailPx).toBeLessThan(withoutPreview.thumbnailPx);
   });
 
+  it("fits thumbnail rows with persistent metadata footers below an action toolbar", () => {
+    const viewportH = 760;
+    const toolbarHeightPx = 36;
+    const entryFooterHeightPx = 20;
+    const base = {
+      count: 24,
+      maxColumns: 6,
+      maxRows: 4,
+      thumbnailMaxPx: 280,
+      autoSize: false,
+      viewportW: 1280,
+      viewportH,
+      showTitle: true,
+    };
+    const layout = computeLayout({ ...base, toolbarHeightPx, entryFooterHeightPx });
+    const withoutActions = computeLayout(base);
+    const gridHeight =
+      layout.rows * (Math.round(layout.thumbnailPx * 0.62) + 22 + 22 + entryFooterHeightPx);
+    expect(gridHeight + toolbarHeightPx + 36).toBeLessThanOrEqual(viewportH * 0.88);
+    expect(layout.thumbnailPx).toBeLessThan(withoutActions.thumbnailPx);
+    expect(layout.thumbnailPx).toBeGreaterThanOrEqual(96);
+  });
+
   it("never fits below the readable floor", () => {
     const l = computeLayout({
       count: 8,

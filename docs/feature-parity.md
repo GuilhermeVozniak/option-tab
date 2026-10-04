@@ -92,7 +92,7 @@ window is found.
 | Title truncation control | ✅ | `Appearance.TitleTruncation` end/middle/start (Task #6); end via CSS, middle/start char-based |
 | Status icons (minimized/hidden/fullscreen badges) | ✅ | per-window markers for all three (Task #5); hideable via `ShowStatusIcons` (Task #6) |
 | Space number label per window | ✅ | numbered badges (Task #6): ordinals derived from the sorted distinct Space ids among listed windows; toggle `ShowSpaceNumbers` |
-| Hide window-control circles on hover toggle | ✅ | `ShowWindowControls` |
+| Show/hide persistent window-control circles | ✅ | `ShowWindowControls` |
 | Apparition delay before switcher shows | ✅ | `Appearance.ApparitionDelayMs` 0–2000ms slider (Task #6) |
 | Fade in/out animations | ✅ | enter fade+scale (Task #5) and exit fade via `FadeOutAnimation` (Task #6), both reduced-motion aware |
 | Animations toggle | ✅ | `FadeOutAnimation` checkbox (Task #6) |
@@ -159,7 +159,7 @@ window is found.
 
 The overlay is close to AltTab (Task #5 polish applied):
 
-- ✅ Translucent rounded panel, grid of cells, title-bar with app icon + title, selected highlight, hover controls.
+- ✅ Translucent rounded panel, grid of cells, title-bar with app icon + title, selected highlight, persistent window controls.
 - ✅ Window-control buttons are macOS traffic-light circles: red close, yellow minimize, green fullscreen, plus slate hide and dark quit buttons (app-level actions).
 - ✅ Status icons for minimized / hidden / fullscreen, plus an “on another Space” marker.
 - ✅ Fade + subtle scale enter animation (honors `prefers-reduced-motion`).

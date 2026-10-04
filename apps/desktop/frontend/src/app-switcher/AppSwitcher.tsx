@@ -1,3 +1,4 @@
+import { AppWindow, EyeOff, Maximize2, Minus, Power, SquarePlus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -144,20 +145,29 @@ function AppWindowCard({
               variant="unstyled"
               className="ot-traffic ot-traffic-close"
               aria-label={t("Close window")}
+              title={t("Close window")}
               onClick={() => handlers.onClose(entry.windowId)}
-            />
+            >
+              <X aria-hidden="true" focusable="false" size={10} />
+            </Button>
             <Button
               variant="unstyled"
               className="ot-traffic ot-traffic-minimize"
               aria-label={t(entry.minimized ? "Restore window" : "Minimize window")}
+              title={t(entry.minimized ? "Restore window" : "Minimize window")}
               onClick={() => handlers.onMinimize(entry.windowId)}
-            />
+            >
+              <Minus aria-hidden="true" focusable="false" size={10} />
+            </Button>
             <Button
               variant="unstyled"
               className="ot-traffic ot-traffic-fullscreen"
               aria-label={t("Fullscreen window")}
+              title={t("Fullscreen window")}
               onClick={() => handlers.onFullscreen(entry.windowId)}
-            />
+            >
+              <Maximize2 aria-hidden="true" focusable="false" size={10} />
+            </Button>
           </div>
         ) : null}
       </article>
@@ -397,21 +407,36 @@ export function AppSwitcher({
                   type="button"
                   onClick={() => handlers.onConfirmApp?.(app.appId)}
                   aria-label={t("Open {app}").replace("{app}", () => app.appName)}
+                  title={t("Open {app}").replace("{app}", () => app.appName)}
                 >
-                  {t("Open app")}
+                  <AppWindow aria-hidden="true" focusable="false" size={16} />
                 </Button>
                 <Button
                   variant="unstyled"
                   type="button"
                   onClick={() => handlers.onAction?.("newWindow", 0, app.appId)}
+                  aria-label={t("New window")}
+                  title={t("New window")}
                 >
-                  {t("New window")}
+                  <SquarePlus aria-hidden="true" focusable="false" size={16} />
                 </Button>
-                <Button variant="unstyled" type="button" onClick={() => handlers.onHide(app.appId)}>
-                  {t("Hide app")}
+                <Button
+                  variant="unstyled"
+                  type="button"
+                  onClick={() => handlers.onHide(app.appId)}
+                  aria-label={t("Hide app")}
+                  title={t("Hide app")}
+                >
+                  <EyeOff aria-hidden="true" focusable="false" size={16} />
                 </Button>
-                <Button variant="unstyled" type="button" onClick={() => handlers.onQuit(app.appId)}>
-                  {t("Quit app")}
+                <Button
+                  variant="unstyled"
+                  type="button"
+                  onClick={() => handlers.onQuit(app.appId)}
+                  aria-label={t("Quit app")}
+                  title={t("Quit app")}
+                >
+                  <Power aria-hidden="true" focusable="false" size={16} />
                 </Button>
               </div>
             </div>

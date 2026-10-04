@@ -161,7 +161,7 @@ Both were fixed after the coverage pass:
   `ot-no-blur` root class that gates the in-page frosted-glass `backdrop-filter`
   — a real, visible on/off toggle (see “CSS blur strength” above). Covered by
   `Overlay.test.tsx`.
-- The hover controls now include **Hide** and **Quit** app buttons (slate and
+- The window controls now include **Hide** and **Quit** app buttons (slate and
   dark circles) alongside close / minimize / fullscreen, matching
   `feature-parity.md`. Covered by `Overlay.test.tsx`.
 

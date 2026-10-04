@@ -38,7 +38,7 @@ test.describe("overlay — visual styles (demo route)", () => {
     await expect(page.locator(".ot-status").first()).toBeVisible();
   });
 
-  test("reveals close/minimize/fullscreen/hide/quit controls on hover", async ({ page }) => {
+  test("shows close/minimize/fullscreen/hide/quit controls", async ({ page }) => {
     await page.goto("/#demo:titles");
     await page.getByRole("option").first().hover();
     await expect(page.getByLabel("Close window").first()).toBeVisible();
@@ -173,10 +173,16 @@ test.describe("overlay — interactive", () => {
 
   test("labels additional actions and their target app for people", async ({ page }) => {
     await emitShow(page, showState({ selected: 0 }));
-    await expect(page.getByText("New window — Editor", { exact: true })).toBeVisible();
-    await expect(page.getByText("Force quit — Editor", { exact: true })).toBeVisible();
-    await expect(page.getByText("Close all windows — Editor", { exact: true })).toBeVisible();
-    await expect(page.getByText("Minimize all windows — Editor", { exact: true })).toBeVisible();
+    for (const label of [
+      "New window — Editor",
+      "Force quit — Editor",
+      "Close all windows — Editor",
+      "Minimize all windows — Editor",
+    ]) {
+      const action = page.getByRole("button", { name: label, exact: true });
+      await expect(action).toBeVisible();
+      await expect(action).toHaveAttribute("title", label);
+    }
   });
 
   test("arrow keys navigate", async ({ page }) => {
@@ -344,7 +350,7 @@ test.describe("overlay — interactive", () => {
     await expect(preview).not.toHaveAttribute("data-node-marker", "retained");
   });
 
-  test("hover controls call the matching window/app actions", async ({ page }) => {
+  test("window controls call the matching window/app actions", async ({ page }) => {
     await emitShow(page, showState({}));
     const first = page.getByRole("option").first();
     const actions: [string, string, number, number][] = [

@@ -212,14 +212,22 @@ body,
   margin-bottom: 8px;
 }
 .ot-bulk-actions button {
-  max-width: 100%;
-  overflow-wrap: anywhere;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 6px;
-  padding: 3px 7px;
+  padding: 0;
   background: rgba(255, 255, 255, 0.08);
   color: inherit;
-  font-size: 11px;
+  cursor: pointer;
+}
+
+.ot-bulk-actions button:hover {
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .ot-overlay[data-style="titles"] .ot-list {
@@ -325,6 +333,7 @@ body,
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: linear-gradient(150deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
   position: relative;
+  container-type: inline-size;
   overflow: hidden;
   /* WebKit can skip border-radius clipping for absolutely-positioned children;
      isolate forces a proper clip so the preview never pokes past the corners. */
@@ -378,6 +387,15 @@ body,
   border-radius: 6px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   z-index: 1;
+}
+
+/* At the smallest preview size the action buttons wrap onto a second row.
+   Keep the app badge in the free lower-left corner instead of underneath it. */
+@container (max-width: 132px) {
+  .ot-thumb:has(.ot-controls) .ot-thumb-icon-badge {
+    left: 4px;
+    transform: none;
+  }
 }
 
 .ot-thumb-icon,
@@ -455,25 +473,60 @@ body,
   position: absolute;
   top: 4px;
   right: 4px;
-  display: none;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100% - 12px);
   gap: 4px;
 }
 
-.ot-entry:hover .ot-controls {
-  display: flex;
+/* Keep controls clear of titles and icons, including when keyboard navigation
+   selects a card without ever moving the pointer into the panel. Thumbnail
+   controls live inside the image frame so title visibility/size cannot overlap. */
+.ot-entry-appIcons.ot-has-controls {
+  min-width: 132px;
+  padding-top: 32px;
 }
 
-/* In thumbnails style the cell's top row holds the app icon, title, and Space
-   badge; drop the hover controls into the thumbnail image instead of covering
-   that row. */
-.ot-entry-thumbnails .ot-controls {
-  top: 32px;
-  right: 10px;
+.ot-entry-titles.ot-has-controls {
+  padding-right: 136px;
+}
+
+.ot-entry-titles .ot-controls {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Persistent actions own the top edge. Give window-state and Space badges
+   their own footer so they cannot cover an action in any presentation. */
+.ot-entry.ot-has-controls:has(> .ot-status, > .ot-space-badge) {
+  padding-bottom: 26px;
+}
+
+.ot-entry.ot-has-controls > .ot-status {
+  top: auto;
+  bottom: 4px;
+  left: 4px;
+  right: auto;
+}
+
+.ot-entry.ot-has-controls > .ot-space-badge {
+  top: auto;
+  bottom: 4px;
+}
+
+.ot-entry-titles.ot-has-controls:has(> .ot-status, > .ot-space-badge) .ot-controls {
+  top: calc(50% - 9px);
 }
 
 .ot-ctl {
+  display: grid;
+  place-items: center;
   width: 20px;
   height: 20px;
+  flex: 0 0 20px;
+  padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   cursor: pointer;
@@ -485,6 +538,12 @@ body,
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.25),
     0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.ot-ctl:focus-visible,
+.ot-bulk-actions button:focus-visible {
+  outline: 2px solid var(--ot-accent, #3b82f6);
+  outline-offset: 2px;
 }
 
 .ot-ctl-close {
