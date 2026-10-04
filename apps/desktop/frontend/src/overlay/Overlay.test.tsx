@@ -96,6 +96,30 @@ const noopHandlers = () => ({
 });
 
 describe("Overlay", () => {
+  it("keeps icon actions labeled and targets the newly selected window's app", () => {
+    const h = noopHandlers();
+    const state = stateWith({
+      appearance: { ...emptyState.appearance, showWindowControls: true },
+    });
+    const { rerender } = render(<Overlay state={state} handlers={h} />);
+    rerender(<Overlay state={{ ...state, selected: 1 }} handlers={h} />);
+    for (const [label, kind] of [
+      ["New window", "newWindow"],
+      ["Force quit", "forceQuit"],
+      ["Close all windows", "closeAll"],
+      ["Minimize all windows", "minimizeAll"],
+    ]) {
+      const button = screen.getByRole("button", { name: `${label} — Browser` });
+      expect(button).toHaveAttribute("title", `${label} — Browser`);
+      expect(button.textContent).toBe("");
+      expect(button.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+      fireEvent.click(button);
+      expect(h.onAction).toHaveBeenLastCalledWith(kind, 2, 2);
+    }
+    expect(h.onConfirmWindow).not.toHaveBeenCalled();
+    expect(h.onCancel).not.toHaveBeenCalled();
+  });
+
   it("translates window controls and state while preserving literal app names and targets", () => {
     const h = noopHandlers();
     const state = stateWith({});

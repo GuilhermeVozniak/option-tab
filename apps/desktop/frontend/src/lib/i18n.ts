@@ -388,8 +388,7 @@ const PT: Record<string, string> = {
   "Show window titles": "Mostrar títulos das janelas",
   "Show app icon badge on thumbnails": "Mostrar ícone do app nas miniaturas",
   "Auto-size thumbnails": "Ajustar tamanho das miniaturas automaticamente",
-  "Show window controls on hover (colored circles)":
-    "Mostrar controles da janela ao passar o mouse (círculos coloridos)",
+  "Show window controls (colored circles)": "Mostrar controles da janela (círculos coloridos)",
   "Show status icons (minimized / hidden / fullscreen)":
     "Mostrar ícones de estado (minimizada / oculta / tela cheia)",
   "Show Space number labels": "Mostrar números dos Spaces",
@@ -1270,8 +1269,7 @@ const ES: Record<string, string> = {
   "Show window titles": "Mostrar títulos de ventanas",
   "Show app icon badge on thumbnails": "Mostrar icono de la app en las miniaturas",
   "Auto-size thumbnails": "Ajustar miniaturas automáticamente",
-  "Show window controls on hover (colored circles)":
-    "Mostrar controles de ventana al pasar el ratón (círculos de colores)",
+  "Show window controls (colored circles)": "Mostrar controles de ventana (círculos de colores)",
   "Show status icons (minimized / hidden / fullscreen)":
     "Mostrar iconos de estado (minimizada / oculta / pantalla completa)",
   "Show Space number labels": "Mostrar números de los Spaces",

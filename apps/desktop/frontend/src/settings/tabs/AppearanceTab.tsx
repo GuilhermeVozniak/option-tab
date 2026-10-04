@@ -409,7 +409,7 @@ export function AppearanceTab({
             />
           </Label>
           <Label appearance="unstyled" className={ROW}>
-            <span>{t("Show window controls on hover (colored circles)")}</span>
+            <span>{t("Show window controls (colored circles)")}</span>
             <Switch
               aria-label={aria("Show window controls")}
               checked={a.showWindowControls}

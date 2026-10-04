@@ -102,7 +102,7 @@ Type to filter windows by title or app name with fuzzy matching. Tab navigation 
 
 Focus, close, minimize or restore, enter or leave fullscreen, hide or show an app, and quit it from the switcher. Additional actions include New window, Force quit, Close all windows, and Minimize all windows.
 
-1. Use the window’s hover controls or the app action buttons exposed in the current presentation.
+1. Use the controls on each window preview or the toolbar icons. Hover an icon to see its action label. Window controls stay visible while you cycle with Command+Tab or Option+Tab; enable them in Settings → Appearance → Window information if they are hidden.
 2. With the activation modifier held, the default action keys are W for close, M for minimize/restore, F for fullscreen, H for hide/show, and Q for quit.
 3. Open Settings → Shortcuts → Window actions to change physical-key bindings, add a binding, or disable action keys.
 
@@ -158,7 +158,7 @@ An optional larger preview follows the selected window. The switcher can appear 
 
 ### Titles, app badges, and window state
 
-Show window titles, app icon badges, hover controls, minimized/hidden/fullscreen status, and Space labels. Long titles can truncate at the start, middle, or end.
+Show window titles, app icon badges, window controls, minimized/hidden/fullscreen status, and Space labels. Long titles can truncate at the start, middle, or end.
 
 1. Open Settings → Appearance → Window information and enable the details you want on each card.
 

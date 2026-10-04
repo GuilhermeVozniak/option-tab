@@ -14,6 +14,10 @@ export interface LayoutInput {
   showTitle?: boolean;
   previewEnabled?: boolean;
   layoutDirection?: "horizontal" | "vertical";
+  /** Height above the grid, including the toolbar's bottom margin. */
+  toolbarHeightPx?: number;
+  /** Additional cell height reserved for metadata below the preview. */
+  entryFooterHeightPx?: number;
 }
 
 export interface Layout {
@@ -91,9 +95,13 @@ export function computeLayout(input: LayoutInput): Layout {
     thumbnailPx = clamp(Math.min(thumbnailPx, fit), MIN_THUMBNAIL_PX, thumbnailMaxPx);
   }
   if (viewportH > 0 && rows > 0) {
-    let availH = viewportH * PANEL_H_FRAC - PANEL_PADDING;
+    let availH = viewportH * PANEL_H_FRAC - PANEL_PADDING - (input.toolbarHeightPx ?? 0);
     if (previewEnabled) availH -= viewportH * PREVIEW_H_FRAC + PREVIEW_GAP;
-    const cellH = availH / rows - CELL_CHROME_H - (showTitle ? TITLEBAR_H : 0);
+    const cellH =
+      availH / rows -
+      CELL_CHROME_H -
+      (showTitle ? TITLEBAR_H : 0) -
+      (input.entryFooterHeightPx ?? 0);
     const fit = Math.floor(cellH / THUMB_ASPECT);
     thumbnailPx = clamp(Math.min(thumbnailPx, fit), MIN_THUMBNAIL_PX, thumbnailMaxPx);
   }

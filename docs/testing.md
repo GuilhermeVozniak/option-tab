@@ -78,7 +78,7 @@ when the backend is absent).
 selected entry is marked, keys route to handlers — driven through the production native
 path (mocked `switcher:key` events) plus one DOM-fallback test for browser dev — typing
 updates the
-search query, hover selects and click confirms, and the hover controls fire close/minimize.
+search query, hover selects and click confirms, and the window controls fire close/minimize.
 `Settings.test.tsx` asserts the controlled form emits updated settings on each edit.
 
 ### 6. Shared contract (`packages/shared`)
@@ -104,11 +104,17 @@ without the native backend (navigation methods re-emit `switcher:update`; window
 actions are recorded for assertions; `page.keyboard` input is re-emitted as `switcher:key`
 native-key payloads, mirroring the event-tap path). Coverage: the three visual styles (via the
 built-in `#demo` route), keyboard navigation (Tab/Shift+Tab, arrows, vim), type-to-search,
-Escape, click-to-confirm, the hover window/app controls (close/minimize/fullscreen/hide/
+Escape, click-to-confirm, the window/app controls (close/minimize/fullscreen/hide/
 quit), the blur toggle, and the full `#settings` preferences surface (tab navigation,
 editing controls, shortcuts, blacklist, language, import/export/reset, About). It does not
 exercise the real Go backend (window enumeration, AX actions, the global hotkey) — that
 native boundary stays smoke-only (§3).
+
+`playwright.switcher.config.ts` also runs the switcher geometry and preview-control
+regressions in Chromium and WebKit. They cover controls visible without hover, compact
+layouts, named icon toolbars, forwarded Command/Option–Tab navigation, and action clicks
+without confirmation/dismissal. Matching global shortcut chords advance through the Go
+controller directly; browser input tests do not exercise that native event-tap route.
 
 ---
 

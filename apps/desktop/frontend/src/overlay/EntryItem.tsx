@@ -33,7 +33,7 @@ interface EntryItemProps {
 
 // EntryItem renders one window in the active visual style: a titled thumbnail
 // cell, a large app icon, or a compact title row — plus status markers, the
-// Space badge, and the hover window controls.
+// Space badge, and persistent window controls.
 export function EntryItem({
   entry,
   index,
@@ -74,6 +74,61 @@ export function EntryItem({
   // full width and overflows it horizontally.
   const maxWidth = style === "appIcons" ? titleMaxWidthPx : undefined;
 
+  const controls = showControls ? (
+    <div data-switcher-gesture-exclude className="ot-controls" onClick={(e) => e.stopPropagation()}>
+      <Button
+        variant="unstyled"
+        type="button"
+        aria-label={t("Close window")}
+        title={t("Close window")}
+        className="ot-ctl ot-ctl-close"
+        onClick={() => handlers.onClose(entry.windowId)}
+      >
+        ✕
+      </Button>
+      <Button
+        variant="unstyled"
+        type="button"
+        aria-label={t(entry.minimized ? "Restore window" : "Minimize window")}
+        title={t(entry.minimized ? "Restore window" : "Minimize window")}
+        className="ot-ctl ot-ctl-min"
+        onClick={() => handlers.onMinimize(entry.windowId)}
+      >
+        –
+      </Button>
+      <Button
+        variant="unstyled"
+        type="button"
+        aria-label={t("Fullscreen window")}
+        title={t("Fullscreen window")}
+        className="ot-ctl ot-ctl-fs"
+        onClick={() => handlers.onFullscreen(entry.windowId)}
+      >
+        ⇱
+      </Button>
+      <Button
+        variant="unstyled"
+        type="button"
+        aria-label={t("Hide app")}
+        title={t("Hide app")}
+        className="ot-ctl ot-ctl-hide"
+        onClick={() => handlers.onHide(entry.appId)}
+      >
+        ⊘
+      </Button>
+      <Button
+        variant="unstyled"
+        type="button"
+        aria-label={t("Quit app")}
+        title={t("Quit app")}
+        className="ot-ctl ot-ctl-quit"
+        onClick={() => handlers.onQuit(entry.appId)}
+      >
+        ⏻
+      </Button>
+    </div>
+  ) : null;
+
   return (
     <Card appearance="unstyled" asChild>
       <li
@@ -81,7 +136,7 @@ export function EntryItem({
         data-switcher-gesture-app={entry.appId}
         role="option"
         aria-selected={selected}
-        className={`ot-entry ot-entry-${style}${selected ? " ot-selected" : ""}`}
+        className={`ot-entry ot-entry-${style}${selected ? " ot-selected" : ""}${showControls ? " ot-has-controls" : ""}`}
         onMouseEnter={mouseHover ? () => handlers.onSelect(index) : undefined}
         onClick={() => handlers.onConfirmWindow(entry.windowId)}
         onMouseDown={(e) => {
@@ -124,6 +179,7 @@ export function EntryItem({
                   {glyph}
                 </span>
               )}
+              {controls}
             </div>
           </>
         ) : (
@@ -166,61 +222,7 @@ export function EntryItem({
           </Badge>
         ) : null}
 
-        {showControls ? (
-          <div
-            data-switcher-gesture-exclude
-            className="ot-controls"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Button
-              variant="unstyled"
-              type="button"
-              aria-label={t("Close window")}
-              className="ot-ctl ot-ctl-close"
-              onClick={() => handlers.onClose(entry.windowId)}
-            >
-              ✕
-            </Button>
-            <Button
-              variant="unstyled"
-              type="button"
-              aria-label={t(entry.minimized ? "Restore window" : "Minimize window")}
-              className="ot-ctl ot-ctl-min"
-              onClick={() => handlers.onMinimize(entry.windowId)}
-            >
-              –
-            </Button>
-            <Button
-              variant="unstyled"
-              type="button"
-              aria-label={t("Fullscreen window")}
-              className="ot-ctl ot-ctl-fs"
-              onClick={() => handlers.onFullscreen(entry.windowId)}
-            >
-              ⇱
-            </Button>
-            <Button
-              variant="unstyled"
-              type="button"
-              aria-label={t("Hide app")}
-              title={t("Hide app")}
-              className="ot-ctl ot-ctl-hide"
-              onClick={() => handlers.onHide(entry.appId)}
-            >
-              ⊘
-            </Button>
-            <Button
-              variant="unstyled"
-              type="button"
-              aria-label={t("Quit app")}
-              title={t("Quit app")}
-              className="ot-ctl ot-ctl-quit"
-              onClick={() => handlers.onQuit(entry.appId)}
-            >
-              ⏻
-            </Button>
-          </div>
-        ) : null}
+        {style !== "thumbnails" ? controls : null}
       </li>
     </Card>
   );

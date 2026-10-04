@@ -19,6 +19,8 @@ jobs:
       - run: cd apps/desktop/frontend && bun run e2e
       - name: Check launcher widget layout in WebKit
         run: cd apps/desktop/frontend && bunx playwright install --with-deps webkit && bunx playwright test --config playwright.widgets.config.ts --project webkit
+      - name: Check switcher controls and layout in WebKit
+        run: cd apps/desktop/frontend && bunx playwright test --config playwright.switcher.config.ts --project webkit
 
   go:
     runs-on: ubuntu-latest

@@ -1,3 +1,4 @@
+import { CopyMinus, CopyX, OctagonX, SquarePlus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,13 @@ const BULK_ACTION_LABEL = {
   forceQuit: "Force quit — {app}",
   closeAll: "Close all windows — {app}",
   minimizeAll: "Minimize all windows — {app}",
+} as const;
+
+const BULK_ACTION_ICON = {
+  newWindow: SquarePlus,
+  forceQuit: OctagonX,
+  closeAll: CopyX,
+  minimizeAll: CopyMinus,
 } as const;
 
 // Overlay renders the window switcher in the configured visual style and wires
@@ -218,6 +226,19 @@ export function Overlay({
 
   if (open ? !presented : !closing) return null;
 
+  const selectedEntry = entries[selected];
+  const showBulkActions = appearance.showWindowControls && !!handlers.onAction && !!selectedEntry;
+  const hasMetadataFooter =
+    appearance.showWindowControls &&
+    entries.some(
+      (entry) =>
+        (appearance.showStatusIcons &&
+          (entry.minimized ||
+            entry.hidden ||
+            entry.fullscreen ||
+            (!!entry.spaceId && !!state.activeSpaceId && entry.spaceId !== state.activeSpaceId))) ||
+        (appearance.showSpaceNumbers && !!entry.spaceId && spaceOrdinals.size > 1),
+    );
   const layout = computeLayout({
     count: entries.length,
     maxColumns: appearance.maxColumns,
@@ -229,11 +250,13 @@ export function Overlay({
     showTitle: appearance.showTitle,
     previewEnabled: appearance.previewSelected,
     layoutDirection: appearance.layoutDirection,
+    // Match the persistent toolbar (28px + 8px margin) and metadata footer
+    // (26px replaces 6px bottom padding) without altering other visual styles.
+    toolbarHeightPx: style === "thumbnails" && showBulkActions ? 36 : 0,
+    entryFooterHeightPx: style === "thumbnails" && hasMetadataFooter ? 20 : 0,
   });
 
   const accent = appearance.accentColor;
-
-  const selectedEntry = entries[selected];
 
   return (
     <div
@@ -263,21 +286,29 @@ export function Overlay({
         }}
         className={`ot-panel ${materialClass(appearance.blur, material?.status, state.session)}`}
       >
-        {appearance.showWindowControls && handlers.onAction && selectedEntry ? (
+        {showBulkActions && selectedEntry ? (
           <div className="ot-bulk-actions" aria-label={t("Switcher actions")}>
-            {(["newWindow", "forceQuit", "closeAll", "minimizeAll"] as const).map((kind) => (
-              <Button
-                variant="unstyled"
-                key={kind}
-                type="button"
-                title={t(BULK_ACTION_LABEL[kind]).replace("{app}", () => selectedEntry.appName)}
-                onClick={() =>
-                  handlers.onAction?.(kind, selectedEntry.windowId, selectedEntry.appId)
-                }
-              >
-                {t(BULK_ACTION_LABEL[kind]).replace("{app}", () => selectedEntry.appName)}
-              </Button>
-            ))}
+            {(["newWindow", "forceQuit", "closeAll", "minimizeAll"] as const).map((kind) => {
+              const label = t(BULK_ACTION_LABEL[kind]).replace(
+                "{app}",
+                () => selectedEntry.appName,
+              );
+              const Icon = BULK_ACTION_ICON[kind];
+              return (
+                <Button
+                  variant="unstyled"
+                  key={kind}
+                  type="button"
+                  aria-label={label}
+                  title={label}
+                  onClick={() =>
+                    handlers.onAction?.(kind, selectedEntry.windowId, selectedEntry.appId)
+                  }
+                >
+                  <Icon aria-hidden="true" focusable="false" size={16} />
+                </Button>
+              );
+            })}
           </div>
         ) : null}
         {search ? (

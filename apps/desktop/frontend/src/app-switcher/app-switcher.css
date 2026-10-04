@@ -113,6 +113,23 @@
   background: rgba(255, 255, 255, 0.08);
   color: inherit;
 }
+.ot-app-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  cursor: pointer;
+}
+.ot-app-toolbar button:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+.ot-app-toolbar button:focus-visible,
+.ot-app-window-actions button:focus-visible {
+  outline: 2px solid var(--ot-accent, #3b82f6);
+  outline-offset: 2px;
+}
 .ot-app-gallery {
   display: grid;
   grid-template-columns: repeat(
@@ -166,6 +183,9 @@
   text-align: left;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+.ot-app-gallery article:has(.ot-app-window-actions) .ot-app-card-title {
+  padding-right: 64px;
 }
 .ot-trunc-start {
   direction: rtl;
@@ -241,6 +261,8 @@
   right: 9px;
 }
 .ot-app-window-actions .ot-traffic {
+  display: grid;
+  place-items: center;
   width: 14px;
   height: 14px;
   border: 0;
@@ -250,12 +272,15 @@
 }
 .ot-app-window-actions .ot-traffic-close {
   background: #ff5f57;
+  color: #581512;
 }
 .ot-app-window-actions .ot-traffic-minimize {
   background: #febc2e;
+  color: #5a4a00;
 }
 .ot-app-window-actions .ot-traffic-fullscreen {
   background: #28c840;
+  color: #0a3d12;
 }
 .ot-app-gallery article > .ot-status {
   position: absolute;

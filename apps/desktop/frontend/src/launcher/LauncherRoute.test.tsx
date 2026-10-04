@@ -236,8 +236,11 @@ it("shows localized child startup failure before RPC completion and across benig
         finish = resolve;
       }),
   );
-  const { rerender } = render(<LauncherRoute session={8} transport={api.api} t={makeT("es")} />);
-  fireEvent.contextMenu(await screen.findByRole("button", { name: "Current" }));
+  // Finish async presentation admission and its menu-reset effects before interaction.
+  const { rerender } = await act(async () =>
+    render(<LauncherRoute session={8} transport={api.api} t={makeT("es")} />),
+  );
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Current" }));
   fireEvent.click(screen.getByRole("button", { name: "Mostrar todas las ventanas" }));
   api.panel(child(10));
   api.update({ ...initial, revision: 3 });

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.3 — 2026-10-04
+
+- Keep enabled window controls visible on every preview while cycling with Command–Tab or Option–Tab, so actions can be clicked directly without first clicking the preview.
+- Replace switcher toolbar text with compact icons, accessible labels, and translated tooltips. Add action glyphs to app-group preview controls.
+- Prevent controls from overlapping titles, status indicators, Space labels, or app badges in compact views, and account for action and metadata spacing when fitting large window grids to the screen.
+- Update the feature guide and appearance-setting labels to describe the persistent controls. Existing preferences to hide window controls remain respected.
+
+The native feature limitations and hardware checks documented for 0.5.0 remain unchanged. Windows and Linux downloads remain demonstration builds without native window switching.
+
 ## 0.6.2 — 2026-10-04
 
 - Make Command–Tab and Option–Tab open a thumbnail grid of all windows by default, without a separate enlarged preview. Existing saved shortcut preferences remain intact; app-grouped switching stays available in Settings.
