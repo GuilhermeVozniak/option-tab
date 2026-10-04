@@ -54,7 +54,7 @@ test("explains the default and links every feature category to its guide", async
       page
         .locator(".feature-category")
         .filter({ has: page.getByRole("heading", { name: section.title, exact: true }) }),
-    ).toHaveAttribute("href", `/docs#${section.id}`);
+    ).toHaveAttribute("href", `/docs/#${section.id}`);
   }
   await expect(
     page.getByText(/every Pro feature|including the paid features|every AltTab Pro/),

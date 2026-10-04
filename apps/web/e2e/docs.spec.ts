@@ -1,5 +1,19 @@
+import { existsSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { featureSections } from "../lib/feature-guide";
+
+test("the guide exports a directory index and opens with either URL form", async ({ page }) => {
+  // GitHub Pages resolves directory URLs to index.html. The preview server's
+  // clean-URL fallback can conceal a missing index by serving docs.html instead.
+  expect(existsSync(new URL("../out/docs/index.html", import.meta.url))).toBe(true);
+  for (const path of ["/docs/", "/docs"]) {
+    const response = await page.goto(path);
+    expect(response?.status()).toBe(200);
+    await expect(page.getByRole("heading", { name: "User guide", exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "User guide", exact: true })).toBeVisible();
+  }
+});
 
 test("the public guide renders every feature and its instructions", async ({ page }) => {
   await page.goto("/docs");
@@ -21,8 +35,8 @@ test("guide navigation and links from the landing page reach the right section",
   page,
 }) => {
   await page.goto("/");
-  await page.locator('.feature-category[href="/docs#dock-previews"]').click();
-  await expect(page).toHaveURL(/\/docs#dock-previews$/);
+  await page.locator('.feature-category[href="/docs/#dock-previews"]').click();
+  await expect(page).toHaveURL(/\/docs\/#dock-previews$/);
   await expect(page.locator("section#dock-previews")).toBeInViewport();
   await page
     .locator(".guide-sidebar")
