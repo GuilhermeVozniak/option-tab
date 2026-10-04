@@ -1,6 +1,6 @@
 cask "option-tab" do
-  version "0.6.2"
-  sha256 "262947b4faa1805be7eb3c731476bc3464c01c99c1169e4a75a57e294ff47165"
+  version "0.6.3"
+  sha256 "734364b26f471630c7c22738ee873128d1c78401c746f99000828ff2bea71a39"
 
   url "https://github.com/GuilhermeVozniak/option-tab/releases/download/v#{version}/option-tab_#{version}_darwin_universal.dmg"
   name "Option Tab"

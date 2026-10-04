@@ -2,7 +2,7 @@ import { type Arch, downloadUrl, latestReleaseUrl, type Platform } from "@option
 
 // Single source of truth for the version the landing page advertises.
 // Bump this in lockstep with a desktop release tag.
-export const APP_VERSION = "0.6.2";
+export const APP_VERSION = "0.6.3";
 
 // Published assets, not a prediction of the next release. Update only after publication.
 export const PUBLISHED_ARCH: Record<Platform, Arch> = {

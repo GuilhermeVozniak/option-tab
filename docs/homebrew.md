@@ -7,11 +7,11 @@ brew tap GuilhermeVozniak/tap
 brew install --cask GuilhermeVozniak/tap/option-tab
 ```
 
-The cask targets the published [v0.6.2 universal release](https://github.com/GuilhermeVozniak/option-tab/releases/tag/v0.6.2), containing Apple Silicon and Intel binaries and requiring macOS 14 or later. It installs `Option Tab.app` from the DMG and verifies the pinned SHA-256, `262947b4faa1805be7eb3c731476bc3464c01c99c1169e4a75a57e294ff47165`. It does not change Accessibility or Screen Recording consent.
+The cask targets the published [v0.6.3 universal release](https://github.com/GuilhermeVozniak/option-tab/releases/tag/v0.6.3), containing Apple Silicon and Intel binaries and requiring macOS 14 or later. It installs `Option Tab.app` from the DMG and verifies the pinned SHA-256, `734364b26f471630c7c22738ee873128d1c78401c746f99000828ff2bea71a39`. It does not change Accessibility or Screen Recording consent.
 
-The downloaded v0.6.2 package's version, architectures, deployment floor, Developer
+The downloaded v0.6.3 package's version, architectures, deployment floor, Developer
 ID signature, notarization and Gatekeeper acceptance were checked without launching
-the app. Homebrew lifecycle checks were not repeated for v0.6.2. The earlier
+the app. Homebrew lifecycle checks were not repeated for v0.6.3. The earlier
 [Homebrew lifecycle test](superpowers/reports/2026-10-03-homebrew-lifecycle.md) used
 v0.5.0 and passed fresh installation, upgrade from a v0.4.8 fixture and removal in
 a temporary application directory on Apple Silicon, including installation through
