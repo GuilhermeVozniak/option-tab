@@ -4,12 +4,12 @@
 
 Pushing a `v*` tag triggers `release.yml`, which builds the desktop binary for each supported platform and uploads the artifacts to a draft GitHub Release. Publish the draft after all jobs and artifact checks pass. The landing page is deployed separately via `deploy-web.yml` on every push to `main` that touches `apps/web/` or `packages/shared/`.
 
-[v0.6.3](https://github.com/GuilhermeVozniak/option-tab/releases/tag/v0.6.3) was published
-on October 4, 2026 after [release workflow 37195729293](https://github.com/GuilhermeVozniak/option-tab/actions/runs/37195729293)
+[v0.6.4](https://github.com/GuilhermeVozniak/option-tab/releases/tag/v0.6.4) was published
+on October 5, 2026 after [release workflow 37358856595](https://github.com/GuilhermeVozniak/option-tab/actions/runs/37358856595)
 and downloaded-artifact verification passed. Its universal macOS DMG and ARM64
 compatibility alias have identical digests. See the [distribution evidence](distribution.md)
 for verified package properties and the separate v0.5.0 Homebrew lifecycle evidence.
-No new native runtime or Homebrew lifecycle acceptance is claimed for v0.6.3.
+No new native runtime or Homebrew lifecycle acceptance is claimed for v0.6.4.
 
 ---
 
