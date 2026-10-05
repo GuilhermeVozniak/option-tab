@@ -110,7 +110,7 @@ describe("Overlay", () => {
       ["Minimize all windows", "minimizeAll"],
     ]) {
       const button = screen.getByRole("button", { name: `${label} — Browser` });
-      expect(button).toHaveAttribute("title", `${label} — Browser`);
+      expect(button).not.toHaveAttribute("title");
       expect(button.textContent).toBe("");
       expect(button.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
       fireEvent.click(button);

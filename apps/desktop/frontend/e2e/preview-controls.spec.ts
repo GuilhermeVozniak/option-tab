@@ -1,8 +1,30 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { defaultSettings, type VisualStyle } from "../src/lib/types";
 import { emitShow, getCallRecords, installFakeWails, showState } from "./support/fakeWails";
 
 const styles = ["thumbnails", "appIcons", "titles"] as const;
+
+// Advance only the hover delay; no real multi-second sleeps are needed.
+async function pauseHoverClock(page: Page) {
+  const time = new Date("2026-10-04T12:00:00Z");
+  await page.clock.install({ time });
+  await page.clock.pauseAt(new Date(time.getTime() + 1000));
+}
+
+async function expectDelayedTooltip(page: Page, action: Locator, label: string) {
+  await action.hover();
+  await page.clock.runFor(2000);
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await page.clock.runFor(500);
+  const tooltip = page.getByRole("tooltip", { name: label, exact: true });
+  await expect(tooltip).toBeVisible();
+  await expect(action).not.toHaveAttribute("title");
+  await expect(action).toHaveAttribute(
+    "aria-describedby",
+    (await tooltip.getAttribute("id")) ?? "",
+  );
+  return tooltip;
+}
 
 // The macOS panel does not become key. Exercise the native input event contract
 // directly, including the held chord modifier, rather than browser Tab focus.
@@ -59,6 +81,25 @@ test.beforeEach(async ({ page }) => {
   // Keep the pointer away from every card: hover must not be required to see
   // controls, including on windows that keyboard navigation has not selected.
   await page.mouse.move(0, 0);
+});
+
+test("preview tooltips wait 2.5 seconds and cancel when the pointer leaves", async ({ page }) => {
+  await openWindows(page, "thumbnails");
+  await pauseHoverClock(page);
+  const first = page.getByRole("button", { name: "New window — Editor", exact: true });
+  const next = page.getByRole("button", { name: "Force quit — Editor", exact: true });
+  await first.hover();
+  await page.clock.runFor(2000);
+  await page.mouse.move(0, 0);
+  await page.clock.runFor(1000);
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await expectDelayedTooltip(page, first, "New window — Editor");
+  // Even immediately after another tooltip, each new button gets the full delay.
+  await expectDelayedTooltip(page, next, "Force quit — Editor");
+  await page.mouse.move(0, 0);
+  await page.clock.runFor(300);
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  expect((await getCallRecords(page)).filter(([kind]) => kind === "PerformAction")).toEqual([]);
 });
 
 for (const style of styles) {
@@ -134,6 +175,7 @@ for (const style of styles) {
     page,
   }) => {
     await openWindows(page, style);
+    await pauseHoverClock(page);
     const second = page.getByRole("option").nth(1);
     const actions = [
       ["Close window", "close", 2, 2],
@@ -143,7 +185,11 @@ for (const style of styles) {
       ["Quit app", "quit", 0, 2],
     ] as const;
     for (const [label, kind, windowId, appId] of actions) {
-      await second.getByRole("button", { name: label, exact: true }).click();
+      const action = second.getByRole("button", { name: label, exact: true });
+      await expectDelayedTooltip(page, action, label);
+      await action.click();
+      await page.clock.runFor(300);
+      await expect(page.getByRole("tooltip")).toHaveCount(0);
       await expect
         .poll(() => getCallRecords(page))
         .toContainEqual(["PerformAction", kind, windowId, appId]);
@@ -166,6 +212,7 @@ for (const style of styles) {
     await openWindows(page, style);
     await nativeTab(page, "command");
     await expect(page.getByRole("option").nth(1)).toHaveAttribute("aria-selected", "true");
+    await pauseHoverClock(page);
     for (const [text, kind] of [
       ["New window", "newWindow"],
       ["Force quit", "forceQuit"],
@@ -175,10 +222,12 @@ for (const style of styles) {
       const label = `${text} — Browser`;
       const action = page.getByRole("button", { name: label, exact: true });
       await expect(action).toBeVisible();
-      await expect(action).toHaveAttribute("title", label);
+      await expectDelayedTooltip(page, action, label);
       await expect(action.locator("svg")).toHaveCount(1);
       await expect(action).toHaveText("");
       await action.click();
+      await page.clock.runFor(300);
+      await expect(page.getByRole("tooltip")).toHaveCount(0);
       await expect.poll(() => getCallRecords(page)).toContainEqual(["PerformAction", kind, 2, 2]);
       await expect(page.getByRole("dialog", { name: "Window switcher" })).toBeVisible();
     }
@@ -346,4 +395,122 @@ test("a full thumbnail grid fits the panel with controls and window metadata", a
   }));
   expect(panel.scrollHeight).toBeLessThanOrEqual(panel.clientHeight);
   expect(panel.scrollWidth).toBeLessThanOrEqual(panel.clientWidth);
+});
+
+for (const mode of ["windows", "apps"] as const) {
+  test(`${mode}: restore tooltip follows minimized state and inherits the light theme`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 760, height: 540 });
+    const base = showState();
+    await emitShow(
+      page,
+      showState({
+        session: 100,
+        revision: 1,
+        mode,
+        apps: [
+          { appId: 3, appName: "Terminal", bundleId: "com.ex.term", hidden: false, windowCount: 1 },
+        ],
+        entries: (base.entries as Array<{ windowId: number }>).filter(
+          (entry) => entry.windowId === 3,
+        ),
+        selectedWindowId: 3,
+        mouseHover: false,
+        appearance: { ...(base.appearance as object), theme: "light" },
+      }),
+    );
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await pauseHoverClock(page);
+    const action = page.getByRole("button", { name: "Restore window", exact: true });
+    const tooltip = await expectDelayedTooltip(page, action, "Restore window");
+    const geometry = await tooltip.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      const dialog = document.querySelector('[role="dialog"]')!;
+      return {
+        foreground: getComputedStyle(element).getPropertyValue("--foreground").trim(),
+        expectedForeground: getComputedStyle(dialog).getPropertyValue("--foreground").trim(),
+        inViewport:
+          bounds.left >= 0 &&
+          bounds.top >= 0 &&
+          bounds.right <= innerWidth &&
+          bounds.bottom <= innerHeight,
+      };
+    });
+    expect(geometry.foreground).toBe(geometry.expectedForeground);
+    expect(geometry.inViewport).toBe(true);
+    await action.click();
+    await page.clock.runFor(300);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await expect
+      .poll(() => getCallRecords(page))
+      .toContainEqual(["PerformAction", "minimize", 3, 3]);
+    expect((await getCallRecords(page)).filter(([kind]) => kind === "PerformAction")).toHaveLength(
+      1,
+    );
+    expect(
+      (await getCallRecords(page)).filter(([kind]) =>
+        ["Confirm", "ConfirmWindow", "ConfirmApp", "Cancel"].includes(String(kind)),
+      ),
+    ).toEqual([]);
+  });
+}
+
+test("app switcher toolbar and window icons explain actions without changing their click targets", async ({
+  page,
+}) => {
+  const base = showState();
+  await emitShow(
+    page,
+    showState({
+      session: 101,
+      revision: 1,
+      mode: "apps",
+      apps: [
+        { appId: 1, appName: "Editor", bundleId: "com.ex.editor", hidden: false, windowCount: 1 },
+      ],
+      entries: (base.entries as Array<{ windowId: number }>).filter(
+        (entry) => entry.windowId === 1,
+      ),
+      selectedWindowId: 1,
+      mouseHover: false,
+    }),
+  );
+  await expect(page.getByRole("dialog", { name: "Application switcher" })).toBeVisible();
+  await pauseHoverClock(page);
+  const targets = [
+    [".ot-app-toolbar", "New window", "newWindow", 0],
+    [".ot-app-toolbar", "Hide app", "hide", 0],
+    [".ot-app-toolbar", "Quit app", "quit", 0],
+    [".ot-app-window-actions", "Close window", "close", 1],
+    [".ot-app-window-actions", "Minimize window", "minimize", 1],
+    [".ot-app-window-actions", "Fullscreen window", "fullscreen", 1],
+  ] as const;
+  for (const [scope, label, kind, windowId] of targets) {
+    const action = page.locator(scope).getByRole("button", { name: label, exact: true });
+    await expectDelayedTooltip(page, action, label);
+    await action.click();
+    await page.clock.runFor(300);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await expect
+      .poll(() => getCallRecords(page))
+      .toContainEqual(["PerformAction", kind, windowId, 1]);
+    await expect(page.getByRole("dialog", { name: "Application switcher" })).toBeVisible();
+  }
+  expect((await getCallRecords(page)).filter(([kind]) => kind === "PerformAction")).toHaveLength(
+    targets.length,
+  );
+  expect(
+    (await getCallRecords(page)).filter(([kind]) =>
+      ["Confirm", "ConfirmWindow", "ConfirmApp", "Cancel"].includes(String(kind)),
+    ),
+  ).toEqual([]);
+  const open = page
+    .locator(".ot-app-toolbar")
+    .getByRole("button", { name: "Open Editor", exact: true });
+  await expectDelayedTooltip(page, open, "Open Editor");
+  await open.click();
+  await expect.poll(() => getCallRecords(page)).toContainEqual(["ConfirmApp", 1]);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
 });

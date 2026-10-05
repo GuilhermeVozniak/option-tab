@@ -82,7 +82,7 @@ describe("AppSwitcher", () => {
       "Fullscreen window",
     ]) {
       const button = screen.getByRole("button", { name: `translated:${name}` });
-      expect(button).toHaveAttribute("title", `translated:${name}`);
+      expect(button).not.toHaveAttribute("title");
       expect(button.textContent).toBe("");
       expect(button.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     }

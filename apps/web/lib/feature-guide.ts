@@ -132,7 +132,7 @@ export const featureSections: FeatureGuideSection[] = [
         description:
           "Focus, close, minimize or restore, enter or leave fullscreen, hide or show an app, and quit it from the switcher. Additional actions include New window, Force quit, Close all windows, and Minimize all windows.",
         howTo: [
-          "Use the controls on each window preview or the toolbar icons. Hover an icon to see its action label. Window controls stay visible while you cycle with Command+Tab or Option+Tab; enable them in Settings → Appearance → Window information if they are hidden.",
+          "Use the controls on each window preview or the toolbar icons. Hover a toolbar or window-control icon for 2.5 seconds to see what it does. Window controls stay visible while you cycle with Command+Tab or Option+Tab; enable them in Settings → Appearance → Window information if they are hidden.",
           "With the activation modifier held, the default action keys are W for close, M for minimize/restore, F for fullscreen, H for hide/show, and Q for quit.",
           "Open Settings → Shortcuts → Window actions to change physical-key bindings, add a binding, or disable action keys.",
         ],

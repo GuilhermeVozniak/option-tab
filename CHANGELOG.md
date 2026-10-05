@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.4 — 2026-10-05
+
+- Show themed action tooltips after a 2.5-second hover on toolbar icons and individual window controls in both switcher modes.
+
 ## 0.6.3 — 2026-10-04
 
 - Keep enabled window controls visible on every preview while cycling with Command–Tab or Option–Tab, so actions can be clicked directly without first clicking the preview.

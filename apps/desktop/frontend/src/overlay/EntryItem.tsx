@@ -1,5 +1,5 @@
+import { PreviewActionButton } from "@/components/PreviewActionButton";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { truncateTitle } from "../lib/text";
 import type { Entry, PointerAction, SwitcherState } from "../lib/types";
@@ -76,56 +76,46 @@ export function EntryItem({
 
   const controls = showControls ? (
     <div data-switcher-gesture-exclude className="ot-controls" onClick={(e) => e.stopPropagation()}>
-      <Button
-        variant="unstyled"
+      <PreviewActionButton
         type="button"
-        aria-label={t("Close window")}
-        title={t("Close window")}
+        label={t("Close window")}
         className="ot-ctl ot-ctl-close"
         onClick={() => handlers.onClose(entry.windowId)}
       >
         ✕
-      </Button>
-      <Button
-        variant="unstyled"
+      </PreviewActionButton>
+      <PreviewActionButton
         type="button"
-        aria-label={t(entry.minimized ? "Restore window" : "Minimize window")}
-        title={t(entry.minimized ? "Restore window" : "Minimize window")}
+        label={t(entry.minimized ? "Restore window" : "Minimize window")}
         className="ot-ctl ot-ctl-min"
         onClick={() => handlers.onMinimize(entry.windowId)}
       >
         –
-      </Button>
-      <Button
-        variant="unstyled"
+      </PreviewActionButton>
+      <PreviewActionButton
         type="button"
-        aria-label={t("Fullscreen window")}
-        title={t("Fullscreen window")}
+        label={t("Fullscreen window")}
         className="ot-ctl ot-ctl-fs"
         onClick={() => handlers.onFullscreen(entry.windowId)}
       >
         ⇱
-      </Button>
-      <Button
-        variant="unstyled"
+      </PreviewActionButton>
+      <PreviewActionButton
         type="button"
-        aria-label={t("Hide app")}
-        title={t("Hide app")}
+        label={t("Hide app")}
         className="ot-ctl ot-ctl-hide"
         onClick={() => handlers.onHide(entry.appId)}
       >
         ⊘
-      </Button>
-      <Button
-        variant="unstyled"
+      </PreviewActionButton>
+      <PreviewActionButton
         type="button"
-        aria-label={t("Quit app")}
-        title={t("Quit app")}
+        label={t("Quit app")}
         className="ot-ctl ot-ctl-quit"
         onClick={() => handlers.onQuit(entry.appId)}
       >
         ⏻
-      </Button>
+      </PreviewActionButton>
     </div>
   ) : null;
 
