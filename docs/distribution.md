@@ -5,16 +5,16 @@ Option Tab requires macOS 14 or later. Starting with v0.5.0, macOS releases prov
 The bundle script checks the actual Mach-O architectures and each slice's
 `LC_BUILD_VERSION` minimum OS, in addition to setting the compiler deployment target.
 
-[v0.6.3](https://github.com/GuilhermeVozniak/option-tab/releases/tag/v0.6.3) was
-published on October 4, 2026 after the [release workflow](https://github.com/GuilhermeVozniak/option-tab/actions/runs/37195729293)
-succeeded at commit `364261969347424a30fd221019de67a26aec1210`. The downloaded DMG's SHA-256 matched the GitHub asset
-digest: `734364b26f471630c7c22738ee873128d1c78401c746f99000828ff2bea71a39`.
-Inspection confirmed `Option Tab.app` version 0.6.3, arm64 and x86_64 slices with
+[v0.6.4](https://github.com/GuilhermeVozniak/option-tab/releases/tag/v0.6.4) was
+published on October 5, 2026 after the [release workflow](https://github.com/GuilhermeVozniak/option-tab/actions/runs/37358856595)
+succeeded at commit `81a158bc27896656cb45f16d7ba88aae7eda92a0`. The downloaded DMG's SHA-256 matched the GitHub asset
+digest: `79786e6c67c3db7dfce32a3931fa483ef3e0563f94f78ebd89d077a16927ea9e`.
+Inspection confirmed `Option Tab.app` version 0.6.4, arm64 and x86_64 slices with
 a macOS 14.0 deployment floor, Developer ID team `CT22R575UG`, a valid stapled
 notarization ticket, and Gatekeeper acceptance. The packaged icon was decoded and
 its pixels matched the canonical in-app Option mark export. The app was not launched during
 this artifact inspection; native runtime and Homebrew lifecycle checks were not
-repeated for v0.6.3.
+repeated for v0.6.4.
 
 The earlier [Homebrew lifecycle test](superpowers/reports/2026-10-03-homebrew-lifecycle.md)
 used v0.5.0 and passed installation, upgrade from a v0.4.8 fixture and removal in a
@@ -22,7 +22,7 @@ temporary application directory on Apple Silicon, including installation through
 the published tap. That evidence remains specific to v0.5.0. Intel execution,
 default installation paths and other supported macOS versions remain unverified.
 
-Website and Homebrew metadata now target the published v0.6.3 universal asset. For later
+Website and Homebrew metadata now target the published v0.6.4 universal asset. For later
 releases, update `APP_VERSION` and `PUBLISHED_ARCH` in `apps/web/lib/download.ts`
 only after the corresponding asset has been published and verified.
 
@@ -32,8 +32,8 @@ filename. Duplicate candidates refuse selection. Checksums, prefixed copies, ass
 from another version, and architecture substrings are not download candidates.
 
 Versions through 0.4.8 only recognize `darwin_arm64` when updating Apple Silicon
-installations. v0.6.3 also publishes the identical signed universal DMG as
-`option-tab_0.6.3_darwin_arm64.dmg`; both asset digests match. Retain this compatibility
+installations. v0.6.4 also publishes the identical signed universal DMG as
+`option-tab_0.6.4_darwin_arm64.dmg`; both asset digests match. Retain this compatibility
 filename in later releases while supporting direct upgrades from those versions,
 because users may skip intervening releases.
 
@@ -73,9 +73,9 @@ or installation. Before a real release, inspect an actual universal build with
 `lipo -archs` and `xcrun vtool -arch arm64/-arch x86_64 -show-build`; then validate
 real signed/notarized artifacts on supported Intel and Apple silicon machines.
 
-The v0.6.3 artifact checks establish signing, notarization and package contents.
+The v0.6.4 artifact checks establish signing, notarization and package contents.
 They do not establish runtime acceptance on every supported macOS version or
-architecture, Homebrew installation/upgrade/removal for v0.6.3, or completion of
+architecture, Homebrew installation/upgrade/removal for v0.6.4, or completion of
 the native feature checks in the [retained-feature roadmap](dockdoor-roadmap.md).
 The bounded v0.5.0 Homebrew lifecycle evidence above does not establish those
 postconditions for this release.
