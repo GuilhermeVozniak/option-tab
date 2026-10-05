@@ -1,7 +1,7 @@
 import { CopyMinus, CopyX, OctagonX, SquarePlus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PreviewActionButton } from "@/components/PreviewActionButton";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { type KeyPayload, onSwitcherKey } from "../lib/bridge";
 import { type KeyEventLike, keyToAction } from "../lib/keymap";
@@ -295,18 +295,16 @@ export function Overlay({
               );
               const Icon = BULK_ACTION_ICON[kind];
               return (
-                <Button
-                  variant="unstyled"
+                <PreviewActionButton
                   key={kind}
                   type="button"
-                  aria-label={label}
-                  title={label}
+                  label={label}
                   onClick={() =>
                     handlers.onAction?.(kind, selectedEntry.windowId, selectedEntry.appId)
                   }
                 >
                   <Icon aria-hidden="true" focusable="false" size={16} />
-                </Button>
+                </PreviewActionButton>
               );
             })}
           </div>

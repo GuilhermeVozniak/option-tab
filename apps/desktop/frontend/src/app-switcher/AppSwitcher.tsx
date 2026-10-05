@@ -1,5 +1,6 @@
 import { AppWindow, EyeOff, Maximize2, Minus, Power, SquarePlus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PreviewActionButton } from "@/components/PreviewActionButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -141,33 +142,27 @@ function AppWindowCard({
         ) : null}
         {showControls ? (
           <div className="ot-app-window-actions" data-switcher-gesture-exclude>
-            <Button
-              variant="unstyled"
+            <PreviewActionButton
               className="ot-traffic ot-traffic-close"
-              aria-label={t("Close window")}
-              title={t("Close window")}
+              label={t("Close window")}
               onClick={() => handlers.onClose(entry.windowId)}
             >
               <X aria-hidden="true" focusable="false" size={10} />
-            </Button>
-            <Button
-              variant="unstyled"
+            </PreviewActionButton>
+            <PreviewActionButton
               className="ot-traffic ot-traffic-minimize"
-              aria-label={t(entry.minimized ? "Restore window" : "Minimize window")}
-              title={t(entry.minimized ? "Restore window" : "Minimize window")}
+              label={t(entry.minimized ? "Restore window" : "Minimize window")}
               onClick={() => handlers.onMinimize(entry.windowId)}
             >
               <Minus aria-hidden="true" focusable="false" size={10} />
-            </Button>
-            <Button
-              variant="unstyled"
+            </PreviewActionButton>
+            <PreviewActionButton
               className="ot-traffic ot-traffic-fullscreen"
-              aria-label={t("Fullscreen window")}
-              title={t("Fullscreen window")}
+              label={t("Fullscreen window")}
               onClick={() => handlers.onFullscreen(entry.windowId)}
             >
               <Maximize2 aria-hidden="true" focusable="false" size={10} />
-            </Button>
+            </PreviewActionButton>
           </div>
         ) : null}
       </article>
@@ -402,42 +397,34 @@ export function AppSwitcher({
             <div className="ot-app-toolbar">
               <strong>{app.appName}</strong>
               <div>
-                <Button
-                  variant="unstyled"
+                <PreviewActionButton
                   type="button"
                   onClick={() => handlers.onConfirmApp?.(app.appId)}
-                  aria-label={t("Open {app}").replace("{app}", () => app.appName)}
-                  title={t("Open {app}").replace("{app}", () => app.appName)}
+                  label={t("Open {app}").replace("{app}", () => app.appName)}
                 >
                   <AppWindow aria-hidden="true" focusable="false" size={16} />
-                </Button>
-                <Button
-                  variant="unstyled"
+                </PreviewActionButton>
+                <PreviewActionButton
                   type="button"
                   onClick={() => handlers.onAction?.("newWindow", 0, app.appId)}
-                  aria-label={t("New window")}
-                  title={t("New window")}
+                  label={t("New window")}
                 >
                   <SquarePlus aria-hidden="true" focusable="false" size={16} />
-                </Button>
-                <Button
-                  variant="unstyled"
+                </PreviewActionButton>
+                <PreviewActionButton
                   type="button"
                   onClick={() => handlers.onHide(app.appId)}
-                  aria-label={t("Hide app")}
-                  title={t("Hide app")}
+                  label={t("Hide app")}
                 >
                   <EyeOff aria-hidden="true" focusable="false" size={16} />
-                </Button>
-                <Button
-                  variant="unstyled"
+                </PreviewActionButton>
+                <PreviewActionButton
                   type="button"
                   onClick={() => handlers.onQuit(app.appId)}
-                  aria-label={t("Quit app")}
-                  title={t("Quit app")}
+                  label={t("Quit app")}
                 >
                   <Power aria-hidden="true" focusable="false" size={16} />
-                </Button>
+                </PreviewActionButton>
               </div>
             </div>
           ) : null}

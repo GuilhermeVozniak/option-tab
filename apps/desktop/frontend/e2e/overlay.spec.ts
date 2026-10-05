@@ -181,7 +181,8 @@ test.describe("overlay — interactive", () => {
     ]) {
       const action = page.getByRole("button", { name: label, exact: true });
       await expect(action).toBeVisible();
-      await expect(action).toHaveAttribute("title", label);
+      // Timed shadcn tooltips replace browser titles (covered in preview-controls).
+      await expect(action).not.toHaveAttribute("title");
     }
   });
 
