@@ -1298,6 +1298,16 @@ export function SetSearch(q) {
 }
 
 /**
+ * @param {string} q
+ * @param {number} session
+ * @param {number} sequence
+ * @returns {$CancellablePromise<void>}
+ */
+export function SetSearchForSession(q, session, sequence) {
+    return $Call.ByID(568760250, q, session, sequence);
+}
+
+/**
  * @param {number} session
  * @param {number} stateRevision
  * @param {number} sequence

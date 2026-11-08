@@ -86,6 +86,7 @@ export interface SwitcherState {
   entries: Entry[];
   selected: number;
   search: string;
+  searchSequence?: number;
   shortcutId: number;
   vimKeys: boolean;
   arrowKeys: boolean;

@@ -13,7 +13,9 @@ import {
   useMaterialReporter,
 } from "../lib/material";
 import type { SwitcherState } from "../lib/types";
+import { useScrollSelection } from "../lib/useScrollSelection";
 import { useSwitcherGestureRegions } from "../lib/useSwitcherGestureRegions";
+import { useSwitcherSearch } from "../lib/useSwitcherSearch";
 import { EntryItem } from "./EntryItem";
 import type { OverlayHandlers } from "./types";
 
@@ -56,6 +58,7 @@ export function Overlay({
   t = (text) => text,
 }: OverlayProps) {
   const { open, entries, selected, search, appearance } = state;
+  const editSearch = useSwitcherSearch(state, handlers.onSearchChange);
   const style = effectiveStyle(state.style, entries.length, appearance.compactThreshold);
 
   // Apparition delay: postpone the first paint so quick switches don't flash
@@ -64,6 +67,10 @@ export function Overlay({
   const [shown, setShown] = useState(delay <= 0);
   const [shownSession, setShownSession] = useState(state.session ?? 0);
   const presented = shown && (delay <= 0 || shownSession === (state.session ?? 0));
+  const listRef = useScrollSelection<HTMLUListElement>(
+    `${state.session}:${entries[selected]?.windowId}:${style}`,
+    open && presented,
+  );
   const gestureRef = useSwitcherGestureRegions(
     state.session ?? 0,
     state.revision ?? 0,
@@ -180,10 +187,10 @@ export function Overlay({
           if (sel) handlers.onAction?.(action.kind, sel.windowId, sel.appId);
           break;
         case "searchAppend":
-          handlers.onSearchChange(search + action.char);
+          editSearch(action.char);
           break;
         case "searchBackspace":
-          handlers.onSearchChange(search.slice(0, -1));
+          editSearch(null);
           break;
       }
     }
@@ -222,6 +229,7 @@ export function Overlay({
     style,
     nativeKeys,
     state.session,
+    editSearch,
   ]);
 
   if (open ? !presented : !closing) return null;
@@ -315,6 +323,7 @@ export function Overlay({
           </Badge>
         ) : null}
         <ul
+          ref={listRef}
           className="ot-list"
           role="listbox"
           aria-label={t("Open windows")}

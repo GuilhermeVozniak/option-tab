@@ -166,7 +166,9 @@ test("middle click is action-only and streamed frames respect each visual style"
           name: "switcher:update",
           data: {
             ...state,
-            appearance: { ...(state as any).appearance, style: nextStyle },
+            // The controller supplies the effective shortcut style separately
+            // from the mode's default appearance.
+            style: nextStyle,
           },
         });
       },

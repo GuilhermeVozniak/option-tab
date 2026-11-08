@@ -183,6 +183,9 @@ func (a *App) Update(st switcher.State) {
 	if a.sessionInactive || (st.Session != 0 && a.controller.PresentationSession() != st.Session) {
 		return
 	}
+	if st.Session != 0 && st.SearchSequence < a.controller.PresentationSearchSequence() {
+		return
+	}
 	a.enrichIcons(&st)
 	a.switcherRevision++
 	st.Revision = a.switcherRevision
@@ -443,9 +446,12 @@ func (a *App) SelectAppWindow(id uint64)   { a.controller.SelectAppWindow(domain
 func (a *App) ConfirmApp(id int) error     { return a.controller.ConfirmApp(domain.AppID(id)) }
 func (a *App) ActionFailed(message string) { a.emit("switcher:error", message) }
 
-func (a *App) Cancel()             { a.controller.Cancel() }
-func (a *App) Select(index int)    { a.controller.Select(index) }
-func (a *App) SetSearch(q string)  { a.controller.SetSearch(q) }
+func (a *App) Cancel()            { a.controller.Cancel() }
+func (a *App) Select(index int)   { a.controller.Select(index) }
+func (a *App) SetSearch(q string) { a.controller.SetSearch(q) }
+func (a *App) SetSearchForSession(q string, session, sequence uint64) {
+	a.controller.SetSearchForSession(q, session, sequence)
+}
 func (a *App) CloseSelected()      { a.controller.CloseSelected() }
 func (a *App) MinimizeSelected()   { a.controller.MinimizeSelected() }
 func (a *App) FullscreenSelected() { a.controller.FullscreenSelected() }

@@ -759,7 +759,10 @@ function OverlayRoute() {
       onConfirmWindow: (windowId) => void performCommit(() => switcher.confirmWindow(windowId)),
       onCancel: () => void switcher.cancel(),
       onSelect: (i) => void switcher.select(i),
-      onSearchChange: (q) => void switcher.setSearch(q),
+      onSearchChange: (q, session, sequence) => {
+        if (session && sequence) void switcher.setSearchForSession(q, session, sequence);
+        else void switcher.setSearch(q);
+      },
       onClose: (windowId) => windowAction("close", windowId),
       onMinimize: (windowId) => windowAction("minimize", windowId),
       onFullscreen: (windowId) => windowAction("fullscreen", windowId),

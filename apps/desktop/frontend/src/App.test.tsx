@@ -81,6 +81,7 @@ vi.mock("../bindings/option-tab/app.js", () => ({
   Cancel: vi.fn().mockResolvedValue(undefined),
   Select: vi.fn().mockResolvedValue(undefined),
   SetSearch: vi.fn().mockResolvedValue(undefined),
+  SetSearchForSession: vi.fn().mockResolvedValue(undefined),
   CloseSelected: vi.fn().mockResolvedValue(undefined),
   MinimizeSelected: vi.fn().mockResolvedValue(undefined),
   FullscreenSelected: vi.fn().mockResolvedValue(undefined),

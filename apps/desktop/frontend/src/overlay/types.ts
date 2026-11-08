@@ -10,7 +10,7 @@ export interface OverlayHandlers {
   onConfirmWindow: (windowId: number) => void;
   onCancel: () => void;
   onSelect: (index: number) => void;
-  onSearchChange: (query: string) => void;
+  onSearchChange: (query: string, session?: number, sequence?: number) => void;
   onClose: (windowId: number) => void;
   onMinimize: (windowId: number) => void;
   onFullscreen: (windowId: number) => void;

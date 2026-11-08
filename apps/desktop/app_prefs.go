@@ -53,6 +53,11 @@ type prefsSettingsSnapshot struct {
 // startup; recreated defensively if macOS destroyed it). Invoked by the menubar
 // "Settings…" item and on first launch (onboarding).
 func (a *App) OpenPreferences() {
+	// Cancel delivers HideSession through viewMu. Retire the controller before
+	// taking that lock; the block below also removes any resulting fade.
+	if a.controller != nil {
+		a.controller.Cancel()
+	}
 	a.viewMu.Lock()
 	a.invalidateSwitcherGestures()
 	if a.dismissal != nil {

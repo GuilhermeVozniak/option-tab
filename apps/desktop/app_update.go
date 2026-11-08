@@ -99,7 +99,7 @@ func (a *App) checkForUpdate(autoInstall bool) {
 	a.updateMu.Unlock()
 	a.emit("update:checked", map[string]any{"latest": rel.Version, "available": true})
 	a.emit("update:available", map[string]string{"version": rel.Version, "url": rel.URL})
-	if autoInstall {
+	if autoInstall && a.settingsSnapshot().Behavior.UpdatePolicy == config.UpdatesAuto {
 		a.installRelease(rel)
 	}
 }

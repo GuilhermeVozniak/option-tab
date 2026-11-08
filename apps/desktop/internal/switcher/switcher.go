@@ -70,6 +70,7 @@ type State struct {
 	Entries           []Entry                      `json:"entries"`
 	Selected          int                          `json:"selected"`
 	Search            string                       `json:"search"`
+	SearchSequence    uint64                       `json:"searchSequence"`
 	ShortcutID        int                          `json:"shortcutId"`
 	VimKeys           bool                         `json:"vimKeys"`
 	ArrowKeys         bool                         `json:"arrowKeys"`
@@ -155,6 +156,7 @@ type Controller struct {
 	selectedWindow      domain.WindowID
 	selected            int
 	search              string
+	searchSequence      atomic.Uint64
 	session             uint64
 	admissionEpoch      uint64
 }
@@ -288,6 +290,7 @@ func (c *Controller) OpenGuarded(mode config.SwitcherMode, guard func() error) (
 	c.activeSpace = ctx.ActiveSpaceID
 	c.placementScreen = placementScreen
 	c.search, c.selected = "", 0
+	c.searchSequence.Store(0)
 	c.syncSelectedWindowLocked()
 	count := len(ordered)
 	if mode == config.ModeApps {
@@ -380,6 +383,10 @@ func (c *Controller) Paused() bool {
 // PresentationSession allows a view to reject delayed state without taking
 // the controller mutex while it holds its own view/native lifecycle lock.
 func (c *Controller) PresentationSession() uint64 { return c.presentationSession.Load() }
+
+// PresentationSearchSequence lets a view reject a snapshot delivered after a
+// newer search without acquiring mu while holding its native lifecycle lock.
+func (c *Controller) PresentationSearchSequence() uint64 { return c.searchSequence.Load() }
 
 // Suspend is a transient desktop-session guard. It cancels the current overlay
 // without changing the user's persisted pause setting.
@@ -494,6 +501,7 @@ func (c *Controller) activate(shortcutID int) {
 	c.groups = groups
 	c.search = ""
 	c.selected = 0
+	c.searchSequence.Store(0)
 	c.syncSelectedWindowLocked()
 	count := len(ordered)
 	if sc.Mode == config.ModeApps {
@@ -550,10 +558,25 @@ func (c *Controller) Select(index int) {
 // SetSearch updates the type-to-filter query, recomputing the visible list and
 // resetting the selection to the best match.
 func (c *Controller) SetSearch(query string) {
+	c.setSearch(query, 0, 0)
+}
+
+// SetSearchForSession accepts only the latest edit from the current renderer.
+func (c *Controller) SetSearchForSession(query string, session, sequence uint64) {
+	if session == 0 || sequence == 0 {
+		return
+	}
+	c.setSearch(query, session, sequence)
+}
+
+func (c *Controller) setSearch(query string, session, sequence uint64) {
 	c.mu.Lock()
-	if !c.open {
+	if !c.open || (session != 0 && (c.session != session || sequence <= c.searchSequence.Load())) {
 		c.mu.Unlock()
 		return
+	}
+	if session != 0 {
+		c.searchSequence.Store(sequence)
 	}
 	c.search = query
 	if c.shortcut.Mode == config.ModeApps {
@@ -825,6 +848,7 @@ func (c *Controller) reset() {
 	c.selectedWindow = 0
 	c.selected = 0
 	c.search = ""
+	c.searchSequence.Store(0)
 }
 
 // findShortcut returns the configured shortcut with the given id.
@@ -878,6 +902,7 @@ func (c *Controller) snapshot() State {
 		Entries:           entries,
 		Selected:          c.selected,
 		Search:            c.search,
+		SearchSequence:    c.searchSequence.Load(),
 		ShortcutID:        c.shortcut.ID,
 		VimKeys:           prefs.Behavior.VimKeys,
 		ArrowKeys:         prefs.Behavior.ArrowKeys,
