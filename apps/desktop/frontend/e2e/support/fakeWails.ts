@@ -108,6 +108,7 @@ const METHOD = {
   Reverse: 2687580445,
   Select: 149583269,
   SetSearch: 1454005219,
+  SetSearchForSession: 568760250,
   Confirm: 3228319335,
   ConfirmWindow: 3813603255,
   ConfirmApp: 1759019970,
@@ -578,6 +579,22 @@ export async function installFakeWails(page: Page): Promise<void> {
           (window as any).__calls.push([n]);
         }, name);
         return json(null);
+      case "SetSearchForSession": {
+        await evaluate(([q, session, sequence]) => {
+          const w = window as any;
+          const state = w.__state;
+          if (!state?.open || state.session !== session || sequence <= (state.searchSequence ?? 0))
+            return;
+          w.__state = {
+            ...state,
+            search: q,
+            searchSequence: sequence,
+            revision: (state.revision ?? 0) + 1,
+          };
+          w._wails?.dispatchWailsEvent?.({ name: "switcher:update", data: w.__state });
+        }, args);
+        return json(null);
+      }
       case "Advance":
       case "Reverse":
       case "Select":

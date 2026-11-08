@@ -377,6 +377,7 @@ describe("AppSwitcher", () => {
       open: true,
       mode: "apps" as const,
       swipeUpAction: "close" as const,
+      style: "appIcons" as const,
       apps: [{ appId: 10, appName: "A", bundleId: "a", hidden: false, windowCount: 1 }],
       entries: [
         {
@@ -409,7 +410,7 @@ describe("AppSwitcher", () => {
       <AppSwitcher
         nativeKeys={false}
         handlers={h}
-        state={{ ...state, appearance: { ...state.appearance, style: "titles" } }}
+        state={{ ...state, style: "titles", appearance: { ...state.appearance, style: "titles" } }}
       />,
     );
     expect(screen.getByText("One")).toBeInTheDocument();

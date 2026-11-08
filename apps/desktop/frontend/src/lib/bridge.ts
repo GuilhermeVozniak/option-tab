@@ -82,6 +82,8 @@ export const switcher = {
   cancel: () => call(AppService.Cancel()),
   select: (index: number) => call(AppService.Select(index)),
   setSearch: (query: string) => call(AppService.SetSearch(query)),
+  setSearchForSession: (query: string, session: number, sequence: number) =>
+    call(AppService.SetSearchForSession(query, session, sequence)),
   closeSelected: () => call(AppService.CloseSelected()),
   minimizeSelected: () => call(AppService.MinimizeSelected()),
   fullscreenSelected: () => call(AppService.FullscreenSelected()),
@@ -107,6 +109,7 @@ export function onSwitcherMaterial(handler: (status: MaterialStatus) => void): (
 
 // system exposes app-level (non-switcher) actions: the menubar pause toggle and
 // opening/closing the preferences window.
+let shortcutCancellation: Promise<void> = Promise.resolve();
 export const system = {
   togglePause: () => call(AppService.TogglePause()),
   setPaused: (paused: boolean) => call(AppService.SetPaused(paused)),
@@ -120,15 +123,24 @@ export const system = {
   // switcher's own chord, which never reach the DOM). Resolves with the chord,
   // "" on cancel/timeout, or null when there is no backend (browser/dev) so
   // callers can fall back to DOM key events.
-  captureShortcut: async (): Promise<string | null> => {
-    if (!(await hasBackend())) return null;
+  captureShortcut: async (signal?: AbortSignal): Promise<string | null> => {
+    const backend = await hasBackend();
+    await shortcutCancellation;
+    if (signal?.aborted) return "";
+    if (!backend) return null;
     try {
-      return await AppService.CaptureShortcut();
+      const chord = await AppService.CaptureShortcut();
+      return signal?.aborted ? "" : chord;
     } catch {
       return "";
     }
   },
-  cancelShortcutCapture: () => call(AppService.CancelShortcutCapture()),
+  cancelShortcutCapture: () => {
+    shortcutCancellation = shortcutCancellation.then(() =>
+      call(AppService.CancelShortcutCapture()),
+    );
+    return shortcutCancellation;
+  },
   // openURL routes through Go so links open in the system browser; without a
   // backend it falls back to window.open (browser/dev).
   openURL: async (url: string): Promise<void> => {

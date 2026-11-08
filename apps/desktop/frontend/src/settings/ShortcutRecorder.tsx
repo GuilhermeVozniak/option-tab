@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { system } from "../lib/bridge";
@@ -27,15 +27,36 @@ export function ShortcutRecorder({
 }: ShortcutRecorderProps) {
   const [recording, setRecording] = useState(false);
   const armed = useRef(false);
+  const generation = useRef(0);
+  const capture = useRef<AbortController | null>(null);
+  const onChange = useRef(onChordChange);
+  useLayoutEffect(() => {
+    onChange.current = onChordChange;
+  }, [onChordChange]);
+  useEffect(
+    () => () => {
+      generation.current++;
+      capture.current?.abort();
+      if (armed.current) {
+        armed.current = false;
+        void system.cancelShortcutCapture();
+      }
+    },
+    [],
+  );
 
   const startNativeCapture = async () => {
     setRecording(true);
     if (armed.current) return;
     armed.current = true;
-    const chord = await system.captureShortcut();
+    const owner = ++generation.current;
+    const controller = new AbortController();
+    capture.current = controller;
+    const chord = await system.captureShortcut(controller.signal);
+    if (owner !== generation.current) return;
     armed.current = false;
     if (chord === null) return; // no native capture: DOM fallback below records
-    if (chord) onChordChange(chord);
+    if (chord) onChange.current(chord);
     setRecording(false);
   };
 
@@ -53,7 +74,12 @@ export function ShortcutRecorder({
       onFocus={() => void startNativeCapture()}
       onBlur={() => {
         setRecording(false);
-        if (armed.current) void system.cancelShortcutCapture();
+        generation.current++;
+        capture.current?.abort();
+        if (armed.current) {
+          armed.current = false;
+          void system.cancelShortcutCapture();
+        }
       }}
       onKeyDown={(e) => {
         e.preventDefault();

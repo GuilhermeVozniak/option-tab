@@ -331,7 +331,7 @@ describe("Overlay", () => {
     pressKey({ key: "c" });
     expect(h.onSearchChange).toHaveBeenCalledWith("abc");
     pressKey({ key: "Backspace" });
-    expect(h.onSearchChange).toHaveBeenCalledWith("a");
+    expect(h.onSearchChange).toHaveBeenLastCalledWith("ab");
   });
 
   it("shows the current search text", () => {

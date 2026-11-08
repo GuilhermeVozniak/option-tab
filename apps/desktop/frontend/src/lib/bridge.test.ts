@@ -30,6 +30,7 @@ vi.mock("../../bindings/option-tab/app.js", () => ({
   Cancel: vi.fn().mockResolvedValue(undefined),
   Select: vi.fn().mockResolvedValue(undefined),
   SetSearch: vi.fn().mockResolvedValue(undefined),
+  SetSearchForSession: vi.fn().mockResolvedValue(undefined),
   CloseSelected: vi.fn().mockResolvedValue(undefined),
   MinimizeSelected: vi.fn().mockResolvedValue(undefined),
   FullscreenSelected: vi.fn().mockResolvedValue(undefined),
@@ -237,6 +238,63 @@ describe("system bindings", () => {
 });
 
 describe("captureShortcut", () => {
+  it("keeps earlier cancellations ahead of capture during rapid field changes", async () => {
+    await hasBackend();
+    let finishFirst!: () => void;
+    let finishSecond!: () => void;
+    mocked.CancelShortcutCapture.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishFirst = resolve;
+      }) as ReturnType<typeof AppService.CancelShortcutCapture>,
+    ).mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishSecond = resolve;
+      }) as ReturnType<typeof AppService.CancelShortcutCapture>,
+    );
+    const first = system.cancelShortcutCapture();
+    const second = system.cancelShortcutCapture();
+    const capture = system.captureShortcut();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Resolve the later response first. A newer field must still wait for A.
+    finishSecond();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const armedTooEarly = mocked.CaptureShortcut.mock.calls.length > 0;
+    finishFirst();
+    await Promise.all([first, second, capture]);
+    expect(armedTooEarly).toBe(false);
+  });
+  it("does not arm native capture after cancellation during the backend probe", async () => {
+    let resolve!: (version: string) => void;
+    mocked.GetVersion.mockReturnValueOnce(
+      new Promise<string>((r) => {
+        resolve = r;
+      }) as ReturnType<typeof AppService.GetVersion>,
+    );
+    const abort = new AbortController();
+    const result = system.captureShortcut(abort.signal);
+    await Promise.resolve();
+    abort.abort();
+    resolve("1.2.3");
+    await expect(result).resolves.toBe("");
+    expect(mocked.CaptureShortcut).not.toHaveBeenCalled();
+  });
+
+  it("waits for a retiring native cancellation before arming another capture", async () => {
+    await hasBackend();
+    let finish!: () => void;
+    mocked.CancelShortcutCapture.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }) as ReturnType<typeof AppService.CancelShortcutCapture>,
+    );
+    const cancelled = system.cancelShortcutCapture();
+    const next = system.captureShortcut();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mocked.CaptureShortcut).not.toHaveBeenCalled();
+    finish();
+    await cancelled;
+    await expect(next).resolves.toBe("option+tab");
+  });
   it("resolves the captured chord when the backend is present", async () => {
     await expect(system.captureShortcut()).resolves.toBe("option+tab");
   });

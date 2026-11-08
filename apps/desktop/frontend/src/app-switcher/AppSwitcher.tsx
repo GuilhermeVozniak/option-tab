@@ -15,7 +15,9 @@ import {
 } from "../lib/material";
 import { truncateTitle } from "../lib/text";
 import type { Entry, PointerAction, SwitcherState } from "../lib/types";
+import { useScrollSelection } from "../lib/useScrollSelection";
 import { useSwitcherGestureRegions } from "../lib/useSwitcherGestureRegions";
+import { useSwitcherSearch } from "../lib/useSwitcherSearch";
 import { StatusIcons } from "../overlay/StatusIcons";
 import type { OverlayHandlers } from "../overlay/types";
 import "./app-switcher.css";
@@ -181,7 +183,8 @@ export function AppSwitcher({
     selected = Math.max(0, Math.min(state.selected, apps.length - 1));
   const app = apps[selected];
   const appearance = state.appearance;
-  const style = effectiveStyle(appearance.style, state.entries.length, appearance.compactThreshold);
+  const editSearch = useSwitcherSearch(state, handlers.onSearchChange);
+  const style = effectiveStyle(state.style, state.entries.length, appearance.compactThreshold);
   const layout = computeLayout({
     count: state.entries.length,
     maxColumns: appearance.maxColumns,
@@ -198,6 +201,15 @@ export function AppSwitcher({
   const [shownSession, setShownSession] = useState(state.session ?? 0);
   const presented =
     shown && (appearance.apparitionDelayMs <= 0 || shownSession === (state.session ?? 0));
+  const railRef = useScrollSelection<HTMLDivElement>(
+    `${state.session}:${app?.appId}:${style}`,
+    state.open && presented,
+  );
+  const galleryRef = useScrollSelection<HTMLDivElement>(
+    `${state.session}:${state.selectedWindowId}:${style}`,
+    state.open && presented,
+    ".is-selected",
+  );
   const gestureRef = useSwitcherGestureRegions(
     state.session ?? 0,
     state.revision ?? 0,
@@ -317,8 +329,8 @@ export function AppSwitcher({
       }
       if (bound === "confirm" && app) handlers.onConfirmApp?.(app.appId);
       else if (bound === "cancel") handlers.onCancel();
-      else if (bound === "searchBackspace") handlers.onSearchChange(state.search.slice(0, -1));
-      else if (action.kind === "searchAppend") handlers.onSearchChange(state.search + action.char);
+      else if (bound === "searchBackspace") editSearch(null);
+      else if (action.kind === "searchAppend") editSearch(action.char);
     };
     if (nativeKeys)
       return onSwitcherKey((p: KeyPayload) =>
@@ -332,7 +344,7 @@ export function AppSwitcher({
     };
     window.addEventListener("keydown", dom);
     return () => window.removeEventListener("keydown", dom);
-  }, [state, handlers, nativeKeys, app]);
+  }, [state, handlers, nativeKeys, app, editSearch]);
   if (state.open ? !presented : !closing) return null;
   const focus = (entry: Entry) => {
     handlers.onSelectAppWindow?.(entry.windowId);
@@ -369,7 +381,7 @@ export function AppSwitcher({
               <div className="ot-app-search">{state.search}</div>
             </Badge>
           ) : null}
-          <div className="ot-app-rail" role="listbox" aria-label={t("Applications")}>
+          <div ref={railRef} className="ot-app-rail" role="listbox" aria-label={t("Applications")}>
             {apps.map((item, index) => (
               <Button
                 variant="unstyled"
@@ -428,7 +440,7 @@ export function AppSwitcher({
               </div>
             </div>
           ) : null}
-          <div className="ot-app-gallery">
+          <div ref={galleryRef} className="ot-app-gallery">
             {state.entries.map((entry) => (
               <AppWindowCard
                 key={entry.windowId}

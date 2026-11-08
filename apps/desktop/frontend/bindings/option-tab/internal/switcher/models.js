@@ -307,6 +307,13 @@ export class State {
              */
             this["search"] = "";
         }
+        if (!("searchSequence" in $$source)) {
+            /**
+             * @member
+             * @type {number}
+             */
+            this["searchSequence"] = 0;
+        }
         if (!("shortcutId" in $$source)) {
             /**
              * @member
