@@ -1,3 +1,5 @@
+//go:build darwin
+
 // The text a key types once the switcher's own Option key is set aside.
 //
 // While Option is held to keep the switcher open, every letter arrives from

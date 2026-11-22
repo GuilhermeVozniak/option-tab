@@ -1,3 +1,5 @@
+//go:build darwin
+
 // The switcher overlay is shown without activating Option Tab, so the app the
 // user came from keeps the keyboard. AppKit then treats the overlay as a
 // background window, and a web view declines the first click on one: the
