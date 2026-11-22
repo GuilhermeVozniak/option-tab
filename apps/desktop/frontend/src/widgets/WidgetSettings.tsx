@@ -248,13 +248,21 @@ function TimezoneInput({
 }
 
 export function WidgetSettings({
-  instances,
-  stacks,
+  instances: savedInstances,
+  stacks: savedStacks,
   catalog,
   onChange,
   language = "en",
   t,
 }: WidgetSettingsProps) {
+  // A settings file written by an older build can carry null for these arrays;
+  // one must never blank the whole preferences panel.
+  const instances = (savedInstances ?? []).map((instance) =>
+    instance.grants ? instance : { ...instance, grants: [] },
+  );
+  const stacks = (savedStacks ?? []).map((stack) =>
+    stack.members ? stack : { ...stack, members: [] },
+  );
   const c = copy[language];
   const tr = (text: string) => (t ? t(text) : text);
   const [packageDigest, setPackageDigest] = useState(catalog[0]?.digest ?? "");

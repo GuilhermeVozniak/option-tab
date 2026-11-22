@@ -742,3 +742,254 @@ func TestNoteFocus_BeatsStaleConfirm(t *testing.T) {
 		t.Errorf("entries = %v, want [2 1 3] (clicks beat the stale confirm)", got)
 	}
 }
+
+// Backspace on an empty search sends the same empty query again. That is not
+// an edit and must not move the highlight back to the first card.
+func TestSetSearch_UnchangedQueryKeepsSelection(t *testing.T) {
+	c, _, v := newController(t, threeWins(), nil)
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	before := selectedID(v.last())
+	if before == v.last().Entries[0].WindowID {
+		t.Fatalf("fixture must open on a card other than the first, got %d", before)
+	}
+	c.SetSearch("")
+	if got := selectedID(c.State()); got != before {
+		t.Errorf("empty Backspace moved selection from %d to %d", before, got)
+	}
+	c.SetSearchForSession("", c.State().Session, 1)
+	if got := selectedID(c.State()); got != before {
+		t.Errorf("empty session search moved selection from %d to %d", before, got)
+	}
+	c.SetSearchForSession("b", c.State().Session, 2)
+	c.SetSearchForSession("b", c.State().Session, 3)
+	if st := c.State(); len(st.Entries) != 1 || st.Search != "b" {
+		t.Errorf("repeated query changed the filter: %+v", st.Entries)
+	}
+}
+
+func TestSetSearch_UnchangedQueryKeepsAppSelection(t *testing.T) {
+	apps, wins := appFixtures()
+	c, _, _ := newAppController(t, apps, wins, nil)
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	c.Advance()
+	before := c.State().Selected
+	if before == 0 {
+		t.Fatal("fixture must select an app other than the first")
+	}
+	c.SetSearch("")
+	if got := c.State().Selected; got != before {
+		t.Errorf("empty Backspace moved app selection from %d to %d", before, got)
+	}
+}
+
+// The native tap keeps reporting Advance/Reverse for as long as the chord's
+// modifier stays held, even after Enter or a click already closed the overlay.
+// Pressing the chord again must reopen the switcher instead of being swallowed.
+func TestChordAfterConfirmWithModifierHeldReopens(t *testing.T) {
+	for _, kind := range []platform.HotkeyEventKind{platform.HotkeyAdvance, platform.HotkeyReverse} {
+		c, _, v := newController(t, threeWins(), nil)
+		c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+		first := c.State().Session
+		if err := c.Confirm(); err != nil {
+			t.Fatal(err)
+		}
+		if c.IsOpen() {
+			t.Fatal("confirm left the switcher open")
+		}
+		c.HandleHotkey(platform.HotkeyEvent{Kind: kind, ShortcutID: 1})
+		if !c.IsOpen() || c.State().Session == first {
+			t.Fatalf("kind %d: chord with the modifier still held was swallowed (open=%v)", kind, c.IsOpen())
+		}
+		if len(v.last().Entries) != 3 {
+			t.Fatalf("kind %d: reopened with %d entries", kind, len(v.last().Entries))
+		}
+	}
+}
+
+// Hold-to-cycle starts on the second card because the first one is the window
+// the user is already in. When the frontmost app owns no listed window (the
+// desktop was clicked, so Finder is frontmost with no window), the first card
+// is already the previous window and a quick tap must land on it.
+func TestHoldToCycleStartsOnFirstCardWhenFrontAppHasNoListedWindow(t *testing.T) {
+	c, f, v := newController(t, threeWins(), nil)
+	f.ActiveAppID = 99
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if got := selectedID(v.last()); got != 1 {
+		t.Fatalf("hotkey: selected window %d, want the most recent window 1", got)
+	}
+	c.Cancel()
+	st, err := c.Open(config.ModeWindows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := selectedID(st); got != 1 {
+		t.Fatalf("open: selected window %d, want the most recent window 1", got)
+	}
+}
+
+func TestHoldToCycleStillSkipsTheCurrentWindow(t *testing.T) {
+	c, f, v := newController(t, threeWins(), nil)
+	f.ActiveAppID = 1
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if got := selectedID(v.last()); got != 2 {
+		t.Fatalf("selected window %d, want the previous window 2", got)
+	}
+}
+
+func TestAppModeHoldToCycleStartsOnFirstAppWhenFrontAppIsNotListed(t *testing.T) {
+	apps, wins := appFixtures()
+	c, native, _ := newAppController(t, apps, wins, nil)
+	native.ActiveAppID = 99
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if got := c.State().Selected; got != 0 {
+		t.Fatalf("selected app index %d, want 0", got)
+	}
+	c.Cancel()
+	native.ActiveAppID = 10
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if got := c.State().Selected; got != 1 {
+		t.Fatalf("selected app index %d, want 1 (skip the frontmost app)", got)
+	}
+}
+
+// A refresh re-queries the window list. The highlight belongs to a window, not
+// to a position: closing a card before the selected one must not hand the
+// selection to its neighbour.
+func TestRefreshKeepsTheSelectedWindowWhenAnEarlierOneCloses(t *testing.T) {
+	c, f, _ := newController(t, threeWins(), func(s *config.Settings) { s.Behavior.HoldToCycle = false })
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	c.Select(1)
+	if got := selectedID(c.State()); got != 2 {
+		t.Fatalf("fixture selected %d, want 2", got)
+	}
+	f.SetWindows(threeWins()[1:]) // window 1 closed
+	c.Refresh()
+	if got := selectedID(c.State()); got != 2 {
+		t.Fatalf("after an earlier window closed the selection moved to %d, want 2", got)
+	}
+}
+
+func TestRefreshKeepsThePositionWhenTheSelectedWindowCloses(t *testing.T) {
+	c, f, _ := newController(t, threeWins(), func(s *config.Settings) { s.Behavior.HoldToCycle = false })
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	c.Select(1)
+	wins := threeWins()
+	f.SetWindows([]domain.Window{wins[0], wins[2]}) // selected window 2 closed
+	c.Refresh()
+	if got := selectedID(c.State()); got != 3 {
+		t.Fatalf("selection = %d, want the window that took the closed one's place (3)", got)
+	}
+	f.SetWindows(wins[:1]) // last position gone: clamp
+	c.Refresh()
+	if got := selectedID(c.State()); got != 1 {
+		t.Fatalf("selection = %d, want the last remaining window (1)", got)
+	}
+}
+
+// Typing a query that matches nothing keeps the overlay open; a refresh in
+// that state must not close it while other windows still exist.
+func TestRefreshKeepsOverlayOpenWhenOnlyTheSearchIsEmpty(t *testing.T) {
+	c, _, v := newController(t, threeWins(), nil)
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	c.SetSearch("zzz")
+	c.Refresh()
+	if !c.IsOpen() || v.hides != 0 {
+		t.Fatalf("refresh closed the overlay on an empty search result (open=%v hides=%d)", c.IsOpen(), v.hides)
+	}
+	c.SetSearch("")
+	if len(c.State().Entries) != 3 {
+		t.Fatalf("clearing the search restored %d entries", len(c.State().Entries))
+	}
+}
+
+func TestRefreshStillClosesWhenNoWindowsRemain(t *testing.T) {
+	c, f, v := newController(t, threeWins(), nil)
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	f.SetWindows(nil)
+	c.Refresh()
+	if c.IsOpen() || v.hides != 1 {
+		t.Fatalf("overlay stayed open with no windows (open=%v hides=%d)", c.IsOpen(), v.hides)
+	}
+}
+
+// Right after a switch the platform can still report the app that was left as
+// frontmost, while recency already lists the new window first. The first card
+// is then the window the user is in, and a quick tap must toggle back.
+func TestHoldToCycleSkipsFirstCardWhileFrontAppLagsBehindASwitch(t *testing.T) {
+	c, f, v := newController(t, threeWins(), nil)
+	f.ActiveAppID = 2 // listed, but not the app of the first card
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if got := selectedID(v.last()); got != 2 {
+		t.Fatalf("selected window %d, want the second card 2", got)
+	}
+}
+
+// With an order that is not recency the first card says nothing about where
+// the user is, so the start must not depend on which listed app is frontmost.
+func TestHoldToCycleStartDoesNotDependOnWhichListedAppIsFrontmost(t *testing.T) {
+	for _, active := range []domain.AppID{1, 2, 3} {
+		c, f, v := newController(t, threeWins(), func(s *config.Settings) {
+			s.Shortcuts[0].Scope.Order = config.OrderAlphabetical
+		})
+		f.ActiveAppID = active
+		c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+		if got := v.last().Selected; got != 1 {
+			t.Fatalf("frontmost app %d: start index %d, want 1", active, got)
+		}
+	}
+}
+
+// A search RPC that changes nothing still advances the sequence the view uses
+// to drop older snapshots, so it has to publish one of its own.
+func TestSetSearch_UnchangedQueryStillPublishes(t *testing.T) {
+	c, _, v := newController(t, threeWins(), nil)
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	before, selected := len(v.updates), selectedID(v.last())
+	c.SetSearchForSession("", c.State().Session, 1)
+	if len(v.updates) != before+1 {
+		t.Fatalf("unchanged search published %d updates, want 1", len(v.updates)-before)
+	}
+	if st := v.updates[len(v.updates)-1]; st.SearchSequence != 1 || selectedID(st) != selected {
+		t.Fatalf("published sequence %d selection %d, want 1 and %d", st.SearchSequence, selectedID(st), selected)
+	}
+}
+
+type countingWindows struct {
+	*fake.Fake
+	calls int
+}
+
+func (w *countingWindows) Windows() ([]domain.Window, error) {
+	w.calls++
+	return w.Fake.Windows()
+}
+
+// When the chord opens nothing (no windows), key repeat with the modifier
+// held must not re-enumerate every window on each repeat.
+func TestChordRepeatsAfterADeclinedActivationDoNotEnumerateAgain(t *testing.T) {
+	f := fake.New()
+	src := &countingWindows{Fake: f}
+	s := config.Default()
+	for i := range s.Shortcuts {
+		s.Shortcuts[i].Mode = config.ModeWindows
+	}
+	c := New(Deps{Windows: src, Focuser: f, Env: f, View: &recordView{}, MRU: mru.New(), SelfBundleID: "com.option-tab", Cursor: f}, s)
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if c.IsOpen() || src.calls != 1 {
+		t.Fatalf("open=%v calls=%d, want a declined activation after one enumeration", c.IsOpen(), src.calls)
+	}
+	for range 5 {
+		c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyAdvance, ShortcutID: 1})
+		c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyReverse, ShortcutID: 1})
+	}
+	if src.calls != 1 {
+		t.Fatalf("key repeat enumerated windows %d more times", src.calls-1)
+	}
+	// A new hold starts fresh.
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyRelease, ShortcutID: 1})
+	f.SetWindows(threeWins())
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyAdvance, ShortcutID: 1})
+	if !c.IsOpen() {
+		t.Fatal("chord after a release did not open the switcher")
+	}
+}

@@ -13,6 +13,7 @@ import {
   materialClass,
   useMaterialReporter,
 } from "../lib/material";
+import { spaceBadgeNumbers } from "../lib/spaces";
 import { truncateTitle } from "../lib/text";
 import type { Entry, PointerAction, SwitcherState } from "../lib/types";
 import { useScrollSelection } from "../lib/useScrollSelection";
@@ -249,12 +250,7 @@ export function AppSwitcher({
     const timer = window.setTimeout(() => setClosing(false), 180);
     return () => window.clearTimeout(timer);
   }, [state.open, appearance.fadeOutAnimation, shown]);
-  const spaceOrdinals = useMemo(() => {
-    const ids = [
-      ...new Set(state.entries.map((entry) => entry.spaceId).filter((id): id is number => !!id)),
-    ].sort((a, b) => a - b);
-    return new Map(ids.map((id, index) => [id, index + 1]));
-  }, [state.entries]);
+  const spaceOrdinals = useMemo(() => spaceBadgeNumbers(state.entries), [state.entries]);
   useEffect(() => {
     if (!state.open) return;
     const handle = (

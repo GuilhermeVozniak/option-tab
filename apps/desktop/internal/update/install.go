@@ -40,7 +40,11 @@ func SwapApp(newApp, targetApp string) error {
 		_ = os.Rename(backup, targetApp) // roll back
 		return fmt.Errorf("update: move new app into place: %w", err)
 	}
-	return os.RemoveAll(backup)
+	// The new version is in place: a leftover backup must not report the swap
+	// as failed and block the relaunch. The next update retries the removal
+	// before it moves the app aside.
+	_ = os.RemoveAll(backup)
+	return nil
 }
 
 // parseTeamID extracts the TeamIdentifier from `codesign -dv` output. It

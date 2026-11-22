@@ -345,3 +345,24 @@ func TestShortcutScope_Defaults(t *testing.T) {
 		}
 	}
 }
+
+func TestWindowVisibility_NullLeavesValueUntouched(t *testing.T) {
+	// encoding/json leaves a value alone on null; treating it as the legacy
+	// boolean false would silently hide windows instead of applying defaults.
+	for _, start := range []WindowVisibility{VisShow, VisShowAtEnd, ""} {
+		v := start
+		if err := json.Unmarshal([]byte(`null`), &v); err != nil || v != start {
+			t.Errorf("null turned %q into %q (err=%v)", start, v, err)
+		}
+	}
+	got, err := Load(strings.NewReader(`{"filters":{"showMinimized":null,"showHiddenApps":false}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := Default().Filters.ShowMinimized; got.Filters.ShowMinimized != want {
+		t.Errorf("null ShowMinimized = %q, want default %q", got.Filters.ShowMinimized, want)
+	}
+	if got.Filters.ShowHiddenApps != VisHide {
+		t.Errorf("legacy false ShowHiddenApps = %q, want %q", got.Filters.ShowHiddenApps, VisHide)
+	}
+}

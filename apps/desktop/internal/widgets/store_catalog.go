@@ -37,6 +37,10 @@ func (s *Store) catalogNames(ctx context.Context) ([]string, error) {
 		if strings.HasPrefix(name, ".stage-") && len(name) == 39 && hash.MatchString(strings.TrimPrefix(name, ".stage-")+strings.Repeat("0", 32)) && entry.IsDir() {
 			continue
 		}
+		// Finder drops its metadata into any directory it displays; it is not a package.
+		if name == ".DS_Store" && entry.Type().IsRegular() {
+			continue
+		}
 		if !hash.MatchString(name) || !entry.IsDir() || entry.Type()&os.ModeSymlink != 0 {
 			failures = append(failures, ErrInvalid)
 			continue

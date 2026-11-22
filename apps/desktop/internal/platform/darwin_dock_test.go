@@ -231,3 +231,50 @@ func TestDockEdgeUsesDisplayContainerAndPreferenceTie(t *testing.T) {
 		})
 	}
 }
+
+// NSURL appends a trailing slash to the file URL of a directory that exists
+// (file:///Users/me/Downloads/) and percent-encodes characters Go leaves bare.
+// Both still denote exactly the captured path, so the folder must be accepted.
+func TestDockFolderMappingAcceptsNativeDirectoryURLForms(t *testing.T) {
+	for name, tc := range map[string]struct{ url, path string }{
+		"existing directory":   {"file:///Users/test/Downloads/", "/Users/test/Downloads"},
+		"space and slash":      {"file:///tmp/Actual%20Folder/", "/tmp/Actual Folder"},
+		"natively escaped":     {"file:///tmp/A%3BB%2CC/", "/tmp/A;B,C"},
+		"localhost host":       {"file://localhost/tmp/Folder/", "/tmp/Folder"},
+		"unresolved directory": {"file:///Users/test/Protected", "/Users/test/Protected"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := dockRawFixture()
+			r.Item.Subrole = "AXFolderDockItem"
+			r.Item.URL, r.Item.Path = tc.url, tc.path
+			r.Item.BundleID = ""
+			r.Item.Apps = nil
+			got := mapDockObservation(r, 1, 5).Item
+			if got == nil || got.Kind != "folder" || got.Path != tc.path {
+				t.Fatalf("folder with URL %q rejected: %+v", tc.url, got)
+			}
+		})
+	}
+}
+
+func TestDockFolderMappingStillRejectsURLsForAnotherPath(t *testing.T) {
+	for name, tc := range map[string]struct{ url, path string }{
+		"child of the path":  {"file:///tmp/Folder/Child/", "/tmp/Folder"},
+		"double slash":       {"file:///tmp/Folder//", "/tmp/Folder"},
+		"query":              {"file:///tmp/Folder/?x=1", "/tmp/Folder"},
+		"fragment":           {"file:///tmp/Folder/#x", "/tmp/Folder"},
+		"encoded separator":  {"file:///tmp%2FFolder", "/tmp/Folder"},
+		"prefix of the path": {"file:///tmp/Fold", "/tmp/Folder"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := dockRawFixture()
+			r.Item.Subrole = "AXFolderDockItem"
+			r.Item.URL, r.Item.Path = tc.url, tc.path
+			r.Item.BundleID = ""
+			r.Item.Apps = nil
+			if got := mapDockObservation(r, 1, 5).Item; got != nil {
+				t.Fatalf("URL %q accepted for path %q: %+v", tc.url, tc.path, got)
+			}
+		})
+	}
+}

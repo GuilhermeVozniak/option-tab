@@ -93,6 +93,13 @@ cp apps/desktop/build/darwin/OptionTab.sdef "$APP/Contents/Resources/OptionTab.s
 for version_key in CFBundleShortVersionString CFBundleVersion; do
   [[ "$(/usr/libexec/PlistBuddy -c "Print :$version_key" "$APP/Contents/Info.plist")" == "$VERSION" ]] || { echo "Bundle version mismatch" >&2; exit 1; }
 done
+# The binary compares its own hand-edited appVersion constant against the
+# latest release. Shipping a stale constant under a newer VERSION makes the app
+# believe it is older than itself and offer the same update forever.
+APP_VERSION_SOURCE="apps/desktop/app_update.go"
+binary_version="$(sed -nE 's/^[[:space:]]*(const[[:space:]]+)?appVersion[[:space:]]*=[[:space:]]*"([^"]*)".*$/\2/p' "$APP_VERSION_SOURCE" 2>/dev/null || true)"
+[[ -n "$binary_version" ]] || { echo "Could not read the appVersion constant from $APP_VERSION_SOURCE" >&2; exit 1; }
+[[ "$binary_version" == "$VERSION" ]] || { echo "Binary version mismatch: appVersion in $APP_VERSION_SOURCE is $binary_version but VERSION is $VERSION; bump the constant before bundling" >&2; exit 1; }
 
 # 5. Sign the release app with hardened runtime.
 if [[ "$BUNDLE_MODE" == release ]]; then

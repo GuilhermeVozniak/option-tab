@@ -201,6 +201,26 @@ func runDockObservation(ctx context.Context, emit func(DockObservation), factory
 	}
 }
 
+// fileURLDenotesPath reports whether a parsed file URL names exactly path. It
+// compares the decoded path rather than the URL text, because the native side
+// builds the URL with NSURL, which appends a trailing slash for a directory
+// that exists and percent-encodes characters Go leaves bare. Comparing text
+// rejected every real folder stack.
+func fileURLDenotesPath(u *url.URL, path string) bool {
+	if u.Opaque != "" || u.User != nil || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
+		return false
+	}
+	// An encoded separator decodes to a "/" the URL did not have as structure.
+	if strings.Contains(strings.ToLower(u.EscapedPath()), "%2f") {
+		return false
+	}
+	decoded := u.Path
+	if len(decoded) > 1 {
+		decoded = strings.TrimSuffix(decoded, "/")
+	}
+	return decoded == path
+}
+
 func mapDockObservation(raw dockRaw, sequence, epoch uint64) DockObservation {
 	out := DockObservation{DockPID: raw.DockPID, Sequence: sequence, Generation: (epoch << 32) | raw.Generation, PointerX: raw.PointerX, PointerY: raw.PointerY, Status: raw.Status}
 	if raw.Status != "ready" || raw.Item == nil {
@@ -219,8 +239,7 @@ func mapDockObservation(raw dockRaw, sequence, epoch uint64) DockObservation {
 		return out
 	}
 	if item.Subrole == "AXFolderDockItem" {
-		identity, identityErr := FolderIdentity(item.Path)
-		if identityErr != nil || identity != item.URL || (item.Directory != nil && !*item.Directory) {
+		if _, identityErr := FolderIdentity(item.Path); identityErr != nil || !fileURLDenotesPath(u, item.Path) || (item.Directory != nil && !*item.Directory) {
 			return out
 		}
 		out.Item = &DockItem{Kind: "folder", Path: item.Path, Title: item.Title, Bounds: item.Bounds, ScreenID: screen.ID, Edge: dockItemEdge(item.Bounds, item.Container, screen.Bounds, raw.Orientation)}

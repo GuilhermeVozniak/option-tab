@@ -35,6 +35,7 @@ func validTransferProfile(p LauncherProfile) error {
 
 func sanitizeTransferProfile(p LauncherProfile) LauncherProfile {
 	p = CloneReplacementDock(ReplacementDockSettings{Profiles: []LauncherProfile{p}}).Profiles[0]
+	normalizeLauncherProfileSlices(&p)
 	for i := range p.Widgets {
 		p.Widgets[i].Enabled = false
 		p.Widgets[i].Grants = []string{}

@@ -386,7 +386,17 @@ export function GeneralTab({
               variant="destructive"
               aria-label="Reset to defaults"
               disabled={transferPending !== null}
-              onClick={() => onChange(defaultSettings)}
+              onClick={() =>
+                // Onboarding is progress, not a preference: resetting it would
+                // send the user back through the first-run wizard.
+                onChange({
+                  ...defaultSettings,
+                  behavior: {
+                    ...defaultSettings.behavior,
+                    onboarded: settings.behavior.onboarded,
+                  },
+                })
+              }
             >
               {t("Reset to defaults")}
             </Button>

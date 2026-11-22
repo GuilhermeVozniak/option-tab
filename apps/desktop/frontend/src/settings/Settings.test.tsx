@@ -365,14 +365,53 @@ describe("Settings", () => {
     const onChange = vi.fn();
     render(<Settings settings={defaultSettings} onChange={onChange} />);
     fireEvent.click(screen.getByText("+ Add shortcut"));
-    expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({
-        shortcuts: expect.arrayContaining([expect.objectContaining({ id: 3 })]),
-      }),
-    );
+    // A shortcut without a chord is not valid settings: the new row is a local
+    // draft with the usual controls until a chord has been recorded.
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Shortcut 3 chord")).toHaveValue("");
+    expect(screen.getByText("+ Add shortcut").closest("button")).toBeDisabled();
+    fireEvent.click(screen.getByLabelText("Shortcut 3 enabled"));
+    fireEvent.change(screen.getByLabelText("Shortcut 3 style"), { target: { value: "titles" } });
+    fireEvent.change(screen.getByLabelText("Shortcut 3 spaces"), { target: { value: "active" } });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Shortcut 3 enabled")).not.toBeChecked();
+    fireEvent.keyDown(screen.getByLabelText("Shortcut 3 chord"), { code: "Tab", shiftKey: true });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith({
+      ...defaultSettings,
+      shortcuts: [
+        ...defaultSettings.shortcuts,
+        {
+          id: 3,
+          chord: "shift+tab",
+          enabled: false,
+          scope: { appScope: "all", spaces: "active" },
+          styleOverride: "titles",
+          mode: "windows",
+        },
+      ],
+    });
+    // The parent has not applied the edit: the row is no longer a draft.
+    expect(screen.queryByLabelText("Shortcut 3 chord")).toBeNull();
+    expect(screen.getByText("+ Add shortcut").closest("button")).toBeEnabled();
+
     fireEvent.click(screen.getByLabelText("Remove shortcut 2"));
     const removed = onChange.mock.calls.at(-1)?.[0];
     expect(removed.shortcuts.some((s: { id: number }) => s.id === 2)).toBe(false);
+  });
+
+  it("discards a shortcut draft with its remove button and never saves it", () => {
+    const onChange = vi.fn();
+    const one = { ...defaultSettings, shortcuts: defaultSettings.shortcuts.slice(0, 1) };
+    render(<Settings settings={one} onChange={onChange} />);
+    fireEvent.click(screen.getByText("+ Add shortcut"));
+    // The last saved shortcut cannot be removed, but a draft always can.
+    expect(screen.getByLabelText("Remove shortcut 1")).toBeDisabled();
+    expect(screen.getByLabelText("Remove shortcut 2")).toBeEnabled();
+    fireEvent.click(screen.getByLabelText("Remove shortcut 2"));
+    expect(screen.queryByLabelText("Shortcut 2 chord")).toBeNull();
+    expect(screen.getByText("+ Add shortcut").closest("button")).toBeEnabled();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("keeps a blank blacklist row local until it has a matcher", () => {
@@ -793,6 +832,45 @@ describe("Settings", () => {
     render(<Settings settings={custom} onChange={onChange} />);
     fireEvent.click(screen.getByLabelText("Reset to defaults"));
     expect(onChange).toHaveBeenCalledWith(defaultSettings);
+  });
+
+  it("keeps the user onboarded when resetting to defaults", () => {
+    const onChange = vi.fn();
+    const custom = {
+      ...defaultSettings,
+      order: "alphabetical" as const,
+      behavior: { ...defaultSettings.behavior, onboarded: true, vimKeys: true },
+    };
+    render(<Settings settings={custom} onChange={onChange} />);
+    fireEvent.click(screen.getByLabelText("Reset to defaults"));
+    // defaultSettings.behavior.onboarded is false: sending it as-is reopened
+    // the first-run wizard.
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith({
+      ...defaultSettings,
+      behavior: { ...defaultSettings.behavior, onboarded: true },
+    });
+  });
+
+  it("applies a repeated deep link when its request nonce changes", () => {
+    const view = (nonce: number) => (
+      <Settings
+        settings={defaultSettings}
+        onChange={vi.fn()}
+        requestedTab="About"
+        requestedTabNonce={nonce}
+      />
+    );
+    const { rerender } = render(view(1));
+    const selected = (name: string) =>
+      expect(screen.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true");
+    selected("About");
+    fireEvent.click(screen.getByRole("tab", { name: "General" }));
+    // The same request rendered again is not a new deep link.
+    rerender(view(1));
+    selected("General");
+    rerender(view(2));
+    selected("About");
   });
 
   it("omits the Permissions section when no permissions prop is given", () => {

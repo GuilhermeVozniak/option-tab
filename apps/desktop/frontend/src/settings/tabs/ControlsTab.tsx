@@ -10,6 +10,7 @@ import type {
   PointerAction,
   ReleaseAction,
   ScreenScope,
+  Shortcut,
   SpaceScope,
   SwitcherMode,
   VisualStyle,
@@ -111,26 +112,232 @@ function ActionBindingRow({
   );
 }
 
+// ShortcutRow renders one opening shortcut. It is also the unsaved draft row:
+// the caller decides whether a patch is persisted or kept local.
+function ShortcutRow({
+  shortcut: s,
+  removeDisabled,
+  onPatch,
+  onRemove,
+  t,
+}: {
+  shortcut: Shortcut;
+  removeDisabled: boolean;
+  onPatch: (p: Partial<Shortcut>) => void;
+  onRemove: () => void;
+  t: TabContext["t"];
+}) {
+  return (
+    <div className="ot-settings-shortcut">
+      <div className="ot-settings-shortcut-main">
+        <Label appearance="unstyled" className={CHECK_LABEL}>
+          <Switch
+            aria-label={`Shortcut ${s.id} enabled`}
+            checked={s.enabled}
+            onCheckedChange={(checked) => onPatch({ enabled: checked })}
+          />
+          #{s.id}
+        </Label>
+        <ShortcutRecorder
+          aria-label={`Shortcut ${s.id} chord`}
+          value={s.chord}
+          placeholder={t("Press shortcut keys")}
+          onChordChange={(chord) => onPatch({ chord })}
+        />
+        <Label appearance="unstyled" className="ot-settings-field">
+          <span>{t("Opens")}</span>
+          <NativeSelect
+            aria-label={t("Shortcut {id} mode").replace("{id}", String(s.id))}
+            value={s.mode ?? "windows"}
+            onChange={(e) => onPatch({ mode: e.target.value as SwitcherMode })}
+          >
+            <NativeSelectOption value="windows">{t("Window switcher")}</NativeSelectOption>
+            <NativeSelectOption value="apps">{t("App switcher")}</NativeSelectOption>
+          </NativeSelect>
+        </Label>
+        <Label appearance="unstyled" className="ot-settings-field">
+          <span>{t("Include")}</span>
+          <NativeSelect
+            aria-label={`Shortcut ${s.id} scope`}
+            value={s.scope.appScope}
+            onChange={(e) =>
+              onPatch({
+                scope: { ...s.scope, appScope: e.target.value as "all" | "activeApp" },
+              })
+            }
+          >
+            <NativeSelectOption value="all">{t("All windows")}</NativeSelectOption>
+            <NativeSelectOption value="activeApp">{t("Active app only")}</NativeSelectOption>
+          </NativeSelect>
+        </Label>
+        <Label appearance="unstyled" className="ot-settings-field">
+          <span>{t("Visual style")}</span>
+          <NativeSelect
+            aria-label={`Shortcut ${s.id} style`}
+            value={s.styleOverride ?? ""}
+            onChange={(e) =>
+              onPatch({
+                styleOverride: (e.target.value || undefined) as VisualStyle | undefined,
+              })
+            }
+          >
+            <NativeSelectOption value="">{t("Default style")}</NativeSelectOption>
+            <NativeSelectOption value="thumbnails">{t("Thumbnails")}</NativeSelectOption>
+            <NativeSelectOption value="appIcons">{t("App icons")}</NativeSelectOption>
+            <NativeSelectOption value="titles">{t("Titles")}</NativeSelectOption>
+          </NativeSelect>
+        </Label>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`Remove shortcut ${s.id}`}
+          disabled={removeDisabled}
+          onClick={onRemove}
+        >
+          ✕
+        </Button>
+      </div>
+      <SettingsDisclosure
+        className="ot-settings-shortcut-details"
+        title={t("Behavior and overrides")}
+      >
+        <p className="ot-settings-hint">
+          {t("Override the shared rules for this shortcut, or keep the defaults.")}
+        </p>
+        <div className="ot-settings-shortcut-options">
+          <Label appearance="unstyled" className="ot-settings-field">
+            <span>{t("On release")}</span>
+            <NativeSelect
+              aria-label={`Shortcut ${s.id} when released`}
+              className="h-7 text-xs"
+              value={s.whenReleased ?? "focusSelected"}
+              onChange={(e) => onPatch({ whenReleased: e.target.value as ReleaseAction })}
+            >
+              <NativeSelectOption value="focusSelected">
+                {t("On release: focus selected window")}
+              </NativeSelectOption>
+              <NativeSelectOption value="doNothing">
+                {t("On release: do nothing")}
+              </NativeSelectOption>
+            </NativeSelect>
+          </Label>
+          <Label appearance="unstyled" className="ot-settings-field">
+            <span>{t("Spaces")}</span>
+            <NativeSelect
+              aria-label={`Shortcut ${s.id} spaces`}
+              className="h-7 text-xs"
+              value={s.scope.spaces ?? ""}
+              onChange={(e) =>
+                onPatch({
+                  scope: {
+                    ...s.scope,
+                    spaces: (e.target.value || undefined) as SpaceScope | undefined,
+                  },
+                })
+              }
+            >
+              <NativeSelectOption value="">{t("Spaces: global default")}</NativeSelectOption>
+              <NativeSelectOption value="all">{t("Spaces: all")}</NativeSelectOption>
+              <NativeSelectOption value="active">{t("Spaces: active only")}</NativeSelectOption>
+            </NativeSelect>
+          </Label>
+          <Label appearance="unstyled" className="ot-settings-field">
+            <span>{t("Screens")}</span>
+            <NativeSelect
+              aria-label={`Shortcut ${s.id} screens`}
+              className="h-7 text-xs"
+              value={s.scope.screens ?? ""}
+              onChange={(e) =>
+                onPatch({
+                  scope: {
+                    ...s.scope,
+                    screens: (e.target.value || undefined) as ScreenScope | undefined,
+                  },
+                })
+              }
+            >
+              <NativeSelectOption value="">{t("Screens: global default")}</NativeSelectOption>
+              <NativeSelectOption value="all">{t("Screens: all")}</NativeSelectOption>
+              <NativeSelectOption value="active">{t("Screens: active only")}</NativeSelectOption>
+              <NativeSelectOption value="cursor">{t("Screens: under cursor")}</NativeSelectOption>
+            </NativeSelect>
+          </Label>
+          <Label appearance="unstyled" className="ot-settings-field">
+            <span>{t("Order")}</span>
+            <NativeSelect
+              aria-label={`Shortcut ${s.id} order`}
+              className="h-7 text-xs"
+              value={s.scope.order ?? ""}
+              onChange={(e) =>
+                onPatch({
+                  scope: {
+                    ...s.scope,
+                    order: (e.target.value || undefined) as OrderMode | undefined,
+                  },
+                })
+              }
+            >
+              <NativeSelectOption value="">{t("Order: global default")}</NativeSelectOption>
+              <NativeSelectOption value="recent">{t("Order: recently focused")}</NativeSelectOption>
+              <NativeSelectOption value="recentlyCreated">
+                {t("Order: recently created")}
+              </NativeSelectOption>
+              <NativeSelectOption value="alphabetical">
+                {t("Order: alphabetical")}
+              </NativeSelectOption>
+              <NativeSelectOption value="space">{t("Order: by space")}</NativeSelectOption>
+            </NativeSelect>
+          </Label>
+        </div>
+      </SettingsDisclosure>
+    </div>
+  );
+}
+
 export function ControlsTab({
   ctx,
+  draftAuthority = 0,
   switcherGesturesAvailable = false,
 }: {
   ctx: TabContext;
+  /** Replaced on canonical refresh/import, not on ordinary saves. */
+  draftAuthority?: string | number;
   switcherGesturesAvailable?: boolean;
 }) {
   const { settings, t, patch, patchModeBehavior: patchBehavior, modeBehavior, patchShortcut } = ctx;
+  // Go drops a shortcut without a chord, and every save echoes the canonical
+  // settings back, so a new shortcut stays local until its chord is recorded.
+  // The draft belongs to the settings it was started on: a canonical refresh
+  // or import cancels it (as for a blacklist draft), and so does its id
+  // being taken meanwhile.
+  const [pending, setPending] = useState<{
+    authority: string | number;
+    shortcut: Shortcut;
+  } | null>(null);
+  const draft =
+    pending &&
+    pending.authority === draftAuthority &&
+    !settings.shortcuts.some((s) => s.id === pending.shortcut.id)
+      ? pending.shortcut
+      : null;
 
   const addShortcut = () => {
     const used = new Set(settings.shortcuts.map((s) => s.id));
     let id = 1;
     while (id <= 9 && used.has(id)) id++;
     if (id > 9) return;
-    patch({
-      shortcuts: [
-        ...settings.shortcuts,
-        { id, chord: "", enabled: true, scope: { appScope: "all" }, mode: "windows" },
-      ],
+    setPending({
+      authority: draftAuthority,
+      shortcut: { id, chord: "", enabled: true, scope: { appScope: "all" }, mode: "windows" },
     });
+  };
+  const patchDraft = (p: Partial<Shortcut>) => {
+    if (!draft) return;
+    const shortcut = { ...draft, ...p };
+    if (shortcut.chord) {
+      setPending(null);
+      patch({ shortcuts: [...settings.shortcuts, shortcut] });
+    } else setPending({ authority: draftAuthority, shortcut });
   };
   const removeShortcut = (id: number) => {
     if (settings.shortcuts.length <= 1) return;
@@ -149,188 +356,34 @@ export function ControlsTab({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {settings.shortcuts.map((s) => (
-            <div className="ot-settings-shortcut" key={s.id}>
-              <div className="ot-settings-shortcut-main">
-                <Label appearance="unstyled" className={CHECK_LABEL}>
-                  <Switch
-                    aria-label={`Shortcut ${s.id} enabled`}
-                    checked={s.enabled}
-                    onCheckedChange={(checked) => patchShortcut(s.id, { enabled: checked })}
-                  />
-                  #{s.id}
-                </Label>
-                <ShortcutRecorder
-                  aria-label={`Shortcut ${s.id} chord`}
-                  value={s.chord}
-                  placeholder={t("Press shortcut keys")}
-                  onChordChange={(chord) => patchShortcut(s.id, { chord })}
-                />
-                <Label appearance="unstyled" className="ot-settings-field">
-                  <span>{t("Opens")}</span>
-                  <NativeSelect
-                    aria-label={t("Shortcut {id} mode").replace("{id}", String(s.id))}
-                    value={s.mode ?? "windows"}
-                    onChange={(e) => patchShortcut(s.id, { mode: e.target.value as SwitcherMode })}
-                  >
-                    <NativeSelectOption value="windows">{t("Window switcher")}</NativeSelectOption>
-                    <NativeSelectOption value="apps">{t("App switcher")}</NativeSelectOption>
-                  </NativeSelect>
-                </Label>
-                <Label appearance="unstyled" className="ot-settings-field">
-                  <span>{t("Include")}</span>
-                  <NativeSelect
-                    aria-label={`Shortcut ${s.id} scope`}
-                    value={s.scope.appScope}
-                    onChange={(e) =>
-                      patchShortcut(s.id, {
-                        scope: { ...s.scope, appScope: e.target.value as "all" | "activeApp" },
-                      })
-                    }
-                  >
-                    <NativeSelectOption value="all">{t("All windows")}</NativeSelectOption>
-                    <NativeSelectOption value="activeApp">
-                      {t("Active app only")}
-                    </NativeSelectOption>
-                  </NativeSelect>
-                </Label>
-                <Label appearance="unstyled" className="ot-settings-field">
-                  <span>{t("Visual style")}</span>
-                  <NativeSelect
-                    aria-label={`Shortcut ${s.id} style`}
-                    value={s.styleOverride ?? ""}
-                    onChange={(e) =>
-                      patchShortcut(s.id, {
-                        styleOverride: (e.target.value || undefined) as VisualStyle | undefined,
-                      })
-                    }
-                  >
-                    <NativeSelectOption value="">{t("Default style")}</NativeSelectOption>
-                    <NativeSelectOption value="thumbnails">{t("Thumbnails")}</NativeSelectOption>
-                    <NativeSelectOption value="appIcons">{t("App icons")}</NativeSelectOption>
-                    <NativeSelectOption value="titles">{t("Titles")}</NativeSelectOption>
-                  </NativeSelect>
-                </Label>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Remove shortcut ${s.id}`}
-                  disabled={settings.shortcuts.length <= 1}
-                  onClick={() => removeShortcut(s.id)}
-                >
-                  ✕
-                </Button>
-              </div>
-              <SettingsDisclosure
-                className="ot-settings-shortcut-details"
-                title={t("Behavior and overrides")}
-              >
-                <p className="ot-settings-hint">
-                  {t("Override the shared rules for this shortcut, or keep the defaults.")}
-                </p>
-                <div className="ot-settings-shortcut-options">
-                  <Label appearance="unstyled" className="ot-settings-field">
-                    <span>{t("On release")}</span>
-                    <NativeSelect
-                      aria-label={`Shortcut ${s.id} when released`}
-                      className="h-7 text-xs"
-                      value={s.whenReleased ?? "focusSelected"}
-                      onChange={(e) =>
-                        patchShortcut(s.id, { whenReleased: e.target.value as ReleaseAction })
-                      }
-                    >
-                      <NativeSelectOption value="focusSelected">
-                        {t("On release: focus selected window")}
-                      </NativeSelectOption>
-                      <NativeSelectOption value="doNothing">
-                        {t("On release: do nothing")}
-                      </NativeSelectOption>
-                    </NativeSelect>
-                  </Label>
-                  <Label appearance="unstyled" className="ot-settings-field">
-                    <span>{t("Spaces")}</span>
-                    <NativeSelect
-                      aria-label={`Shortcut ${s.id} spaces`}
-                      className="h-7 text-xs"
-                      value={s.scope.spaces ?? ""}
-                      onChange={(e) =>
-                        patchShortcut(s.id, {
-                          scope: {
-                            ...s.scope,
-                            spaces: (e.target.value || undefined) as SpaceScope | undefined,
-                          },
-                        })
-                      }
-                    >
-                      <NativeSelectOption value="">
-                        {t("Spaces: global default")}
-                      </NativeSelectOption>
-                      <NativeSelectOption value="all">{t("Spaces: all")}</NativeSelectOption>
-                      <NativeSelectOption value="active">
-                        {t("Spaces: active only")}
-                      </NativeSelectOption>
-                    </NativeSelect>
-                  </Label>
-                  <Label appearance="unstyled" className="ot-settings-field">
-                    <span>{t("Screens")}</span>
-                    <NativeSelect
-                      aria-label={`Shortcut ${s.id} screens`}
-                      className="h-7 text-xs"
-                      value={s.scope.screens ?? ""}
-                      onChange={(e) =>
-                        patchShortcut(s.id, {
-                          scope: {
-                            ...s.scope,
-                            screens: (e.target.value || undefined) as ScreenScope | undefined,
-                          },
-                        })
-                      }
-                    >
-                      <NativeSelectOption value="">
-                        {t("Screens: global default")}
-                      </NativeSelectOption>
-                      <NativeSelectOption value="all">{t("Screens: all")}</NativeSelectOption>
-                      <NativeSelectOption value="active">
-                        {t("Screens: active only")}
-                      </NativeSelectOption>
-                      <NativeSelectOption value="cursor">
-                        {t("Screens: under cursor")}
-                      </NativeSelectOption>
-                    </NativeSelect>
-                  </Label>
-                  <Label appearance="unstyled" className="ot-settings-field">
-                    <span>{t("Order")}</span>
-                    <NativeSelect
-                      aria-label={`Shortcut ${s.id} order`}
-                      className="h-7 text-xs"
-                      value={s.scope.order ?? ""}
-                      onChange={(e) =>
-                        patchShortcut(s.id, {
-                          scope: {
-                            ...s.scope,
-                            order: (e.target.value || undefined) as OrderMode | undefined,
-                          },
-                        })
-                      }
-                    >
-                      <NativeSelectOption value="">{t("Order: global default")}</NativeSelectOption>
-                      <NativeSelectOption value="recent">
-                        {t("Order: recently focused")}
-                      </NativeSelectOption>
-                      <NativeSelectOption value="recentlyCreated">
-                        {t("Order: recently created")}
-                      </NativeSelectOption>
-                      <NativeSelectOption value="alphabetical">
-                        {t("Order: alphabetical")}
-                      </NativeSelectOption>
-                      <NativeSelectOption value="space">{t("Order: by space")}</NativeSelectOption>
-                    </NativeSelect>
-                  </Label>
-                </div>
-              </SettingsDisclosure>
-            </div>
-          ))}
-          <Button variant="dashed" disabled={settings.shortcuts.length >= 9} onClick={addShortcut}>
+          {/* One keyed list, so the draft row keeps its recorder (and focus)
+              when recording a chord turns it into a saved shortcut. */}
+          {(draft ? [...settings.shortcuts, draft] : settings.shortcuts).map((s) =>
+            s === draft ? (
+              <ShortcutRow
+                key={s.id}
+                shortcut={s}
+                removeDisabled={false}
+                onPatch={patchDraft}
+                onRemove={() => setPending(null)}
+                t={t}
+              />
+            ) : (
+              <ShortcutRow
+                key={s.id}
+                shortcut={s}
+                removeDisabled={settings.shortcuts.length <= 1}
+                onPatch={(p) => patchShortcut(s.id, p)}
+                onRemove={() => removeShortcut(s.id)}
+                t={t}
+              />
+            ),
+          )}
+          <Button
+            variant="dashed"
+            disabled={!!draft || settings.shortcuts.length >= 9}
+            onClick={addShortcut}
+          >
             {t("+ Add shortcut")}
           </Button>
         </CardContent>

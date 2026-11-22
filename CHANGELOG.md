@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.6.5 — 2026-11-22
+
+A bug-fix release from a full pass over the switcher, the Dock replacement and Settings.
+
+- Stop listing windows nobody can switch to: the small helper windows, per-display strips and fully transparent windows that macOS 27 reports for many apps no longer appear in the switcher or in Dock previews.
+- Switch to System Settings without the "The action was refused or could not be confirmed" error.
+- Open the switcher again when the shortcut is pressed right after Return or a click while the modifier is still held.
+- Keep the highlight on the selected window when another window closes, and after minimizing or hiding the selected window. Backspace on an empty search keeps the selection.
+- Start hold-to-cycle on the first card only when the frontmost app has no listed window.
+- Ignore Home, End, Page Up, Page Down, Delete and the function keys in the search instead of adding invisible characters, and confirm with the keypad Enter key.
+- Respect thumbnail sizes below 96 px, redraw icons after an icon-size change, and keep thumbnails visible through the fade-out.
+- Show Space badges as ordinals, and only when the listed windows span more than one Space.
+- Bound Accessibility calls so an unresponsive app cannot stall the switcher.
+- Open Dock folder stacks, keep the launcher visible when an app exits while the Dock is being read, and adopt a recreated folder after access is granted again.
+- Reload the launcher item editor after an outside change, and recover from interrupted launcher-item and widget writes.
+- Edit number fields as a draft that is saved on blur, Enter or a short pause, instead of saving and clamping every keystroke. New shortcuts and focus rules stay drafts until they are valid.
+- Keep Preferences open after Reset to defaults, select the right tab from the tray's About and Check for updates items, and use the first enabled shortcut for the tray's Show Option Tab item.
+- Import a profile without widgets cleanly, and no longer report a completed update as failed when an old backup is left behind.
+
+Behaviour changes: an outside settings save cancels an unsaved shortcut or blacklist draft in Preferences.
+
+Known issues: with another app active, the first click on a switcher card only activates Option Tab and a second click picks the window; hovering a card does not select it until then. Typing to search while Option is held enters Option characters. The Up and Down arrows do not move between rows of the grid. These predate this release.
+
+The native feature limitations and hardware checks documented for 0.5.0 remain unchanged. Windows and Linux downloads remain demonstration builds without native window switching.
+
 ## 0.6.4 — 2026-10-05
 
 - Show themed action tooltips after a 2.5-second hover on toolbar icons and individual window controls in both switcher modes.

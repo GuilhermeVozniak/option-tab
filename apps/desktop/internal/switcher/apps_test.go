@@ -492,3 +492,36 @@ func TestAcceptedOldFocusDoesNotWarpCursorAfterReplacement(t *testing.T) {
 		t.Fatalf("accepted old focus affected replacement: warps=%v open=%v", native.WarpCalls, c.IsOpen())
 	}
 }
+
+// A search that matches no application leaves no selected app, so there are
+// no window previews to show either.
+func TestAppModeSearchWithoutMatchShowsNoWindows(t *testing.T) {
+	apps, wins := appFixtures()
+	c, _, _ := newAppController(t, apps, wins, func(s *config.Settings) { s.AppSwitcher.Behavior.HoldToCycle = false })
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if len(c.State().Entries) == 0 {
+		t.Fatal("fixture must start with window previews")
+	}
+	c.SetSearch("zzzzzzz")
+	st := c.State()
+	if len(st.Apps) != 0 {
+		t.Fatalf("search matched %d apps", len(st.Apps))
+	}
+	if len(st.Entries) != 0 || st.SelectedWindowID != 0 {
+		t.Fatalf("no app matched but %d window previews remain (selected window %d)", len(st.Entries), st.SelectedWindowID)
+	}
+	c.SetSearch("")
+	if st = c.State(); len(st.Apps) != 3 || len(st.Entries) == 0 {
+		t.Fatalf("clearing the search did not restore the list: apps=%d entries=%d", len(st.Apps), len(st.Entries))
+	}
+}
+
+func TestAppModeHoldToCycleSkipsFirstAppWhileFrontAppLagsBehindASwitch(t *testing.T) {
+	apps, wins := appFixtures()
+	c, native, _ := newAppController(t, apps, wins, nil)
+	native.ActiveAppID = 20 // listed, but not the first app
+	c.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
+	if got := c.State().Selected; got != 1 {
+		t.Fatalf("selected app index %d, want 1", got)
+	}
+}

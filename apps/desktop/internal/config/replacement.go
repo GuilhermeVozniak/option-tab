@@ -126,6 +126,38 @@ func CloneReplacementDock(s ReplacementDockSettings) ReplacementDockSettings {
 	return s
 }
 
+// normalizeReplacementSlices makes every array the document always emits
+// non-nil. A nil slice marshals as JSON null, which the preferences UI cannot
+// map over. Rules, Stacks, Items and item Members are omitempty and therefore
+// never emitted as null, so they keep their nil/empty distinction.
+func normalizeReplacementSlices(s *ReplacementDockSettings) {
+	if s.Profiles == nil {
+		s.Profiles = []LauncherProfile{}
+	}
+	if s.Bindings == nil {
+		s.Bindings = []LauncherBinding{}
+	}
+	for i := range s.Profiles {
+		normalizeLauncherProfileSlices(&s.Profiles[i])
+	}
+}
+
+func normalizeLauncherProfileSlices(p *LauncherProfile) {
+	if p.Widgets == nil {
+		p.Widgets = []WidgetInstance{}
+	}
+	for i := range p.Widgets {
+		if p.Widgets[i].Grants == nil {
+			p.Widgets[i].Grants = []string{}
+		}
+	}
+	for i := range p.Stacks {
+		if p.Stacks[i].Members == nil {
+			p.Stacks[i].Members = []string{}
+		}
+	}
+}
+
 var launcherTint = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 func validLauncherAppearance(a LauncherAppearance) bool {
@@ -254,6 +286,7 @@ func decodeReplacement(raw json.RawMessage) (ReplacementDockSettings, error) {
 	if err := d.Decode(&s); err != nil {
 		return s, bad
 	}
+	normalizeReplacementSlices(&s)
 	var profileFields struct {
 		Profiles []map[string]json.RawMessage `json:"profiles"`
 	}

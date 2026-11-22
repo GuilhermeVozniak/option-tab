@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func fixtureRecord() Record {
@@ -253,5 +254,133 @@ func TestRecordReadRejectsGrowthAndNamedReplacement(t *testing.T) {
 				t.Fatal("changed record accepted", err)
 			}
 		})
+	}
+}
+
+func TestOpenStoreToleratesOwnLeftoversOnly(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "refs")
+	s, err := OpenStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := s.Create(context.Background(), fixtureRecord())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// A crash between create and rename leaves the staged temp behind, and
+	// Finder drops its metadata file into any directory it displays.
+	stale := filepath.Join(root, ".record-"+strings.Repeat("ab", 16))
+	for _, name := range []string{stale, filepath.Join(root, ".DS_Store")} {
+		if err = os.WriteFile(name, []byte("partial"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Only an abandoned temp is a leftover; age it past the live-writer window.
+	aged := time.Now().Add(-2 * stagedRecordGrace)
+	if err = os.Chtimes(stale, aged, aged); err != nil {
+		t.Fatal(err)
+	}
+	s, err = OpenStore(root)
+	if err != nil {
+		t.Fatalf("leftovers made the store unreadable: %v", err)
+	}
+	if got, err := s.Get(created.ID); err != nil || got.Label != "Docs" {
+		t.Fatal(got, err)
+	}
+	if err = s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Lstat(stale); !os.IsNotExist(err) {
+		t.Fatalf("stale temp not removed: %v", err)
+	}
+	if _, err = os.Lstat(filepath.Join(root, ".DS_Store")); err != nil {
+		t.Fatalf("foreign metadata must be left alone: %v", err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside")
+	if err = os.WriteFile(outside, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for name, plant := range map[string]func(string) error{
+		".record-" + strings.Repeat("cd", 16): func(p string) error { return os.Symlink(outside, p) },
+		".record-" + strings.Repeat("ef", 16): func(p string) error { return os.Mkdir(p, 0o700) },
+		".DS_Store":                           func(p string) error { _ = os.Remove(p); return os.Symlink(outside, p) },
+		".record-short":                       func(p string) error { return os.WriteFile(p, nil, 0o600) },
+		"notes.txt":                           func(p string) error { return os.WriteFile(p, nil, 0o600) },
+	} {
+		path := filepath.Join(root, name)
+		if err = plant(path); err != nil {
+			t.Fatal(err)
+		}
+		if _, err = OpenStore(root); !errors.Is(err, ErrCorrupt) {
+			t.Fatalf("%s accepted: %v", name, err)
+		}
+		if _, err = os.Lstat(path); err != nil {
+			t.Fatalf("%s was touched: %v", name, err)
+		}
+		if err = os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if raw, err := os.ReadFile(outside); err != nil || string(raw) != "keep" {
+		t.Fatal("outside touched", err)
+	}
+}
+
+func TestOpenStoreCountsRecordsNotLeftovers(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "refs")
+	s, err := OpenStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < maxRecords; i++ {
+		if _, err = s.Create(context.Background(), fixtureRecord()); err != nil {
+			t.Fatal(i, err)
+		}
+	}
+	if err = s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(root, ".DS_Store"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err = OpenStore(root)
+	if err != nil {
+		t.Fatalf("full store with Finder metadata: %v", err)
+	}
+	if got := len(s.List()); got != maxRecords {
+		t.Fatal(got)
+	}
+	if err = s.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A second launch opens the store before the single-instance guard stops it,
+// so a temp the running instance is about to rename must survive that open.
+func TestOpenStoreLeavesALiveWritersStagedTempAlone(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "refs")
+	s, err := OpenStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	inFlight := filepath.Join(root, ".record-"+strings.Repeat("12", 16))
+	if err = os.WriteFile(inFlight, []byte("partial"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err = OpenStore(root)
+	if err != nil {
+		t.Fatalf("an in-flight write made the store unreadable: %v", err)
+	}
+	if err = s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Lstat(inFlight); err != nil {
+		t.Fatalf("in-flight temp of a live writer was removed: %v", err)
 	}
 }

@@ -140,6 +140,56 @@ describe("MediaPanel", () => {
     expect(screen.getByRole("button", { name: makeT(language)("Import .lrc") })).toBeEnabled();
   });
 
+  // Typing "-250" passes through "-" and "", which a number input reports as
+  // an empty value. Saving every keystroke reset the stored offset to 0 and
+  // rewrote the field, so a negative offset could not be typed at all.
+  it("saves a typed lyrics offset once, when the edit is finished", () => {
+    const h = handlers();
+    render(<MediaPanel state={state} handlers={h} />);
+    const field = screen.getByRole("spinbutton", { name: "Lyrics timing offset (ms)" });
+    const type = (value: string) =>
+      fireEvent.input(field, { target: { value }, inputType: "insertText" });
+    type("");
+    type("-2");
+    type("-250");
+    expect(h.onOffset).not.toHaveBeenCalled();
+    fireEvent.blur(field);
+    expect(h.onOffset).toHaveBeenCalledExactlyOnceWith(9, 4, -250);
+  });
+
+  // A draft typed for one track must never be shown for, or saved to, another.
+  it("drops an unfinished lyrics offset when the track changes", () => {
+    const h = handlers();
+    const { rerender } = render(<MediaPanel state={state} handlers={h} />);
+    fireEvent.input(screen.getByRole("spinbutton", { name: "Lyrics timing offset (ms)" }), {
+      target: { value: "-250" },
+      inputType: "insertText",
+    });
+    rerender(
+      <MediaPanel
+        state={{
+          ...state,
+          scope: { ...state.scope, trackID: "another-track" },
+          lyrics: { ...state.lyrics, documentID: "another-document", offsetMS: 120 },
+        }}
+        handlers={h}
+      />,
+    );
+    const field = screen.getByRole("spinbutton", { name: "Lyrics timing offset (ms)" });
+    expect(field).toHaveValue(120);
+    fireEvent.blur(field);
+    expect(h.onOffset).not.toHaveBeenCalled();
+  });
+
+  it("leaves the lyrics offset alone when the field is emptied", () => {
+    const h = handlers();
+    render(<MediaPanel state={state} handlers={h} />);
+    const field = screen.getByRole("spinbutton", { name: "Lyrics timing offset (ms)" });
+    fireEvent.input(field, { target: { value: "" }, inputType: "deleteContentBackward" });
+    fireEvent.blur(field);
+    expect(h.onOffset).not.toHaveBeenCalled();
+  });
+
   it("retains local document actions independently of optional source metadata", () => {
     const h = handlers();
     const { rerender } = render(<MediaPanel state={state} handlers={h} />);

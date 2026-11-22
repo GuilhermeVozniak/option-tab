@@ -155,6 +155,15 @@ func (s *darwinFolderSource) remember(ref FolderRef, id folderFileIdentity) erro
 	return nil
 }
 
+// adopt records the folder the user just granted through the chooser. That
+// explicit grant supersedes the remembered identity; without it a folder that
+// was deleted and recreated stays refused until the app restarts.
+func (s *darwinFolderSource) adopt(ref FolderRef, id folderFileIdentity) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.known[ref.Identity] = id
+}
+
 func (s *darwinFolderSource) ListFolder(ctx context.Context, ref FolderRef, order FolderSort) (FolderListing, error) {
 	out := FolderListing{FolderIdentity: ref.Identity, Status: "unavailable", Entries: []FolderEntry{}}
 	fail := func(status string, err error) (FolderListing, error) {
@@ -367,12 +376,9 @@ func (s *darwinFolderSource) RequestFolderAccess(ctx context.Context, ref Folder
 	if err := validateFolderRef(ref); err != nil {
 		return fail(err)
 	}
-	if id, info, err := folderStat(ref.Path); err == nil {
+	if _, info, err := folderStat(ref.Path); err == nil {
 		if !info.IsDir() {
 			return fail(errors.New("captured folder is not a directory"))
-		}
-		if err = s.remember(ref, id); err != nil {
-			return fail(err)
 		}
 	}
 	path := C.CString(ref.Path)
@@ -407,9 +413,6 @@ func (s *darwinFolderSource) RequestFolderAccess(ctx context.Context, ref Folder
 			if result.Status != "ready" {
 				return fail(errors.New(result.Reason))
 			}
-			if err = s.remember(ref, folderFileIdentity{result.Device, result.Inode}); err != nil {
-				return fail(err)
-			}
 			bytes, e := base64.StdEncoding.DecodeString(result.Bookmark)
 			if e != nil {
 				return fail(e)
@@ -417,6 +420,7 @@ func (s *darwinFolderSource) RequestFolderAccess(ctx context.Context, ref Folder
 			if err = s.store.Put(ref.Identity, bytes); err != nil {
 				return fail(err)
 			}
+			s.adopt(ref, folderFileIdentity{result.Device, result.Inode})
 			out.Status = "ready"
 			return out, nil
 		}

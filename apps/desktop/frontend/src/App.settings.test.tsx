@@ -669,3 +669,254 @@ it("publishes a successful import even if the next queued import fails", async (
   await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("JSON object"));
   expect(screen.getByLabelText("Start at login")).toBeChecked();
 });
+
+// A backend that behaves like Go for the Preferences round trip: it rejects a
+// stale revision, drops chordless shortcuts (config.Normalize) and echoes the
+// canonical document. `external` is a save Go made itself (tray Pause, native
+// Dock recovery, launcher mutations), which retires the renderer's revision.
+function canonicalSettingsBackend() {
+  const initial = structuredClone(defaultSettings);
+  initial.behavior.onboarded = true;
+  let stored = { revision: 1, json: JSON.stringify(initial) };
+  mocked.GetSettingsState.mockReset().mockImplementation(() => Promise.resolve(stored) as never);
+  mocked.SaveSettingsAtRevision.mockReset().mockImplementation((json, revision) => {
+    if (revision !== stored.revision)
+      return Promise.reject(new Error("settings: stale revision")) as never;
+    const next = JSON.parse(json) as typeof initial;
+    next.shortcuts = next.shortcuts.filter((shortcut) => shortcut.chord !== "");
+    stored = { revision: revision + 1, json: JSON.stringify(next) };
+    return Promise.resolve(stored) as never;
+  });
+  return {
+    stored: () => stored,
+    settings: () => JSON.parse(stored.json) as typeof initial,
+    external: (mutate: (settings: typeof initial) => void) => {
+      const next = JSON.parse(stored.json) as typeof initial;
+      mutate(next);
+      stored = { revision: stored.revision + 1, json: JSON.stringify(next) };
+      return stored;
+    },
+  };
+}
+
+function openPreferences(generation: number, state: { revision: number; json: string }) {
+  act(() => eventHandlers.get("prefs:settings-loading")?.({ data: { generation } }));
+  act(() => eventHandlers.get("prefs:settings")?.({ data: { ...state, generation } }));
+}
+
+it("keeps a new shortcut local until its chord is recorded, then saves it through the canonical echo", async () => {
+  window.location.hash = "#settings";
+  const backend = canonicalSettingsBackend();
+  render(<App />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("tab", { name: "Shortcuts" }));
+  fireEvent.click(screen.getByText("+ Add shortcut"));
+  await act(async () => {});
+  // Persisting the chordless row let the canonical echo delete it again.
+  expect(mocked.SaveSettingsAtRevision).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("Shortcut 3 chord")).toHaveValue("");
+  expect(screen.getByText("+ Add shortcut").closest("button")).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("Shortcut 3 mode"), { target: { value: "apps" } });
+  fireEvent.change(screen.getByLabelText("Shortcut 3 scope"), { target: { value: "activeApp" } });
+  await act(async () => {});
+  expect(mocked.SaveSettingsAtRevision).not.toHaveBeenCalled();
+  expect(screen.getByLabelText("Shortcut 3 mode")).toHaveValue("apps");
+
+  // An unrelated canonical save must not cancel the unfinished row.
+  fireEvent.click(screen.getByLabelText("Shortcut 1 enabled"));
+  await waitFor(() => expect(backend.stored().revision).toBe(2));
+  expect(backend.settings().shortcuts.map((shortcut) => shortcut.id)).toEqual([1, 2]);
+  expect(screen.getByLabelText("Shortcut 3 chord")).toHaveValue("");
+
+  fireEvent.keyDown(screen.getByLabelText("Shortcut 3 chord"), {
+    code: "KeyK",
+    ctrlKey: true,
+    altKey: true,
+  });
+  await waitFor(() =>
+    expect(backend.settings().shortcuts).toContainEqual({
+      id: 3,
+      chord: "control+option+k",
+      enabled: true,
+      scope: { appScope: "activeApp" },
+      mode: "apps",
+    }),
+  );
+  await act(async () => {});
+  expect(screen.getByLabelText("Shortcut 3 chord")).toHaveValue("control+option+k");
+  expect(screen.getByLabelText("Shortcut 3 mode")).toHaveValue("apps");
+  expect(screen.getByText("+ Add shortcut").closest("button")).toBeEnabled();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("cancels an unrecorded shortcut without saving and on a preferences refresh", async () => {
+  window.location.hash = "#settings";
+  const backend = canonicalSettingsBackend();
+  render(<App />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("tab", { name: "Shortcuts" }));
+  fireEvent.click(screen.getByText("+ Add shortcut"));
+  fireEvent.click(screen.getByLabelText("Remove shortcut 3"));
+  expect(screen.queryByLabelText("Shortcut 3 chord")).toBeNull();
+  fireEvent.click(screen.getByText("+ Add shortcut"));
+  expect(screen.getByLabelText("Shortcut 3 chord")).toBeInTheDocument();
+  openPreferences(1, backend.stored());
+  await act(async () => {});
+  expect(screen.queryByLabelText("Shortcut 3 chord")).toBeNull();
+  expect(mocked.SaveSettingsAtRevision).not.toHaveBeenCalled();
+  expect(backend.settings().shortcuts.map((shortcut) => shortcut.id)).toEqual([1, 2]);
+});
+
+it("navigates on every preferences deep link, including a repeated one", async () => {
+  window.location.hash = "#settings";
+  const scrollIntoView = vi.fn();
+  Element.prototype.scrollIntoView = scrollIntoView;
+  render(<App />);
+  await act(async () => {});
+  const tab = (name: string) => screen.getByRole("tab", { name });
+  act(() => eventHandlers.get("prefs:tab")?.({ data: "About" }));
+  expect(tab("About")).toHaveAttribute("aria-selected", "true");
+  fireEvent.click(tab("General"));
+  expect(tab("General")).toHaveAttribute("aria-selected", "true");
+  act(() => eventHandlers.get("prefs:tab")?.({ data: "About" }));
+  expect(tab("About")).toHaveAttribute("aria-selected", "true");
+
+  act(() => eventHandlers.get("prefs:tab")?.({ data: "General#updates" }));
+  expect(tab("General")).toHaveAttribute("aria-selected", "true");
+  expect(scrollIntoView).toHaveBeenCalledTimes(1);
+  fireEvent.click(tab("Dock"));
+  act(() => eventHandlers.get("prefs:tab")?.({ data: "General#updates" }));
+  expect(tab("General")).toHaveAttribute("aria-selected", "true");
+  expect(scrollIntoView).toHaveBeenCalledTimes(2);
+});
+
+it("accepts an edit after settings were saved outside open Preferences", async () => {
+  window.location.hash = "#settings";
+  const backend = canonicalSettingsBackend();
+  render(<App />);
+  await act(async () => {});
+  openPreferences(1, backend.stored());
+  // Tray → Pause: Go pushes the snapshot under the current refresh generation.
+  const paused = backend.external((settings) => {
+    settings.behavior.paused = true;
+  });
+  act(() => eventHandlers.get("prefs:settings")?.({ data: { ...paused, generation: 1 } }));
+  fireEvent.click(screen.getByLabelText("Start at login"));
+  await waitFor(() => expect(backend.stored().revision).toBe(3));
+  expect(mocked.SaveSettingsAtRevision).toHaveBeenLastCalledWith(expect.any(String), 2);
+  expect(backend.settings().behavior).toMatchObject({ paused: true, startAtLogin: true });
+  expect(screen.getByLabelText("Start at login")).toBeChecked();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("gives an edit in flight to the newer snapshot of an outside save without a stale error", async () => {
+  window.location.hash = "#settings";
+  const backend = canonicalSettingsBackend();
+  render(<App />);
+  await act(async () => {});
+  openPreferences(1, backend.stored());
+  // Go commits the tray toggle first, so the renderer's save at revision 1
+  // loses; the pushed snapshot reaches the window before that rejection.
+  let reject!: (error: Error) => void;
+  mocked.SaveSettingsAtRevision.mockImplementationOnce(
+    () =>
+      new Promise((_, fail) => {
+        reject = fail;
+      }) as never,
+  );
+  fireEvent.click(screen.getByLabelText("Start at login"));
+  await waitFor(() => expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(1));
+  const paused = backend.external((settings) => {
+    settings.behavior.paused = true;
+  });
+  act(() => eventHandlers.get("prefs:settings")?.({ data: { ...paused, generation: 1 } }));
+  await act(async () => reject(new Error("settings: stale revision")));
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.getByLabelText("Start at login")).not.toBeChecked();
+  expect(screen.getByLabelText("Start at login")).toBeEnabled();
+  fireEvent.click(screen.getByLabelText("Start at login"));
+  await waitFor(() => expect(backend.stored().revision).toBe(3));
+  expect(backend.settings().behavior).toMatchObject({ paused: true, startAtLogin: true });
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("does not let a snapshot Preferences already hold retire an edit in flight", async () => {
+  window.location.hash = "#settings";
+  const backend = canonicalSettingsBackend();
+  render(<App />);
+  await act(async () => {});
+  openPreferences(1, backend.stored());
+  const known = backend.stored();
+  const save = mocked.SaveSettingsAtRevision.getMockImplementation()!;
+  let finish!: () => void;
+  mocked.SaveSettingsAtRevision.mockImplementationOnce((json, revision) => {
+    const result = save(json, revision);
+    return new Promise((resolve) => {
+      finish = () => resolve(result);
+    }) as never;
+  });
+  fireEvent.click(screen.getByLabelText("Start at login"));
+  await waitFor(() => expect(mocked.SaveSettingsAtRevision).toHaveBeenCalledTimes(1));
+  // A delayed push of the revision the renderer already reloaded carries no news.
+  act(() => eventHandlers.get("prefs:settings")?.({ data: { ...known, generation: 1 } }));
+  expect(screen.getByLabelText("Start at login")).toBeChecked();
+  await act(async () => finish());
+  expect(screen.getByLabelText("Start at login")).toBeChecked();
+  fireEvent.click(screen.getByLabelText("Capture windows in the background"));
+  await waitFor(() => expect(backend.stored().revision).toBe(3));
+  expect(mocked.SaveSettingsAtRevision).toHaveBeenLastCalledWith(expect.any(String), 2);
+  expect(backend.settings().behavior).toMatchObject({
+    startAtLogin: true,
+    captureInBackground: true,
+  });
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("reloads launcher app choices whenever Preferences are opened", async () => {
+  window.location.hash = "#settings";
+  const backend = canonicalSettingsBackend();
+  // The preferences webview is created hidden: Go answers [] until it is open.
+  let open = false;
+  mocked.GetLauncherAppChoices.mockImplementation(
+    () =>
+      Promise.resolve(open ? [{ name: "Editor", bundleID: "com.example.editor" }] : []) as never,
+  );
+  render(<App />);
+  await act(async () => {});
+  expect(mocked.GetLauncherAppChoices).toHaveBeenCalledTimes(1);
+  open = true;
+  openPreferences(1, backend.stored());
+  await waitFor(() => expect(mocked.GetLauncherAppChoices).toHaveBeenCalledTimes(2));
+  await act(async () => {});
+  fireEvent.click(screen.getByRole("tab", { name: "Dock" }));
+  openLauncherSection("Focus rules");
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Add focus rule" })));
+  expect(screen.getByLabelText("Running app")).toHaveTextContent("Editor — com.example.editor");
+  // A snapshot pushed for an outside save is not another open.
+  const paused = backend.external((settings) => {
+    settings.behavior.paused = true;
+  });
+  act(() => eventHandlers.get("prefs:settings")?.({ data: { ...paused, generation: 1 } }));
+  await act(async () => {});
+  expect(mocked.GetLauncherAppChoices).toHaveBeenCalledTimes(2);
+  openPreferences(2, backend.stored());
+  await waitFor(() => expect(mocked.GetLauncherAppChoices).toHaveBeenCalledTimes(3));
+});
+
+it("stays out of the onboarding wizard after resetting to defaults", async () => {
+  window.location.hash = "#settings";
+  const backend = canonicalSettingsBackend();
+  render(<App />);
+  await act(async () => {});
+  fireEvent.click(screen.getByLabelText("Capture windows in the background"));
+  await waitFor(() => expect(backend.stored().revision).toBe(2));
+  fireEvent.click(screen.getByLabelText("Reset to defaults"));
+  await waitFor(() => expect(backend.stored().revision).toBe(3));
+  await act(async () => {});
+  expect(backend.settings().behavior).toMatchObject({
+    onboarded: true,
+    captureInBackground: false,
+  });
+  expect(screen.queryByText("Welcome to Option Tab")).toBeNull();
+  expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
+});

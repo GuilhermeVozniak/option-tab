@@ -227,6 +227,18 @@ int main(void) {
     raiseError = kAXErrorCannotComplete;
     NSCAssert(ot_automation_window_action(1, id, 0, 1) == 6,
               @"native focus rejection became success");
+    // System Settings refuses to raise a window that the preceding writes
+    // already made main. The focus is done; only a refusal that leaves the
+    // window not main is a failure.
+    raiseError = kAXErrorAttributeUnsupported;
+    BOOL savedBoolean = pointerBoolean;
+    pointerBoolean = YES;
+    NSCAssert(ot_automation_window_action(1, id, 0, 1) == 0,
+              @"focus failed although the window is already main");
+    pointerBoolean = NO;
+    NSCAssert(ot_automation_window_action(1, id, 0, 1) == 5,
+              @"unsupported raise of a window that is not main became success");
+    pointerBoolean = savedBoolean;
     raiseError = kAXErrorSuccess;
     permission = NO;
     NSCAssert(ot_automation_window_action(1, id, 0, 1) == 2,

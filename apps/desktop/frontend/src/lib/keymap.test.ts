@@ -50,6 +50,18 @@ describe("keyToAction", () => {
     expect(keyToAction(ev("Backspace"))).toEqual({ kind: "searchBackspace" });
   });
 
+  it("never types a control or function-key character into the search", () => {
+    // macOS reports Home/End/F-keys as private-use characters and Delete or
+    // keypad Enter as control characters; none of them is text.
+    for (const key of ["\uF729", "\uF72B", "\uF728", "\uF709", "\x7f", "\x03", "\x1b"]) {
+      expect(keyToAction(ev(key))).toEqual({ kind: "none" });
+    }
+    expect(keyToAction(ev("\uF8FF"))).toEqual({ kind: "searchAppend", char: "\uF8FF" });
+    for (const key of ["Home", "End", "PageDown", "Delete", "F6", "Unidentified"]) {
+      expect(keyToAction(ev(key))).toEqual({ kind: "none" });
+    }
+  });
+
   it("maps a printable character to searchAppend", () => {
     expect(keyToAction(ev("a"))).toEqual({ kind: "searchAppend", char: "a" });
     expect(keyToAction(ev("Z"))).toEqual({ kind: "searchAppend", char: "Z" });

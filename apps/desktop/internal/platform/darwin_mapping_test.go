@@ -3,6 +3,7 @@
 package platform
 
 import (
+	"slices"
 	"testing"
 
 	"option-tab/internal/domain"
@@ -90,5 +91,30 @@ func TestMapRawWindows_Empty(t *testing.T) {
 	}
 	if out := mapRawWindows([]rawWindow{}); len(out) != 0 {
 		t.Errorf("empty input -> %d windows, want 0", len(out))
+	}
+}
+
+// macOS puts more on the normal window layer than windows a person can switch
+// to: a 66x20 "Window" holding an app's traffic-light buttons, 30pt-high strips
+// per display, and fully transparent windows that menu-bar apps keep around.
+func TestSwitchableWindowsDropsWhatNobodyCanSwitchTo(t *testing.T) {
+	raws := []rawWindow{
+		{ID: 1, Title: "Device Control and Data Access", W: 740, H: 625, OnScreen: true},
+		{ID: 2, Title: "Window", W: 66, H: 20, OnScreen: true},
+		{ID: 3, Title: "", W: 3440, H: 30},
+		{ID: 4, Title: "Tiles Spliter", W: 639, H: 547, Invisible: true},
+		{ID: 5, Title: "", W: 0, H: 0},
+		{ID: 6, Title: "Minimized", W: 800, H: 600, Minimized: true},
+		{ID: 7, Title: "Hidden app", W: 800, H: 600, Hidden: true, Invisible: true},
+		{ID: 8, Title: "Minimized and transparent", W: 800, H: 600, Minimized: true, Invisible: true},
+		{ID: 9, Title: "Small but real", W: 100, H: 50},
+	}
+	var got []uint64
+	for _, r := range switchableWindows(raws) {
+		got = append(got, r.ID)
+	}
+	want := []uint64{1, 6, 7, 8, 9}
+	if !slices.Equal(got, want) {
+		t.Fatalf("kept windows %v, want %v", got, want)
 	}
 }

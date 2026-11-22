@@ -399,6 +399,16 @@ static int writeBoolean(AXUIElementRef root, CFStringRef attribute,
   return axStatus(setAttribute(root, attribute,
                                desired ? kCFBooleanTrue : kCFBooleanFalse));
 }
+static BOOL windowIsMain(AXUIElementRef root, double deadline) {
+  CFTypeRef value = NULL;
+  BOOL main = readAttribute(root, kAXMainAttribute, &value, deadline) ==
+                  kAXErrorSuccess &&
+              value && CFGetTypeID(value) == CFBooleanGetTypeID() &&
+              CFBooleanGetValue((CFBooleanRef)value);
+  if (value)
+    CFRelease(value);
+  return main;
+}
 static int capturedWindowAction(int action, OTAutomationIdentity id,
                                 int desired, uintptr_t guard) {
   @autoreleasepool {
@@ -468,6 +478,11 @@ static int capturedWindowAction(int action, OTAutomationIdentity id,
           else {
             AXUIElementSetMessagingTimeout(root, (float)remaining);
             status = axStatus(performAction(root, kAXRaiseAction));
+            // System Settings refuses to raise a window that the two writes
+            // above already made main. The focus is then done; a refusal
+            // only fails when it leaves the window not main.
+            if (status == 5 && windowIsMain(root, deadline))
+              status = 0;
             if (now() >= deadline)
               status = 8;
           }

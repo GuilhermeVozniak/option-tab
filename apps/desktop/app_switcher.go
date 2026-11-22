@@ -396,9 +396,23 @@ func (a *App) updateCapture(st switcher.State) {
 	a.captures.Update(ids, selected, px)
 }
 
+// iconKey identifies one rendered app icon. The bundle id keeps a reused pid
+// from inheriting another app's icon; the pixel size keeps a raised icon size
+// from reusing (and upscaling) icons rendered for a smaller one.
+type iconKey struct {
+	pid    int
+	bundle string
+	px     int
+}
+
+// maxIconCacheEntries bounds the icon cache. Entries are never looked up again
+// once their app exits or the icon size changes, so the cache is simply
+// dropped when it fills and rebuilt from the apps still listed.
+const maxIconCacheEntries = 512
+
 // enrichIcons fills each entry's Icon with the owning app's icon (a base64 PNG
-// data URL), cached by pid. It is a no-op when the platform provides no icons
-// (stub/fake), so the overlay falls back to letter glyphs.
+// data URL), cached per app and size. It is a no-op when the platform provides
+// no icons (stub/fake), so the overlay falls back to letter glyphs.
 func (a *App) enrichIcons(st *switcher.State) {
 	src, ok := a.platform.(platform.IconSource)
 	if !ok {
@@ -411,26 +425,46 @@ func (a *App) enrichIcons(st *switcher.State) {
 	a.iconMu.Lock()
 	defer a.iconMu.Unlock()
 	if a.iconCache == nil {
-		a.iconCache = make(map[int]string)
+		a.iconCache = make(map[iconKey]string)
+	}
+	icon := func(pid int, bundle string) string {
+		key := iconKey{pid: pid, bundle: bundle, px: px}
+		if img, cached := a.iconCache[key]; cached {
+			return img
+		}
+		img := src.AppIcon(pid, px)
+		// A failed read is not cached: an app that is still launching has no
+		// icon yet and must be asked again.
+		if img != "" {
+			if len(a.iconCache) >= maxIconCacheEntries {
+				clear(a.iconCache)
+			}
+			a.iconCache[key] = img
+		}
+		return img
 	}
 	for i := range st.Entries {
-		pid := int(st.Entries[i].AppID)
-		img, cached := a.iconCache[pid]
-		if !cached {
-			img = src.AppIcon(pid, px)
-			a.iconCache[pid] = img
-		}
-		st.Entries[i].Icon = img
+		st.Entries[i].Icon = icon(int(st.Entries[i].AppID), st.Entries[i].BundleID)
 	}
 	for i := range st.Apps {
-		pid := int(st.Apps[i].AppID)
-		img, cached := a.iconCache[pid]
-		if !cached {
-			img = src.AppIcon(pid, px)
-			a.iconCache[pid] = img
-		}
-		st.Apps[i].Icon = img
+		st.Apps[i].Icon = icon(int(st.Apps[i].AppID), st.Apps[i].BundleID)
 	}
+}
+
+// showSwitcherFromTray backs the tray's "Show Option Tab". It activates the
+// first enabled shortcut instead of assuming shortcut 1 exists and is enabled,
+// and still opens the window switcher when every shortcut is disabled.
+func (a *App) showSwitcherFromTray() {
+	if a.controller == nil {
+		return
+	}
+	for _, shortcut := range a.settingsSnapshot().Shortcuts {
+		if shortcut.Enabled {
+			a.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: shortcut.ID})
+			return
+		}
+	}
+	_, _ = a.controller.Open(config.ModeWindows)
 }
 
 // ---- Bound controller actions (called from the frontend) ----

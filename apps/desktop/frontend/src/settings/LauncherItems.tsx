@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -99,6 +99,16 @@ export function LauncherItems({
   const operationEpoch = useRef(0);
   const transientIcons = useRef(new Set<string>());
   const snapshotLoaded = useRef(false);
+  const loadedRefreshKey = useRef(refreshKey);
+  // What a late read needs to know about the editor at the moment it lands.
+  const snapshotRef = useRef(snapshot);
+  const itemsRef = useRef(items);
+  const workingRef = useRef(working);
+  useLayoutEffect(() => {
+    snapshotRef.current = snapshot;
+    itemsRef.current = items;
+    workingRef.current = working;
+  });
   const wasBusy = useRef(initialStatus?.busy ?? false);
   useEffect(() => {
     if (!actions.status || !actions.subscribe) return;
@@ -134,14 +144,28 @@ export function LauncherItems({
     // The hidden settings webview can mount before preferences admit reads.
     // Retry its first snapshot when admission or a saved profile returns,
     // without resetting a draft.
-    if (status?.available === false || (snapshotLoaded.current && !completed)) return;
+    // Later reads follow a finished job or a new launcher epoch (Preferences
+    // reopened, admission changed): either can mean the saved items moved on.
+    const epochChanged = loadedRefreshKey.current !== refreshKey;
+    if (status?.available === false || (snapshotLoaded.current && !completed && !epochChanged))
+      return;
+    loadedRefreshKey.current = refreshKey;
     const epoch = loadEpoch.current;
     const request = ++loadRequest.current;
     void actions
       .load(profileID)
       .then((next) => {
         if (request !== loadRequest.current || epoch !== loadEpoch.current) return;
-        if (!snapshotLoaded.current) {
+        // The first read, or a later one that finds no unsaved edits: take the
+        // saved items and their revision. Items can change outside the editor
+        // (a reorder on the Dock while Preferences is closed); holding on to
+        // the old revision would make every later save fail as stale.
+        const base = snapshotRef.current;
+        const clean =
+          base !== null &&
+          JSON.stringify(itemsRef.current) === JSON.stringify(base.items ?? []) &&
+          !workingRef.current;
+        if (!snapshotLoaded.current || clean) {
           snapshotLoaded.current = true;
           setSnapshot(next);
           setItems(next.items ?? []);
@@ -157,7 +181,7 @@ export function LauncherItems({
               .catch(() => {});
           }
         } else {
-          // A completed chooser refreshes private metadata, retaining the draft
+          // Unsaved edits: refresh private metadata only, retaining the draft
           // and its base revision until the user explicitly saves it.
           setSnapshot((old) =>
             old ? { ...old, references: next.references, iconIDs: next.iconIDs } : next,
@@ -203,8 +227,16 @@ export function LauncherItems({
     }
   };
   const full = items.length >= 16;
+  // Applications that can still join a new group, and the ticked ones among
+  // them. A ticked item can be removed (or grouped, or reloaded away) before
+  // "Create group"; only members that still exist may reach the saved group.
+  const groupable = items.filter(
+    (x) => x.kind === "app" && !items.some((g) => g.kind === "group" && g.members?.includes(x.id)),
+  );
+  const groupMembers = members.filter((id) => groupable.some((x) => x.id === id));
   const blocked = !snapshot || working || status?.busy || status?.available === false || full;
-  const removeItem = (id: string) =>
+  const removeItem = (id: string) => {
+    setMembers((old) => old.filter((member) => member !== id));
     setItems((old) =>
       old
         .filter((item) => item.id !== id)
@@ -215,6 +247,7 @@ export function LauncherItems({
         )
         .filter((item) => item.kind !== "group" || (item.members?.length ?? 0) > 0),
     );
+  };
   const addRef = (kind: "app" | "folder" | "file") =>
     void run(
       () => actions.chooseReference(kind),
@@ -517,30 +550,24 @@ export function LauncherItems({
             onChange={(e) => setGroupName(e.target.value)}
           />
         </Label>
-        {items
-          .filter(
-            (x) =>
-              x.kind === "app" &&
-              !items.some((g) => g.kind === "group" && g.members?.includes(x.id)),
-          )
-          .map((x) => (
-            <Label appearance="unstyled" key={x.id} className="ot-editor-check-row">
-              <Switch
-                aria-label={x.label}
-                checked={members.includes(x.id)}
-                onCheckedChange={(checked) =>
-                  setMembers((old) => (checked ? [...old, x.id] : old.filter((id) => id !== x.id)))
-                }
-              />
-              {x.label}
-            </Label>
-          ))}
+        {groupable.map((x) => (
+          <Label appearance="unstyled" key={x.id} className="ot-editor-check-row">
+            <Switch
+              aria-label={x.label}
+              checked={members.includes(x.id)}
+              onCheckedChange={(checked) =>
+                setMembers((old) => (checked ? [...old, x.id] : old.filter((id) => id !== x.id)))
+              }
+            />
+            {x.label}
+          </Label>
+        ))}
         <Button
-          disabled={!groupName || members.length === 0 || full}
+          disabled={!groupName || groupMembers.length === 0 || full}
           onClick={() => {
             setItems((old) => [
               ...old,
-              { id: newID("group"), kind: "group", label: groupName, members },
+              { id: newID("group"), kind: "group", label: groupName, members: groupMembers },
             ]);
             setGroupName("");
             setMembers([]);

@@ -98,8 +98,18 @@ export function keyToAction(e: KeyEventLike, opts: KeymapOptions = {}): Action {
 
   // A single printable character (no command/control modifier) types into the
   // search box. Option/Shift are allowed because they produce characters.
-  if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) {
+  if (e.key.length === 1 && isTypedText(e.key) && !e.metaKey && !e.ctrlKey) {
     return { kind: "searchAppend", char: e.key };
   }
   return { kind: "none" };
+}
+
+// isTypedText rejects the one-character "keys" that are not text: control
+// characters, and AppKit's function-key range (U+F700..U+F8FE) that macOS
+// reports for Home, End, forward Delete and the F-keys. U+F8FF is the Apple
+// logo, which Option+Shift+K really types.
+function isTypedText(char: string): boolean {
+  const code = char.charCodeAt(0);
+  if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) return false;
+  return code < 0xf700 || code > 0xf8fe;
 }

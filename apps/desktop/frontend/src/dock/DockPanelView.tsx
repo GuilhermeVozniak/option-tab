@@ -7,6 +7,7 @@ import {
 import type { DockPointer } from "../lib/dock-bridge";
 import { computeLayout, effectiveStyle } from "../lib/layout";
 import { type MaterialStatus, materialClass } from "../lib/material";
+import { spaceBadgeNumbers } from "../lib/spaces";
 import { truncateTitle } from "../lib/text";
 import type { DockItem, DockViewState, WindowAction } from "../lib/types";
 import { FolderPanel, type FolderPanelHandlers } from "./FolderPanel";
@@ -117,6 +118,7 @@ export function DockPanelView({
   const lastPointerTarget = useRef(0);
   const a = state.appearance;
   const count = state.entries.length;
+  const spaceNumbers = spaceBadgeNumbers(state.entries);
   const style = effectiveStyle(a.style, count, a.compactThreshold);
   const vertical = a.layoutDirection === "vertical";
   const layout = computeLayout({
@@ -407,6 +409,8 @@ export function DockPanelView({
                   {state.entries.map((e) => {
                     const title = truncateTitle(e.title || e.appName, a.titleTruncation);
                     const image = style === "appIcons" ? e.icon : e.thumbnail;
+                    const spaceNumber =
+                      a.showSpaceNumbers && e.spaceId ? spaceNumbers.get(e.spaceId) : undefined;
                     return (
                       <article
                         key={e.windowId}
@@ -557,15 +561,15 @@ export function DockPanelView({
                               {e.fullscreen ? "↗" : ""}
                             </span>
                           ) : null}
-                          {a.showSpaceNumbers && e.spaceId ? (
+                          {spaceNumber !== undefined ? (
                             <span
                               className="ot-dock-space"
                               aria-label={t("Space {number}").replace(
                                 "{number}",
-                                String(e.spaceId),
+                                String(spaceNumber),
                               )}
                             >
-                              {e.spaceId}
+                              {spaceNumber}
                             </span>
                           ) : null}
                         </button>

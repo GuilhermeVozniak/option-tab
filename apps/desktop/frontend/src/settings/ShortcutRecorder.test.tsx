@@ -62,4 +62,31 @@ describe("ShortcutRecorder", () => {
     expect(nativeCapture.cancelShortcutCapture).toHaveBeenCalledTimes(1);
     expect(onChordChange).not.toHaveBeenCalled();
   });
+
+  // Native capture gives up after 10 seconds (and ends after each recorded
+  // chord). The field keeps focus, so no new focus event will ever re-arm it:
+  // clicking the field again must.
+  it("re-arms native capture when the still-focused field is clicked", async () => {
+    nativeCapture.captureShortcut.mockResolvedValueOnce("").mockResolvedValueOnce("command+tab");
+    const { input, onChordChange } = renderRecorder();
+    await act(async () => {
+      fireEvent.focus(input);
+    });
+    expect(onChordChange).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(input);
+    });
+    expect(nativeCapture.captureShortcut).toHaveBeenCalledTimes(2);
+    expect(onChordChange).toHaveBeenCalledWith("command+tab");
+  });
+
+  it("does not arm a second capture while one is pending", async () => {
+    nativeCapture.captureShortcut.mockReturnValue(new Promise(() => {}));
+    const { input } = renderRecorder();
+    await act(async () => {
+      fireEvent.focus(input);
+      fireEvent.click(input);
+    });
+    expect(nativeCapture.captureShortcut).toHaveBeenCalledTimes(1);
+  });
 });
