@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -158,5 +159,37 @@ func TestLauncherGeometryProtectedEdgeAndInvalidSpace(t *testing.T) {
 	e.Displays[0].UsableFrame = domain.Bounds{W: 20, H: 20}
 	if Layout(p, e.Displays[0], 1, nil).Status == "ready" {
 		t.Fatal("unusable display admitted")
+	}
+}
+
+type returningEnvironment struct{ contexts chan context.Context }
+
+func (e *returningEnvironment) ObserveLauncherEnvironment(ctx context.Context, _ func(platform.LauncherEnvironment)) error {
+	e.contexts <- ctx
+	return errors.New("environment unavailable")
+}
+
+func TestLauncherReleasesContextOfSelfReturnedSource(t *testing.T) {
+	f := &fixture{views: make(chan State, 64)}
+	source := &returningEnvironment{contexts: make(chan context.Context, 4)}
+	c := New(Deps{Environment: source, Applications: f, Identities: f, View: f})
+	s := config.DefaultReplacementDock()
+	s.Enabled = true
+	if err := c.Configure(s); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- c.Run(ctx) }()
+	child := recv(t, source.contexts)
+	// The controller is still running; only its own cancel can end the child.
+	select {
+	case <-child.Done():
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("context of a source that returned by itself was never released")
+	}
+	cancel()
+	if err := recv(t, done); err != context.Canceled {
+		t.Fatal(err)
 	}
 }

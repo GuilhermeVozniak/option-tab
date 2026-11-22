@@ -123,3 +123,25 @@ func TestOpenGuardedRevalidatesControllerAfterExternalGuard(t *testing.T) {
 		t.Fatalf("guard-time mutation replaced old presentation: %+v", current)
 	}
 }
+
+// A default install has no apps-mode shortcut. Automation ("open switcher
+// mode apps") must still be able to present the app switcher.
+func TestOpenAppsModeWithoutAppsShortcut(t *testing.T) {
+	apps, wins := appFixtures()
+	c, _, view := newAppController(t, apps, wins, func(s *config.Settings) {
+		for i := range s.Shortcuts {
+			s.Shortcuts[i].Mode = config.ModeWindows
+		}
+		s.AppSwitcher.Behavior.HoldToCycle = false
+	})
+	st, err := c.Open(config.ModeApps)
+	if err != nil {
+		t.Fatalf("Open(apps) on default shortcuts: %v", err)
+	}
+	if st.Mode != config.ModeApps || len(st.Apps) != 3 || len(view.shows) != 1 {
+		t.Fatalf("state=%+v shows=%d", st, len(view.shows))
+	}
+	if st.ShortcutID != 0 {
+		t.Fatalf("synthesized shortcut must not claim a user shortcut id, got %d", st.ShortcutID)
+	}
+}

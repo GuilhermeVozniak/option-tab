@@ -153,8 +153,12 @@ func (v WindowVisibility) Valid() bool {
 }
 
 // UnmarshalJSON accepts the v1 boolean form (true=show, false=hide) as well as
-// the v2 string form, so old settings files keep loading.
+// the v2 string form, so old settings files keep loading. JSON null leaves the
+// value untouched, as encoding/json does, so the default still applies.
 func (v *WindowVisibility) UnmarshalJSON(b []byte) error {
+	if string(b) == "null" {
+		return nil
+	}
 	var asBool bool
 	if err := json.Unmarshal(b, &asBool); err == nil {
 		if asBool {

@@ -88,3 +88,22 @@ it("keeps preview permissions explicit and media connection gates intact after n
   );
   expect(onRequest.mock.calls).toEqual([["accessibility"], ["screenRecording"]]);
 });
+
+it("offers only the Dock application scope the backend keeps", () => {
+  render(<DockTab ctx={context()} />);
+  fireEvent.click(
+    within(screen.getByRole("navigation", { name: "Dock sections" })).getByRole("button", {
+      name: "Window previews",
+    }),
+  );
+  // config.Normalize coerces dock.scope.appScope to "all"; offering "activeApp"
+  // only made the select snap back after the canonical save echo.
+  const scope = screen.getByRole("combobox", { name: "Dock app scope" });
+  expect(scope).toBeVisible();
+  expect(scope).toHaveValue("all");
+  expect(
+    within(scope)
+      .getAllByRole("option")
+      .map((option) => (option as HTMLOptionElement).value),
+  ).toEqual(["all"]);
+});

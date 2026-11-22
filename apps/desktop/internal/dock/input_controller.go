@@ -46,6 +46,10 @@ type InputController struct {
 	sourceDone <-chan struct{}
 	wake       chan struct{}
 	once       sync.Once
+	// invalidated is set by an environment invalidation and cleared by the next
+	// accepted observation, so a repeated invalidation retires nothing twice.
+	// Guarded by mu.
+	invalidated bool
 }
 
 func NewInputController(deps InputControllerDeps) *InputController {
@@ -109,9 +113,18 @@ func (c *InputController) Target(target platform.DockInputTarget) {
 	if target.Generation == 0 {
 		// Zero is explicit environment invalidation; an ordinary pointer exit
 		// retains the observed generation and Dock PID with a nil item.
+		if c.invalidated {
+			// Publishers repeat it on every observation while it holds. The
+			// source and admitted actions were already retired by the first.
+			c.mu.Unlock()
+			return
+		}
+		c.invalidated = true
 		c.state.epoch++
 		cancel = c.cancel
 		target.Generation = c.state.target.Generation
+	} else {
+		c.invalidated = false
 	}
 	c.state.target = target
 	c.mu.Unlock()
@@ -258,6 +271,8 @@ func (c *InputController) run(ctx context.Context) {
 		case sourceErr := <-done:
 			// Observe has returned and joined its native lifetime. Do not read its
 			// completion channel again; a later bounded retry may create a new source.
+			// Its child context is still registered with ctx until cancelled.
+			stop()
 			stop = nil
 			done = nil
 			targets = nil

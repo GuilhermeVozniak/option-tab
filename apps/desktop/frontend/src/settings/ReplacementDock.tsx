@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { NumberInput } from "@/components/ui/number-input";
 import { Switch } from "@/components/ui/switch";
 import { resolveLang, type Translate } from "../lib/i18n";
 import type { LauncherProfileTransferActions } from "../lib/launcher-profile-transfer-bridge";
@@ -78,6 +79,196 @@ function ProfileNameInput({
   );
 }
 
+type LauncherBinding = ReplacementDockSettings["bindings"][number];
+type LauncherProfile = ReplacementDockSettings["profiles"][number];
+
+// config.ValidateReplacementDock rejects the whole launcher document unless
+// thicknessPx >= iconPx + 8, so the two fields are always patched together.
+const ICON_MARGIN_PX = 8;
+
+// Mirrors config.ValidLauncherBundleID.
+const LAUNCHER_BUNDLE_ID = /^[A-Za-z0-9._-]{1,255}$/;
+const validLauncherBundleID = (id: string) => LAUNCHER_BUNDLE_ID.test(id);
+
+// A settings file written by an older build can carry null for these arrays.
+const cloneWidgets = (widgets: LauncherProfile["widgets"] | null | undefined) =>
+  (widgets ?? []).map((widget) => ({ ...widget, grants: [...(widget.grants ?? [])] }));
+
+function freeRuleID(rules: LauncherProfileRule[]) {
+  let n = rules.length + 1;
+  while (rules.some((rule) => rule.id === `focus-${n}`)) n++;
+  return `focus-${n}`;
+}
+
+function FocusRuleRow({
+  rule,
+  index,
+  t,
+  appChoices,
+  profiles,
+  bindings,
+  bindingLabel,
+  canMoveUp,
+  canMoveDown,
+  onMove,
+  onPatch,
+  onRemove,
+}: {
+  rule: LauncherProfileRule;
+  index: number;
+  t: Translate;
+  appChoices: LauncherAppChoice[];
+  profiles: LauncherProfile[];
+  bindings: LauncherBinding[];
+  bindingLabel: (binding: LauncherBinding) => string;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  onMove: (offset: -1 | 1) => void;
+  onPatch: (partial: Partial<LauncherProfileRule>) => void;
+  onRemove: () => void;
+}) {
+  // Bundle identifier text stays local until it is valid: the backend rejects
+  // the whole save for an empty or malformed identifier. A draft belongs to
+  // the saved identifier it started from and is dropped once that changes.
+  const [draft, setDraft] = useState<{ saved: string; text: string } | null>(null);
+  const text = draft && draft.saved === rule.bundleID ? draft.text : null;
+  const shown = text ?? rule.bundleID;
+  const edit = (next: string) => setDraft({ saved: rule.bundleID, text: next });
+  const save = (bundleID: string) => {
+    setDraft(null);
+    if (bundleID !== rule.bundleID) onPatch({ bundleID });
+  };
+  const commit = () => {
+    if (text === null) return;
+    const next = text.trim();
+    if (validLauncherBundleID(next)) save(next);
+  };
+  const invalidBundle = !validLauncherBundleID(shown.trim());
+  const label = rule.bundleID || t("New rule");
+  return (
+    <article className="ot-dock-settings-rule">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">
+          {t("Priority {number}").replace("{number}", String(index + 1))}
+        </span>
+        <div className="flex gap-1">
+          <Button
+            variant="outline"
+            aria-label={`${t("Move {app} up").replace("{app}", label)}`}
+            disabled={!canMoveUp}
+            onClick={() => onMove(-1)}
+          >
+            ↑
+          </Button>
+          <Button
+            variant="outline"
+            aria-label={`${t("Move {app} down").replace("{app}", label)}`}
+            disabled={!canMoveDown}
+            onClick={() => onMove(1)}
+          >
+            ↓
+          </Button>
+          <Button
+            variant="outline"
+            aria-label={t("Remove {app}").replace("{app}", label)}
+            onClick={onRemove}
+          >
+            {t("Remove")}
+          </Button>
+        </div>
+      </div>
+      <div className="ot-dock-settings-fields">
+        <Label appearance="unstyled">
+          <span>{t("Running app")}</span>
+          <NativeSelect
+            aria-label={t("Running app")}
+            value={appChoices.some((choice) => choice.bundleID === shown) ? shown : ""}
+            onChange={(event) => {
+              // "Enter bundle identifier" only clears the text field.
+              if (validLauncherBundleID(event.target.value)) save(event.target.value);
+              else edit(event.target.value);
+            }}
+          >
+            <NativeSelectOption value="">{t("Enter bundle identifier")}</NativeSelectOption>
+            {appChoices.map((choice) => (
+              <NativeSelectOption key={choice.bundleID} value={choice.bundleID}>
+                {choice.name} — {choice.bundleID}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </Label>
+        <Label appearance="unstyled">
+          <span>{t("Exact bundle identifier")}</span>
+          <Input
+            aria-label={`${t("Exact bundle identifier")} ${label}`}
+            value={shown}
+            maxLength={255}
+            spellCheck={false}
+            onChange={(event) => edit(event.target.value)}
+            onBlur={commit}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commit();
+              } else if (event.key === "Escape" && text !== null) {
+                event.preventDefault();
+                setDraft(null);
+              }
+            }}
+          />
+        </Label>
+        <Label appearance="unstyled">
+          <span>{t("Destination profile")}</span>
+          <NativeSelect
+            aria-label={`${t("Destination profile")} ${label}`}
+            value={rule.profileID}
+            onChange={(event) => onPatch({ profileID: event.target.value })}
+          >
+            {profiles.map((candidate) => (
+              <NativeSelectOption key={candidate.id} value={candidate.id}>
+                {candidate.name}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </Label>
+        <Label appearance="unstyled">
+          <span>{t("Display scope")}</span>
+          <NativeSelect
+            aria-label={`${t("Display scope")} ${label}`}
+            value={rule.bindingID}
+            onChange={(event) => onPatch({ bindingID: event.target.value })}
+          >
+            <NativeSelectOption value="">{t("Every assigned display")}</NativeSelectOption>
+            {bindings.map((binding) => (
+              <NativeSelectOption key={binding.id} value={binding.id}>
+                {bindingLabel(binding)}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </Label>
+      </div>
+      <Label appearance="unstyled" className={ROW}>
+        <span>{t("Enabled")}</span>
+        <Switch
+          aria-label={t("Enable rule {app}").replace("{app}", label)}
+          checked={rule.enabled}
+          onCheckedChange={(checked) => onPatch({ enabled: checked })}
+        />
+      </Label>
+      {invalidBundle ? (
+        <Alert appearance="unstyled" asChild>
+          <p role="alert" className={HINT}>
+            {t(
+              "Enter an exact bundle identifier using letters, numbers, dots, hyphens, or underscores.",
+            )}
+          </p>
+        </Alert>
+      ) : null}
+    </article>
+  );
+}
+
 export function ReplacementDock({
   value,
   t,
@@ -145,10 +336,35 @@ export function ReplacementDock({
     enterActivates: false,
   };
   const rules = value.rules ?? [];
+  const bindings = value.bindings ?? [];
   const patchRules = (next: LauncherProfileRule[]) => onChange({ ...value, rules: next });
   const patchRule = (id: string, partial: Partial<LauncherProfileRule>) =>
     patchRules(rules.map((rule) => (rule.id === id ? { ...rule, ...partial } : rule)));
-  const bindingLabel = (binding: ReplacementDockSettings["bindings"][number]) => {
+  // A new rule is only a local draft: it is saved once its bundle identifier
+  // is valid, because the backend rejects the whole save otherwise.
+  const [pendingRule, setPendingRule] = useState<Omit<LauncherProfileRule, "id"> | null>(null);
+  const pendingRuleID = freeRuleID(rules);
+  const patchPendingRule = (partial: Partial<LauncherProfileRule>) => {
+    if (!pendingRule) return;
+    const next = { ...pendingRule, ...partial };
+    if (!validLauncherBundleID(next.bundleID) || rules.length >= 8) {
+      setPendingRule(next);
+      return;
+    }
+    setPendingRule(null);
+    patchRules([
+      ...rules,
+      {
+        ...next,
+        id: pendingRuleID,
+        profileID: value.profiles.some((candidate) => candidate.id === next.profileID)
+          ? next.profileID
+          : (value.profiles[0]?.id ?? ""),
+        bindingID: bindings.some((binding) => binding.id === next.bindingID) ? next.bindingID : "",
+      },
+    ]);
+  };
+  const bindingLabel = (binding: LauncherBinding) => {
     if (binding.target === "main") return t("Main display");
     const display = status?.displays.find((candidate) => candidate.uuid === binding.displayUUID);
     return display?.name || `${binding.displayUUID} (${t("Disconnected")})`;
@@ -253,7 +469,7 @@ export function ReplacementDock({
                   ...(profile ?? value.profiles[0]),
                   id: `profile-${n}`,
                   name: t("New profile"),
-                  widgets: (profile?.widgets ?? []).map((w) => ({ ...w, grants: [...w.grants] })),
+                  widgets: cloneWidgets(profile?.widgets),
                 };
                 setProfileID(next.id);
                 onChange({ ...value, profiles: [...value.profiles, next] });
@@ -275,7 +491,7 @@ export function ReplacementDock({
                   ...profile,
                   id: `profile-${n}`,
                   name: copyName,
-                  widgets: profile.widgets.map((w) => ({ ...w, grants: [...w.grants] })),
+                  widgets: cloneWidgets(profile.widgets),
                 };
                 setProfileID(next.id);
                 onChange({ ...value, profiles: [...value.profiles, next] });
@@ -302,7 +518,7 @@ export function ReplacementDock({
                 onChange({
                   ...value,
                   profiles: value.profiles.filter((p) => p.id !== profile.id),
-                  bindings: value.bindings.map((b) =>
+                  bindings: bindings.map((b) =>
                     b.profileID === profile.id ? { ...b, profileID: replacement.id } : b,
                   ),
                   rules: rules.map((rule) =>
@@ -411,7 +627,7 @@ export function ReplacementDock({
           {profile ? (
             <WidgetSettings
               key={profile.id}
-              instances={profile.widgets}
+              instances={profile.widgets ?? []}
               stacks={profile.stacks ?? []}
               catalog={widgetCatalog}
               language={resolveLang(language)}
@@ -497,51 +713,53 @@ export function ReplacementDock({
                   </Label>
                   <Label appearance="unstyled">
                     <span>{t("Icon size")}</span>
-                    <Input
+                    <NumberInput
                       aria-label={t("Icon size")}
-                      type="number"
                       min={24}
                       max={64}
                       value={profile.iconPx}
-                      onChange={(event) => patchProfile({ iconPx: Number(event.target.value) })}
-                    />
-                  </Label>
-                  <Label appearance="unstyled">
-                    <span>{t("Maximum length")}</span>
-                    <Input
-                      aria-label={t("Maximum length")}
-                      type="number"
-                      min={0.25}
-                      max={0.9}
-                      step={0.05}
-                      value={profile.maxLengthFraction}
-                      onChange={(event) =>
-                        patchProfile({ maxLengthFraction: Number(event.target.value) })
+                      onCommit={(iconPx) =>
+                        patchProfile({
+                          iconPx,
+                          thicknessPx: Math.max(profile.thicknessPx, iconPx + ICON_MARGIN_PX),
+                        })
                       }
                     />
                   </Label>
                   <Label appearance="unstyled">
+                    <span>{t("Maximum length")}</span>
+                    <NumberInput
+                      aria-label={t("Maximum length")}
+                      min={0.25}
+                      max={0.9}
+                      step={0.05}
+                      value={profile.maxLengthFraction}
+                      onCommit={(maxLengthFraction) => patchProfile({ maxLengthFraction })}
+                    />
+                  </Label>
+                  <Label appearance="unstyled">
                     <span>{t("Dock thickness")}</span>
-                    <Input
+                    <NumberInput
                       aria-label={t("Dock thickness")}
-                      type="number"
                       min={48}
                       max={112}
                       value={profile.thicknessPx}
-                      onChange={(event) =>
-                        patchProfile({ thicknessPx: Number(event.target.value) })
+                      onCommit={(thicknessPx) =>
+                        patchProfile({
+                          thicknessPx,
+                          iconPx: Math.min(profile.iconPx, thicknessPx - ICON_MARGIN_PX),
+                        })
                       }
                     />
                   </Label>
                   <Label appearance="unstyled">
                     <span>{t("Screen inset")}</span>
-                    <Input
+                    <NumberInput
                       aria-label={t("Screen inset")}
-                      type="number"
                       min={12}
                       max={64}
                       value={profile.insetPx}
-                      onChange={(event) => patchProfile({ insetPx: Number(event.target.value) })}
+                      onCommit={(insetPx) => patchProfile({ insetPx })}
                     />
                   </Label>
                   <Label appearance="unstyled" className={ROW}>
@@ -611,75 +829,51 @@ export function ReplacementDock({
                   </Label>
                   <Label appearance="unstyled">
                     <span>{t("Opacity")}</span>
-                    <Input
+                    <NumberInput
                       aria-label={t("Launcher opacity")}
-                      type="number"
                       min={0.35}
                       max={1}
                       step={0.05}
                       value={profile.appearance.opacity}
-                      onChange={(event) =>
-                        patchProfile({
-                          appearance: {
-                            ...profile.appearance,
-                            opacity: Number(event.target.value),
-                          },
-                        })
+                      onCommit={(opacity) =>
+                        patchProfile({ appearance: { ...profile.appearance, opacity } })
                       }
                     />
                   </Label>
                   <Label appearance="unstyled">
                     <span>{t("Border opacity")}</span>
-                    <Input
+                    <NumberInput
                       aria-label={t("Border opacity")}
-                      type="number"
                       min={0}
                       max={0.5}
                       step={0.05}
                       value={profile.appearance.borderOpacity}
-                      onChange={(event) =>
-                        patchProfile({
-                          appearance: {
-                            ...profile.appearance,
-                            borderOpacity: Number(event.target.value),
-                          },
-                        })
+                      onCommit={(borderOpacity) =>
+                        patchProfile({ appearance: { ...profile.appearance, borderOpacity } })
                       }
                     />
                   </Label>
                   <Label appearance="unstyled">
                     <span>{t("Corner radius")}</span>
-                    <Input
+                    <NumberInput
                       aria-label={t("Corner radius")}
-                      type="number"
                       min={0}
                       max={28}
                       value={profile.appearance.cornerRadiusPx}
-                      onChange={(event) =>
-                        patchProfile({
-                          appearance: {
-                            ...profile.appearance,
-                            cornerRadiusPx: Number(event.target.value),
-                          },
-                        })
+                      onCommit={(cornerRadiusPx) =>
+                        patchProfile({ appearance: { ...profile.appearance, cornerRadiusPx } })
                       }
                     />
                   </Label>
                   <Label appearance="unstyled">
                     <span>{t("Item spacing")}</span>
-                    <Input
+                    <NumberInput
                       aria-label={t("Item spacing")}
-                      type="number"
                       min={2}
                       max={20}
                       value={profile.appearance.itemSpacingPx}
-                      onChange={(event) =>
-                        patchProfile({
-                          appearance: {
-                            ...profile.appearance,
-                            itemSpacingPx: Number(event.target.value),
-                          },
-                        })
+                      onCommit={(itemSpacingPx) =>
+                        patchProfile({ appearance: { ...profile.appearance, itemSpacingPx } })
                       }
                     />
                   </Label>
@@ -717,35 +911,29 @@ export function ReplacementDock({
                   </Label>
                   <Label appearance="unstyled">
                     <span>{t("Magnification scale")}</span>
-                    <Input
+                    <NumberInput
                       aria-label={t("Magnification scale")}
-                      type="number"
                       min={1}
                       max={2}
                       step={0.05}
                       disabled={!magnification.enabled}
                       value={magnification.scale}
-                      onChange={(event) =>
-                        patchProfile({
-                          magnification: { ...magnification, scale: Number(event.target.value) },
-                        })
+                      onCommit={(scale) =>
+                        patchProfile({ magnification: { ...magnification, scale } })
                       }
                     />
                   </Label>
                   <Label appearance="unstyled">
                     <span>{t("Magnification reach")}</span>
-                    <Input
+                    <NumberInput
                       aria-label={t("Magnification reach")}
-                      type="number"
                       min={0}
                       max={4}
                       step={1}
                       disabled={!magnification.enabled}
                       value={magnification.reach}
-                      onChange={(event) =>
-                        patchProfile({
-                          magnification: { ...magnification, reach: Number(event.target.value) },
-                        })
+                      onCommit={(reach) =>
+                        patchProfile({ magnification: { ...magnification, reach } })
                       }
                     />
                   </Label>
@@ -928,7 +1116,7 @@ export function ReplacementDock({
             </p>
           </div>
           <div aria-label={t("Display bindings")}>
-            {value.bindings.map((binding) => (
+            {bindings.map((binding) => (
               <div className={ROW} key={binding.id}>
                 <span>{bindingLabel(binding)}</span>
                 <NativeSelect
@@ -937,7 +1125,7 @@ export function ReplacementDock({
                   onChange={(event) =>
                     onChange({
                       ...value,
-                      bindings: value.bindings.map((b) =>
+                      bindings: bindings.map((b) =>
                         b.id === binding.id ? { ...b, profileID: event.target.value } : b,
                       ),
                     })
@@ -955,7 +1143,7 @@ export function ReplacementDock({
                   onClick={() =>
                     onChange({
                       ...value,
-                      bindings: value.bindings.filter((b) => b.id !== binding.id),
+                      bindings: bindings.filter((b) => b.id !== binding.id),
                       rules: rules.filter((rule) => rule.bindingID !== binding.id),
                     })
                   }
@@ -967,7 +1155,7 @@ export function ReplacementDock({
             {status?.displays
               .filter(
                 (display) =>
-                  !value.bindings.some((binding) =>
+                  !bindings.some((binding) =>
                     display.main
                       ? binding.target === "main" ||
                         (binding.target === "display" && binding.displayUUID === display.uuid)
@@ -978,20 +1166,22 @@ export function ReplacementDock({
                 <Button
                   key={display.uuid}
                   variant="outline"
-                  onClick={() =>
+                  onClick={() => {
+                    let n = bindings.length + 1;
+                    while (bindings.some((binding) => binding.id === `display-${n}`)) n++;
                     onChange({
                       ...value,
                       bindings: [
-                        ...value.bindings,
+                        ...bindings,
                         {
-                          id: `display-${value.bindings.length + 1}`,
+                          id: `display-${n}`,
                           target: display.main ? "main" : "display",
                           displayUUID: display.main ? "" : display.uuid,
                           profileID: profile?.id ?? "default",
                         },
                       ],
-                    })
-                  }
+                    });
+                  }}
                 >
                   {t("Add {display}").replace("{display}", display.name)}
                 </Button>
@@ -1023,155 +1213,54 @@ export function ReplacementDock({
               </div>
               <Button
                 variant="outline"
-                disabled={rules.length >= 8 || value.profiles.length === 0}
-                onClick={() => {
-                  let n = rules.length + 1;
-                  while (rules.some((rule) => rule.id === `focus-${n}`)) n++;
-                  patchRules([
-                    ...rules,
-                    {
-                      id: `focus-${n}`,
-                      enabled: true,
-                      bundleID: "",
-                      profileID: profile?.id ?? value.profiles[0]?.id ?? "",
-                      bindingID: "",
-                    },
-                  ]);
-                }}
+                disabled={rules.length >= 8 || value.profiles.length === 0 || pendingRule !== null}
+                onClick={() =>
+                  setPendingRule({
+                    enabled: true,
+                    bundleID: "",
+                    profileID: profile?.id ?? value.profiles[0]?.id ?? "",
+                    bindingID: "",
+                  })
+                }
               >
                 {t("Add focus rule")}
               </Button>
             </div>
-            {rules.length === 0 ? <p className={HINT}>{t("No focus rules")}</p> : null}
-            {rules.map((rule, index) => {
-              const invalidBundle = !/^[A-Za-z0-9._-]{1,255}$/.test(rule.bundleID);
-              const label = rule.bundleID || t("New rule");
-              return (
-                <article key={rule.id} className="ot-dock-settings-rule">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <span className="text-xs text-muted-foreground">
-                      {t("Priority {number}").replace("{number}", String(index + 1))}
-                    </span>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="outline"
-                        aria-label={`${t("Move {app} up").replace("{app}", label)}`}
-                        disabled={index === 0}
-                        onClick={() => {
-                          const next = [...rules];
-                          [next[index - 1], next[index]] = [next[index], next[index - 1]];
-                          patchRules(next);
-                        }}
-                      >
-                        ↑
-                      </Button>
-                      <Button
-                        variant="outline"
-                        aria-label={`${t("Move {app} down").replace("{app}", label)}`}
-                        disabled={index === rules.length - 1}
-                        onClick={() => {
-                          const next = [...rules];
-                          [next[index], next[index + 1]] = [next[index + 1], next[index]];
-                          patchRules(next);
-                        }}
-                      >
-                        ↓
-                      </Button>
-                      <Button
-                        variant="outline"
-                        aria-label={t("Remove {app}").replace("{app}", label)}
-                        onClick={() =>
-                          patchRules(rules.filter((candidate) => candidate.id !== rule.id))
-                        }
-                      >
-                        {t("Remove")}
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="ot-dock-settings-fields">
-                    <Label appearance="unstyled">
-                      <span>{t("Running app")}</span>
-                      <NativeSelect
-                        aria-label={t("Running app")}
-                        value={
-                          appChoices.some((choice) => choice.bundleID === rule.bundleID)
-                            ? rule.bundleID
-                            : ""
-                        }
-                        onChange={(event) => patchRule(rule.id, { bundleID: event.target.value })}
-                      >
-                        <NativeSelectOption value="">
-                          {t("Enter bundle identifier")}
-                        </NativeSelectOption>
-                        {appChoices.map((choice) => (
-                          <NativeSelectOption key={choice.bundleID} value={choice.bundleID}>
-                            {choice.name} — {choice.bundleID}
-                          </NativeSelectOption>
-                        ))}
-                      </NativeSelect>
-                    </Label>
-                    <Label appearance="unstyled">
-                      <span>{t("Exact bundle identifier")}</span>
-                      <Input
-                        aria-label={`${t("Exact bundle identifier")} ${label}`}
-                        value={rule.bundleID}
-                        maxLength={255}
-                        spellCheck={false}
-                        onChange={(event) => patchRule(rule.id, { bundleID: event.target.value })}
-                      />
-                    </Label>
-                    <Label appearance="unstyled">
-                      <span>{t("Destination profile")}</span>
-                      <NativeSelect
-                        aria-label={`${t("Destination profile")} ${label}`}
-                        value={rule.profileID}
-                        onChange={(event) => patchRule(rule.id, { profileID: event.target.value })}
-                      >
-                        {value.profiles.map((candidate) => (
-                          <NativeSelectOption key={candidate.id} value={candidate.id}>
-                            {candidate.name}
-                          </NativeSelectOption>
-                        ))}
-                      </NativeSelect>
-                    </Label>
-                    <Label appearance="unstyled">
-                      <span>{t("Display scope")}</span>
-                      <NativeSelect
-                        aria-label={`${t("Display scope")} ${label}`}
-                        value={rule.bindingID}
-                        onChange={(event) => patchRule(rule.id, { bindingID: event.target.value })}
-                      >
-                        <NativeSelectOption value="">
-                          {t("Every assigned display")}
-                        </NativeSelectOption>
-                        {value.bindings.map((binding) => (
-                          <NativeSelectOption key={binding.id} value={binding.id}>
-                            {bindingLabel(binding)}
-                          </NativeSelectOption>
-                        ))}
-                      </NativeSelect>
-                    </Label>
-                  </div>
-                  <Label appearance="unstyled" className={ROW}>
-                    <span>{t("Enabled")}</span>
-                    <Switch
-                      aria-label={t("Enable rule {app}").replace("{app}", label)}
-                      checked={rule.enabled}
-                      onCheckedChange={(checked) => patchRule(rule.id, { enabled: checked })}
-                    />
-                  </Label>
-                  {invalidBundle ? (
-                    <Alert appearance="unstyled" asChild>
-                      <p role="alert" className={HINT}>
-                        {t(
-                          "Enter an exact bundle identifier using letters, numbers, dots, hyphens, or underscores.",
-                        )}
-                      </p>
-                    </Alert>
-                  ) : null}
-                </article>
-              );
-            })}
+            {rules.length === 0 && !pendingRule ? (
+              <p className={HINT}>{t("No focus rules")}</p>
+            ) : null}
+            {[...rules, ...(pendingRule ? [{ ...pendingRule, id: pendingRuleID }] : [])].map(
+              (rule, index) => {
+                const pending = index >= rules.length;
+                return (
+                  <FocusRuleRow
+                    key={rule.id}
+                    rule={rule}
+                    index={index}
+                    t={t}
+                    appChoices={appChoices}
+                    profiles={value.profiles}
+                    bindings={bindings}
+                    bindingLabel={bindingLabel}
+                    canMoveUp={!pending && index > 0}
+                    canMoveDown={!pending && index < rules.length - 1}
+                    onMove={(offset) => {
+                      const next = [...rules];
+                      [next[index], next[index + offset]] = [next[index + offset], next[index]];
+                      patchRules(next);
+                    }}
+                    onPatch={(partial) =>
+                      pending ? patchPendingRule(partial) : patchRule(rule.id, partial)
+                    }
+                    onRemove={() =>
+                      pending
+                        ? setPendingRule(null)
+                        : patchRules(rules.filter((candidate) => candidate.id !== rule.id))
+                    }
+                  />
+                );
+              },
+            )}
           </section>
         </div>
       </CardContent>

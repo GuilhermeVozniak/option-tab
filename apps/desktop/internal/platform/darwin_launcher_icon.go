@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -55,6 +56,17 @@ func launcherIconID(id string) bool {
 		}
 	}
 	return true
+}
+
+// launcherIconStage matches only the staging name ChooseLauncherIcon creates:
+// a 32-digit lowercase hex nonce, half the length of an icon id.
+func launcherIconStage(name string) bool {
+	nonce, ok := strings.CutPrefix(name, ".icon-")
+	if !ok {
+		return false
+	}
+	nonce, ok = strings.CutSuffix(nonce, ".tmp")
+	return ok && launcherIconID(nonce+nonce)
 }
 
 func (s *darwinLauncherIconSource) ChooseLauncherIcon(ctx context.Context) (string, error) {
@@ -109,6 +121,15 @@ func (s *darwinLauncherIconSource) ChooseLauncherIcon(ctx context.Context) (stri
 	}
 	total := 0
 	for _, entry := range entries {
+		// A publish interrupted between create and rename leaves its staged temp
+		// behind, and Finder adds its own metadata; neither is an icon.
+		if entry.Type().IsRegular() && launcherIconStage(entry.Name()) {
+			_ = s.root.Remove(entry.Name())
+			continue
+		}
+		if entry.Type().IsRegular() && entry.Name() == ".DS_Store" {
+			continue
+		}
 		if !launcherIconID(entry.Name()) || entry.Type()&os.ModeSymlink != 0 {
 			return "", launcherItemError("unsafePath")
 		}

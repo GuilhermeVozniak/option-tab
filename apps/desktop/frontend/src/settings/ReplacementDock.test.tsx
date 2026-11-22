@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { type ComponentProps, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { makeT } from "../lib/i18n";
 import type { LauncherStatus, ReplacementDockSettings } from "../lib/types";
@@ -670,9 +671,24 @@ describe("ReplacementDock", () => {
     );
     openSection("Focus rules");
     fireEvent.click(screen.getByRole("button", { name: "Add focus rule" }));
+    // A rule without a bundle identifier is never persisted.
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByText("Priority 1")).toBeVisible();
+    expect(screen.getByLabelText("Exact bundle identifier New rule")).toHaveValue("");
+
+    fireEvent.change(screen.getByLabelText("Running app"), {
+      target: { value: "org.example.editor" },
+    });
+    expect(onChange).toHaveBeenCalledTimes(1);
     const created = onChange.mock.calls.at(-1)?.[0];
     expect(created.rules).toEqual([
-      expect.objectContaining({ enabled: true, bundleID: "", profileID: "default" }),
+      {
+        id: "focus-1",
+        enabled: true,
+        bundleID: "org.example.editor",
+        profileID: "default",
+        bindingID: "",
+      },
     ]);
 
     rerender(
@@ -686,10 +702,11 @@ describe("ReplacementDock", () => {
         ]}
       />,
     );
-    fireEvent.change(screen.getByLabelText("Running app"), {
-      target: { value: "org.example.editor" },
-    });
-    expect(onChange.mock.calls.at(-1)?.[0].rules[0].bundleID).toBe("org.example.editor");
+    expect(screen.getByText("Priority 1")).toBeVisible();
+    expect(screen.getByLabelText("Running app")).toHaveValue("org.example.editor");
+    expect(screen.getByLabelText("Exact bundle identifier org.example.editor")).toHaveValue(
+      "org.example.editor",
+    );
   });
 
   it("edits, scopes, disables, reorders, and removes focus rules", () => {
@@ -812,4 +829,388 @@ it("Dock badge observation is opt-in and keeps the Dock disabled", () => {
   fireEvent.click(control);
   expect(onChange.mock.calls.at(-1)?.[0].profiles[0].showBadges).toBe(true);
   expect(onChange.mock.calls.at(-1)?.[0].enabled).toBe(false);
+});
+
+// Mirrors config.ValidateReplacementDock (replacement.go): the launcher subtree
+// is rejected, not clamped, when any field or relationship is invalid.
+function goAccepts(s: ReplacementDockSettings): boolean {
+  const id = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+  const whole = (n: number, lo: number, hi: number) => Number.isInteger(n) && n >= lo && n <= hi;
+  const real = (n: number, lo: number, hi: number) => Number.isFinite(n) && n >= lo && n <= hi;
+  const rules = s.rules ?? [];
+  if (!Array.isArray(s.profiles) || !Array.isArray(s.bindings)) return false;
+  if (s.version !== 2 || s.profiles.length === 0 || s.profiles.length > 8) return false;
+  if (s.bindings.length > 8 || rules.length > 8) return false;
+  const profiles = new Set<string>();
+  for (const p of s.profiles) {
+    const a = p.appearance;
+    const m = p.magnification;
+    if (!id.test(p.id) || profiles.has(p.id) || Array.from(p.name).length < 1) return false;
+    if (!whole(p.iconPx, 24, 64) || !whole(p.thicknessPx, 48, 112)) return false;
+    if (p.thicknessPx < p.iconPx + 8) return false;
+    if (!real(p.maxLengthFraction, 0.25, 0.9) || !whole(p.insetPx, 12, 64)) return false;
+    if (!real(a.opacity, 0.35, 1) || !real(a.borderOpacity, 0, 0.5)) return false;
+    if (!whole(a.cornerRadiusPx, 0, 28) || !whole(a.itemSpacingPx, 2, 20)) return false;
+    if (m && (!real(m.scale, 1, 2) || !whole(m.reach, 0, 4))) return false;
+    if (!Array.isArray(p.widgets) || p.widgets.length > 16) return false;
+    profiles.add(p.id);
+  }
+  const bindings = new Set<string>();
+  const targets = new Set<string>();
+  for (const b of s.bindings) {
+    if (!id.test(b.id) || bindings.has(b.id) || !profiles.has(b.profileID)) return false;
+    if (b.target === "main" ? b.displayUUID !== "" : b.displayUUID === "") return false;
+    const key = `${b.target}:${b.displayUUID}`;
+    if (targets.has(key)) return false;
+    targets.add(key);
+    bindings.add(b.id);
+  }
+  const ruleIDs = new Set<string>();
+  for (const r of rules) {
+    if (!id.test(r.id) || ruleIDs.has(r.id) || !/^[A-Za-z0-9._-]{1,255}$/.test(r.bundleID))
+      return false;
+    if (!profiles.has(r.profileID) || (r.bindingID !== "" && !bindings.has(r.bindingID)))
+      return false;
+    ruleIDs.add(r.id);
+  }
+  return true;
+}
+
+// Stands in for the save round trip: a valid document is stored and echoed
+// back, an invalid one is rejected and the canonical value stays.
+function Backend({
+  initial,
+  saved,
+  rejected,
+  ...props
+}: {
+  initial: ReplacementDockSettings;
+  saved: (value: ReplacementDockSettings) => void;
+  rejected: (value: ReplacementDockSettings) => void;
+} & Omit<ComponentProps<typeof ReplacementDock>, "value" | "t" | "onChange">) {
+  const [current, setCurrent] = useState(initial);
+  return (
+    <ReplacementDock
+      {...props}
+      value={current}
+      t={makeT("en")}
+      onChange={(next) => {
+        if (!goAccepts(next)) {
+          rejected(next);
+          return;
+        }
+        saved(next);
+        setCurrent(next);
+      }}
+    />
+  );
+}
+
+function backend(
+  initial: ReplacementDockSettings = value,
+  props: Omit<ComponentProps<typeof ReplacementDock>, "value" | "t" | "onChange"> = {},
+) {
+  const saved = vi.fn<(value: ReplacementDockSettings) => void>();
+  const rejected = vi.fn<(value: ReplacementDockSettings) => void>();
+  render(<Backend initial={initial} saved={saved} rejected={rejected} {...props} />);
+  const last = () => saved.mock.calls.at(-1)?.[0] as ReplacementDockSettings;
+  return { saved, rejected, last };
+}
+
+// The first keystroke replaces the selected text; later ones append to
+// whatever the field shows after the previous save was echoed back.
+function typeOver(input: HTMLElement, text: string) {
+  const field = input as HTMLInputElement;
+  // jsdom sanitizes a half-typed fraction ("0.") to "", so fractions arrive whole.
+  if (text.includes(".")) {
+    fireEvent.input(field, { target: { value: text }, inputType: "insertText" });
+    return;
+  }
+  const [first, ...rest] = Array.from(text);
+  fireEvent.input(field, { target: { value: first }, inputType: "insertText" });
+  for (const character of rest) {
+    fireEvent.input(field, { target: { value: field.value + character }, inputType: "insertText" });
+  }
+}
+
+function displayStatus(...names: string[]): LauncherStatus {
+  return {
+    epoch: 2,
+    revision: 1,
+    enabled: false,
+    status: "disabled",
+    reason: "",
+    recoveryLatched: false,
+    displays: names.map((name, index) => ({
+      uuid: `display-${name.toLowerCase()}`,
+      name,
+      main: index === 0,
+      bindingID: "",
+      profileID: "",
+      spaceKind: "unknown",
+      status: "ready",
+      reason: "",
+    })),
+    clockPackageID: "org.optiontab.clock",
+    clockDigest: "digest-final",
+  };
+}
+
+describe("ReplacementDock against the validating backend", () => {
+  it("types an icon size without submitting the partial digits", () => {
+    const { saved, rejected, last } = backend();
+    openSection("Layout");
+    const icon = screen.getByLabelText("Icon size");
+    typeOver(icon, "48");
+    expect(saved).not.toHaveBeenCalled();
+    fireEvent.blur(icon);
+    expect(rejected).not.toHaveBeenCalled();
+    expect(saved).toHaveBeenCalledTimes(1);
+    expect(last().profiles[0].iconPx).toBe(48);
+    expect(icon).toHaveValue(48);
+  });
+
+  it.each([
+    ["Icon size", "30", 30, "9", 24],
+    ["Maximum length", "0.5", 0.5, "4", 0.9],
+    ["Dock thickness", "90", 90, "500", 112],
+    ["Screen inset", "24", 24, "1", 12],
+    ["Launcher opacity", "0.9", 0.9, "0.1", 0.35],
+    ["Border opacity", "0.3", 0.3, "7", 0.5],
+    ["Corner radius", "10", 10, "99", 28],
+    ["Item spacing", "12", 12, "1", 2],
+    ["Magnification scale", "1.8", 1.8, "9", 2],
+    ["Magnification reach", "4", 4, "12", 4],
+  ] as const)("commits %s on Enter, clamps it, and never saves an emptied field", (label, typed, expected, outside, bound) => {
+    const { saved, rejected } = backend({
+      ...value,
+      profiles: [{ ...value.profiles[0], magnification: { enabled: true, scale: 1.35, reach: 2 } }],
+    });
+    openSection("Layout");
+    const input = screen.getByLabelText(label);
+    typeOver(input, typed);
+    expect(saved).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(saved).toHaveBeenCalledTimes(1);
+    expect(input).toHaveValue(expected);
+    typeOver(input, outside);
+    fireEvent.blur(input);
+    expect(input).toHaveValue(bound);
+    const saves = saved.mock.calls.length;
+    fireEvent.input(input, { target: { value: "" }, inputType: "deleteContentBackward" });
+    fireEvent.blur(input);
+    expect(saved).toHaveBeenCalledTimes(saves);
+    expect(input).toHaveValue(bound);
+    expect(rejected).not.toHaveBeenCalled();
+  });
+
+  it("keeps icon size and Dock thickness in a combination the backend accepts", () => {
+    const { rejected, last } = backend();
+    openSection("Layout");
+    const icon = screen.getByLabelText("Icon size");
+    const thickness = screen.getByLabelText("Dock thickness");
+    expect(thickness).toHaveValue(64);
+    // Stepper: 56 is the largest icon that fits a thickness of 64.
+    fireEvent.change(icon, { target: { value: "56" } });
+    expect(last().profiles[0]).toMatchObject({ iconPx: 56, thicknessPx: 64 });
+    fireEvent.change(icon, { target: { value: "57" } });
+    expect(last().profiles[0]).toMatchObject({ iconPx: 57, thicknessPx: 65 });
+    expect(thickness).toHaveValue(65);
+    // Every valid icon size stays reachable in one edit.
+    typeOver(icon, "64");
+    fireEvent.blur(icon);
+    expect(last().profiles[0]).toMatchObject({ iconPx: 64, thicknessPx: 72 });
+    // Lowering the thickness brings the icon down with it.
+    typeOver(thickness, "48");
+    fireEvent.keyDown(thickness, { key: "Enter" });
+    expect(last().profiles[0]).toMatchObject({ iconPx: 40, thicknessPx: 48 });
+    expect(icon).toHaveValue(40);
+    typeOver(icon, "24");
+    fireEvent.blur(icon);
+    expect(last().profiles[0]).toMatchObject({ iconPx: 24, thicknessPx: 48 });
+    typeOver(thickness, "112");
+    fireEvent.blur(thickness);
+    expect(last().profiles[0]).toMatchObject({ iconPx: 24, thicknessPx: 112 });
+    expect(rejected).not.toHaveBeenCalled();
+  });
+
+  it("keeps a new focus rule local until it has a valid bundle identifier", () => {
+    const { saved, rejected, last } = backend();
+    openSection("Focus rules");
+    const add = screen.getByRole("button", { name: "Add focus rule" });
+    fireEvent.click(add);
+    expect(saved).not.toHaveBeenCalled();
+    expect(rejected).not.toHaveBeenCalled();
+    expect(add).toBeDisabled();
+    expect(screen.queryByText("No focus rules")).toBeNull();
+    const bundle = screen.getByLabelText("Exact bundle identifier New rule");
+
+    fireEvent.change(bundle, { target: { value: "Editor App" } });
+    fireEvent.blur(bundle);
+    expect(saved).not.toHaveBeenCalled();
+    expect(rejected).not.toHaveBeenCalled();
+    expect(bundle).toHaveValue("Editor App");
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter an exact bundle identifier");
+
+    fireEvent.click(screen.getByRole("switch", { name: "Enable rule New rule" }));
+    expect(saved).not.toHaveBeenCalled();
+
+    fireEvent.change(bundle, { target: { value: " com.example.editor " } });
+    expect(saved).not.toHaveBeenCalled();
+    fireEvent.keyDown(bundle, { key: "Enter" });
+    expect(rejected).not.toHaveBeenCalled();
+    expect(saved).toHaveBeenCalledTimes(1);
+    expect(last().rules).toEqual([
+      {
+        id: "focus-1",
+        enabled: false,
+        bundleID: "com.example.editor",
+        profileID: "default",
+        bindingID: "",
+      },
+    ]);
+    expect(screen.getByLabelText("Exact bundle identifier com.example.editor")).toHaveValue(
+      "com.example.editor",
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(add).toBeEnabled();
+  });
+
+  it("discards an unfinished focus rule without saving", () => {
+    const { saved, rejected } = backend();
+    openSection("Focus rules");
+    fireEvent.click(screen.getByRole("button", { name: "Add focus rule" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove New rule" }));
+    expect(screen.getByText("No focus rules")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add focus rule" })).toBeEnabled();
+    expect(saved).not.toHaveBeenCalled();
+    expect(rejected).not.toHaveBeenCalled();
+  });
+
+  it("keeps bundle identifier edits local until they are valid", () => {
+    const rule = {
+      id: "focus-1",
+      enabled: true,
+      bundleID: "com.example.a",
+      profileID: "default",
+      bindingID: "",
+    };
+    const { saved, rejected, last } = backend(
+      { ...value, rules: [rule] },
+      { appChoices: [{ name: "A", bundleID: "com.example.a" }] },
+    );
+    openSection("Focus rules");
+    const bundle = screen.getByLabelText("Exact bundle identifier com.example.a");
+
+    fireEvent.change(bundle, { target: { value: "" } });
+    fireEvent.blur(bundle);
+    expect(bundle).toHaveValue("");
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter an exact bundle identifier");
+    fireEvent.change(bundle, { target: { value: "com.example/b" } });
+    fireEvent.keyDown(bundle, { key: "Enter" });
+    expect(saved).not.toHaveBeenCalled();
+    expect(rejected).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(bundle, { key: "Escape" });
+    expect(bundle).toHaveValue("com.example.a");
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    // Choosing "Enter bundle identifier" clears the field without saving "".
+    fireEvent.change(screen.getByLabelText("Running app"), { target: { value: "" } });
+    expect(bundle).toHaveValue("");
+    expect(saved).not.toHaveBeenCalled();
+    expect(rejected).not.toHaveBeenCalled();
+
+    fireEvent.change(bundle, { target: { value: "com.example.b" } });
+    expect(saved).not.toHaveBeenCalled();
+    fireEvent.blur(bundle);
+    expect(rejected).not.toHaveBeenCalled();
+    expect(saved).toHaveBeenCalledTimes(1);
+    expect(last().rules).toEqual([{ ...rule, bundleID: "com.example.b" }]);
+    expect(screen.getByLabelText("Exact bundle identifier com.example.b")).toHaveValue(
+      "com.example.b",
+    );
+  });
+
+  it("gives a display binding added after a removal a free id", () => {
+    const { rejected, last } = backend(
+      { ...value, bindings: [value.bindings[0]] },
+      { status: displayStatus("Built-in", "Projector", "Studio") },
+    );
+    openSection("Displays");
+    fireEvent.click(screen.getByRole("button", { name: "Add Projector" }));
+    expect(last().bindings.map((binding) => binding.id)).toEqual(["main", "display-2"]);
+    fireEvent.click(screen.getByRole("button", { name: "Remove assignment main" }));
+    expect(last().bindings.map((binding) => binding.id)).toEqual(["display-2"]);
+    fireEvent.click(screen.getByRole("button", { name: "Add Studio" }));
+    expect(rejected).not.toHaveBeenCalled();
+    expect(last().bindings.map((binding) => binding.id)).toEqual(["display-2", "display-3"]);
+  });
+
+  it("renders a profile whose widgets and bindings arrived as null", () => {
+    const broken = {
+      ...value,
+      bindings: null,
+      profiles: [{ ...value.profiles[0], widgets: null }],
+    } as unknown as ReplacementDockSettings;
+    const saved = vi.fn<(value: ReplacementDockSettings) => void>();
+    render(
+      <ReplacementDock
+        value={broken}
+        t={makeT("en")}
+        onChange={saved}
+        status={displayStatus("Built-in")}
+      />,
+    );
+    for (const section of ["Widgets", "Displays", "Focus rules", "Profile"]) openSection(section);
+    expect(screen.getByRole("textbox", { name: "Profile name" })).toHaveValue("Default");
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate profile" }));
+    expect(saved.mock.calls.at(-1)?.[0].profiles[1].widgets).toEqual([]);
+    openSection("Displays");
+    fireEvent.click(screen.getByRole("button", { name: "Add Built-in" }));
+    expect(saved.mock.calls.at(-1)?.[0].bindings).toEqual([
+      { id: "display-1", target: "main", displayUUID: "", profileID: "default" },
+    ]);
+    openSection("Focus rules");
+    fireEvent.click(screen.getByRole("button", { name: "Add focus rule" }));
+    expect(screen.getByLabelText("Display scope New rule")).toBeInTheDocument();
+  });
+
+  it("renders a widget whose grants arrived as null when duplicating its profile", () => {
+    const broken = {
+      ...value,
+      profiles: [
+        { ...value.profiles[0], widgets: [{ ...value.profiles[0].widgets[0], grants: null }] },
+      ],
+    } as unknown as ReplacementDockSettings;
+    const saved = vi.fn<(value: ReplacementDockSettings) => void>();
+    render(
+      <ReplacementDock
+        value={broken}
+        t={makeT("en")}
+        onChange={saved}
+        widgetCatalog={[
+          {
+            packageID: "org.optiontab.clock",
+            digest: "a".repeat(64),
+            version: "1.0.0",
+            name: { en: "Clock" },
+            description: { en: "Local time" },
+            requiredCapabilities: ["clock.read"],
+            optionalCapabilities: [],
+            settings: [],
+            builtin: true,
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "New profile" }));
+    expect(saved.mock.calls.at(-1)?.[0].profiles[1].widgets[0].grants).toEqual([]);
+    openSection("Widgets");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Enable Clock" }));
+    expect(saved.mock.calls.at(-1)?.[0].profiles[0].widgets[0]).toMatchObject({
+      enabled: true,
+      grants: [],
+    });
+  });
 });

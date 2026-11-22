@@ -83,7 +83,7 @@ type App struct {
 	settingsPath     string
 
 	iconMu    sync.Mutex
-	iconCache map[int]string // pid -> base64 PNG data URL
+	iconCache map[iconKey]string // rendered app icon -> base64 PNG data URL
 
 	// viewMu serializes visible sessions, capture and pending dismissal.
 	viewMu                   sync.Mutex // serializes Show/Update/Hide and terminal capture shutdown

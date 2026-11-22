@@ -44,7 +44,9 @@ func (a *App) SaveSettingsAtRevision(document string, expectedRevision uint64) (
 	if expectedRevision == 0 || expectedRevision != current.Revision {
 		return current, errors.New("settings: stale revision")
 	}
-	if err := a.saveSettingsLocked(s); err != nil {
+	// The result is this caller's canonical echo. An additional event would
+	// retire edits the renderer queued behind this one.
+	if err := a.commitSettingsLocked(s); err != nil {
 		return current, err
 	}
 	return a.GetSettingsState(), nil
@@ -88,9 +90,21 @@ func (a *App) SaveSettings(jsonStr string) error {
 	return a.saveSettingsLocked(s)
 }
 
-// saveSettingsLocked requires saveMu. Platform and disk failures leave the
-// currently published settings unchanged.
+// saveSettingsLocked requires saveMu and must not hold viewMu. It is the
+// writer for every change Preferences did not make through its revisioned RPC
+// (tray pause, native Dock recovery, launcher mutations, legacy saves), so an
+// open Preferences window is told about the revision it just lost.
 func (a *App) saveSettingsLocked(s config.Settings) error {
+	if err := a.commitSettingsLocked(s); err != nil {
+		return err
+	}
+	a.refreshOpenPreferences()
+	return nil
+}
+
+// commitSettingsLocked requires saveMu. Platform and disk failures leave the
+// currently published settings unchanged.
+func (a *App) commitSettingsLocked(s config.Settings) error {
 	previous := a.settingsSnapshot()
 	loginChanged := s.Behavior.StartAtLogin != previous.Behavior.StartAtLogin
 	if loginChanged {

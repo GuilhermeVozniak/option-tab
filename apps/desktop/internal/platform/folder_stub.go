@@ -11,7 +11,7 @@ type unsupportedFolderSource struct{}
 
 func NewFolderSource(string) FolderSource { return unsupportedFolderSource{} }
 func (unsupportedFolderSource) ListFolder(context.Context, FolderRef, FolderSort) (FolderListing, error) {
-	return FolderListing{Status: "unavailable"}, errors.New("folder access is unsupported on this platform")
+	return FolderListing{Status: "unavailable", Entries: []FolderEntry{}}, errors.New("folder access is unsupported on this platform")
 }
 
 func (unsupportedFolderSource) RequestFolderAccess(context.Context, FolderRef) (FolderGrant, error) {

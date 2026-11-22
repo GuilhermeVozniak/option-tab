@@ -144,3 +144,70 @@ func TestSettingsRevisionRefreshesRetainedPreferences(t *testing.T) {
 		t.Fatal("canonical event is not the flat frontend envelope", string(encoded), err)
 	}
 }
+
+// A save made by Go itself (tray Pause, native Dock recovery, launcher
+// mutations) retires the revision the open Preferences window holds. Without a
+// pushed snapshot its next edit fails once with "stale revision".
+func TestSettingsSavedOutsidePreferencesRefreshOpenPreferences(t *testing.T) {
+	a := newApp(fake.New(), config.Default(), "")
+	t.Cleanup(a.stopCapture)
+	var snapshots []prefsSettingsSnapshot
+	a.eventSink = func(name string, value any) {
+		if name == "prefs:settings" {
+			snapshots = append(snapshots, value.(prefsSettingsSnapshot))
+		}
+	}
+	a.TogglePause()
+	if len(snapshots) != 0 {
+		t.Fatal("hidden preferences were refreshed; opening them already does", snapshots)
+	}
+	a.OpenPreferences()
+	if len(snapshots) != 1 {
+		t.Fatal("open snapshot", snapshots)
+	}
+	opened := snapshots[0]
+
+	if paused := a.TogglePause(); paused {
+		t.Fatal("second toggle did not resume")
+	}
+	if len(snapshots) != 2 {
+		t.Fatal("tray pause did not refresh open preferences", snapshots)
+	}
+	pushed := snapshots[1]
+	if pushed.Generation != opened.Generation || pushed.Revision != opened.Revision+1 || pushed.SettingsState != a.GetSettingsState() {
+		t.Fatal("pushed snapshot is not the canonical state of the current refresh", pushed, opened)
+	}
+	var decoded config.Settings
+	if err := json.Unmarshal([]byte(pushed.JSON), &decoded); err != nil || decoded.Behavior.Paused {
+		t.Fatal("pushed snapshot misses the pause change", pushed.JSON, err)
+	}
+
+	// The renderer's own revisioned save answers through its RPC result; an
+	// extra event would race edits the user queued behind it.
+	decoded.Order = config.OrderAlphabetical
+	edit, _ := json.Marshal(decoded)
+	committed, err := a.SaveSettingsAtRevision(string(edit), pushed.Revision)
+	if err != nil || committed.Revision != pushed.Revision+1 {
+		t.Fatal("edit after an external save was rejected", committed.Revision, err)
+	}
+	if len(snapshots) != 2 {
+		t.Fatal("revisioned preferences save was echoed as an event", snapshots)
+	}
+
+	if err = a.UseNativeDock(); err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshots) != 3 || snapshots[2].Revision != committed.Revision+1 || snapshots[2].SettingsState != a.GetSettingsState() {
+		t.Fatal("native Dock recovery did not refresh open preferences", snapshots)
+	}
+	a.SetPaused(true)
+	if len(snapshots) != 4 || snapshots[3].SettingsState != a.GetSettingsState() {
+		t.Fatal("pause did not refresh open preferences", snapshots)
+	}
+
+	a.ClosePreferences()
+	a.SetPaused(false)
+	if len(snapshots) != 4 {
+		t.Fatal("closed preferences were refreshed", snapshots)
+	}
+}

@@ -155,3 +155,31 @@ func writeFile(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 }
+
+func TestSwapAppSucceedsWhenBackupCleanupFails(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	dir := t.TempDir()
+	target := filepath.Join(dir, "Option Tab.app")
+	staged := filepath.Join(dir, ".option-tab-new")
+	writeFile(t, filepath.Join(target, "Contents", "MacOS", "option-tab"), "old-binary")
+	writeFile(t, filepath.Join(staged, "Contents", "MacOS", "option-tab"), "new-binary")
+	// The old bundle can still be renamed aside, but not emptied afterwards.
+	locked := filepath.Join(target, "Contents", "MacOS")
+	if err := os.Chmod(locked, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(target+".old", "Contents", "MacOS"), 0o700) })
+
+	if err := SwapApp(staged, target); err != nil {
+		t.Fatalf("a completed swap reported failure: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(target, "Contents", "MacOS", "option-tab"))
+	if err != nil || string(data) != "new-binary" {
+		t.Fatalf("target holds %q, err=%v; want new-binary", data, err)
+	}
+	if _, err := os.Stat(target + ".old"); err != nil {
+		t.Fatalf("fixture did not make cleanup fail: %v", err)
+	}
+}

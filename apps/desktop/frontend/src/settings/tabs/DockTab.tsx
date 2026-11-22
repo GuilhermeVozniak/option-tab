@@ -2,9 +2,9 @@ import { useId, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { NumberInput } from "@/components/ui/number-input";
 import { Switch } from "@/components/ui/switch";
 import type { LauncherProfileTransferActions } from "../../lib/launcher-profile-transfer-bridge";
 import type {
@@ -200,6 +200,8 @@ export function DockTab({
           <CardContent className="space-y-1">
             <Label appearance="unstyled" className={ROW}>
               <span>{t("Applications")}</span>
+              {/* Dock previews always list every app: Go normalizes this scope
+                  to "all", so no other value may be offered here. */}
               <NativeSelect
                 aria-label={t("Dock app scope")}
                 value={d.scope.appScope}
@@ -208,7 +210,6 @@ export function DockTab({
                 }
               >
                 <NativeSelectOption value="all">{t("All apps")}</NativeSelectOption>
-                <NativeSelectOption value="activeApp">{t("Active app only")}</NativeSelectOption>
               </NativeSelect>
             </Label>
           </CardContent>
@@ -330,14 +331,13 @@ export function DockTab({
             ).map(([label, field, min, max]) => (
               <Label appearance="unstyled" className={ROW} key={field}>
                 <span>{t(label)}</span>
-                <Input
+                <NumberInput
                   className="w-24"
-                  type="number"
                   aria-label={t(label)}
                   min={min}
                   max={max}
                   value={d[field]}
-                  onChange={(e) => patchDock({ [field]: Number(e.target.value) })}
+                  onCommit={(value) => patchDock({ [field]: value })}
                 />
               </Label>
             ))}

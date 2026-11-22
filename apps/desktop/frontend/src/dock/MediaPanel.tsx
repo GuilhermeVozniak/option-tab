@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useNumberDraft } from "@/components/ui/number-input";
 import type { MediaViewState } from "../lib/types";
 import "./media.css";
 
@@ -344,29 +345,50 @@ export function MediaPanel({
             </button>
           ) : null}
           {state.lyrics.documentID ? (
-            <label className="ot-media-offset">
-              {t("Lyrics timing offset (ms)")}
-              <input
-                aria-label={t("Lyrics timing offset (ms)")}
-                type="number"
-                disabled={pendingImport !== null}
-                min={-30000}
-                max={30000}
-                value={state.lyrics.offsetMS}
-                onChange={(e) =>
-                  handlers.onOffset(
-                    state.session,
-                    state.revision,
-                    Math.max(-30000, Math.min(30000, Number(e.target.value))),
-                  )
-                }
-              />
-            </label>
+            <LyricsOffsetField
+              // A draft belongs to one track's document; never carry it over.
+              key={`${state.session}:${scopeKey}:${state.lyrics.documentID}`}
+              label={t("Lyrics timing offset (ms)")}
+              disabled={pendingImport !== null}
+              value={state.lyrics.offsetMS}
+              onCommit={(value) => handlers.onOffset(state.session, state.revision, value)}
+            />
           ) : null}
         </>
       ) : (
         <p className="ot-media-status">{t(state.lyrics.reason || "No synchronized lyrics")}</p>
       )}
     </section>
+  );
+}
+
+function LyricsOffsetField({
+  label,
+  disabled,
+  value,
+  onCommit,
+}: {
+  label: string;
+  disabled: boolean;
+  value: number;
+  onCommit: (value: number) => void;
+}) {
+  const offset = useNumberDraft({ value, min: -30000, max: 30000, onCommit });
+  return (
+    <label className="ot-media-offset">
+      {label}
+      <input
+        aria-label={label}
+        type="number"
+        disabled={disabled}
+        min={-30000}
+        max={30000}
+        value={offset.value}
+        onChange={offset.onChange}
+        onBlur={offset.onBlur}
+        onKeyDown={offset.onKeyDown}
+        onKeyUp={offset.onKeyUp}
+      />
+    </label>
   );
 }

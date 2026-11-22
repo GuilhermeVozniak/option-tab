@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { NumberInput } from "@/components/ui/number-input";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -124,14 +125,13 @@ export function AppearanceTab({
           </Label>
           <Label appearance="unstyled" className={ROW}>
             <span>{t("Use titles at window count (0 disables)")}</span>
-            <Input
+            <NumberInput
               aria-label={aria("Compact threshold")}
-              type="number"
               className="w-24"
               min={0}
               max={1000}
               value={a.compactThreshold}
-              onChange={(e) => patchModeAppearance({ compactThreshold: Number(e.target.value) })}
+              onCommit={(compactThreshold) => patchModeAppearance({ compactThreshold })}
             />
           </Label>
           <div className={ROW}>
@@ -249,74 +249,68 @@ export function AppearanceTab({
         <CardContent className="space-y-1">
           <Label appearance="unstyled" className={ROW}>
             <span>{t("Max columns")}</span>
-            <Input
+            <NumberInput
               aria-label={aria("Max columns")}
-              type="number"
               className="w-24"
               min={1}
               max={20}
               value={a.maxColumns}
-              onChange={(e) => patchModeAppearance({ maxColumns: Number(e.target.value) })}
+              onCommit={(maxColumns) => patchModeAppearance({ maxColumns })}
             />
           </Label>
           <Label appearance="unstyled" className={ROW}>
             <span>{t("Max rows")}</span>
-            <Input
+            <NumberInput
               aria-label={aria("Max rows")}
-              type="number"
               className="w-24"
               min={1}
               max={20}
               value={a.maxRows}
-              onChange={(e) => patchModeAppearance({ maxRows: Number(e.target.value) })}
+              onCommit={(maxRows) => patchModeAppearance({ maxRows })}
             />
           </Label>
           <Label appearance="unstyled" className={ROW}>
             <span>{t("Thumbnail size (px)")}</span>
-            <Input
+            <NumberInput
               aria-label={aria("Thumbnail size")}
-              type="number"
               className="w-24"
               min={64}
               max={1024}
               value={a.thumbnailMaxPx}
-              onChange={(e) => patchModeAppearance({ thumbnailMaxPx: Number(e.target.value) })}
+              onCommit={(thumbnailMaxPx) => patchModeAppearance({ thumbnailMaxPx })}
             />
           </Label>
           <Label appearance="unstyled" className={ROW}>
             <span>{t("Icon size (px)")}</span>
-            <Input
+            <NumberInput
               aria-label={aria("Icon size")}
-              type="number"
               className="w-24"
               min={16}
               max={256}
               value={a.iconSizePx}
-              onChange={(e) => patchModeAppearance({ iconSizePx: Number(e.target.value) })}
+              onCommit={(iconSizePx) => patchModeAppearance({ iconSizePx })}
             />
           </Label>
           <Label appearance="unstyled" className={ROW}>
             <span>{t("Title max width (px)")}</span>
-            <Input
+            <NumberInput
               aria-label={aria("Title max width")}
-              type="number"
               className="w-24"
               min={60}
               max={1000}
               value={a.titleMaxWidthPx}
-              onChange={(e) => patchModeAppearance({ titleMaxWidthPx: Number(e.target.value) })}
+              onCommit={(titleMaxWidthPx) => patchModeAppearance({ titleMaxWidthPx })}
             />
           </Label>
           <Label appearance="unstyled" className={ROW}>
             <span>{t("Font size (px)")}</span>
-            <Input
+            <NumberInput
               aria-label={aria("Font size")}
-              type="number"
               className="w-24"
               min={8}
               max={48}
               value={a.fontSizePx}
-              onChange={(e) => patchModeAppearance({ fontSizePx: Number(e.target.value) })}
+              onCommit={(fontSizePx) => patchModeAppearance({ fontSizePx })}
             />
           </Label>
           <Label appearance="unstyled" className={ROW}>
@@ -350,14 +344,13 @@ export function AppearanceTab({
           </Label>
           <Label appearance="unstyled" className={ROW}>
             <span>{t("Corner radius (px)")}</span>
-            <Input
+            <NumberInput
               aria-label={aria("Corner radius")}
-              type="number"
               className="w-24"
               min={0}
               max={64}
               value={a.cornerRadiusPx}
-              onChange={(e) => patchModeAppearance({ cornerRadiusPx: Number(e.target.value) })}
+              onCommit={(cornerRadiusPx) => patchModeAppearance({ cornerRadiusPx })}
             />
           </Label>
           <Label appearance="unstyled" className={ROW}>

@@ -11,6 +11,15 @@ import (
 
 var systemWidgetGeneration atomic.Uint64
 
+// systemPollSlack is how early a tick may arrive and still count as due. Due
+// times are measured from the end of a read, so the tick one period later is
+// always early by that read's duration plus scheduling jitter; without slack
+// every other tick would be skipped. A tick that follows a slow read sooner
+// than this still waits, so delayed reads cause no catch-up polls.
+const systemPollSlack = 100 * time.Millisecond
+
+func systemPollDue(now, next time.Time) bool { return !now.Add(systemPollSlack).Before(next) }
+
 type (
 	systemCounter struct {
 		Identity         string
@@ -132,7 +141,7 @@ func observeSystemNetwork(ctx context.Context, usage bool, emit func(NetworkSnap
 			return err
 		}
 		now := ops.Now()
-		if first || !now.Before(nextStatus) {
+		if first || systemPollDue(now, nextStatus) {
 			next := ops.Status()
 			if next.Interface != state.Interface || next.Index != state.Index {
 				counter = systemCounter{}
@@ -149,7 +158,7 @@ func observeSystemNetwork(ctx context.Context, usage bool, emit func(NetworkSnap
 		out.UploadRate = nil
 		out.DownloadRate = nil
 		if usage && out.Connected != nil && *out.Connected && state.Interface != "" {
-			if !ops.Now().Before(nextUsage) {
+			if systemPollDue(ops.Now(), nextUsage) {
 				current := ops.Counters(state)
 				current.At = ops.Now()
 				nextUsage = current.At.Add(time.Second)

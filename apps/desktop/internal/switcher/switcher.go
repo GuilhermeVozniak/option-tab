@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -157,8 +158,11 @@ type Controller struct {
 	selected            int
 	search              string
 	searchSequence      atomic.Uint64
-	session             uint64
-	admissionEpoch      uint64
+	// holdDeclined is set while the current modifier hold already tried to
+	// activate and opened nothing.
+	holdDeclined   atomic.Bool
+	session        uint64
+	admissionEpoch uint64
 }
 
 // New creates a Controller with the given dependencies and initial settings.
@@ -296,7 +300,7 @@ func (c *Controller) OpenGuarded(mode config.SwitcherMode, guard func() error) (
 	if mode == config.ModeApps {
 		count = len(groups)
 	}
-	if prefs.Behavior.HoldToCycle && count > 1 {
+	if prefs.Behavior.HoldToCycle && count > 1 && firstCardIsCurrent(mode, ordered, groups, ctx.ActiveAppID) {
 		c.selected = 1
 		c.syncSelectedWindowLocked()
 	}
@@ -311,6 +315,24 @@ func (c *Controller) OpenGuarded(mode config.SwitcherMode, guard func() error) (
 	return state, nil
 }
 
+// firstCardIsCurrent reports whether hold-to-cycle should start on the second
+// card because the first one is where the user already is. That is the usual
+// case. It is not when the frontmost app owns no listed entry (the desktop was
+// clicked, or the app is filtered out): then the first card already is the
+// previous window. The test is "owns no entry", not "owns the first entry":
+// right after a switch the platform can still report the app that was left,
+// and a non-recency order puts an unrelated window first. An unknown
+// frontmost app keeps the usual start.
+func firstCardIsCurrent(mode config.SwitcherMode, ordered []domain.Window, groups []appgroup.Group, active domain.AppID) bool {
+	if active == 0 {
+		return true
+	}
+	if mode == config.ModeApps {
+		return slices.ContainsFunc(groups, func(g appgroup.Group) bool { return g.App.ID == active })
+	}
+	return slices.ContainsFunc(ordered, func(w domain.Window) bool { return w.AppID == active })
+}
+
 func (c *Controller) shortcutForModeLocked(mode config.SwitcherMode) (config.Shortcut, bool) {
 	for _, shortcut := range c.settings.Shortcuts {
 		if shortcut.Mode == mode {
@@ -322,7 +344,17 @@ func (c *Controller) shortcutForModeLocked(mode config.SwitcherMode) (config.Sho
 			return shortcut, true
 		}
 	}
-	return config.Shortcut{}, false
+	if !mode.Valid() {
+		return config.Shortcut{}, false
+	}
+	// No configured or default shortcut uses this mode (a default install has
+	// no apps-mode shortcut). Automation can still present it: synthesize an
+	// unscoped shortcut with ID 0 so it never aliases a user shortcut.
+	return config.Shortcut{
+		Enabled: true,
+		Scope:   config.ShortcutScope{AppScope: config.AppScopeAll},
+		Mode:    mode,
+	}, true
 }
 
 // HandleHotkey routes a platform hotkey event to the right transition.
@@ -332,13 +364,25 @@ func (c *Controller) HandleHotkey(ev platform.HotkeyEvent) {
 		if c.IsOpen() {
 			c.Advance()
 		} else {
-			c.activate(ev.ShortcutID)
+			c.activateForHold(ev.ShortcutID)
 		}
 	case platform.HotkeyAdvance:
-		c.Advance()
+		// The tap reports Advance/Reverse for as long as the chord's modifier
+		// stays held. If Enter or a click already closed the overlay, the
+		// chord is a fresh activation, not a step in a session that is gone.
+		if c.IsOpen() {
+			c.Advance()
+		} else if !c.holdDeclined.Load() {
+			c.activateForHold(ev.ShortcutID)
+		}
 	case platform.HotkeyReverse:
-		c.Reverse()
+		if c.IsOpen() {
+			c.Reverse()
+		} else if !c.holdDeclined.Load() {
+			c.activateForHold(ev.ShortcutID)
+		}
 	case platform.HotkeyRelease:
+		c.holdDeclined.Store(false)
 		// Per-shortcut "when released: do nothing" keeps the switcher open
 		// until Enter/Escape/click (AltTab parity).
 		if !c.releaseDoesNothing() {
@@ -349,8 +393,17 @@ func (c *Controller) HandleHotkey(ev platform.HotkeyEvent) {
 			}
 		}
 	case platform.HotkeyCancel:
+		c.holdDeclined.Store(false)
 		c.Cancel()
 	}
+}
+
+// activateForHold activates for a chord and remembers when that opened
+// nothing (no windows, an ignored app, paused), so key repeat for the rest of
+// the hold does not enumerate every window again on each repeat.
+func (c *Controller) activateForHold(shortcutID int) {
+	c.activate(shortcutID)
+	c.holdDeclined.Store(!c.IsOpen())
 }
 
 // releaseDoesNothing reports whether the active shortcut ignores modifier
@@ -507,7 +560,7 @@ func (c *Controller) activate(shortcutID int) {
 	if sc.Mode == config.ModeApps {
 		count = len(groups)
 	}
-	if prefs.Behavior.HoldToCycle && count > 1 {
+	if prefs.Behavior.HoldToCycle && count > 1 && firstCardIsCurrent(sc.Mode, ordered, groups, ctx.ActiveAppID) {
 		c.selected = 1 // start on the previous window for instant quick-switch
 		c.syncSelectedWindowLocked()
 	}
@@ -577,6 +630,16 @@ func (c *Controller) setSearch(query string, session, sequence uint64) {
 	}
 	if session != 0 {
 		c.searchSequence.Store(sequence)
+	}
+	if query == c.search {
+		// Not an edit (Backspace on an empty search, a repeated send): the
+		// filter is already applied, so keep the user's selection. It still
+		// publishes: the sequence stored above makes the view drop any older
+		// snapshot that is in flight, and this one has to replace it.
+		st := c.snapshot()
+		c.mu.Unlock()
+		c.deps.View.Update(st)
+		return
 	}
 	c.search = query
 	if c.shortcut.Mode == config.ModeApps {
@@ -793,7 +856,9 @@ func (c *Controller) refresh() {
 		c.baseGroups = c.composeAppsLocked(apps, wins, c.baseList, c.shortcut.Scope, ctx)
 		c.groups = filterAppGroups(c.baseGroups, c.search)
 		c.restoreAppSelectionLocked(oldApp, oldWindow)
-		if len(c.groups) == 0 {
+		// Close only when nothing is left at all. A search that currently
+		// matches nothing keeps the overlay open, exactly as typing it does.
+		if len(c.baseGroups) == 0 {
 			retiringSession := c.session
 			c.reset()
 			c.mu.Unlock()
@@ -805,20 +870,35 @@ func (c *Controller) refresh() {
 		c.deps.View.Update(st)
 		return
 	}
+	// The highlight belongs to a window, not to a position: remember it before
+	// the list is rebuilt.
+	var selectedWindow domain.WindowID
+	if c.selected >= 0 && c.selected < len(c.list) {
+		selectedWindow = c.list[c.selected].ID
+	}
 	if c.search == "" {
 		c.list = c.baseList
 	} else {
 		c.list = search.Filter(c.baseList, c.search)
 	}
-	if len(c.list) == 0 {
+	if len(c.baseList) == 0 {
 		retiringSession := c.session
 		c.reset()
 		c.mu.Unlock()
 		c.deliverHide(retiringSession)
 		return
 	}
-	if c.selected >= len(c.list) {
-		c.selected = len(c.list) - 1
+	restored := false
+	for i, w := range c.list {
+		if w.ID == selectedWindow {
+			c.selected, restored = i, true
+			break
+		}
+	}
+	// The selected window is gone: stay at its position so the next window
+	// slides into the highlight, clamped to the shorter list.
+	if !restored && c.selected >= len(c.list) {
+		c.selected = max(len(c.list)-1, 0)
 	}
 	st := c.snapshot()
 	c.mu.Unlock()
@@ -869,8 +949,15 @@ func (c *Controller) snapshot() State {
 		style = c.shortcut.StyleOverride
 	}
 	visible := c.list
-	if c.shortcut.Mode == config.ModeApps && c.selected >= 0 && c.selected < len(c.groups) {
-		visible = c.groups[c.selected].Windows
+	if c.shortcut.Mode == config.ModeApps {
+		// Apps mode previews the selected app's windows only. With no
+		// selected app (a search that matches nothing) there is nothing to
+		// preview; falling back to every scoped window would show cards that
+		// belong to no listed app.
+		visible = nil
+		if c.selected >= 0 && c.selected < len(c.groups) {
+			visible = c.groups[c.selected].Windows
+		}
 	}
 	entries := make([]Entry, len(visible))
 	for i, w := range visible {

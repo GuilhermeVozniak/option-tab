@@ -216,6 +216,52 @@ describe("LauncherItems", () => {
       ]),
     );
   });
+  // Items can change outside the editor (a reorder on the Dock while
+  // Preferences is closed). With no unsaved edits the editor must take the new
+  // items and revision; keeping the old revision made every later Save fail
+  // with "The launcher changed. Try again."
+  it("adopts an outside change when there is no unsaved draft", async () => {
+    const a = actions();
+    const guide = { id: "guide", kind: "link", label: "Guide", url: "https://example.com" };
+    const notes = { id: "notes", kind: "link", label: "Notes", url: "https://example.org" };
+    a.load = vi
+      .fn()
+      .mockResolvedValueOnce({
+        profileID: "work",
+        revision: "first",
+        iconIDs: [],
+        references: [],
+        items: [guide, notes],
+      })
+      .mockResolvedValue({
+        profileID: "work",
+        revision: "reordered",
+        iconIDs: [],
+        references: [],
+        items: [notes, guide],
+      });
+    const t = makeT("en");
+    const { rerender } = render(
+      <LauncherItems profileID="work" actions={a} refreshKey={1} t={t} />,
+    );
+    await screen.findByText("Guide");
+    rerender(<LauncherItems profileID="work" actions={a} refreshKey={2} t={t} />);
+    await waitFor(() =>
+      expect(
+        screen.getAllByTestId("launcher-item").map((card) => within(card).queryByText("Notes")),
+      ).toEqual([expect.anything(), null]),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add spacer" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save launcher items" }));
+    await waitFor(() =>
+      expect(a.save).toHaveBeenCalledWith("work", "reordered", [
+        notes,
+        guide,
+        expect.objectContaining({ kind: "spacer" }),
+      ]),
+    );
+  });
+
   it("ignores a late failed read after a newer profile snapshot succeeds", async () => {
     const a = actions();
     let rejectInitial = (_error: Error) => {};
@@ -350,6 +396,33 @@ describe("LauncherItems", () => {
       ]),
     );
   });
+  it("drops a removed item from the pending group selection", async () => {
+    const a = actions();
+    a.load = vi.fn().mockResolvedValue({
+      profileID: "work",
+      revision: "exact",
+      references: [],
+      items: [
+        { id: "app-a", kind: "app", label: "A", referenceID: "a".repeat(32) },
+        { id: "app-b", kind: "app", label: "B", referenceID: "b".repeat(32) },
+      ],
+    });
+    render(<LauncherItems profileID="work" actions={a} t={makeT("en")} />);
+    const cards = await screen.findAllByTestId("launcher-item");
+    fireEvent.click(screen.getByLabelText("A"));
+    fireEvent.click(within(cards[0]).getByRole("button", { name: "Remove item" }));
+    fireEvent.change(screen.getByLabelText("Group name"), { target: { value: "Ghost" } });
+    // The only ticked member is gone, so there is nothing to group.
+    expect(screen.getByRole("button", { name: "Create group" })).toBeDisabled();
+    fireEvent.click(screen.getByLabelText("B"));
+    fireEvent.click(screen.getByRole("button", { name: "Create group" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save launcher items" }));
+    await waitFor(() => expect(a.save).toHaveBeenCalled());
+    const saved = vi.mocked(a.save).mock.calls[0][2];
+    expect(saved.find((item) => item.kind === "group")?.members).toEqual(["app-b"]);
+    expect(saved.some((item) => item.id === "app-a")).toBe(false);
+  });
+
   it("relinks unavailable references and manages an explicit custom icon", async () => {
     const a = actions();
     a.load = vi.fn().mockResolvedValue({

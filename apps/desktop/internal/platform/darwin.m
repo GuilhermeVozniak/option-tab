@@ -63,6 +63,30 @@ static char *copyCString(NSString *s) {
   return out;
 }
 
+// ---- AX messaging timeouts ----
+
+// Every AX element this file messages gets an explicit timeout, so behavior
+// never depends on the process-global one. That global is seconds long by
+// default (nominally 6s; 1.5s measured on macOS 27) and drops to 30-50ms for
+// the whole process once any code sets a timeout on the system-wide element
+// (the dock/drag hit-tests do): an element without its own value then either
+// stalls for seconds per call on a hung app or fails on a merely slow one,
+// depending on what happened to run earlier.
+// The timeout belongs to the AXUIElementRef object itself: an element copied
+// out of another one (a window from kAXWindows, a close button from a window)
+// does NOT inherit it and must be given its own before it is messaged.
+static const float kOTAXActionTimeout = 1.0f; // user-initiated actions, focus tracking
+static const float kOTAXEnumTimeout = 0.25f;  // per-app scan on every window enumeration
+
+// otAXSetTimeout is NULL- and type-safe so it can take values straight out of
+// a CFArray or a CopyAttributeValue result. Returns NO when value is not an
+// AX element (nothing was set).
+static BOOL otAXSetTimeout(CFTypeRef value, float seconds) {
+  if (value == NULL || CFGetTypeID(value) != AXUIElementGetTypeID()) return NO;
+  AXUIElementSetMessagingTimeout((AXUIElementRef)value, seconds);
+  return YES;
+}
+
 // ---- Display helpers ----
 
 // displayForPoint returns the CGDirectDisplayID whose bounds contain (x,y) in
@@ -132,10 +156,14 @@ static NSSet<NSNumber *> *minimizedWindowIDs(void) {
     pid_t pid = app.processIdentifier;
     AXUIElementRef axApp = AXUIElementCreateApplication(pid);
     if (!axApp) continue;
+    // Short bound: this runs for every regular app on every enumeration, and a
+    // missed "minimized" flag for a hung/slow app is only cosmetic.
+    otAXSetTimeout(axApp, kOTAXEnumTimeout);
     CFArrayRef wins = NULL;
     if (AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute, (CFTypeRef *)&wins) == kAXErrorSuccess && wins) {
       for (CFIndex i = 0; i < CFArrayGetCount(wins); i++) {
         AXUIElementRef w = (AXUIElementRef)CFArrayGetValueAtIndex(wins, i);
+        otAXSetTimeout(w, kOTAXEnumTimeout); // not inherited from axApp
         CFBooleanRef minRef = NULL;
         if (AXUIElementCopyAttributeValue(w, kAXMinimizedAttribute, (CFTypeRef *)&minRef) == kAXErrorSuccess && minRef) {
           BOOL mini = CFBooleanGetValue(minRef);
@@ -182,6 +210,8 @@ char *ot_list_windows_json(void) {
       NSDictionary *bounds = info[(__bridge NSString *)kCGWindowBounds];
       NSNumber *onscreenNum = info[(__bridge NSString *)kCGWindowIsOnscreen];
       BOOL onscreen = onscreenNum != nil && [onscreenNum boolValue];
+      NSNumber *alpha = info[(__bridge NSString *)kCGWindowAlpha];
+      BOOL invisible = alpha != nil && [alpha doubleValue] <= 0;
 
       NSString *bundle = @"";
       BOOL hidden = NO;
@@ -211,6 +241,7 @@ char *ot_list_windows_json(void) {
         @"minimized": @(isMin),
         @"hidden": @(hidden),
         @"fullscreen": @(fullscreen),
+        @"invisible": @(invisible),
         @"screen": @(screen),
         @"space": @(space),
         @"zorder": @(z),
@@ -348,6 +379,7 @@ static void otReportFocusedWindowOfApp(pid_t pid) {
   AXUIElementSetMessagingTimeout(axApp, 1.0);
   AXUIElementRef win = NULL;
   if (AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute, (CFTypeRef *)&win) == kAXErrorSuccess && win) {
+    otAXSetTimeout(win, kOTAXActionTimeout); // not inherited from axApp
     CGWindowID wid = 0;
     if (_AXUIElementGetWindow(win, &wid) == kAXErrorSuccess && wid != 0) {
       OTLOG("focusobs: report pid=%d wid=%u\n", pid, wid);
@@ -364,6 +396,8 @@ static void otReportFocusedWindowOfApp(pid_t pid) {
 // fail to resolve (rare: some AX-hostile apps hand back odd elements).
 static void otAXFocusCallback(AXObserverRef obs, AXUIElementRef element,
                               CFStringRef notification, void *refcon) {
+  // The observer hands over a fresh element with no timeout of its own.
+  otAXSetTimeout(element, kOTAXActionTimeout);
   CGWindowID wid = 0;
   if (_AXUIElementGetWindow(element, &wid) == kAXErrorSuccess && wid != 0) {
     OTLOG("focusobs: ax pid=%d wid=%u\n", (int)(intptr_t)refcon, wid);
@@ -448,9 +482,15 @@ uint32_t ot_active_screen(void) {
     if (front != nil && AXIsProcessTrusted()) {
       AXUIElementRef axApp = AXUIElementCreateApplication(front.processIdentifier);
       if (axApp) {
+        // A hung frontmost app must not stall the caller for the global
+        // default, nor fail on the 30-50ms left behind by a dock hit-test.
+        // This runs before the switcher shows, and a miss only falls back to
+        // the main display, so it gets the short bound.
+        otAXSetTimeout(axApp, kOTAXEnumTimeout);
         AXUIElementRef win = NULL;
         uint32_t screen = 0;
         if (AXUIElementCopyAttributeValue(axApp, kAXFocusedWindowAttribute, (CFTypeRef *)&win) == kAXErrorSuccess && win) {
+          otAXSetTimeout(win, kOTAXEnumTimeout); // not inherited from axApp
           AXValueRef posRef = NULL, sizeRef = NULL;
           CGPoint pos = {0, 0};
           CGSize size = {0, 0};
@@ -541,9 +581,15 @@ void ot_open_privacy_settings(int kind) {
 
 // ---- AX window lookup + actions ----
 
+// copyAXWindow returns pid's AX window element for wid (+1 retained), or NULL
+// when a kAXWindows scan does not list it. The returned element carries
+// kOTAXActionTimeout, so whatever the caller does with it next (raise, press,
+// set minimized/fullscreen, role query) is bounded too. Elements the caller
+// copies OUT of it (e.g. the close button) still need their own timeout.
 static AXUIElementRef copyAXWindow(uint32_t wid, int pid) {
   AXUIElementRef app = AXUIElementCreateApplication(pid);
   if (app == NULL) return NULL;
+  otAXSetTimeout(app, kOTAXActionTimeout);
   CFArrayRef windows = NULL;
   AXError err = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute, (CFTypeRef *)&windows);
   AXUIElementRef found = NULL;
@@ -551,6 +597,9 @@ static AXUIElementRef copyAXWindow(uint32_t wid, int pid) {
     CFIndex n = CFArrayGetCount(windows);
     for (CFIndex i = 0; i < n; i++) {
       AXUIElementRef w = (AXUIElementRef)CFArrayGetValueAtIndex(windows, i);
+      // Per element, before it is messaged: covers the wid lookup here and,
+      // for the match, every later call on the returned (same) object.
+      otAXSetTimeout(w, kOTAXActionTimeout);
       CGWindowID cgid = 0;
       if (_AXUIElementGetWindow(w, &cgid) == kAXErrorSuccess && cgid == wid) {
         found = (AXUIElementRef)CFRetain(w);
@@ -592,7 +641,12 @@ static void otMakeKeyWindow(ProcessSerialNumber psn, uint32_t wid) {
 // (a) resolves to wid and (b) has the AXWindow role — descendants (buttons,
 // tab bars) resolve to the containing window's wid too, so the role gate keeps
 // scanning past them to the window root. Time-bounded: the id space is 64-bit
-// and a long-lived app's windows can sit at high ids.
+// and a long-lived app's windows can sit at high ids. Each candidate is a new
+// element, so each gets its own messaging timeout: whatever is left of the
+// wall-clock budget (floored, since 0 means "use the global default"). A hung
+// app therefore costs the budget plus at most the floor, not the global
+// default per probe. The returned root is re-armed with kOTAXActionTimeout
+// for the caller's actions.
 static AXUIElementRef copyAXWindowByBruteForce(uint32_t wid, int pid) {
   uint8_t token[20] = {0};
   int32_t pid32 = (int32_t)pid;
@@ -601,12 +655,14 @@ static AXUIElementRef copyAXWindowByBruteForce(uint32_t wid, int pid) {
   memcpy(token + 8, &magic, sizeof(magic));
   CFAbsoluteTime start = CFAbsoluteTimeGetCurrent();
   CFAbsoluteTime deadline = start + 0.25; // wall-clock budget, AltTab parity
+  CFAbsoluteTime now = start;
   for (uint64_t axid = 0;; axid++) {
     memcpy(token + 12, &axid, sizeof(axid));
     CFDataRef data = CFDataCreate(NULL, token, sizeof(token));
     AXUIElementRef candidate = _AXUIElementCreateWithRemoteToken(data);
     CFRelease(data);
     if (candidate) {
+      otAXSetTimeout(candidate, (float)MAX(deadline - now, 0.02));
       CGWindowID cgid = 0;
       if (_AXUIElementGetWindow(candidate, &cgid) == kAXErrorSuccess && cgid == wid) {
         CFStringRef role = NULL;
@@ -616,13 +672,15 @@ static AXUIElementRef copyAXWindowByBruteForce(uint32_t wid, int pid) {
           if (isRoot) {
             OTLOG("focus: brute-force found root at id=%llu after %.0fms\n",
                   (unsigned long long)axid, (CFAbsoluteTimeGetCurrent() - start) * 1000.0);
+            otAXSetTimeout(candidate, kOTAXActionTimeout);
             return candidate;
           }
         }
       }
       CFRelease(candidate);
     }
-    if (CFAbsoluteTimeGetCurrent() > deadline) {
+    now = CFAbsoluteTimeGetCurrent();
+    if (now > deadline) {
       OTLOG("focus: brute-force timeout at id=%llu\n", (unsigned long long)axid);
       return NULL;
     }
@@ -679,7 +737,11 @@ int ot_close_window(uint32_t wid, int pid) {
     CFTypeRef button = NULL;
     int ok = 0;
     if (AXUIElementCopyAttributeValue(w, kAXCloseButtonAttribute, &button) == kAXErrorSuccess && button) {
-      ok = (AXUIElementPerformAction((AXUIElementRef)button, kAXPressAction) == kAXErrorSuccess);
+      // The button is its own element: it does not inherit w's timeout. The
+      // helper also rejects a non-element value instead of pressing it.
+      if (otAXSetTimeout(button, kOTAXActionTimeout)) {
+        ok = (AXUIElementPerformAction((AXUIElementRef)button, kAXPressAction) == kAXErrorSuccess);
+      }
       CFRelease(button);
     }
     CFRelease(w);
@@ -775,20 +837,28 @@ static NSData *captureWindowPNG(uint32_t wid, int maxpx) {
     cfg.showsCursor = NO;
     cfg.ignoreShadowsSingleWindow = YES;
 
-    __block CGImageRef img = NULL;
+    // The handler parks the image in an ARC-owned __block object reference, not
+    // a manually retained CGImageRef. The variable's storage is shared by this
+    // frame and the block, so ARC releases the image exactly once, whoever
+    // lets go last: if the wait below times out and the handler runs late, the
+    // image dies with the block instead of leaking (a manual CGImageRetain here
+    // had no one left to release it). No race either: this frame reads the
+    // variable only after a successful wait, which the handler's signal orders
+    // after its write; on timeout it is never read, and the frame's own
+    // cleanup touches only the storage's refcount, not the image slot.
+    __block id captured = nil; // a CGImageRef
     dispatch_semaphore_t sem2 = dispatch_semaphore_create(0);
     [SCScreenshotManager captureImageWithFilter:filter
                                   configuration:cfg
                               completionHandler:^(CGImageRef image, NSError *e) {
       (void)e;
-      if (image) img = (CGImageRef)CGImageRetain(image);
+      captured = (__bridge id)image;
       dispatch_semaphore_signal(sem2);
     }];
     if (dispatch_semaphore_wait(sem2, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC))) != 0) return nil;
-    if (img == NULL) return nil;
+    if (captured == nil) return nil;
 
-    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:img];
-    CGImageRelease(img);
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithCGImage:(__bridge CGImageRef)captured];
     return [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
   }
   return nil;
@@ -1028,16 +1098,29 @@ int ot_hotkey_should_release(uint64_t modflags, uint64_t holdMask) {
 // forwardKey delivers a key press to Go (goKeyEvent) with its text, so the
 // frontend can run navigation/actions/type-to-search while the overlay is open.
 static void forwardKey(CGEventRef event, uint16_t keycode, uint64_t flags) {
-  UniChar buf[16];
+  enum { kMaxUnits = 16 };
+  UniChar buf[kMaxUnits];
   UniCharCount len = 0;
-  CGEventKeyboardGetUnicodeString(event, 16, &len, buf);
-  char text[64];
+  CGEventKeyboardGetUnicodeString(event, kMaxUnits, &len, buf);
+  // Never trust len past the buffer: CGEvent.h documents it as the event's
+  // actual length, and only the first kMaxUnits units are ever written.
+  if (len > kMaxUnits) len = kMaxUnits;
+  // A cut at the buffer edge can strand the first half of a surrogate pair,
+  // which would make the whole string unconvertible below; drop it.
+  if (len > 0 && buf[len - 1] >= 0xD800 && buf[len - 1] <= 0xDBFF) len--;
+  char text[64]; // 16 UTF-16 units are at most 48 UTF-8 bytes
   text[0] = '\0';
   if (len > 0) {
-    NSString *s = [[NSString alloc] initWithCharacters:buf length:len];
-    if (s != nil) {
-      strncpy(text, [s UTF8String], sizeof(text) - 1);
-      text[sizeof(text) - 1] = '\0';
+    // Own pool: the tap thread's only pool wraps its whole run loop, so the
+    // UTF8String buffer would otherwise pile up for the life of the thread.
+    @autoreleasepool {
+      NSString *s = [[NSString alloc] initWithCharacters:buf length:len];
+      // UTF8String is nil for text with no UTF-8 form (an unpaired surrogate).
+      const char *utf8 = [s UTF8String];
+      if (utf8 != NULL) {
+        strncpy(text, utf8, sizeof(text) - 1);
+        text[sizeof(text) - 1] = '\0';
+      }
     }
   }
   goKeyEvent((int)keycode, flags, text);
@@ -1225,14 +1308,28 @@ void ot_action_prepare_focus(uint32_t wid, int pid) {
     }
   }
 }
+// otAXWindowIsMain reports whether the window is its app's main window.
+static BOOL otAXWindowIsMain(AXUIElementRef window) {
+  CFTypeRef value = NULL;
+  BOOL main = AXUIElementCopyAttributeValue(window, kAXMainAttribute, &value) == kAXErrorSuccess &&
+              value && CFGetTypeID(value) == CFBooleanGetTypeID() && CFBooleanGetValue((CFBooleanRef)value);
+  if (value) CFRelease(value);
+  return main;
+}
 int ot_action_raise_window(uint32_t wid, int pid) {
   @autoreleasepool {
     AXUIElementRef window = copyActionWindowRoot(wid, pid);
     if (!window) return 0;
     AXError raised = AXUIElementPerformAction(window, kAXRaiseAction);
     if (raised == kAXErrorSuccess) AXUIElementSetAttributeValue(window, kAXMainAttribute, kCFBooleanTrue);
+    // System Settings answers "unsupported" when asked to raise the window
+    // that fronting its app already made main. The focus is then done; a
+    // refusal only fails when it leaves the window not main.
+    BOOL unsupported = raised == kAXErrorActionUnsupported || raised == kAXErrorAttributeUnsupported ||
+                       raised == kAXErrorNotImplemented;
+    BOOL accepted = raised == kAXErrorSuccess || (unsupported && otAXWindowIsMain(window));
     CFRelease(window);
-    return raised == kAXErrorSuccess;
+    return accepted;
   }
 }
 // Unlike the single-window toggle, a bulk minimize always writes true, even
@@ -1252,6 +1349,7 @@ int ot_action_set_minimized(uint32_t wid, int pid) {
 int ot_action_windows_available(int pid) {
   @autoreleasepool {
     AXUIElementRef app = AXUIElementCreateApplication(pid);
+    if (!app) return 0;
     AXUIElementSetMessagingTimeout(app, 1.0);
     CFTypeRef windows = NULL;
     AXError result = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute, &windows);
@@ -1285,7 +1383,9 @@ int ot_action_close_window(uint32_t wid, int pid) {
     if (!window) return 0;
     CFTypeRef button = NULL;
     AXError result = AXUIElementCopyAttributeValue(window, kAXCloseButtonAttribute, &button);
-    BOOL closed = result == kAXErrorSuccess && button && CFGetTypeID(button) == AXUIElementGetTypeID() &&
+    // otAXSetTimeout doubles as the NULL/type gate: the button is a separate
+    // element that does not inherit the window's timeout.
+    BOOL closed = result == kAXErrorSuccess && otAXSetTimeout(button, kOTAXActionTimeout) &&
       AXUIElementPerformAction((AXUIElementRef)button, kAXPressAction) == kAXErrorSuccess;
     if (button) CFRelease(button);
     CFRelease(window);

@@ -183,3 +183,21 @@ describe("effectiveStyle", () => {
     expect(effectiveStyle("appIcons", 50, 0)).toBe("appIcons");
   });
 });
+
+describe("computeLayout thumbnail floor", () => {
+  // The preferences allow thumbnail sizes down to 64; the 96px readability
+  // floor only limits shrinking, it must never enlarge a smaller setting.
+  it("never renders thumbnails larger than a configured size below the floor", () => {
+    for (const thumbnailMaxPx of [64, 80, 95]) {
+      const base = { maxColumns: 4, maxRows: 2, thumbnailMaxPx, autoSize: true };
+      expect(computeLayout({ ...base, count: 3 }).thumbnailPx).toBe(thumbnailMaxPx);
+      expect(computeLayout({ ...base, count: 40 }).thumbnailPx).toBe(thumbnailMaxPx);
+      expect(
+        computeLayout({ ...base, count: 3, viewportW: 1440, viewportH: 900 }).thumbnailPx,
+      ).toBe(thumbnailMaxPx);
+      expect(
+        computeLayout({ ...base, count: 40, viewportW: 400, viewportH: 300 }).thumbnailPx,
+      ).toBe(thumbnailMaxPx);
+    }
+  });
+});

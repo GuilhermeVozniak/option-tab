@@ -406,3 +406,78 @@ func TestInputControllerAcknowledgesRejectedOwnedClick(t *testing.T) {
 		t.Fatal("rejected click executed an action")
 	}
 }
+
+func TestInputControllerRepeatedInvalidationIsIdempotent(t *testing.T) {
+	source := &inputSourceFixture{}
+	c := NewInputController(InputControllerDeps{Source: source, SelfAppID: 99})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go c.Run(ctx)
+	starts := func() int { source.mu.Lock(); defer source.mu.Unlock(); return source.starts }
+	target := inputTargetFixture()
+	c.Target(target)
+	c.Configure(true, platform.DockInputPolicy{ClickToHide: true})
+	waitInput(t, func() bool { return starts() == 1 })
+
+	// The first invalidation retires admitted work and the native source once.
+	armed := c.snapshot().epoch
+	c.Target(platform.DockInputTarget{})
+	invalidated := c.snapshot()
+	if invalidated.epoch != armed+1 || invalidated.target.Generation != target.Generation || invalidated.target.Item != nil {
+		t.Fatalf("invalidation not applied: %+v", invalidated)
+	}
+	waitInput(t, func() bool { return starts() == 2 })
+
+	// A pointer resting on a folder republishes it on every observation.
+	for i := 0; i < 20; i++ {
+		c.Target(platform.DockInputTarget{})
+	}
+	if got := c.snapshot(); got.epoch != invalidated.epoch || got.target != invalidated.target {
+		t.Fatalf("repeated invalidation changed state: %+v", got)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if got := starts(); got != 2 {
+		t.Fatalf("repeated invalidation restarted the source %d times", got-2)
+	}
+
+	// A real observation re-arms without another restart, and losing it again
+	// is a new invalidation.
+	next := inputTargetFixture()
+	c.Target(next)
+	if got := c.snapshot(); got.epoch != invalidated.epoch || got.target.Item == nil || got.target.DockPID != next.DockPID {
+		t.Fatalf("observation after invalidation not adopted: %+v", got)
+	}
+	c.Target(platform.DockInputTarget{})
+	if got := c.snapshot(); got.epoch != invalidated.epoch+1 || got.target.Item != nil {
+		t.Fatalf("second invalidation not applied: %+v", got)
+	}
+	waitInput(t, func() bool { return starts() == 3 })
+}
+
+type returningInputSource struct{ contexts chan context.Context }
+
+func (s *returningInputSource) ObserveDockInput(ctx context.Context, _ platform.DockInputPolicy, _ <-chan platform.DockInputTarget, _ func(platform.DockInputEvent)) error {
+	s.contexts <- ctx
+	return errors.New("Accessibility denied")
+}
+
+func TestInputControllerReleasesContextOfSelfReturnedSource(t *testing.T) {
+	source := &returningInputSource{contexts: make(chan context.Context, 4)}
+	c := NewInputController(InputControllerDeps{Source: source, SelfAppID: 99})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c.Configure(true, platform.DockInputPolicy{ClickToHide: true})
+	go c.Run(ctx)
+	var child context.Context
+	select {
+	case child = <-source.contexts:
+	case <-time.After(time.Second):
+		t.Fatal("source not started")
+	}
+	// The controller is still running; only its own cancel can end the child.
+	select {
+	case <-child.Done():
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("context of a source that returned by itself was never released")
+	}
+}

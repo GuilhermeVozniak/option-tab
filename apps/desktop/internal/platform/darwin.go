@@ -21,6 +21,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
+	"unicode/utf8"
 	"unsafe"
 
 	"option-tab/internal/domain"
@@ -54,6 +56,7 @@ type rawWindow struct {
 	Minimized  bool    `json:"minimized"`
 	Hidden     bool    `json:"hidden"`
 	Fullscreen bool    `json:"fullscreen"`
+	Invisible  bool    `json:"invisible"` // fully transparent
 	Screen     uint32  `json:"screen"`
 	Space      uint64  `json:"space"`
 	ZOrder     int     `json:"zorder"`
@@ -97,6 +100,31 @@ func mapRawWindows(raws []rawWindow) []domain.Window {
 	return out
 }
 
+// The smallest window a person would switch to; the same bound AltTab uses.
+const (
+	minSwitchableWidth  = 100
+	minSwitchableHeight = 50
+)
+
+// switchableWindows drops what macOS lists on the normal window layer that
+// nobody can switch to: the 66x20 "Window" holding an app's traffic-light
+// buttons, the 30pt strips each app owns per display, and the fully
+// transparent windows menu-bar apps keep around. A minimized window or one of
+// a hidden app is kept whatever its transparency.
+func switchableWindows(raws []rawWindow) []rawWindow {
+	out := make([]rawWindow, 0, len(raws))
+	for _, r := range raws {
+		if r.W < minSwitchableWidth || r.H < minSwitchableHeight {
+			continue
+		}
+		if r.Invisible && !r.Minimized && !r.Hidden {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
 func (p *darwinPlatform) Windows() ([]domain.Window, error) {
 	cstr := C.ot_list_windows_json()
 	defer C.free(unsafe.Pointer(cstr))
@@ -106,7 +134,7 @@ func (p *darwinPlatform) Windows() ([]domain.Window, error) {
 	if err := json.Unmarshal([]byte(data), &raws); err != nil {
 		return nil, err
 	}
-	return retiredWindows.filter(mapRawWindows(raws), nativeRetirementInventory, nativeWindowReappeared), nil
+	return retiredWindows.filter(mapRawWindows(switchableWindows(raws)), nativeRetirementInventory, nativeWindowReappeared), nil
 }
 
 func (p *darwinPlatform) Focus(id domain.WindowID) error {
@@ -716,13 +744,36 @@ func goFocusEvent(wid C.uint32_t) {
 // control character, not a printable key name).
 var specialKeys = map[uint16]string{
 	36:  "Enter",
+	76:  "Enter", // keypad
 	48:  "Tab",
 	51:  "Backspace",
 	53:  "Escape",
+	115: "Home",
+	119: "End",
+	116: "PageUp",
+	121: "PageDown",
+	117: "Delete",
 	123: "ArrowLeft",
 	124: "ArrowRight",
 	125: "ArrowDown",
 	126: "ArrowUp",
+	122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6",
+	98: "F7", 100: "F8", 101: "F9", 109: "F10", 103: "F11", 111: "F12",
+	105: "F13", 107: "F14", 113: "F15", 106: "F16", 64: "F17", 79: "F18",
+	80: "F19", 90: "F20",
+}
+
+// printableKeyText reports whether the tap's text for a key is something a
+// user could mean to type. Control characters and AppKit's function-key range
+// (U+F700..U+F8FE: Home, End, Help, F-keys, ...) are not; U+F8FF is the Apple
+// logo, which Option+Shift+K really types.
+func printableKeyText(text string) bool {
+	for _, r := range text {
+		if r == utf8.RuneError || unicode.IsControl(r) || (r >= 0xF700 && r <= 0xF8FE) {
+			return false
+		}
+	}
+	return true
 }
 
 // domCodes maps macOS virtual keycodes to DOM KeyboardEvent.code (physical key)
@@ -750,6 +801,10 @@ func keyEventFromTap(keycode uint16, flags uint64, text string) KeyEvent {
 	key := text
 	if special, ok := specialKeys[keycode]; ok {
 		key = special
+	} else if !printableKeyText(text) {
+		// Never forward a non-printable character as a one-character key: the
+		// frontend would type it into the search and match nothing.
+		key = "Unidentified"
 	}
 	return KeyEvent{
 		Key:   key,

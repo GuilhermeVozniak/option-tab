@@ -82,6 +82,22 @@ func (a *App) OpenPreferences() {
 	a.emit("prefs:settings", prefsSettingsSnapshot{Generation: generation, SettingsState: a.GetSettingsState()})
 }
 
+// refreshOpenPreferences pushes the canonical snapshot to a visible Preferences
+// window after a save it did not request. It reuses the current refresh
+// generation: the renderer admits it only when its revision is newer than the
+// one it holds, so it never replaces a completed refresh with older settings.
+// Hidden preferences are refreshed by OpenPreferences instead. Callers hold
+// saveMu, which keeps these snapshots in revision order; never viewMu.
+func (a *App) refreshOpenPreferences() {
+	a.viewMu.Lock()
+	open, generation := a.prefsOpen, a.prefsRefreshGeneration
+	a.viewMu.Unlock()
+	if !open {
+		return
+	}
+	a.emit("prefs:settings", prefsSettingsSnapshot{Generation: generation, SettingsState: a.GetSettingsState()})
+}
+
 // showPrefsWindow shows and focuses the preferences window, recreating it once
 // via the factory if the native window was destroyed under us — the Wails v3
 // alpha has no destroyed-window probe, so a recovered panic is the only signal.

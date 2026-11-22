@@ -14,13 +14,21 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 )
 
 const (
 	maxRecords    = 128
 	maxStoreBytes = 4 << 20
+	// maxLeftovers bounds the non-record entries OpenStore tolerates beside a
+	// full store: interrupted writes and Finder metadata.
+	maxLeftovers = 16
 )
+
+// stagedRecordGrace is how long a staged temp is presumed to belong to a
+// write that is still in progress; a write takes milliseconds.
+const stagedRecordGrace = time.Minute
 
 var (
 	ErrInvalid    = errors.New("launcher items: invalid record")
@@ -31,6 +39,7 @@ var (
 	ErrUnsafePath = errors.New("launcher items: unsafe store path")
 	ErrTooLarge   = errors.New("launcher items: store limit exceeded")
 	privateID     = regexp.MustCompile(`^[a-f0-9]{32}$`)
+	stagedRecord  = regexp.MustCompile(`^\.record-[a-f0-9]{32}$`)
 	bundleID      = regexp.MustCompile(`^[A-Za-z0-9._-]{1,255}$`)
 )
 
@@ -114,16 +123,29 @@ func OpenStore(root string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	entries, err := directory.ReadDir(maxRecords + 1)
+	entries, err := directory.ReadDir(maxRecords + maxLeftovers + 1)
 	_ = directory.Close()
 	if err != nil && err != io.EOF {
 		return nil, err
 	}
-	if len(entries) > maxRecords {
+	if len(entries) > maxRecords+maxLeftovers {
 		return nil, ErrTooLarge
 	}
 	total := 0
 	for _, entry := range entries {
+		// A write interrupted between create and rename leaves its staged temp
+		// behind, and Finder adds its own metadata; neither is a record.
+		// A fresh one may belong to a running instance that is about to
+		// rename it, so only an abandoned temp is removed.
+		if entry.Type().IsRegular() && stagedRecord.MatchString(entry.Name()) {
+			if info, e := entry.Info(); e == nil && time.Since(info.ModTime()) > stagedRecordGrace {
+				_ = dir.Remove(entry.Name())
+			}
+			continue
+		}
+		if entry.Type().IsRegular() && entry.Name() == ".DS_Store" {
+			continue
+		}
 		if entry.Type()&os.ModeSymlink != 0 || entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			return nil, ErrCorrupt
 		}

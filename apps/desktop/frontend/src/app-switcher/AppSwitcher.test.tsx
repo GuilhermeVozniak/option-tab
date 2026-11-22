@@ -483,8 +483,23 @@ describe("AppSwitcher", () => {
     );
     expect(screen.getByText(/A very long document/)).toBeInTheDocument();
     expect(container.querySelector(".ot-app-preview img")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Space 1")).toBeInTheDocument();
+    // Every listed window is on the same Space: a number would say nothing.
+    expect(screen.queryByLabelText(/^Space \d/)).toBeNull();
     expect(screen.getByLabelText("Minimized")).toBeInTheDocument();
+    rerender(
+      <AppSwitcher
+        nativeKeys={false}
+        handlers={handlers()}
+        state={{
+          ...state,
+          entries: [state.entries[0], { ...state.entries[0], windowId: 102, spaceId: 7 }],
+        }}
+      />,
+    );
+    // Numbered by sorted id among the listed windows, never the raw id.
+    expect(screen.getByLabelText("Space 1")).toBeInTheDocument();
+    expect(screen.getByLabelText("Space 2")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Space 42")).toBeNull();
   });
 
   it("applies panel, layout, preview, badge, and native window-control preferences live", () => {

@@ -212,9 +212,7 @@ func main() {
 	// remains the only global hotkey handler, so no double-firing.
 	tray := wailsApp.SystemTray.New()
 	menu := wailsApp.NewMenu()
-	menu.Add("Show Option Tab").OnClick(func(*application.Context) {
-		app.controller.HandleHotkey(platform.HotkeyEvent{Kind: platform.HotkeyActivate, ShortcutID: 1})
-	})
+	menu.Add("Show Option Tab").OnClick(func(*application.Context) { app.showSwitcherFromTray() })
 	pauseItem := menu.Add("Pause").OnClick(func(*application.Context) { app.TogglePause() })
 	app.nativeDockItem = menu.Add(nativeDockRecoveryLabel(app.settingsSnapshot().Behavior.Language)).OnClick(func(*application.Context) {
 		go func() { _ = app.UseNativeDock() }()

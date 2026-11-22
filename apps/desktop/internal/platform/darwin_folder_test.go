@@ -192,3 +192,31 @@ func TestFolderCancelledGrantNeverPromptsOrPersists(t *testing.T) {
 		t.Fatal("cancelled grant persisted", err)
 	}
 }
+
+// A folder that is deleted and recreated is correctly refused ("revoked"), but
+// an explicit grant through the chooser must be able to adopt the new folder
+// without restarting the app.
+func TestFolderExplicitGrantAdoptsRecreatedFolder(t *testing.T) {
+	s, ref := folderFixture(t)
+	if listing, err := s.ListFolder(context.Background(), ref, FolderSort{}); err != nil || listing.Status != "ready" {
+		t.Fatal("original folder not listed", listing.Status, err)
+	}
+	if err := os.Rename(ref.Path, ref.Path+"-original"); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(ref.Path + "-original") }()
+	if err := os.Mkdir(ref.Path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if listing, err := s.ListFolder(context.Background(), ref, FolderSort{}); err == nil || listing.Status != "revoked" {
+		t.Fatal("replacement adopted without a grant", listing.Status, err)
+	}
+	granted, _, err := folderStat(ref.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.adopt(ref, granted)
+	if listing, err := s.ListFolder(context.Background(), ref, FolderSort{}); err != nil || listing.Status != "ready" {
+		t.Fatal("granted replacement still refused", listing.Status, err)
+	}
+}

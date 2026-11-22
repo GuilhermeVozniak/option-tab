@@ -319,7 +319,9 @@ func (c *Controller) inventoryWorker(ctx context.Context, requests <-chan uint64
 						}
 						identity, err := c.deps.Identities.ProcessIdentity(a.ID)
 						if err != nil || identity.PID != a.ID || identity.StartSeconds == 0 {
-							out.ok = false
+							// The app exited between the listing and this read (or
+							// cannot be identified at all). Leave it out; hiding the
+							// whole launcher for one unidentifiable app is worse.
 							continue
 						}
 						target := platform.LauncherAppTarget{Process: identity, BundleID: a.BundleID, Name: a.Name}
@@ -475,6 +477,8 @@ func (c *Controller) Run(ctx context.Context) error {
 		case <-sourceDone:
 			c.mu.Lock()
 			oldEpoch := c.activeSourceEpoch
+			// A source that returned by itself still holds its child context.
+			cancelSource := c.sourceCancel
 			c.sourceCancel = nil
 			c.env = platform.LauncherEnvironment{}
 			for uuid := range c.childAdmissions {
@@ -484,6 +488,9 @@ func (c *Controller) Run(ctx context.Context) error {
 			c.childHolds = nil
 			c.inventoryReady = false
 			c.mu.Unlock()
+			if cancelSource != nil {
+				cancelSource()
+			}
 			sourceDone = nil
 			if oldEpoch == epoch {
 				retryAt = c.deps.Now().Add(time.Second)

@@ -72,6 +72,10 @@ export function ShortcutRecorder({
         recording && "border-primary/70 ring-2 ring-ring/40",
       )}
       onFocus={() => void startNativeCapture()}
+      // Native capture ends after a recorded chord and gives up after its
+      // timeout while the field keeps focus, so no further focus event comes.
+      // A click on the field starts it again (a no-op while one is pending).
+      onClick={() => void startNativeCapture()}
       onBlur={() => {
         setRecording(false);
         generation.current++;

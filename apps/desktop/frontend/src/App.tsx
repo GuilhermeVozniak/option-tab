@@ -217,6 +217,9 @@ function useSettingsModel() {
   const [importing, setImporting] = useState(false);
   const [refreshing, setRefreshing] = useState(true);
   const [settingsStale, setSettingsStale] = useState(false);
+  // The refresh generation of the latest Preferences open that delivered its
+  // snapshot; consumers re-query what Go only answers while the window is open.
+  const [openedGeneration, setOpenedGeneration] = useState(0);
   useEffect(() => {
     mounted.current = true;
     let active = true;
@@ -244,11 +247,19 @@ function useSettingsModel() {
           value.revision > 0 &&
           next?.behavior
         ) {
+          // Go also pushes a snapshot under the current generation whenever
+          // settings are saved outside Preferences (tray Pause, native Dock
+          // recovery, launcher mutations). Within a completed refresh only a
+          // newer revision is news: admitting one this window already holds
+          // would retire an edit in flight and strand the revision it saves.
+          const opened = generation > completedRefreshGeneration.current;
+          if (!opened && value.revision <= backendRevision.current) return;
           refreshGeneration.current = generation;
           completedRefreshGeneration.current = Math.max(
             completedRefreshGeneration.current,
             generation,
           );
+          if (opened) setOpenedGeneration(generation);
           admit(value.revision, next);
         }
       } catch {
@@ -531,6 +542,7 @@ function useSettingsModel() {
     saveError,
     importing: importing || refreshing,
     settingsStale,
+    openedGeneration,
     reload,
   };
 }
@@ -539,6 +551,10 @@ function useSettingsModel() {
 // window (default route) subscribes to the Go controller's events and renders
 // the switcher; the preferences window (#/settings) renders the settings form.
 // It holds no business logic.
+// How long streamed switcher frames are kept after a hide: comfortably past
+// the overlays' 180ms fade-out.
+const HIDE_CLEANUP_MS = 400;
+
 export default function App() {
   if (isSettingsRoute()) return <SettingsRoute />;
   if (isDockRoute()) return <DockRoute />;
@@ -587,6 +603,10 @@ function OverlayRoute() {
   const [nativeKeys, setNativeKeys] = useState(true);
   const [materialStatus, setMaterialStatus] = useState<MaterialStatus | null>(null);
   const materialSession = useRef(0);
+  // Streamed frames and the panel material outlive a hide until the fade-out
+  // has finished, so the overlay fades with its content instead of flipping to
+  // icon placeholders on the first frame.
+  const hideCleanup = useRef<number | null>(null);
   useEffect(() => {
     let active = true;
     hasBackend().then((ok) => {
@@ -598,6 +618,11 @@ function OverlayRoute() {
   }, []);
 
   useEffect(() => {
+    const cancelHideCleanup = () => {
+      if (hideCleanup.current === null) return;
+      window.clearTimeout(hideCleanup.current);
+      hideCleanup.current = null;
+    };
     const acceptState = (next: SwitcherState) => {
       const session = next.session ?? 0;
       const revision = next.revision ?? 0;
@@ -613,6 +638,7 @@ function OverlayRoute() {
       latestRevision.current = revision;
       activeSession.current = session;
       if (changed) {
+        cancelHideCleanup();
         ++actionRevision.current;
         setActionError(null);
         setThumbs({});
@@ -634,6 +660,7 @@ function OverlayRoute() {
     const off = onSwitcherEvent({
       onShow: (next) => {
         if ((next.session ?? 0) === 0 && !scopedSeen.current) {
+          cancelHideCleanup();
           ++actionRevision.current;
           setActionError(null);
           setThumbs({});
@@ -656,10 +683,17 @@ function OverlayRoute() {
         activeSession.current = 0;
         ++actionRevision.current;
         setActionError(null);
-        setThumbs({});
-        setPreviews({});
+        // Late frames and material updates are refused from here on, but what
+        // is already on screen stays for the fade. The next show clears it
+        // too, so this timer only releases the images of an idle overlay.
         materialSession.current = 0;
-        setMaterialStatus(null);
+        cancelHideCleanup();
+        hideCleanup.current = window.setTimeout(() => {
+          hideCleanup.current = null;
+          setThumbs({});
+          setPreviews({});
+          setMaterialStatus(null);
+        }, HIDE_CLEANUP_MS);
         setState((s) => ({ ...s, open: false }));
       },
       onThumbnails: (session, next) => {
@@ -691,6 +725,7 @@ function OverlayRoute() {
     });
     return () => {
       ++actionRevision.current;
+      cancelHideCleanup();
       off();
     };
   }, []);
@@ -1325,12 +1360,15 @@ function SettingsRoute() {
     saveError,
     importing,
     settingsStale,
+    openedGeneration,
     reload,
   } = useSettingsModel();
   const perms = usePermissions();
   const about = useAbout();
   const crash = useCrash();
-  const [requestedTab, setRequestedTab] = useState<string | null>(null);
+  // Every deep link is its own request: the nonce lets a repeated target (tray →
+  // About, switch tab, tray → About again) navigate again.
+  const [tabRequest, setTabRequest] = useState<{ tab: string; nonce: number } | null>(null);
   const [dockInputError, setDockInputError] = useState("");
   const [switcherGesturesAvailable, setSwitcherGesturesAvailable] = useState(false);
   useEffect(() => {
@@ -1371,7 +1409,10 @@ function SettingsRoute() {
   const lockMark = useRef<[number, number, number]>([0, 0, 0]);
   const lockSeen = useRef(false);
 
-  useEffect(() => onPrefsTab(setRequestedTab), []);
+  useEffect(
+    () => onPrefsTab((tab) => setTabRequest((old) => ({ tab, nonce: (old?.nonce ?? 0) + 1 }))),
+    [],
+  );
   useEffect(() => {
     let active = true;
     const accept = (status: LauncherStatus) => {
@@ -1426,6 +1467,9 @@ function SettingsRoute() {
     });
     return off;
   }, [refreshWidgetPackages]);
+  // The preferences webview is created hidden and Go lists running apps only
+  // while Preferences are open, so the mount-time answer is empty. Ask again on
+  // every open; openedGeneration is the trigger, not an input.
   useEffect(() => {
     let active = true;
     void launcher
@@ -1439,7 +1483,7 @@ function SettingsRoute() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [openedGeneration]);
   useEffect(() => {
     let active = true;
     void hasBackend().then((available) => {
@@ -1619,7 +1663,8 @@ function SettingsRoute() {
           permissions={perms}
           about={about}
           crash={crash}
-          requestedTab={requestedTab}
+          requestedTab={tabRequest?.tab}
+          requestedTabNonce={tabRequest?.nonce}
           dockInputError={dockInputError}
           switcherGesturesAvailable={switcherGesturesAvailable}
           monitorLock={{

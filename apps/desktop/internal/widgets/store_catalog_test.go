@@ -241,3 +241,41 @@ func TestStoreRemovalDoesNotFollowNestedLink(t *testing.T) {
 		t.Fatal("followed nested link", e)
 	}
 }
+
+func TestStoreCatalogIgnoresFinderMetadataOnly(t *testing.T) {
+	s, dir := catalogStore(t)
+	ctx := context.Background()
+	if _, err := s.Install(ctx, bytes.NewReader(catalogArchive(t, 0))); err != nil {
+		t.Fatal(err)
+	}
+	metadata := filepath.Join(dir, ".DS_Store")
+	if err := os.WriteFile(metadata, []byte("finder"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Install(ctx, bytes.NewReader(catalogArchive(t, 1))); err != nil {
+		t.Fatalf("Finder metadata blocked install: %v", err)
+	}
+	if got, err := s.List(ctx); err != nil || len(got) != 2 {
+		t.Fatalf("list %d %v", len(got), err)
+	}
+	if _, err := os.Lstat(metadata); err != nil {
+		t.Fatalf("foreign metadata must be left alone: %v", err)
+	}
+	for kind, plant := range map[string]func() error{
+		"link":      func() error { return os.Symlink(t.TempDir(), metadata) },
+		"directory": func() error { return os.Mkdir(metadata, 0o700) },
+	} {
+		if err := os.Remove(metadata); err != nil {
+			t.Fatal(err)
+		}
+		if err := plant(); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := s.List(ctx); !errors.Is(err, ErrInvalid) || len(got) != 2 {
+			t.Fatalf("%s named like Finder metadata accepted: %d %v", kind, len(got), err)
+		}
+		if _, err := s.Install(ctx, bytes.NewReader(catalogArchive(t, 2))); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("%s named like Finder metadata admitted an install: %v", kind, err)
+		}
+	}
+}

@@ -81,10 +81,13 @@ export function computeLayout(input: LayoutInput): Layout {
   // thumbnails down once the window count exceeds the grid's capacity, with a
   // readable floor so they never become unusably small.
   let thumbnailPx = thumbnailMaxPx;
+  // The readability floor only limits shrinking. A configured size below it
+  // is its own floor; otherwise the clamp would enlarge it back to 96.
+  const minPx = Math.min(MIN_THUMBNAIL_PX, thumbnailMaxPx);
   const capacity = maxColumns * Math.max(1, maxRows);
   if (autoSize && count > capacity) {
     const scaled = Math.round((thumbnailMaxPx * capacity) / count);
-    thumbnailPx = clamp(scaled, MIN_THUMBNAIL_PX, thumbnailMaxPx);
+    thumbnailPx = clamp(scaled, minPx, thumbnailMaxPx);
   }
 
   // Fit-to-viewport: shrink thumbnails until the grid fits inside the panel's
@@ -92,7 +95,7 @@ export function computeLayout(input: LayoutInput): Layout {
   if (viewportW > 0) {
     const availW = viewportW * PANEL_W_FRAC - PANEL_PADDING;
     const fit = Math.floor(availW / columns - CELL_CHROME_W);
-    thumbnailPx = clamp(Math.min(thumbnailPx, fit), MIN_THUMBNAIL_PX, thumbnailMaxPx);
+    thumbnailPx = clamp(Math.min(thumbnailPx, fit), minPx, thumbnailMaxPx);
   }
   if (viewportH > 0 && rows > 0) {
     let availH = viewportH * PANEL_H_FRAC - PANEL_PADDING - (input.toolbarHeightPx ?? 0);
@@ -103,7 +106,7 @@ export function computeLayout(input: LayoutInput): Layout {
       (showTitle ? TITLEBAR_H : 0) -
       (input.entryFooterHeightPx ?? 0);
     const fit = Math.floor(cellH / THUMB_ASPECT);
-    thumbnailPx = clamp(Math.min(thumbnailPx, fit), MIN_THUMBNAIL_PX, thumbnailMaxPx);
+    thumbnailPx = clamp(Math.min(thumbnailPx, fit), minPx, thumbnailMaxPx);
   }
 
   return { columns, rows, thumbnailPx };

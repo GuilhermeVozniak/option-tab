@@ -62,9 +62,14 @@ interface SettingsProps {
   crash?: CrashControl;
   /**
    * Deep-link from the menubar, either a tab ("About") or a tab and a section
-   * within it ("General#updates"); applied when it changes.
+   * within it ("General#updates"); applied once per request.
    */
   requestedTab?: string | null;
+  /**
+   * Identifies the request. A new value applies `requestedTab` again, so asking
+   * for the tab the user has since navigated away from still navigates.
+   */
+  requestedTabNonce?: number;
   dockInputError?: string;
   switcherGesturesAvailable?: boolean;
   monitorLock?: {
@@ -122,6 +127,7 @@ export function Settings({
   about,
   crash,
   requestedTab,
+  requestedTabNonce = 0,
   dockInputError,
   switcherGesturesAvailable = false,
   monitorLock,
@@ -149,7 +155,8 @@ export function Settings({
     const [name, section] = requestedTab.split("#");
     if ((TABS as readonly string[]).includes(name)) setTab(name as Tab);
     if (section === "updates") setPendingUpdatesScroll(true);
-  }, [requestedTab]);
+    // requestedTabNonce is the trigger for a repeated request, not an input.
+  }, [requestedTab, requestedTabNonce]);
 
   // Scroll only once the General tab is the active one, so the section is
   // actually on screen when it is revealed.
@@ -365,7 +372,11 @@ export function Settings({
                 aria-labelledby={`${settingsID}-tab-Controls`}
                 className="ot-settings-page"
               >
-                <ControlsTab ctx={ctx} switcherGesturesAvailable={switcherGesturesAvailable} />
+                <ControlsTab
+                  ctx={ctx}
+                  draftAuthority={draftAuthority}
+                  switcherGesturesAvailable={switcherGesturesAvailable}
+                />
               </section>
             </TabsContent>
             <TabsContent appearance="unstyled" forceMount value="Appearance" asChild>

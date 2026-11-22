@@ -48,6 +48,8 @@ class BundleContract(unittest.TestCase):
         (self.root / 'apps/desktop/frontend').mkdir()
         (build / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleShortVersionString':'0.4.1', 'CFBundleVersion':'0.4.1', 'LSMinimumSystemVersion':'14.0', 'CFBundleExecutable':'option-tab', 'OSAScriptingDefinition':'OptionTab.sdef'}))
         (build / 'OptionTab.sdef').write_text('<dictionary/>')
+        self.app_version = self.root / 'apps/desktop/app_update.go'
+        self.app_version.write_text('package main\n\n// appVersion is shown in the About tab.\nconst appVersion = "0.5.0"\n')
         tools = self.root / 'tools'
         tools.mkdir()
         for name in ('go','bun','lipo','xcrun','sips','iconutil','npx','codesign','wails3'):
@@ -118,6 +120,30 @@ class BundleContract(unittest.TestCase):
         self.assertIn('UNVERIFIED',result.stdout)
         self.assertTrue((self.root/'apps/desktop/build/bin/option-tab_0.5.0_darwin_arm64_UNVERIFIED.dmg').exists())
         self.assertFalse(any(c[0]=='codesign' or (c[0]=='xcrun' and c[1][0]=='notarytool') for c in self.calls()))
+    def test_stale_binary_version_refuses_every_mode(self):
+        self.app_version.write_text('package main\n\nconst appVersion = "0.4.9"\n')
+        for mode in ({}, {'BUNDLE_MODE':'unsigned','UNIVERSAL':'0','FAKE_ARCHS':'arm64'}):
+            self.log.unlink(missing_ok=True)
+            result=self.run_bundle(**mode)
+            self.assertNotEqual(result.returncode,0,mode)
+            self.assertIn('appVersion',result.stderr)
+            self.assertIn('0.4.9',result.stderr)
+            self.assertIn('0.5.0',result.stderr)
+            self.assertNotIn('==> done:',result.stdout)
+            self.assertFalse(any(c[0] in ('codesign','npx') for c in self.calls()))
+    def test_unreadable_binary_version_refuses_release(self):
+        self.app_version.write_text('package main\n')
+        result=self.run_bundle()
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('appVersion',result.stderr)
+        self.assertFalse(any(c[0] in ('codesign','npx') for c in self.calls()))
+        self.app_version.unlink()
+        result=self.run_bundle()
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('appVersion',result.stderr)
+    def test_repository_binary_version_is_readable(self):
+        # The fixture constant mirrors the real declaration the script parses.
+        self.assertRegex((ROOT/'apps/desktop/app_update.go').read_text(), r'(?m)^const appVersion = "[0-9]+\.[0-9]+\.[0-9]+"$')
 
 if __name__ == '__main__':
     unittest.main()
