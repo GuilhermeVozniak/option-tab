@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { truncateTitle } from "../lib/text";
 import type { Entry, PointerAction, SwitcherState } from "../lib/types";
+import type { PointerPosition } from "../lib/usePointerMoveGate";
 import { StatusIcons } from "./StatusIcons";
 import type { OverlayHandlers } from "./types";
 
@@ -25,6 +26,8 @@ interface EntryItemProps {
   spaceNumber?: number;
   titleTruncation: SwitcherState["appearance"]["titleTruncation"];
   mouseHover: boolean;
+  // pointerMoved reports whether a mouse event is a real move of the pointer.
+  pointerMoved: (event: PointerPosition) => boolean;
   activeSpaceId: number;
   handlers: OverlayHandlers;
   middleClickAction: PointerAction;
@@ -49,6 +52,7 @@ export function EntryItem({
   spaceNumber,
   titleTruncation,
   mouseHover,
+  pointerMoved,
   activeSpaceId,
   handlers,
   middleClickAction,
@@ -127,7 +131,13 @@ export function EntryItem({
         role="option"
         aria-selected={selected}
         className={`ot-entry ot-entry-${style}${selected ? " ot-selected" : ""}${showControls ? " ot-has-controls" : ""}`}
-        onMouseEnter={mouseHover ? () => handlers.onSelect(index) : undefined}
+        onMouseMove={
+          mouseHover
+            ? (e) => {
+                if (pointerMoved(e) && !selected) handlers.onSelect(index);
+              }
+            : undefined
+        }
         onClick={() => handlers.onConfirmWindow(entry.windowId)}
         onMouseDown={(e) => {
           if (e.button === 1) {

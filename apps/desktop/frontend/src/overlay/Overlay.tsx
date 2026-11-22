@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { type KeyPayload, onSwitcherKey } from "../lib/bridge";
 import { type KeyEventLike, keyToAction } from "../lib/keymap";
-import { computeLayout, effectiveStyle } from "../lib/layout";
+import { computeLayout, crossAxisIndex, effectiveStyle, gridShape } from "../lib/layout";
 import {
   type MaterialRect,
   type MaterialStatus,
@@ -13,6 +13,7 @@ import {
   useMaterialReporter,
 } from "../lib/material";
 import type { SwitcherState } from "../lib/types";
+import { usePointerMoveGate } from "../lib/usePointerMoveGate";
 import { useScrollSelection } from "../lib/useScrollSelection";
 import { useSwitcherGestureRegions } from "../lib/useSwitcherGestureRegions";
 import { useSwitcherSearch } from "../lib/useSwitcherSearch";
@@ -59,6 +60,7 @@ export function Overlay({
 }: OverlayProps) {
   const { open, entries, selected, search, appearance } = state;
   const editSearch = useSwitcherSearch(state, handlers.onSearchChange);
+  const pointerMoved = usePointerMoveGate(`${state.session ?? 0}:${open}`);
   const style = effectiveStyle(state.style, entries.length, appearance.compactThreshold);
 
   // Apparition delay: postpone the first paint so quick switches don't flash
@@ -143,6 +145,32 @@ export function Overlay({
 
   useEffect(() => {
     if (!open) return;
+    // The arrows that run across the fill direction move a whole row (or
+    // column) at a time. A titles list is a single column, so it has none.
+    function moveAcrossGrid(key: string) {
+      if (state.arrowKeys === false || style === "titles") return;
+      const vertical = appearance.layoutDirection === "vertical";
+      const delta = vertical
+        ? key === "ArrowRight"
+          ? 1
+          : key === "ArrowLeft"
+            ? -1
+            : 0
+        : key === "ArrowDown"
+          ? 1
+          : key === "ArrowUp"
+            ? -1
+            : 0;
+      if (delta === 0) return;
+      const shape = gridShape(entries.length, appearance.maxColumns, appearance.maxRows, vertical);
+      const target = crossAxisIndex(
+        selected,
+        entries.length,
+        vertical ? shape.rows : shape.columns,
+        delta,
+      );
+      if (target !== null) handlers.onSelect(target);
+    }
     function handleKey(e: KeyEventLike) {
       const action = keyToAction(e, {
         vimKeys: state.vimKeys,
@@ -150,7 +178,10 @@ export function Overlay({
         actionBindings: state.actionBindings,
         layoutDirection: style === "titles" ? "vertical" : appearance.layoutDirection,
       });
-      if (action.kind === "none") return;
+      if (action.kind === "none") {
+        moveAcrossGrid(e.key);
+        return;
+      }
       const sel = entries[selected];
       switch (action.kind) {
         case "advance":
@@ -226,6 +257,8 @@ export function Overlay({
     state.arrowKeys,
     state.actionBindings,
     appearance.layoutDirection,
+    appearance.maxColumns,
+    appearance.maxRows,
     style,
     nativeKeys,
     state.session,
@@ -361,6 +394,7 @@ export function Overlay({
               }
               titleTruncation={appearance.titleTruncation}
               mouseHover={state.mouseHover}
+              pointerMoved={pointerMoved}
               activeSpaceId={state.activeSpaceId}
               handlers={handlers}
               middleClickAction={state.middleClickAction}

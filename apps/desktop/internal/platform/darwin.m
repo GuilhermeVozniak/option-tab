@@ -10,6 +10,8 @@
 #include <stdatomic.h>
 #include <unistd.h>
 #include "darwin.h"
+#include "darwin_key_text.h"
+#include "darwin_overlay_mouse.h"
 
 // SkyLight private API for precise front-window control (the AltTab technique):
 // bringing a *specific* window's process frontmost makes macOS follow to that
@@ -957,6 +959,9 @@ void ot_window_fit_screen(void *win, uint32_t displayID) {
     // content), visible as a black outline on dark wallpapers. Re-assert it
     // here on every show, like App.Show already does for AlwaysOnTop.
     w.hasShadow = NO;
+    // The overlay is never activated, so its web view would spend the first
+    // click on activating the app instead of on the window that was clicked.
+    ot_overlay_accept_first_click(win);
     NSScreen *s = w.screen ?: [NSScreen mainScreen];
     if (displayID != 0) {
       for (NSScreen *cand in [NSScreen screens]) {
@@ -1097,11 +1102,20 @@ int ot_hotkey_should_release(uint64_t modflags, uint64_t holdMask) {
 
 // forwardKey delivers a key press to Go (goKeyEvent) with its text, so the
 // frontend can run navigation/actions/type-to-search while the overlay is open.
-static void forwardKey(CGEventRef event, uint16_t keycode, uint64_t flags) {
+//
+// heldOption says Option is down only because it is holding the switcher open.
+// The key's text is then what it types without Option: the event's own text
+// would be the Option character ("†" for T), which no window title contains.
+static void forwardKey(CGEventRef event, uint16_t keycode, uint64_t flags, int heldOption) {
   enum { kMaxUnits = 16 };
   UniChar buf[kMaxUnits];
   UniCharCount len = 0;
-  CGEventKeyboardGetUnicodeString(event, kMaxUnits, &len, buf);
+  if (heldOption) {
+    len = (UniCharCount)ot_key_text_without_option(keycode, (uint64_t)CGEventGetFlags(event), buf,
+                                                   kMaxUnits);
+  }
+  // No layout read yet, or a key that types nothing: keep the event's text.
+  if (len == 0) CGEventKeyboardGetUnicodeString(event, kMaxUnits, &len, buf);
   // Never trust len past the buffer: CGEvent.h documents it as the event's
   // actual length, and only the first kMaxUnits units are ever written.
   if (len > kMaxUnits) len = kMaxUnits;
@@ -1194,7 +1208,9 @@ static CGEventRef tapCallback(CGEventTapProxy proxy, CGEventType type, CGEventRe
     // the previously active app, and forward it to the overlay (navigation,
     // window actions, type-to-search).
     if (open) {
-      forwardKey(event, keycode, flags);
+      int heldOption = gActive && (gHoldMask & kCGEventFlagMaskAlternate) &&
+                       (flags & kCGEventFlagMaskAlternate);
+      forwardKey(event, keycode, flags, heldOption);
       return NULL;
     }
   }
@@ -1237,6 +1253,11 @@ int ot_hotkey_start(void) {
   // from here on frontmostApplication may be us and the observer is the only
   // source of the real active app.
   otInstallFrontObserver();
+  // The keyboard layout can only be read on the main thread; the tap thread
+  // uses the copy this keeps current.
+  dispatch_async(dispatch_get_main_queue(), ^{
+    ot_key_layout_watch();
+  });
   pthread_t t;
   if (pthread_create(&t, NULL, hotkeyThread, NULL) != 0) return 0;
   pthread_detach(t);

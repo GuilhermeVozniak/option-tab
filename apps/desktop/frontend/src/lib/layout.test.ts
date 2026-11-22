@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeLayout, effectiveStyle } from "./layout";
+import { computeLayout, crossAxisIndex, effectiveStyle, gridShape } from "./layout";
 
 describe("computeLayout", () => {
   it("uses up to maxColumns columns", () => {
@@ -199,5 +199,36 @@ describe("computeLayout thumbnail floor", () => {
         computeLayout({ ...base, count: 40, viewportW: 400, viewportH: 300 }).thumbnailPx,
       ).toBe(thumbnailMaxPx);
     }
+  });
+});
+
+describe("gridShape", () => {
+  it("fills rows first in a horizontal grid and columns first in a vertical one", () => {
+    expect(gridShape(10, 6, 4, false)).toEqual({ columns: 6, rows: 2 });
+    expect(gridShape(10, 6, 4, true)).toEqual({ columns: 3, rows: 4 });
+    expect(gridShape(0, 6, 4, false)).toEqual({ columns: 1, rows: 0 });
+  });
+});
+
+describe("crossAxisIndex", () => {
+  it("moves one full line forward or back", () => {
+    expect(crossAxisIndex(1, 10, 6, 1)).toBe(7);
+    expect(crossAxisIndex(7, 10, 6, -1)).toBe(1);
+  });
+
+  it("stops at the first and last line", () => {
+    expect(crossAxisIndex(1, 10, 6, -1)).toBeNull();
+    expect(crossAxisIndex(7, 10, 6, 1)).toBeNull();
+  });
+
+  it("lands on the last entry when the next line is shorter", () => {
+    expect(crossAxisIndex(5, 10, 6, 1)).toBe(9);
+  });
+
+  it("has nowhere to go in a single line or with a bad index", () => {
+    expect(crossAxisIndex(2, 4, 6, 1)).toBeNull();
+    expect(crossAxisIndex(-1, 4, 2, 1)).toBeNull();
+    expect(crossAxisIndex(4, 4, 2, -1)).toBeNull();
+    expect(crossAxisIndex(0, 4, 0, 1)).toBeNull();
   });
 });

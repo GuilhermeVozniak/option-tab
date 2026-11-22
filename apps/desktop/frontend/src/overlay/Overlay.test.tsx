@@ -79,6 +79,21 @@ function stateWith(overrides: Partial<SwitcherState>): SwitcherState {
   };
 }
 
+// withThirdEntry adds a window so a two-wide grid has a second line.
+function withThirdEntry(s: SwitcherState): SwitcherState {
+  return {
+    ...s,
+    entries: [...s.entries, { ...s.entries[0], windowId: 3, appId: 3, title: "Notes" }],
+  };
+}
+
+// movePointerOver moves the pointer onto an element the way a hand does: more
+// than one event, at changing positions.
+function movePointerOver(element: HTMLElement, from = 100) {
+  fireEvent.mouseMove(element, { screenX: from, screenY: from });
+  fireEvent.mouseMove(element, { screenX: from + 4, screenY: from + 2 });
+}
+
 const noopHandlers = () => ({
   onAdvance: vi.fn(),
   onReverse: vi.fn(),
@@ -295,6 +310,42 @@ describe("Overlay", () => {
     expect(h.onConfirmWindow).not.toHaveBeenCalled();
   });
 
+  it("moves between rows of a horizontal grid with the Up and Down arrows", () => {
+    const h = noopHandlers();
+    const s = withThirdEntry(stateWith({ selected: 0 }));
+    s.appearance = { ...s.appearance, layoutDirection: "horizontal", maxColumns: 2 };
+    const { rerender } = render(<Overlay state={s} handlers={h} />);
+    pressKey({ key: "ArrowDown" });
+    expect(h.onSelect).toHaveBeenLastCalledWith(2);
+    expect(h.onAdvance).not.toHaveBeenCalled();
+    rerender(<Overlay state={{ ...s, selected: 2 }} handlers={h} />);
+    pressKey({ key: "ArrowDown" });
+    expect(h.onSelect).toHaveBeenCalledOnce();
+    pressKey({ key: "ArrowUp" });
+    expect(h.onSelect).toHaveBeenLastCalledWith(0);
+    expect(h.onReverse).not.toHaveBeenCalled();
+  });
+
+  it("moves between columns of a vertical grid with the Left and Right arrows", () => {
+    const h = noopHandlers();
+    const s = withThirdEntry(stateWith({ selected: 0 }));
+    s.appearance = { ...s.appearance, layoutDirection: "vertical", maxRows: 2 };
+    render(<Overlay state={s} handlers={h} />);
+    pressKey({ key: "ArrowRight" });
+    expect(h.onSelect).toHaveBeenLastCalledWith(2);
+    pressKey({ key: "ArrowLeft" });
+    expect(h.onSelect).toHaveBeenCalledOnce();
+  });
+
+  it("leaves the cross-axis arrows alone when arrow keys are turned off", () => {
+    const h = noopHandlers();
+    const s = withThirdEntry(stateWith({ selected: 0, arrowKeys: false }));
+    s.appearance = { ...s.appearance, layoutDirection: "horizontal", maxColumns: 2 };
+    render(<Overlay state={s} handlers={h} />);
+    pressKey({ key: "ArrowDown" });
+    expect(h.onSelect).not.toHaveBeenCalled();
+  });
+
   it("uses vertical arrows when compact mode renders a titles list", () => {
     const h = noopHandlers();
     const s = stateWith({});
@@ -343,18 +394,52 @@ describe("Overlay", () => {
     const h = noopHandlers();
     render(<Overlay state={stateWith({})} handlers={h} />);
     const second = screen.getByText("GitHub").closest('[role="option"]') as HTMLElement;
-    fireEvent.mouseEnter(second);
+    movePointerOver(second);
     expect(h.onSelect).toHaveBeenCalledWith(1);
     fireEvent.click(second);
     expect(h.onConfirmWindow).toHaveBeenCalledWith(2);
     expect(h.onConfirm).not.toHaveBeenCalled();
   });
 
+  it("leaves the selection alone when a card appears under a resting pointer", () => {
+    const h = noopHandlers();
+    render(<Overlay state={stateWith({})} handlers={h} />);
+    const second = screen.getByText("GitHub").closest('[role="option"]') as HTMLElement;
+    // The browser reports the pointer over the new card without it having moved.
+    fireEvent.mouseEnter(second, { screenX: 300, screenY: 200 });
+    fireEvent.mouseMove(second, { screenX: 300, screenY: 200 });
+    fireEvent.mouseMove(second, { screenX: 300, screenY: 200 });
+    expect(h.onSelect).not.toHaveBeenCalled();
+    fireEvent.mouseMove(second, { screenX: 301, screenY: 200 });
+    expect(h.onSelect).toHaveBeenCalledWith(1);
+  });
+
+  it("forgets the pointer position when the switcher opens again", () => {
+    const h = noopHandlers();
+    const s = stateWith({ session: 1 });
+    const { rerender } = render(<Overlay state={s} handlers={h} />);
+    movePointerOver(screen.getByText("GitHub").closest('[role="option"]') as HTMLElement);
+    expect(h.onSelect).toHaveBeenCalledOnce();
+    rerender(<Overlay state={{ ...s, open: false }} handlers={h} />);
+    rerender(<Overlay state={{ ...s, session: 2 }} handlers={h} />);
+    // The pointer went elsewhere while the switcher was closed and now rests.
+    const second = screen.getByText("GitHub").closest('[role="option"]') as HTMLElement;
+    fireEvent.mouseMove(second, { screenX: 700, screenY: 500 });
+    expect(h.onSelect).toHaveBeenCalledOnce();
+  });
+
+  it("does not select again while the pointer moves within the selected card", () => {
+    const h = noopHandlers();
+    render(<Overlay state={stateWith({ selected: 1 })} handlers={h} />);
+    movePointerOver(screen.getByText("GitHub").closest('[role="option"]') as HTMLElement);
+    expect(h.onSelect).not.toHaveBeenCalled();
+  });
+
   it("confirms a clicked unselected window when hover selection is disabled", () => {
     const h = noopHandlers();
     render(<Overlay state={stateWith({ selected: 0, mouseHover: false })} handlers={h} />);
     const second = screen.getByText("GitHub").closest('[role="option"]') as HTMLElement;
-    fireEvent.mouseEnter(second);
+    movePointerOver(second);
     expect(h.onSelect).not.toHaveBeenCalled();
     fireEvent.click(second);
     expect(h.onConfirmWindow).toHaveBeenCalledWith(2);
@@ -421,7 +506,7 @@ describe("Overlay", () => {
     const h = noopHandlers();
     render(<Overlay state={stateWith({ mouseHover: false })} handlers={h} />);
     const second = screen.getByText("GitHub").closest('[role="option"]') as HTMLElement;
-    fireEvent.mouseEnter(second);
+    movePointerOver(second);
     expect(h.onSelect).not.toHaveBeenCalled();
   });
 
