@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.5 — 2026-11-22
+## 0.6.5 — 2026-11-23
 
 A bug-fix release from a full pass over the switcher, the Dock replacement and Settings.
 
@@ -9,6 +9,10 @@ A bug-fix release from a full pass over the switcher, the Dock replacement and S
 - Open the switcher again when the shortcut is pressed right after Return or a click while the modifier is still held.
 - Keep the highlight on the selected window when another window closes, and after minimizing or hiding the selected window. Backspace on an empty search keeps the selection.
 - Start hold-to-cycle on the first card only when the frontmost app has no listed window.
+- Pick a window with the first click on its card while another app is active, instead of needing a second click.
+- Search for the letters that are typed while Option is held, instead of the Option characters of the keyboard layout.
+- Move between rows of the grid with the Up and Down arrows, and between columns with Left and Right in the vertical layout.
+- Leave the selection alone when the switcher opens under a resting pointer; a card takes the selection only after the pointer moves.
 - Ignore Home, End, Page Up, Page Down, Delete and the function keys in the search instead of adding invisible characters, and confirm with the keypad Enter key.
 - Respect thumbnail sizes below 96 px, redraw icons after an icon-size change, and keep thumbnails visible through the fade-out.
 - Show Space badges as ordinals, and only when the listed windows span more than one Space.
@@ -21,7 +25,7 @@ A bug-fix release from a full pass over the switcher, the Dock replacement and S
 
 Behaviour changes: an outside settings save cancels an unsaved shortcut or blacklist draft in Preferences.
 
-Known issues: with another app active, the first click on a switcher card only activates Option Tab and a second click picks the window; hovering a card does not select it until then. Typing to search while Option is held enters Option characters. The Up and Down arrows do not move between rows of the grid. These predate this release.
+Known issues: with another app active, hovering a card does not select it until the first click. Dead-key accents are not composed in the search. These predate this release.
 
 The native feature limitations and hardware checks documented for 0.5.0 remain unchanged. Windows and Linux downloads remain demonstration builds without native window switching.
 
