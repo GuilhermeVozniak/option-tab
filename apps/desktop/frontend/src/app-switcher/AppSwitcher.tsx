@@ -16,6 +16,7 @@ import {
 import { spaceBadgeNumbers } from "../lib/spaces";
 import { truncateTitle } from "../lib/text";
 import type { Entry, PointerAction, SwitcherState } from "../lib/types";
+import { type PointerPosition, usePointerMoveGate } from "../lib/usePointerMoveGate";
 import { useScrollSelection } from "../lib/useScrollSelection";
 import { useSwitcherGestureRegions } from "../lib/useSwitcherGestureRegions";
 import { useSwitcherSearch } from "../lib/useSwitcherSearch";
@@ -45,6 +46,7 @@ function AppWindowCard({
   handlers,
   focus,
   hover,
+  pointerMoved,
   showControls,
   middle,
   appearance,
@@ -59,6 +61,7 @@ function AppWindowCard({
   handlers: OverlayHandlers;
   focus: (entry: Entry) => void;
   hover: boolean;
+  pointerMoved: (event: PointerPosition) => boolean;
   showControls: boolean;
   middle: PointerAction;
   appearance: SwitcherState["appearance"];
@@ -86,7 +89,13 @@ function AppWindowCard({
           type="button"
           className="ot-app-preview"
           aria-label={t("Focus {title}").replace("{title}", () => entry.title || entry.appName)}
-          onMouseEnter={hover ? () => handlers.onSelectAppWindow?.(entry.windowId) : undefined}
+          onMouseMove={
+            hover
+              ? (e) => {
+                  if (pointerMoved(e) && !selected) handlers.onSelectAppWindow?.(entry.windowId);
+                }
+              : undefined
+          }
           onAuxClick={(event) => {
             if (event.button === 1) runPointerAction(middle, entry, handlers);
           }}
@@ -185,6 +194,7 @@ export function AppSwitcher({
   const app = apps[selected];
   const appearance = state.appearance;
   const editSearch = useSwitcherSearch(state, handlers.onSearchChange);
+  const pointerMoved = usePointerMoveGate(`${state.session ?? 0}:${state.open}`);
   const style = effectiveStyle(state.style, state.entries.length, appearance.compactThreshold);
   const layout = computeLayout({
     count: state.entries.length,
@@ -387,8 +397,14 @@ export function AppSwitcher({
                 aria-label={`${item.appName} (${item.appId})`}
                 key={item.appId}
                 className={index === selected ? "is-selected" : ""}
-                onMouseEnter={
-                  state.mouseHover ? () => handlers.onSelectApp?.(item.appId) : undefined
+                onMouseMove={
+                  state.mouseHover
+                    ? (e) => {
+                        if (pointerMoved(e) && index !== selected) {
+                          handlers.onSelectApp?.(item.appId);
+                        }
+                      }
+                    : undefined
                 }
                 onClick={() => handlers.onSelectApp?.(item.appId)}
               >
@@ -445,6 +461,7 @@ export function AppSwitcher({
                 handlers={handlers}
                 focus={focus}
                 hover={state.mouseHover}
+                pointerMoved={pointerMoved}
                 showControls={state.appearance.showWindowControls}
                 middle={state.middleClickAction}
                 appearance={appearance}

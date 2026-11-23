@@ -348,7 +348,8 @@ describe("AppSwitcher", () => {
       />,
     );
     const preview = screen.getByRole("button", { name: "Focus One" });
-    fireEvent.mouseEnter(preview);
+    fireEvent.mouseMove(preview, { screenX: 10, screenY: 10 });
+    fireEvent.mouseMove(preview, { screenX: 14, screenY: 12 });
     expect(h.onSelectAppWindow).not.toHaveBeenCalled();
     fireEvent(preview, new MouseEvent("auxclick", { bubbles: true, button: 1 }));
     expect(h.onMinimize).toHaveBeenCalledWith(101);

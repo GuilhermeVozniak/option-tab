@@ -62,11 +62,14 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
-// computeLayout derives grid dimensions and thumbnail size for a window count.
-export function computeLayout(input: LayoutInput): Layout {
-  const { count, maxColumns, maxRows, thumbnailMaxPx, autoSize } = input;
-  const { viewportW = 0, viewportH = 0, showTitle = false, previewEnabled = false } = input;
-  const vertical = input.layoutDirection === "vertical";
+// gridShape is the number of columns and rows the entries occupy. A horizontal
+// grid fills rows first, a vertical grid fills columns first.
+export function gridShape(
+  count: number,
+  maxColumns: number,
+  maxRows: number,
+  vertical: boolean,
+): { columns: number; rows: number } {
   const rows =
     count <= 0
       ? 0
@@ -76,6 +79,38 @@ export function computeLayout(input: LayoutInput): Layout {
   const columns = vertical
     ? Math.max(1, Math.ceil(count / Math.max(rows, 1)))
     : Math.max(1, Math.min(maxColumns, count || 1));
+  return { columns, rows };
+}
+
+// crossAxisIndex returns the entry one line away from index across the fill
+// direction: a row down or up in a horizontal grid, a column right or left in
+// a vertical one. lineLength is the number of entries in a full line. A
+// shorter last line is entered at its last entry. null means there is no line
+// in that direction.
+export function crossAxisIndex(
+  index: number,
+  count: number,
+  lineLength: number,
+  delta: 1 | -1,
+): number | null {
+  if (lineLength <= 0 || index < 0 || index >= count) return null;
+  const target = index + delta * lineLength;
+  if (target < 0) return null;
+  if (target < count) return target;
+  const lastLine = Math.floor((count - 1) / lineLength);
+  return Math.floor(index / lineLength) < lastLine ? count - 1 : null;
+}
+
+// computeLayout derives grid dimensions and thumbnail size for a window count.
+export function computeLayout(input: LayoutInput): Layout {
+  const { count, maxColumns, maxRows, thumbnailMaxPx, autoSize } = input;
+  const { viewportW = 0, viewportH = 0, showTitle = false, previewEnabled = false } = input;
+  const { columns, rows } = gridShape(
+    count,
+    maxColumns,
+    maxRows,
+    input.layoutDirection === "vertical",
+  );
 
   // AltTab-style sizing: let the grid grow rows at full size and only scale
   // thumbnails down once the window count exceeds the grid's capacity, with a
